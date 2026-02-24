@@ -8,15 +8,13 @@ import { cn } from "@/lib/utils";
 import {
     LayoutDashboard, Clock, FileText, GraduationCap, ClipboardList,
     Trophy, HardHat, HandHelping, Lightbulb, DollarSign, Heart,
-    Briefcase, Users, ScrollText, Settings, LogOut, Menu, X, ChevronRight,
+    Briefcase, Users, ScrollText, Settings, LogOut, Menu, X, ChevronRight, Tv,
 } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 
 const iconMap: Record<string, React.ElementType> = {
     LayoutDashboard, Clock, FileText, GraduationCap, ClipboardList,
     Trophy, HardHat, HandHelping, Lightbulb, DollarSign, Heart,
-    Briefcase, Users, ScrollText, Settings,
+    Briefcase, Users, ScrollText, Settings, Tv,
 };
 
 export default function AppSidebar() {

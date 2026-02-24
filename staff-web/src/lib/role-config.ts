@@ -36,6 +36,7 @@ export const navItems: NavItem[] = [
     { title: "User Management", href: "/dashboard/users", icon: "Users", roles: ["admin"], section: "Administration" },
     { title: "Audit Logs", href: "/dashboard/audit-logs", icon: "ScrollText", roles: ["admin"], section: "Administration" },
     { title: "Settings", href: "/dashboard/settings", icon: "Settings", roles: ["admin"], section: "Administration" },
+    { title: "Kiosk / TV", href: "/dashboard/kiosk", icon: "Tv", roles: ["admin"], section: "Administration" },
 ];
 
 export function canAccess(userRole: UserRole, requiredRoles: UserRole[]): boolean {
