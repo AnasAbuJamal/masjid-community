@@ -1,0 +1,549 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────
+//  USERS & AUTH
+// ──────────────────────────────────────
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  role          UserRole  @default(teacher)
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  blogPosts     BlogPost[]
+  assignments   Assignment[]  @relation("AssignmentTeacher")
+  auditLogs     AuditLog[]
+}
+
+enum UserRole {
+  admin
+  teacher
+}
+
+// ──────────────────────────────────────
+//  PRAYER TIMES
+// ──────────────────────────────────────
+
+model PrayerTime {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  date      DateTime @unique
+  fajr      String
+  sunrise   String
+  dhuhr     String
+  asr       String
+  maghrib   String
+  isha      String
+  jummah1   String?
+  jummah2   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
+//  BLOG / NEWS
+// ──────────────────────────────────────
+
+model BlogPost {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  slug       String     @unique
+  body       String
+  coverImage String?
+  tags       String[]
+  status     PostStatus @default(draft)
+  authorId   String     @db.ObjectId
+  author     User       @relation(fields: [authorId], references: [id])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+enum PostStatus {
+  draft
+  published
+  archived
+}
+
+// ──────────────────────────────────────
+//  SCHOOL: CLASSES, STUDENTS, ASSIGNMENTS
+// ──────────────────────────────────────
+
+model Class {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  teacherName  String
+  schedule     String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  students     Student[]
+}
+
+model Student {
+  id               String           @id @default(auto()) @map("_id") @db.ObjectId
+  studentId        String           @unique
+  firstName        String
+  lastName         String
+  classId          String           @db.ObjectId
+  class            Class            @relation(fields: [classId], references: [id])
+  parentName       String
+  parentEmail      String?
+  parentPhone      String?
+  totalPoints      Int              @default(0)
+  currentLevel     Int              @default(1)
+  attendanceRate   Float            @default(0)
+  attendanceStatus AttendanceStatus @default(good)
+  photoUrl         String?
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  assignments      Assignment[]
+}
+
+model Assignment {
+  id          String             @id @default(auto()) @map("_id") @db.ObjectId
+  studentId   String             @db.ObjectId
+  student     Student            @relation(fields: [studentId], references: [id])
+  teacherId   String             @db.ObjectId
+  teacher     User               @relation("AssignmentTeacher", fields: [teacherId], references: [id])
+  date        DateTime
+  type        AssignmentType
+  location    AssignmentLocation
+  description String
+  status      AssignmentStatus   @default(pending)
+  rating      Rating             @default(none)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+enum AssignmentType {
+  new_lesson
+  review
+}
+
+enum AssignmentLocation {
+  masjid
+  home
+}
+
+enum AssignmentStatus {
+  pending
+  completed
+}
+
+enum Rating {
+  none
+  weak
+  good
+  very_good
+  excellent
+}
+
+enum AttendanceStatus {
+  excellent
+  very_good
+  good
+  needs_improvement
+  poor
+}
+
+// ──────────────────────────────────────
+//  CONSTRUCTION
+// ──────────────────────────────────────
+
+model ConstructionProject {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String?
+  progressPercent Int      @default(0)
+  isUrgent        Boolean  @default(false)
+  displayOrder    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
+//  VOLUNTEERS
+// ──────────────────────────────────────
+
+model VolunteerOpportunity {
+  id           String          @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  description  String
+  eventDate    DateTime
+  spotsTotal   Int
+  spotsFilled  Int             @default(0)
+  status       VolunteerStatus @default(open)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  applications VolunteerApplication[]
+}
+
+enum VolunteerStatus {
+  open
+  closed
+}
+
+model VolunteerApplication {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  opportunityId   String              @db.ObjectId
+  opportunity     VolunteerOpportunity @relation(fields: [opportunityId], references: [id])
+  userName        String
+  userEmail       String
+  userPhone       String?
+  skills          String?
+  status          ApplicationStatus   @default(pending)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+}
+
+// ──────────────────────────────────────
+//  COMMUNITY PROJECT PROPOSALS (Enhanced)
+// ──────────────────────────────────────
+
+model ProjectProposal {
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  summary           String
+  description       String
+  category          ProposalCategory
+  submitterName     String
+  submitterEmail    String
+  submitterPhone    String?
+  submitterRole     String?
+
+  totalBudget       Float
+  budgetItems       Json[]
+  fundingSource     String?
+  isFundingSecured  Boolean          @default(false)
+
+  objectives        String[]
+  timeline          Json[]
+  estimatedDuration String
+  startDate         DateTime?
+  endDate           DateTime?
+  milestones        Json[]
+
+  resourcesNeeded   String[]
+  volunteersNeeded  Int?
+  skillsRequired    String[]
+  spaceRequired     String?
+
+  targetAudience    String?
+  expectedImpact    String?
+  communityNeed     String?
+  successMetrics    String[]
+
+  attachments       Json[]
+  coverImage        String?
+
+  status            ProposalStatus   @default(pending)
+  adminNotes        String?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  rejectionReason   String?
+  priority          ProposalPriority @default(normal)
+
+  currentPhase      String?
+  actualSpent       Float?
+  completionPercent Int?             @default(0)
+  isCompleted       Boolean          @default(false)
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  comments          ProposalComment[]
+}
+
+model ProposalComment {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  proposalId  String          @db.ObjectId
+  proposal    ProjectProposal @relation(fields: [proposalId], references: [id])
+  authorName  String
+  authorRole  String
+  message     String
+  isInternal  Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+}
+
+enum ProposalStatus {
+  pending
+  under_review
+  needs_revision
+  approved
+  in_progress
+  completed
+  declined
+  on_hold
+}
+
+enum ProposalPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum ProposalCategory {
+  education
+  youth
+  community_event
+  facility
+  social_services
+  technology
+  sports_fitness
+  arts_culture
+  environment
+  other
+}
+
+// ──────────────────────────────────────
+//  DONATIONS (STRIPE)
+// ──────────────────────────────────────
+
+model Donation {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  stripeSessionId   String         @unique
+  stripePaymentId   String?        @unique
+  donorName         String?
+  donorEmail        String?
+  amount            Float
+  currency          String         @default("usd")
+  status            DonationStatus @default(pending)
+  isRecurring       Boolean        @default(false)
+  stripeSubId       String?
+  campaign          String?
+  isAnonymous       Boolean        @default(false)
+  receiptUrl        String?
+  metadata          Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+enum DonationStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+// ──────────────────────────────────────
+//  SITE SETTINGS
+// ──────────────────────────────────────
+
+model SiteSetting {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
+//  KIOSK / TV ANNOUNCEMENTS
+// ──────────────────────────────────────
+
+model KioskAnnouncement {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  message   String
+  type      AnnouncementType @default(general)
+  priority  Int              @default(0)
+  isActive  Boolean          @default(true)
+  startsAt  DateTime         @default(now())
+  expiresAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+enum AnnouncementType {
+  general
+  urgent
+  event
+  ramadan
+  fundraiser
+}
+
+// ──────────────────────────────────────
+//  FINANCIALS
+// ──────────────────────────────────────
+
+model FinancialRecord {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  month     String
+  year      Int
+  donations Float    @default(0)
+  expenses  Float    @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FinancialSummary {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  totalSpent      Float    @default(0)
+  bankBalance     Float    @default(0)
+  totalGoal       Float    @default(0)
+  totalRaised     Float    @default(0)
+  remainingNeeded Float    @default(0)
+  lastUpdated     DateTime @default(now())
+}
+
+// ──────────────────────────────────────
+//  COMMUNITY JOBS BOARD
+// ──────────────────────────────────────
+
+model JobPosting {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  company         String
+  contactName     String
+  contactEmail    String
+  contactPhone    String?
+  description     String
+  requirements    String[]
+  location        String
+  locationType    LocationType   @default(on_site)
+  employmentType  EmploymentType @default(full_time)
+  salaryMin       Float?
+  salaryMax       Float?
+  salaryPeriod    SalaryPeriod?  @default(yearly)
+  category        String
+  isUrgent        Boolean        @default(false)
+  status          JobStatus      @default(pending_review)
+  expiresAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  applications    JobApplication[]
+}
+
+enum LocationType {
+  on_site
+  remote
+  hybrid
+}
+
+enum EmploymentType {
+  full_time
+  part_time
+  contract
+  temporary
+  internship
+}
+
+enum SalaryPeriod {
+  hourly
+  weekly
+  monthly
+  yearly
+}
+
+enum JobStatus {
+  pending_review
+  active
+  paused
+  expired
+  closed
+  rejected
+}
+
+model JobApplication {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  jobId           String        @db.ObjectId
+  job             JobPosting    @relation(fields: [jobId], references: [id])
+  applicantName   String
+  applicantEmail  String
+  applicantPhone  String?
+  resumeUrl       String?
+  coverLetter     String?
+  workerProfileId String?       @db.ObjectId
+  workerProfile   WorkerProfile? @relation(fields: [workerProfileId], references: [id])
+  status          JobAppStatus  @default(submitted)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum JobAppStatus {
+  submitted
+  reviewed
+  shortlisted
+  hired
+  declined
+}
+
+model WorkerProfile {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  fullName       String
+  email          String        @unique
+  phone          String?
+  headline       String
+  bio            String
+  skills         String[]
+  experience     Json[]
+  education      Json[]
+  certifications String[]
+  location       String
+  availability   Availability  @default(available)
+  portfolioUrl   String?
+  photoUrl       String?
+  resumeUrl      String?
+  isPublic       Boolean       @default(true)
+  status         ProfileStatus @default(pending_review)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  applications   JobApplication[]
+}
+
+enum Availability {
+  available
+  open_to_offers
+  not_available
+}
+
+enum ProfileStatus {
+  pending_review
+  approved
+  rejected
+  suspended
+}
+
+// ──────────────────────────────────────
+//  AUDIT LOGS
+// ──────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  action    String
+  email     String?
+  userId    String?  @db.ObjectId
+  user      User?    @relation(fields: [userId], references: [id])
+  details   String?
+  ipAddress String?
+  success   Boolean
+  createdAt DateTime @default(now())
+}
