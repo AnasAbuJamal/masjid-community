@@ -1,22 +1,152 @@
 import React, { useState } from 'react';
-import { View, TextInput, Text, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
-import { COLORS } from '../../constants/theme';
+import {
+  View,
+  TextInput,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextInputProps,
+  TouchableOpacity,
+} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
-export const Input: React.FC<TextInputProps & { label?: string; error?: string; containerStyle?: ViewStyle }> = ({ label, error, containerStyle, ...props }) => (
-  <View style={[styles.container, containerStyle]}>
-    {label && <Text style={styles.label}>{label}</Text>}
-    <View style={[styles.inputContainer, error && styles.inputError]}>
-      <TextInput style={styles.input} placeholderTextColor={COLORS.textSecondary} {...props} />
+interface InputProps extends TextInputProps {
+  label?: string;
+  error?: string;
+  hint?: string;
+  leftIcon?: string;
+  rightIcon?: string;
+  onRightIconPress?: () => void;
+  containerStyle?: ViewStyle;
+  inputStyle?: ViewStyle;
+}
+
+export const Input: React.FC<InputProps> = ({
+  label,
+  error,
+  hint,
+  leftIcon,
+  rightIcon,
+  onRightIconPress,
+  containerStyle,
+  inputStyle,
+  secureTextEntry,
+  ...props
+}) => {
+  const [focused, setFocused] = useState(false);
+  const [secure, setSecure] = useState(secureTextEntry ?? false);
+
+  const isPassword = secureTextEntry;
+
+  return (
+    <View style={[styles.container, containerStyle]}>
+      {label && <Text style={styles.label}>{label}</Text>}
+      <View
+        style={[
+          styles.inputWrapper,
+          focused && styles.inputFocused,
+          error && styles.inputError,
+        ]}
+      >
+        {leftIcon && (
+          <MaterialCommunityIcons
+            name={leftIcon as any}
+            size={20}
+            color={focused ? COLORS.primary : COLORS.textSecondary}
+            style={styles.leftIcon}
+          />
+        )}
+        <TextInput
+          style={[styles.input, inputStyle]}
+          placeholderTextColor={COLORS.textLight}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          secureTextEntry={secure}
+          {...props}
+        />
+        {isPassword ? (
+          <TouchableOpacity
+            onPress={() => setSecure(!secure)}
+            style={styles.rightIcon}
+          >
+            <MaterialCommunityIcons
+              name={secure ? 'eye-outline' : 'eye-off-outline'}
+              size={20}
+              color={COLORS.textSecondary}
+            />
+          </TouchableOpacity>
+        ) : rightIcon ? (
+          <TouchableOpacity
+            onPress={onRightIconPress}
+            style={styles.rightIcon}
+            disabled={!onRightIconPress}
+          >
+            <MaterialCommunityIcons
+              name={rightIcon as any}
+              size={20}
+              color={COLORS.textSecondary}
+            />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : hint ? (
+        <Text style={styles.hint}>{hint}</Text>
+      ) : null}
     </View>
-    {error && <Text style={styles.error}>{error}</Text>}
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
-  container: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '500', color: COLORS.text, marginBottom: 8 },
-  inputContainer: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.surface, borderRadius: 8, paddingHorizontal: 12 },
-  inputError: { borderColor: COLORS.error },
-  input: { paddingVertical: 12, fontSize: 16, color: COLORS.text },
-  error: { fontSize: 12, color: COLORS.error, marginTop: 4 },
+  container: {
+    marginBottom: SPACING.md,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.xs + 2,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm + 4,
+    minHeight: 48,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.white,
+  },
+  inputError: {
+    borderColor: COLORS.error,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: SPACING.sm + 4,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  leftIcon: {
+    marginRight: SPACING.xs + 2,
+  },
+  rightIcon: {
+    marginLeft: SPACING.xs + 2,
+    padding: 2,
+  },
+  error: {
+    fontSize: 12,
+    color: COLORS.error,
+    marginTop: SPACING.xs,
+  },
+  hint: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+  },
 });
