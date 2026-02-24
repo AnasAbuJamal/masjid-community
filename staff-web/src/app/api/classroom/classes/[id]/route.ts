@@ -4,25 +4,19 @@ import { auth } from "@/lib/auth";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const session = await auth();
-    if (!session || session.user.role !== "admin") {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
     const body = await req.json();
-    if (body.date) body.date = new Date(body.date);
-
-    const prayer = await prisma.prayerTime.update({ where: { id }, data: body });
-    return NextResponse.json(prayer);
+    const cls = await prisma.class.update({ where: { id }, data: body });
+    return NextResponse.json(cls);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const session = await auth();
-    if (!session || session.user.role !== "admin") {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    await prisma.prayerTime.delete({ where: { id } });
+    await prisma.class.delete({ where: { id } });
     return NextResponse.json({ success: true });
 }

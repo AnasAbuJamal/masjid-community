@@ -11,7 +11,14 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "30");
     const month = searchParams.get("month");
 
-    const where = month ? { date: { gte: new Date(`${month}-01`), lt: new Date(new Date(`${month}-01`).setMonth(new Date(`${month}-01`).getMonth() + 1)) } } : {};
+    const where = month
+        ? {
+            date: {
+                gte: new Date(`${month}-01`),
+                lt: new Date(new Date(`${month}-01`).setMonth(new Date(`${month}-01`).getMonth() + 1)),
+            },
+        }
+        : {};
 
     const [prayers, total] = await Promise.all([
         prisma.prayerTime.findMany({
@@ -28,7 +35,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     const session = await auth();
-    if (!session || (session.user as { role: string }).role !== "admin") {
+    if (!session || session.user.role !== "admin") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

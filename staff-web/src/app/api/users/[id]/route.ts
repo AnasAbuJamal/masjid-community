@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import bcrypt from "bcryptjs";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const session = await auth();
@@ -10,10 +11,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    if (body.date) body.date = new Date(body.date);
 
-    const prayer = await prisma.prayerTime.update({ where: { id }, data: body });
-    return NextResponse.json(prayer);
+    // If password is being changed, hash it
+    if (body.password) {
+        body.passwordHash = await bcrypt.hash(body.password, 12);
+        delete body.password;
+    }
+
+    if (body.email) body.email = body.email.toLowerCase();
+
+    const user = await prisma.user.update({
+        where: { id },
+        data: body,
+        select: {
+            id: true, email: true, firstName: true, lastName: true,
+            role: true, isActive: true, isVerified: true,
+        },
+    });
+
+    return NextResponse.json(user);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +39,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.prayerTime.delete({ where: { id } });
+
+    // Don't allow deleting self
+    if (id === session.user.id) {
+        return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
+    }
+
+    await prisma.user.update({ where: { id }, data: { isActive: false } });
     return NextResponse.json({ success: true });
 }

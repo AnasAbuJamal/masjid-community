@@ -10,10 +10,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    if (body.date) body.date = new Date(body.date);
+    if (body.expiresAt) body.expiresAt = new Date(body.expiresAt);
 
-    const prayer = await prisma.prayerTime.update({ where: { id }, data: body });
-    return NextResponse.json(prayer);
+    const posting = await prisma.jobPosting.update({ where: { id }, data: body });
+    return NextResponse.json(posting);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +23,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.prayerTime.delete({ where: { id } });
+    await prisma.jobPosting.delete({ where: { id } });
     return NextResponse.json({ success: true });
 }
