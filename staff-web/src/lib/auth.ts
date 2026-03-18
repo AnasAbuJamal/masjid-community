@@ -1,11 +1,28 @@
 import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { getServerSession } from "next-auth";
+import type { DefaultSession, NextAuthOptions } from "next-auth";
+import type { JWT as NextAuthJWT } from "next-auth/jwt";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+declare module "next-auth" {
+    interface Session extends DefaultSession {
+        user: {
+            id: string;
+            role: string;
+        } & DefaultSession["user"];
+    }
+    interface User {
+        role: string;
+    }
+}
+
+
+
+export const authOptions: NextAuthOptions = {
     providers: [
-        Credentials({
+        CredentialsProvider({
             name: "credentials",
             credentials: {
                 email: { label: "Email", type: "email" },
@@ -32,7 +49,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     return null;
                 }
 
-                // Update last login
                 await prisma.user.update({
                     where: { id: user.id },
                     data: { lastLoginAt: new Date() },
@@ -51,14 +67,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         async jwt({ token, user }) {
             if (user) {
                 token.role = user.role;
-                token.id = user.id as string;
+                token.id = user.id;
             }
             return token;
         },
         async session({ session, token }) {
             if (session?.user) {
-                session.user.role = token.role as string;
-                session.user.id = token.id as string;
+                (session.user as any).role = token.role;
+                (session.user as any).id = token.id;
             }
             return session;
         },
@@ -68,6 +84,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     session: {
         strategy: "jwt",
-        maxAge: 30 * 60, // 30 minutes
+        maxAge: 30 * 60,
     },
-});
+    secret: process.env.AUTH_SECRET,
+};
+
+/**
+ * Server-side session helper for API routes and Server Components.
+ * Usage: `const session = await auth();`
+ */
+export async function auth() {
+    return getServerSession(authOptions);
+}

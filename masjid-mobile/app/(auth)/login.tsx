@@ -12,9 +12,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, Input } from '../../components/common';
+import { GlassButton, GlassCard, FloatingIcon, ScreenWrapper } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { Input } from '../../components/common/Input';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -27,11 +28,9 @@ export default function LoginScreen() {
   const validate = (): boolean => {
     const newErrors: typeof errors = {};
     if (!email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email))
-      newErrors.email = 'Enter a valid email';
+    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Enter a valid email';
     if (!password) newErrors.password = 'Password is required';
-    else if (password.length < 6)
-      newErrors.password = 'Password must be at least 6 characters';
+    else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -49,124 +48,129 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.kav}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+    <ScreenWrapper showBackground={false}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.kav}
         >
-          {/* Logo / branding */}
-          <View style={styles.logoWrap}>
-            <View style={styles.logoCircle}>
-              <MaterialCommunityIcons name="mosque" size={44} color={COLORS.white} />
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Logo */}
+            <View style={styles.logoWrap}>
+              <GlassCard style={styles.logoCircle} variant="floating">
+                <MaterialCommunityIcons name="mosque" size={44} color={COLORS.primary} />
+              </GlassCard>
+              <Text style={styles.brandName}>Masjid Al-Momineen</Text>
+              <Text style={styles.brandTagline}>Community App</Text>
             </View>
-            <Text style={styles.brandName}>Masjid Al-Momineen</Text>
-            <Text style={styles.brandTagline}>Community App</Text>
-          </View>
 
-          {/* Form card */}
-          <View style={styles.card}>
-            <Text style={styles.formTitle}>Welcome Back</Text>
-            <Text style={styles.formSubtitle}>Sign in to your account</Text>
+            {/* Form */}
+            <GlassCard style={styles.card}>
+              <Text style={styles.formTitle}>Welcome Back</Text>
+              <Text style={styles.formSubtitle}>Sign in to your account</Text>
 
-            <Input
-              label="Email Address"
-              value={email}
-              onChangeText={(v) => {
-                setEmail(v);
-                if (errors.email) setErrors({ ...errors, email: undefined });
-              }}
-              placeholder="your@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              leftIcon="email-outline"
-              error={errors.email}
-            />
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <Input
+                  value={email}
+                  onChangeText={(v) => {
+                    setEmail(v);
+                    if (errors.email) setErrors({ ...errors, email: undefined });
+                  }}
+                  placeholder="your@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  containerStyle={styles.input}
+                />
+                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              </View>
 
-            <Input
-              label="Password"
-              value={password}
-              onChangeText={(v) => {
-                setPassword(v);
-                if (errors.password) setErrors({ ...errors, password: undefined });
-              }}
-              placeholder="Enter your password"
-              secureTextEntry
-              leftIcon="lock-outline"
-              error={errors.password}
-            />
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <Input
+                  value={password}
+                  onChangeText={(v) => {
+                    setPassword(v);
+                    if (errors.password) setErrors({ ...errors, password: undefined });
+                  }}
+                  placeholder="Enter your password"
+                  secureTextEntry
+                  containerStyle={styles.input}
+                />
+                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              </View>
 
-            <Button
-              title="Sign In"
-              onPress={handleLogin}
-              loading={loading}
-              fullWidth
-              size="lg"
-              style={styles.signInButton}
-            />
+              <GlassButton
+                title="Sign In"
+                onPress={handleLogin}
+                loading={loading}
+                fullWidth
+                size="lg"
+                style={styles.signInButton}
+              />
 
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-                <Text style={styles.footerLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Don't have an account? </Text>
+                <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+                  <Text style={styles.footerLink}>Sign Up</Text>
+                </TouchableOpacity>
+              </View>
+            </GlassCard>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.primary },
-  kav: { flex: 1 },
+  container: {
+    flex: 1,
+  },
+  kav: {
+    flex: 1,
+  },
   content: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
+    justifyContent: 'center',
   },
 
   logoWrap: {
     alignItems: 'center',
-    paddingTop: SPACING.xxl,
-    paddingBottom: SPACING.xl,
+    paddingVertical: SPACING.xl,
   },
   logoCircle: {
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.md,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   brandName: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
-    color: COLORS.white,
+    color: COLORS.text,
     letterSpacing: 0.3,
   },
   brandTagline: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.65)',
-    marginTop: 2,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    fontWeight: '500',
   },
 
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
     padding: SPACING.lg,
-    ...SHADOWS.lg,
   },
   formTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: COLORS.text,
     marginBottom: SPACING.xs,
@@ -177,13 +181,43 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
 
-  signInButton: { marginTop: SPACING.xs },
+  inputWrapper: {
+    marginBottom: SPACING.md,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  input: {
+    backgroundColor: COLORS.surfaceGlassLight,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+  },
+  errorText: {
+    fontSize: 12,
+    color: COLORS.error,
+    marginTop: 4,
+    marginLeft: SPACING.xs,
+  },
+
+  signInButton: {
+    marginTop: SPACING.md,
+  },
 
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: SPACING.lg,
   },
-  footerText: { color: COLORS.textSecondary, fontSize: 14 },
-  footerLink: { color: COLORS.primary, fontWeight: '700', fontSize: 14 },
+  footerText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+  },
+  footerLink: {
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

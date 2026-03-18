@@ -37,42 +37,42 @@ async function getStats() {
 }
 
 const statCards = [
-    { key: "totalStudents", label: "Active Students", icon: "🎓", color: "from-blue-500 to-blue-600" },
-    { key: "activeClasses", label: "Classes", icon: "📚", color: "from-purple-500 to-purple-600" },
-    { key: "publishedPosts", label: "Published Posts", icon: "📝", color: "from-pink-500 to-pink-600" },
-    { key: "constructionProjects", label: "Construction Projects", icon: "🏗️", color: "from-orange-500 to-orange-600" },
-    { key: "pendingVolunteers", label: "Pending Applications", icon: "🤝", color: "from-teal-500 to-teal-600" },
-    { key: "pendingProposals", label: "Pending Proposals", icon: "💡", color: "from-yellow-500 to-yellow-600" },
-    { key: "activeJobs", label: "Active Jobs", icon: "💼", color: "from-indigo-500 to-indigo-600" },
-    { key: "approvedWorkers", label: "Workers", icon: "👷", color: "from-emerald-500 to-emerald-600" },
+    { key: "totalStudents", label: "Active Students", icon: "🎓", color: "from-stone-500 to-stone-600 text-white" },
+    { key: "activeClasses", label: "Classes", icon: "📚", color: "from-orange-800 to-orange-900 text-white" },
+    { key: "publishedPosts", label: "Published Posts", icon: "📝", color: "from-rose-800 to-rose-900 text-white" },
+    { key: "constructionProjects", label: "Construction Projects", icon: "🏗️", color: "from-orange-400 to-orange-500 text-white" },
+    { key: "pendingVolunteers", label: "Pending Applications", icon: "🤝", color: "from-teal-700 to-teal-800 text-white" },
+    { key: "pendingProposals", label: "Pending Proposals", icon: "💡", color: "from-amber-600 to-amber-700 text-white" },
+    { key: "activeJobs", label: "Active Jobs", icon: "💼", color: "from-zinc-600 to-zinc-700 text-white" },
+    { key: "approvedWorkers", label: "Workers", icon: "👷", color: "mocha-gradient" },
 ];
 
 export default async function DashboardPage() {
     const stats = await getStats();
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-10">
             {/* Page Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1">
-                    Welcome back! Here&apos;s an overview of your masjid operations.
+            <div className="border-b border-mocha-900/10 pb-6 dark:border-white/10">
+                <h1 className="text-4xl font-serif font-medium text-mocha-900 dark:text-cream-100 tracking-tight">Dashboard Overview</h1>
+                <p className="text-mocha-600 dark:text-cream-100/60 mt-2 text-sm tracking-wide">
+                    Welcome back! Here's a high-level view of your masjid operations.
                 </p>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {statCards.map((card, i) => (
-                    <Card key={card.key} className={`animate-fade-in stagger-${i + 1} overflow-hidden`}>
+                    <Card key={card.key} className={`animate-fade-in stagger-${i + 1} glass shadow-elegant dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)] border-white/40 dark:border-white/5`}>
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{card.label}</p>
-                                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-mocha-600/70 dark:text-cream-100/60">{card.label}</p>
+                                    <p className="text-3xl font-serif font-medium text-mocha-900 dark:text-white mt-1.5">
                                         {(stats as Record<string, unknown>)[card.key] as number}
                                     </p>
                                 </div>
-                                <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${card.color} shadow-lg text-xl`}>
+                                <div className={`flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br ${card.color} shadow-lg text-2xl`}>
                                     {card.icon}
                                 </div>
                             </div>
@@ -82,46 +82,46 @@ export default async function DashboardPage() {
             </div>
 
             {/* Bottom Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Total Donations */}
-                <Card className="animate-fade-in">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <span className="text-xl">💰</span>
-                            Total Donations
+                <Card className="animate-fade-in glass shadow-elegant dark:shadow-elegant-dark border-white/40 dark:border-white/5">
+                    <CardHeader className="border-b border-mocha-900/5 dark:border-white/5 pb-4">
+                        <CardTitle className="flex items-center gap-3 font-serif font-medium text-mocha-900 dark:text-white">
+                            <span className="text-2xl">💰</span>
+                            Total Contributions
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-4xl font-bold gradient-text">{formatCurrency(stats.totalDonated / 100)}</p>
-                        <p className="text-sm text-gray-500 mt-2">Total collected via Stripe</p>
+                    <CardContent className="pt-6">
+                        <p className="text-5xl font-serif font-medium mocha-text-gradient dark:text-caramel">{formatCurrency(stats.totalDonated / 100)}</p>
+                        <p className="text-sm font-medium text-mocha-600/70 dark:text-cream-100/60 mt-3 uppercase tracking-wider">Total collected via Stripe</p>
                     </CardContent>
                 </Card>
 
                 {/* Recent Activity */}
-                <Card className="animate-fade-in">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <span className="text-xl">📊</span>
-                            Quick Stats
+                <Card className="animate-fade-in glass shadow-elegant dark:shadow-elegant-dark border-white/40 dark:border-white/5">
+                    <CardHeader className="border-b border-mocha-900/5 dark:border-white/5 pb-4">
+                        <CardTitle className="flex items-center gap-3 font-serif font-medium text-mocha-900 dark:text-white">
+                            <span className="text-2xl">📊</span>
+                            Pending Actions
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Pending Volunteers</span>
-                                <span className="font-semibold text-orange-600">{stats.pendingVolunteers}</span>
+                    <CardContent className="pt-6">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between py-2 border-b border-mocha-900/5 dark:border-white/5 last:border-0 rounded flex-wrap gap-2">
+                                <span className="text-sm font-medium text-mocha-600 dark:text-cream-100/80">Volunteer Applications</span>
+                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">{stats.pendingVolunteers} action needed</span>
                             </div>
-                            <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Pending Proposals</span>
-                                <span className="font-semibold text-yellow-600">{stats.pendingProposals}</span>
+                            <div className="flex items-center justify-between py-2 border-b border-mocha-900/5 dark:border-white/5 last:border-0 rounded flex-wrap gap-2">
+                                <span className="text-sm font-medium text-mocha-600 dark:text-cream-100/80">Project Proposals</span>
+                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">{stats.pendingProposals} action needed</span>
                             </div>
-                            <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Active Job Listings</span>
-                                <span className="font-semibold text-indigo-600">{stats.activeJobs}</span>
+                            <div className="flex items-center justify-between py-2 border-b border-mocha-900/5 dark:border-white/5 last:border-0 rounded flex-wrap gap-2">
+                                <span className="text-sm font-medium text-mocha-600 dark:text-cream-100/80">Active Job Postings</span>
+                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">{stats.activeJobs} listings</span>
                             </div>
-                            <div className="flex items-center justify-between py-2">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Worker Profiles</span>
-                                <span className="font-semibold text-emerald-600">{stats.approvedWorkers}</span>
+                            <div className="flex items-center justify-between py-2 rounded flex-wrap gap-2">
+                                <span className="text-sm font-medium text-mocha-600 dark:text-cream-100/80">Approved Worker Profiles</span>
+                                <span className="px-3 py-1 rounded-full text-xs font-bold mocha-gradient text-white">{stats.approvedWorkers} active</span>
                             </div>
                         </div>
                     </CardContent>

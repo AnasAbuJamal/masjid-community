@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET() {
     const session = await auth();
@@ -33,5 +34,6 @@ export async function POST(req: NextRequest) {
     body.eventDate = new Date(body.eventDate);
 
     const opportunity = await prisma.volunteerOpportunity.create({ data: body });
+    await logAudit({ action: "create_volunteer_opp", userId: session.user.id, details: `Created volunteer opportunity "${body.title}"`, ipAddress: getClientIp(req) });
     return NextResponse.json(opportunity, { status: 201 });
 }

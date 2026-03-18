@@ -1,98 +1,63 @@
 import { Tabs } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 84 : 70;
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 interface TabConfig {
   name: string;
-  title: string;
   icon: IconName;
   iconActive: IconName;
-  headerTitle: string;
 }
 
 const TABS: TabConfig[] = [
-  {
-    name: 'index',
-    title: 'Home',
-    icon: 'home-outline',
-    iconActive: 'home',
-    headerTitle: 'Masjid Al-Momineen',
-  },
-  {
-    name: 'prayers',
-    title: 'Prayers',
-    icon: 'clock-outline',
-    iconActive: 'clock',
-    headerTitle: 'Prayer Times',
-  },
-  {
-    name: 'school',
-    title: 'School',
-    icon: 'school-outline',
-    iconActive: 'school',
-    headerTitle: 'Islamic School',
-  },
-  {
-    name: 'community',
-    title: 'Community',
-    icon: 'account-group-outline',
-    iconActive: 'account-group',
-    headerTitle: 'Community',
-  },
-  {
-    name: 'profile',
-    title: 'Profile',
-    icon: 'account-outline',
-    iconActive: 'account',
-    headerTitle: 'My Profile',
-  },
+  { name: 'index', icon: 'home-outline', iconActive: 'home' },
+  { name: 'prayers', icon: 'clock-outline', iconActive: 'clock' },
+  { name: 'school', icon: 'school-outline', iconActive: 'school' },
+  { name: 'community', icon: 'account-group-outline', iconActive: 'account-group' },
+  { name: 'profile', icon: 'account-outline', iconActive: 'account' },
+  { name: 'settings', icon: 'cog-outline', iconActive: 'cog' },
 ];
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
+        headerShown: false,
         tabBarStyle: {
           backgroundColor: COLORS.surface,
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+          height: TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : (Platform.OS === 'ios' ? 34 : 0)),
           paddingTop: 8,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : (Platform.OS === 'ios' ? 28 : 8),
           borderTopWidth: 1,
           borderTopColor: COLORS.border,
-          elevation: 8,
-          shadowColor: COLORS.text,
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: -2 },
+          elevation: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10.5,
           fontWeight: '600',
-          marginTop: -2,
+          marginTop: 2,
         },
-        headerStyle: { backgroundColor: COLORS.primary },
-        headerTintColor: COLORS.white,
-        headerTitleStyle: { fontWeight: '700', fontSize: 18 },
       }}
     >
-      {TABS.map(({ name, title, icon, iconActive, headerTitle }) => (
+      {TABS.map(({ name, icon, iconActive }) => (
         <Tabs.Screen
           key={name}
           name={name}
           options={{
-            title,
-            headerTitle,
             tabBarIcon: ({ color, focused }) => (
-              <MaterialCommunityIcons
-                name={focused ? iconActive : icon}
-                size={24}
-                color={color}
-              />
+              <View style={styles.iconContainer}>
+                {focused && <View style={styles.activeIndicator} />}
+                <MaterialCommunityIcons name={focused ? iconActive : icon} size={24} color={color} />
+              </View>
             ),
           }}
         />
@@ -100,3 +65,20 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    paddingTop: 4,
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: -8,
+    width: 32,
+    height: 4,
+    backgroundColor: COLORS.primary,
+    borderRadius: 2,
+  },
+});

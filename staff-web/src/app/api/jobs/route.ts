@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET() {
     const session = await auth();
@@ -34,5 +35,6 @@ export async function POST(req: NextRequest) {
     if (body.expiresAt) body.expiresAt = new Date(body.expiresAt);
 
     const posting = await prisma.jobPosting.create({ data: body });
+    await logAudit({ action: "create_job", details: `Created job posting "${body.title}"`, ipAddress: getClientIp(req) });
     return NextResponse.json(posting, { status: 201 });
 }

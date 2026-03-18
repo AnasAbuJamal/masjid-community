@@ -5,13 +5,13 @@ import {
   Text,
   StyleSheet,
   ViewStyle,
-  TextInputProps,
+  TextStyle,
   TouchableOpacity,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
-interface InputProps extends TextInputProps {
+interface InputProps {
   label?: string;
   error?: string;
   hint?: string;
@@ -19,7 +19,17 @@ interface InputProps extends TextInputProps {
   rightIcon?: string;
   onRightIconPress?: () => void;
   containerStyle?: ViewStyle;
-  inputStyle?: ViewStyle;
+  style?: TextStyle;
+  value?: string;
+  onChangeText?: (text: string) => void;
+  placeholder?: string;
+  placeholderTextColor?: string;
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoComplete?: 'email' | 'name' | 'off';
+  secureTextEntry?: boolean;
+  returnKeyType?: 'done' | 'go' | 'next' | 'search' | 'send';
+  onSubmitEditing?: () => void;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -30,7 +40,7 @@ export const Input: React.FC<InputProps> = ({
   rightIcon,
   onRightIconPress,
   containerStyle,
-  inputStyle,
+  style,
   secureTextEntry,
   ...props
 }) => {
@@ -58,7 +68,7 @@ export const Input: React.FC<InputProps> = ({
           />
         )}
         <TextInput
-          style={[styles.input, inputStyle]}
+          style={[styles.input, style]}
           placeholderTextColor={COLORS.textLight}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -66,10 +76,7 @@ export const Input: React.FC<InputProps> = ({
           {...props}
         />
         {isPassword ? (
-          <TouchableOpacity
-            onPress={() => setSecure(!secure)}
-            style={styles.rightIcon}
-          >
+          <TouchableOpacity onPress={() => setSecure(!secure)} style={styles.rightIcon}>
             <MaterialCommunityIcons
               name={secure ? 'eye-outline' : 'eye-off-outline'}
               size={20}
@@ -77,16 +84,8 @@ export const Input: React.FC<InputProps> = ({
             />
           </TouchableOpacity>
         ) : rightIcon ? (
-          <TouchableOpacity
-            onPress={onRightIconPress}
-            style={styles.rightIcon}
-            disabled={!onRightIconPress}
-          >
-            <MaterialCommunityIcons
-              name={rightIcon as any}
-              size={20}
-              color={COLORS.textSecondary}
-            />
+          <TouchableOpacity onPress={onRightIconPress} style={styles.rightIcon} disabled={!onRightIconPress}>
+            <MaterialCommunityIcons name={rightIcon as any} size={20} color={COLORS.textSecondary} />
           </TouchableOpacity>
         ) : null}
       </View>

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiService, { User as ApiUser } from '../services/api-service';
+import api from '../services/api-client';
 
 const USER_STORAGE_KEY = '@masjid:user';
 
@@ -49,16 +51,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   login: async (email: string, password: string): Promise<boolean> => {
     try {
-      // TODO: Replace with real API call
-      // const response = await api.post('/auth/login', { email, password });
-      const firstName = email.split('@')[0];
-      const user: User = {
-        id: Date.now().toString(),
-        email,
-        firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1),
-        lastName: 'Member',
-        role: 'member',
-      };
+      const response = await apiService.auth.login(email, password);
+      const user: User = response.user;
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
       set({ user, isAuthenticated: true });
       return true;
@@ -69,6 +63,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   logout: async () => {
     try {
+      await apiService.auth.logout();
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
+    } catch {
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
     } finally {
       set({ user: null, isAuthenticated: false });

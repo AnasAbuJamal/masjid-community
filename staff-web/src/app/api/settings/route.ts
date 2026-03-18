@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET() {
     const session = await auth();
@@ -32,6 +33,8 @@ export async function POST(req: NextRequest) {
         });
         results.push(setting);
     }
+
+    await logAudit({ action: "update_settings", userId: session.user.id, details: `Updated ${results.length} setting(s)`, ipAddress: getClientIp(req) });
 
     return NextResponse.json({ success: true, settings: results });
 }

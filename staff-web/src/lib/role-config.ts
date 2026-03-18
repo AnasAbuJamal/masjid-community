@@ -32,6 +32,7 @@ export const navItems: NavItem[] = [
     { title: "Donations", href: "/dashboard/donations", icon: "Heart", roles: ["admin"], section: "Finance" },
     // Community
     { title: "Jobs Board", href: "/dashboard/jobs", icon: "Briefcase", roles: ["admin"], section: "Community" },
+    { title: "Worker Profiles", href: "/dashboard/workers", icon: "Users", roles: ["admin"], section: "Community" },
     // Administration
     { title: "User Management", href: "/dashboard/users", icon: "Users", roles: ["admin"], section: "Administration" },
     { title: "Audit Logs", href: "/dashboard/audit-logs", icon: "ScrollText", roles: ["admin"], section: "Administration" },

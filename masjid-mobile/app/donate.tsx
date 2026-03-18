@@ -63,19 +63,22 @@ export default function DonateScreen() {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [donorName, setDonorName] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const campaign = CAMPAIGNS.find((c) => c.id === selectedCampaign)!;
   const donationAmount = selectedAmount ?? (parseFloat(customAmount) || null);
   const pct = Math.round((campaign.raised / campaign.goal) * 100);
+  const remaining = campaign.goal - campaign.raised;
 
   const handleDonate = () => {
     if (!donationAmount || donationAmount <= 0) {
       Alert.alert('Amount Required', 'Please select or enter a donation amount.');
       return;
     }
+    const donorDisplay = isAnonymous ? 'Anonymous' : (donorName || 'Anonymous');
     Alert.alert(
       'Jazakallah Khayran!',
-      `Your donation of $${donationAmount} to the ${campaign.name} has been received. May Allah bless you abundantly.`,
+      `Your donation of $${donationAmount} to the ${campaign.name} ${isAnonymous ? '(anonymous)' : ''} has been received. May Allah bless you abundantly.`,
       [{ text: 'Ameen!', onPress: () => router.back() }]
     );
   };
@@ -104,6 +107,7 @@ export default function DonateScreen() {
           {CAMPAIGNS.map((c) => {
             const cp = Math.round((c.raised / c.goal) * 100);
             const isSelected = selectedCampaign === c.id;
+            const remainingAmount = c.goal - c.raised;
             return (
               <TouchableOpacity
                 key={c.id}
@@ -124,6 +128,13 @@ export default function DonateScreen() {
                     <Text style={styles.progressLabel}>
                       {formatCurrency(c.raised)} / {formatCurrency(c.goal)}
                     </Text>
+                  </View>
+                  <View style={styles.goalProgressRow}>
+                    <View style={styles.goalInfo}>
+                      <View style={[styles.goalDot, { backgroundColor: c.color }]} />
+                      <Text style={styles.goalText}>{cp}% funded</Text>
+                    </View>
+                    <Text style={styles.remainingText}>{formatCurrency(remainingAmount)} remaining</Text>
                   </View>
                 </View>
                 {isSelected && (
@@ -185,9 +196,24 @@ export default function DonateScreen() {
             style={styles.nameInput}
             value={donorName}
             onChangeText={setDonorName}
-            placeholder="Anonymous donation"
+            placeholder={isAnonymous ? "Your name hidden" : "Anonymous donation"}
             placeholderTextColor={COLORS.textSecondary}
+            editable={!isAnonymous}
           />
+
+          {/* Anonymous toggle */}
+          <TouchableOpacity style={styles.anonymousRow} onPress={() => { setIsAnonymous(!isAnonymous); if (!isAnonymous) setDonorName(''); }}>
+            <View style={styles.anonymousContent}>
+              <MaterialCommunityIcons name="eye-off" size={20} color={isAnonymous ? COLORS.primary : COLORS.textSecondary} />
+              <View>
+                <Text style={styles.anonymousTitle}>Donate Anonymously</Text>
+                <Text style={styles.anonymousSubtitle}>Your name will not be displayed publicly</Text>
+              </View>
+            </View>
+            <View style={[styles.checkbox, isAnonymous && styles.checkboxChecked]}>
+              {isAnonymous && <MaterialCommunityIcons name="check" size={14} color={COLORS.white} />}
+            </View>
+          </TouchableOpacity>
 
           {/* Donate button */}
           <TouchableOpacity
@@ -296,6 +322,11 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
   },
   progressLabel: { fontSize: 11, color: COLORS.textSecondary },
+  goalProgressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: SPACING.xs },
+  goalInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  goalDot: { width: 8, height: 8, borderRadius: 4 },
+  goalText: { fontSize: 12, fontWeight: '600', color: COLORS.success },
+  remainingText: { fontSize: 11, color: COLORS.textSecondary },
 
   amountsGrid: {
     flexDirection: 'row',
@@ -382,4 +413,28 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     lineHeight: 18,
   },
+  anonymousRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginTop: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  anonymousContent: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flex: 1 },
+  anonymousTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  anonymousSubtitle: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 });

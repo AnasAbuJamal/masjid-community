@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const session = await auth();
@@ -29,6 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         },
     });
 
+    await logAudit({ action: "update_user", userId: session.user.id, details: `Updated user ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(user);
 }
 
@@ -46,5 +48,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     await prisma.user.update({ where: { id }, data: { isActive: false } });
+    await logAudit({ action: "delete_user", userId: session.user.id, details: `Deactivated user ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }

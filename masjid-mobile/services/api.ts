@@ -1,8 +1,10 @@
 /**
  * API Service Layer
- * Currently using mock data. Replace with real API calls when backend is ready.
+ * Connected to the staff-web backend API.
  * Base URL is configured via EXPO_PUBLIC_API_URL env variable.
  */
+
+import api from './api-client';
 
 export interface PrayerTimes {
   fajr: string;
@@ -19,8 +21,9 @@ export interface Announcement {
   id: string;
   title: string;
   message: string;
-  type: 'general' | 'ramadan' | 'urgent' | 'event';
+  type: 'general' | 'ramadan' | 'urgent' | 'event' | 'fundraiser';
   date?: string;
+  isActive?: boolean;
 }
 
 export interface Job {
@@ -29,10 +32,10 @@ export interface Job {
   company: string;
   description: string;
   location: string;
-  employmentType: 'full_time' | 'part_time' | 'contract' | 'volunteer';
+  employmentType: 'full_time' | 'part_time' | 'contract' | 'temporary' | 'internship';
   salaryMin?: number;
   salaryMax?: number;
-  status: 'active' | 'closed';
+  status: 'active' | 'closed' | 'pending_review' | 'paused' | 'expired' | 'rejected';
   isUrgent?: boolean;
   contactEmail?: string;
   postedAt?: string;
@@ -45,57 +48,92 @@ export interface VolunteerOpportunity {
   eventDate?: string;
   spotsTotal: number;
   spotsFilled: number;
-  status: 'open' | 'closed' | 'cancelled';
+  status: 'open' | 'closed';
 }
 
 // ─────────────────────────────────────────
 // Prayer Service
 // ─────────────────────────────────────────
 export const prayerService = {
-  getToday: async (): Promise<PrayerTimes> => ({
-    fajr: '05:45',
-    sunrise: '07:10',
-    dhuhr: '12:30',
-    asr: '15:45',
-    maghrib: '18:00',
-    isha: '19:30',
-    jummah1: '13:00',
-    jummah2: '14:00',
-  }),
+  getToday: async (): Promise<PrayerTimes> => {
+    try {
+      const res = await api.instance.get('/prayers', {
+        params: { limit: 1 },
+      });
+      const prayers = res.data.prayers;
+      if (prayers && prayers.length > 0) {
+        const p = prayers[0];
+        return {
+          fajr: p.fajr,
+          sunrise: p.sunrise,
+          dhuhr: p.dhuhr,
+          asr: p.asr,
+          maghrib: p.maghrib,
+          isha: p.isha,
+          jummah1: p.jummah1 || '',
+          jummah2: p.jummah2 || '',
+        };
+      }
+    } catch (error) {
+      console.error('[API] Failed to fetch prayer times:', error);
+    }
+    // Fallback if API fails
+    return {
+      fajr: '--:--',
+      sunrise: '--:--',
+      dhuhr: '--:--',
+      asr: '--:--',
+      maghrib: '--:--',
+      isha: '--:--',
+      jummah1: '--:--',
+      jummah2: '--:--',
+    };
+  },
 
-  getWeek: async (): Promise<PrayerTimes[]> => [],
+  getWeek: async (): Promise<PrayerTimes[]> => {
+    try {
+      const res = await api.instance.get('/prayers', {
+        params: { limit: 7 },
+      });
+      return (res.data.prayers || []).map((p: any) => ({
+        fajr: p.fajr,
+        sunrise: p.sunrise,
+        dhuhr: p.dhuhr,
+        asr: p.asr,
+        maghrib: p.maghrib,
+        isha: p.isha,
+        jummah1: p.jummah1 || '',
+        jummah2: p.jummah2 || '',
+      }));
+    } catch (error) {
+      console.error('[API] Failed to fetch weekly prayers:', error);
+      return [];
+    }
+  },
 };
 
 // ─────────────────────────────────────────
 // Announcement Service
 // ─────────────────────────────────────────
 export const announcementService = {
-  getAll: async (): Promise<Announcement[]> => [
-    {
-      id: '1',
-      title: 'Ramadan Mubarak!',
-      message:
-        'Wishing our entire community a blessed and joyful Ramadan. May Allah accept all your prayers and fasting.',
-      type: 'ramadan',
-      date: 'March 1, 2026',
-    },
-    {
-      id: '2',
-      title: 'Youth Summer Registration Open',
-      message:
-        'Registration is now open for summer Islamic school programs. Limited spots available for ages 6-17.',
-      type: 'general',
-      date: 'February 20, 2026',
-    },
-    {
-      id: '3',
-      title: 'Masjid Expansion Fundraiser',
-      message:
-        'We are launching Phase 2 of our expansion project. Your generous donations will help build more capacity for our community.',
-      type: 'event',
-      date: 'February 15, 2026',
-    },
-  ],
+  getAll: async (): Promise<Announcement[]> => {
+    try {
+      const res = await api.instance.get('/kiosk');
+      return (res.data.announcements || [])
+        .filter((a: any) => a.isActive)
+        .map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          message: a.message,
+          type: a.type,
+          date: a.startsAt ? new Date(a.startsAt).toLocaleDateString() : undefined,
+          isActive: a.isActive,
+        }));
+    } catch (error) {
+      console.error('[API] Failed to fetch announcements:', error);
+      return [];
+    }
+  },
 
   getById: async (id: string): Promise<Announcement | null> => {
     const all = await announcementService.getAll();
@@ -107,97 +145,84 @@ export const announcementService = {
 // Job Service
 // ─────────────────────────────────────────
 export const jobService = {
-  getAll: async (): Promise<Job[]> => [
-    {
-      id: '1',
-      title: 'Part-Time Electrician',
-      company: 'Al-Noor Electric',
-      description:
-        'Looking for a licensed electrician for commercial & residential projects in the Atlanta metro area.',
-      location: 'Atlanta, GA',
-      employmentType: 'part_time',
-      salaryMin: 25,
-      salaryMax: 40,
-      status: 'active',
-      isUrgent: true,
-      contactEmail: 'careers@alnoor.com',
-      postedAt: '2026-02-20',
-    },
-    {
-      id: '2',
-      title: 'Halal Catering Manager',
-      company: 'Barakah Catering Co.',
-      description:
-        'Experienced catering manager needed to oversee events and ensure halal compliance.',
-      location: 'Marietta, GA',
-      employmentType: 'full_time',
-      salaryMin: 45000,
-      salaryMax: 60000,
-      status: 'active',
-      contactEmail: 'jobs@barakahcatering.com',
-      postedAt: '2026-02-18',
-    },
-    {
-      id: '3',
-      title: 'Arabic Teacher',
-      company: 'Masjid Al-Momineen School',
-      description:
-        'Seeking a qualified Arabic language teacher for our weekend Islamic school. Must have MSA and Quranic Arabic proficiency.',
-      location: 'On-site, Atlanta GA',
-      employmentType: 'part_time',
-      salaryMin: 20,
-      salaryMax: 30,
-      status: 'active',
-      contactEmail: 'school@almomineen.org',
-      postedAt: '2026-02-15',
-    },
-  ],
+  getAll: async (): Promise<Job[]> => {
+    try {
+      const res = await api.instance.get('/jobs');
+      return (res.data.postings || []).map((j: any) => ({
+        id: j.id,
+        title: j.title,
+        company: j.company,
+        description: j.description,
+        location: j.location,
+        employmentType: j.employmentType,
+        salaryMin: j.salaryMin,
+        salaryMax: j.salaryMax,
+        status: j.status,
+        isUrgent: j.isUrgent,
+        contactEmail: j.contactEmail,
+        postedAt: j.createdAt,
+      }));
+    } catch (error) {
+      console.error('[API] Failed to fetch jobs:', error);
+      return [];
+    }
+  },
 };
 
 // ─────────────────────────────────────────
 // Community Service
 // ─────────────────────────────────────────
 export const communityService = {
-  getVolunteerOpportunities: async (): Promise<VolunteerOpportunity[]> => [
-    {
-      id: '1',
-      title: 'Ramadan Iftar Preparation',
-      description:
-        'Help prepare and serve iftar meals for the community every Friday during Ramadan.',
-      eventDate: '2026-03-15',
-      spotsTotal: 20,
-      spotsFilled: 8,
-      status: 'open',
-    },
-    {
-      id: '2',
-      title: 'Youth Quran Competition Volunteers',
-      description:
-        'Help organize and run our annual youth Quran memorization competition.',
-      eventDate: '2026-04-05',
-      spotsTotal: 15,
-      spotsFilled: 12,
-      status: 'open',
-    },
-    {
-      id: '3',
-      title: 'Masjid Cleaning Crew',
-      description:
-        'Monthly deep cleaning of the masjid prayer hall and facilities. Every first Saturday.',
-      eventDate: '2026-03-07',
-      spotsTotal: 10,
-      spotsFilled: 4,
-      status: 'open',
-    },
-  ],
+  getVolunteerOpportunities: async (): Promise<VolunteerOpportunity[]> => {
+    try {
+      const res = await api.instance.get('/volunteers');
+      return (res.data.opportunities || []).map((v: any) => ({
+        id: v.id,
+        title: v.title,
+        description: v.description,
+        eventDate: v.eventDate,
+        spotsTotal: v.spotsTotal,
+        spotsFilled: v.spotsFilled,
+        status: v.status,
+      }));
+    } catch (error) {
+      console.error('[API] Failed to fetch volunteer opportunities:', error);
+      return [];
+    }
+  },
 
-  getProposals: async () => [],
+  getProposals: async () => {
+    try {
+      const res = await api.instance.get('/proposals');
+      return res.data.proposals || [];
+    } catch (error) {
+      console.error('[API] Failed to fetch proposals:', error);
+      return [];
+    }
+  },
 };
 
 // ─────────────────────────────────────────
 // School Service
 // ─────────────────────────────────────────
 export const schoolService = {
-  getStudents: async () => [],
-  getAssignments: async () => [],
+  getStudents: async () => {
+    try {
+      const res = await api.instance.get('/classroom/students');
+      return res.data.students || [];
+    } catch (error) {
+      console.error('[API] Failed to fetch students:', error);
+      return [];
+    }
+  },
+
+  getAssignments: async () => {
+    try {
+      const res = await api.instance.get('/assignments');
+      return res.data.assignments || [];
+    } catch (error) {
+      console.error('[API] Failed to fetch assignments:', error);
+      return [];
+    }
+  },
 };

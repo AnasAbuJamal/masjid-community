@@ -11,9 +11,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, Input } from '../../components/common';
+import { GlassButton, GlassCard, ScreenWrapper } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { Input } from '../../components/common/Input';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -53,124 +54,196 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.kav}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+    <ScreenWrapper showBackground={false}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.kav}
         >
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.white} />
-          </TouchableOpacity>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <GlassCard style={styles.backButtonCard}>
+                <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.text} />
+              </GlassCard>
+            </TouchableOpacity>
 
-          <View style={styles.header}>
-            <Text style={styles.title}>Join the Community</Text>
-            <Text style={styles.subtitle}>Create your account</Text>
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.nameRow}>
-              <Input
-                label="First Name"
-                value={form.firstName}
-                onChangeText={update('firstName')}
-                placeholder="First"
-                containerStyle={styles.halfInput}
-                error={errors.firstName}
-              />
-              <Input
-                label="Last Name"
-                value={form.lastName}
-                onChangeText={update('lastName')}
-                placeholder="Last"
-                containerStyle={styles.halfInput}
-                error={errors.lastName}
-              />
+            <View style={styles.header}>
+              <Text style={styles.title}>Join the Community</Text>
+              <Text style={styles.subtitle}>Create your account</Text>
             </View>
 
-            <Input
-              label="Email Address"
-              value={form.email}
-              onChangeText={update('email')}
-              placeholder="your@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon="email-outline"
-              error={errors.email}
-            />
+            <GlassCard style={styles.card}>
+              <View style={styles.nameRow}>
+                <View style={styles.halfInputWrapper}>
+                  <Text style={styles.inputLabel}>First Name</Text>
+                  <Input
+                    value={form.firstName}
+                    onChangeText={update('firstName')}
+                    placeholder="First"
+                    containerStyle={styles.halfInput}
+                  />
+                  {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+                </View>
+                <View style={styles.halfInputWrapper}>
+                  <Text style={styles.inputLabel}>Last Name</Text>
+                  <Input
+                    value={form.lastName}
+                    onChangeText={update('lastName')}
+                    placeholder="Last"
+                    containerStyle={styles.halfInput}
+                  />
+                  {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+                </View>
+              </View>
 
-            <Input
-              label="Password"
-              value={form.password}
-              onChangeText={update('password')}
-              placeholder="Create a password"
-              secureTextEntry
-              leftIcon="lock-outline"
-              hint="Minimum 6 characters"
-              error={errors.password}
-            />
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <Input
+                  value={form.email}
+                  onChangeText={update('email')}
+                  placeholder="your@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  containerStyle={styles.fullInput}
+                />
+                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              </View>
 
-            <Button
-              title="Create Account"
-              onPress={handleRegister}
-              loading={loading}
-              fullWidth
-              size="lg"
-              style={styles.submitButton}
-            />
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <Input
+                  value={form.password}
+                  onChangeText={update('password')}
+                  placeholder="Create a password"
+                  secureTextEntry
+                  containerStyle={styles.fullInput}
+                />
+                <Text style={styles.hintText}>Minimum 6 characters</Text>
+                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              </View>
 
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.back()}>
-                <Text style={styles.footerLink}>Sign In</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+              <GlassButton
+                title="Create Account"
+                onPress={handleRegister}
+                loading={loading}
+                fullWidth
+                size="lg"
+                style={styles.submitButton}
+              />
+
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Already have an account? </Text>
+                <TouchableOpacity onPress={() => router.back()}>
+                  <Text style={styles.footerLink}>Sign In</Text>
+                </TouchableOpacity>
+              </View>
+            </GlassCard>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.primary },
-  kav: { flex: 1 },
+  container: {
+    flex: 1,
+  },
+  kav: {
+    flex: 1,
+  },
   content: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
   },
   backButton: {
     marginTop: SPACING.md,
     marginBottom: SPACING.lg,
     alignSelf: 'flex-start',
-    padding: SPACING.xs,
   },
-  header: { marginBottom: SPACING.xl },
+  backButtonCard: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 0,
+  },
+  header: {
+    marginBottom: SPACING.xl,
+  },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: COLORS.white,
+    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
-  subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.7)' },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    ...SHADOWS.lg,
+  subtitle: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
   },
-  nameRow: { flexDirection: 'row', gap: SPACING.sm },
-  halfInput: { flex: 1 },
-  submitButton: { marginTop: SPACING.xs },
+  card: {
+    padding: SPACING.lg,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  halfInputWrapper: {
+    flex: 1,
+    marginBottom: SPACING.sm,
+  },
+  halfInput: {
+    backgroundColor: COLORS.surfaceGlassLight,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+  },
+  inputWrapper: {
+    marginBottom: SPACING.md,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  fullInput: {
+    backgroundColor: COLORS.surfaceGlassLight,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+  },
+  hintText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    marginLeft: SPACING.xs,
+  },
+  errorText: {
+    fontSize: 12,
+    color: COLORS.error,
+    marginTop: 4,
+    marginLeft: SPACING.xs,
+  },
+  submitButton: {
+    marginTop: SPACING.sm,
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: SPACING.lg,
   },
-  footerText: { color: COLORS.textSecondary, fontSize: 14 },
-  footerLink: { color: COLORS.primary, fontWeight: '700', fontSize: 14 },
+  footerText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+  },
+  footerLink: {
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

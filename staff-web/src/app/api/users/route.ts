@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET() {
     const session = await auth();
@@ -44,6 +45,8 @@ export async function POST(req: NextRequest) {
             passwordHash,
         },
     });
+
+    await logAudit({ action: "create_user", userId: session.user.id, details: `Created user ${user.email} (${body.role})`, ipAddress: getClientIp(req) });
 
     return NextResponse.json({
         id: user.id,

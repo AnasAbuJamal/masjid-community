@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -29,5 +30,6 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const cls = await prisma.class.create({ data: body });
+    await logAudit({ action: "create_class", userId: session.user.id, details: `Created class "${body.name}"`, ipAddress: getClientIp(req) });
     return NextResponse.json(cls, { status: 201 });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -42,6 +43,8 @@ export async function POST(req: NextRequest) {
             authorId: session.user.id,
         },
     });
+
+    await logAudit({ action: "create_blog_post", userId: session.user.id, details: `Created blog post "${body.title}"`, ipAddress: getClientIp(req) });
 
     return NextResponse.json(post, { status: 201 });
 }

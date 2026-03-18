@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -44,6 +45,13 @@ export async function POST(req: NextRequest) {
         where: { date: new Date(body.date) },
         update: { ...body, date: new Date(body.date) },
         create: { ...body, date: new Date(body.date) },
+    });
+
+    await logAudit({
+        action: "upsert_prayer",
+        userId: session.user.id,
+        details: `Prayer times for ${body.date}`,
+        ipAddress: getClientIp(req),
     });
 
     return NextResponse.json(prayer, { status: 201 });

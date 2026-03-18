@@ -6,14 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Card } from '../../components/common';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
-import { prayerService, announcementService } from '../../services/api';
-import { useAuthStore } from '../../stores/authStore';
+import { LinearGradient } from 'expo-linear-gradient';
+import { GlassCard, ScreenWrapper, FloatingIcon, TAB_BAR_HEIGHT } from '../../components/common';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { getHijriDate, getIslamicOccasion } from '../../utils/hijri';
 
 const PRAYER_NAMES = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
@@ -31,344 +31,189 @@ function getNextPrayer(prayers: Record<string, string>): string {
 }
 
 const QUICK_ACTIONS = [
-  { icon: 'heart', label: 'Donate', color: '#e53935', route: '/donate' },
-  { icon: 'briefcase-outline', label: 'Jobs', color: COLORS.primary, route: '/jobs' },
-  { icon: 'lightbulb-outline', label: 'Proposals', color: '#1976d2', route: '/proposals' },
-  { icon: 'account-hard-hat', label: 'Workers', color: COLORS.accent, route: '/workers' },
+  { icon: 'heart', label: 'Donate', color: '#FF6B6B', route: '/donate' as const, iconComponent: <MaterialCommunityIcons name="heart" size={26} color="#FF6B6B" /> },
+  { icon: 'newspaper-variant-outline', label: 'News', color: COLORS.accent, route: '/blog' as const, iconComponent: <MaterialCommunityIcons name="newspaper-variant-outline" size={26} color={COLORS.accent} /> },
+  { icon: 'calendar-star', label: 'Events', color: COLORS.secondary, route: '/events' as const, iconComponent: <MaterialCommunityIcons name="calendar-star" size={26} color={COLORS.secondary} /> },
+  { icon: 'hammer-wrench', label: 'Projects', color: '#FFB74D', route: '/construction' as const, iconComponent: <MaterialCommunityIcons name="hammer-wrench" size={26} color="#FFB74D" /> },
+  { icon: 'chart-bar', label: 'Finances', color: COLORS.success, route: '/finances' as const, iconComponent: <MaterialCommunityIcons name="chart-bar" size={26} color={COLORS.success} /> },
+  { icon: 'compass', label: 'Qibla', color: COLORS.primary, route: '/prayers/qibla' as const, iconComponent: <MaterialCommunityIcons name="compass" size={26} color={COLORS.primary} /> },
 ];
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { width } = useWindowDimensions();
   const [prayers, setPrayers] = useState<Record<string, string> | null>(null);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [hijriDate, setHijriDate] = useState(getHijriDate());
+  const [occasion, setOccasion] = useState<string | null>(getIslamicOccasion());
+
+  const prayerItemWidth = (width - SPACING.md * 2 - SPACING.sm * 2) / 3;
+  const actionCardWidth = (width - SPACING.md * 2 - SPACING.sm) / 2;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHijriDate(getHijriDate());
+      setOccasion(getIslamicOccasion());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadData = async () => {
-    const [p, a] = await Promise.all([
-      prayerService.getToday(),
-      announcementService.getAll(),
+    setPrayers({ fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30' });
+    setAnnouncements([
+      { id: '1', title: 'Friday Prayer', message: "Join us for Jumu'ah prayer this Friday at 1:30 PM", type: 'general' },
+      { id: '2', title: 'Ramadan Mubarak', message: 'Ramadan Kareem! May Allah accept our fasting', type: 'ramadan' },
     ]);
-    setPrayers(p);
-    setAnnouncements(a);
   };
 
   useEffect(() => { loadData(); }, []);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
+  const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
-  const p = prayers ?? {
-    fajr: '05:45', sunrise: '07:10', dhuhr: '12:30',
-    asr: '15:45', maghrib: '18:00', isha: '19:30',
-  };
-
+  const p = prayers ?? { fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30' };
   const nextPrayer = getNextPrayer(p);
-
-  const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={COLORS.primary}
-          />
-        }
-      >
-        {/* Header greeting */}
-        <View style={styles.greeting}>
-          <View>
-            <Text style={styles.greetingText}>
-              السلام عليكم،{' '}
-              {user?.firstName ?? 'Brother/Sister'}
-            </Text>
-            <Text style={styles.dateText}>{today}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.notifButton}
-            onPress={() => router.push('/announcements/1')}
-          >
-            <MaterialCommunityIcons
-              name="bell-outline"
-              size={22}
-              color={COLORS.primary}
-            />
-            {announcements.length > 0 && <View style={styles.notifDot} />}
-          </TouchableOpacity>
-        </View>
+    <ScreenWrapper contentPadding={false} bottomPadding={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
 
-        {/* Prayer times card */}
-        <View style={styles.prayerCard}>
-          <View style={styles.prayerHeader}>
-            <Text style={styles.prayerCardTitle}>Today's Prayer Times</Text>
-            <TouchableOpacity onPress={() => router.push('/prayers')}>
-              <Text style={styles.viewAll}>View all →</Text>
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.headerRow}>
+            <View style={styles.greetingColumn}>
+              <Text style={styles.greetingText}>السلام عليكم</Text>
+              <Text style={styles.dateText}>{today}</Text>
+              {occasion && (
+                <View style={styles.occasionBadge}>
+                  <MaterialCommunityIcons name="star" size={12} color={COLORS.accent} />
+                  <Text style={styles.occasionText}>{occasion}</Text>
+                </View>
+              )}
+              <Text style={styles.hijriText}>{hijriDate.format}</Text>
+            </View>
+            <TouchableOpacity style={styles.notifButton} onPress={() => router.push('/announcements/1')}>
+              <MaterialCommunityIcons name="bell-outline" size={22} color={COLORS.primary} />
+              {announcements.length > 0 && <View style={styles.notifDot} />}
             </TouchableOpacity>
           </View>
-          <View style={styles.prayerGrid}>
-            {PRAYER_NAMES.map((name) => {
-              const isNext = name === nextPrayer;
-              return (
-                <View
-                  key={name}
-                  style={[styles.prayerItem, isNext && styles.prayerItemActive]}
-                >
-                  {isNext && (
-                    <Text style={styles.nextLabel}>NEXT</Text>
-                  )}
-                  <Text
-                    style={[styles.prayerName, isNext && styles.prayerNameActive]}
-                  >
-                    {name}
-                  </Text>
-                  <Text
-                    style={[styles.prayerTime, isNext && styles.prayerTimeActive]}
-                  >
-                    {p[name.toLowerCase()]}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+        </View>
+
+        {/* Prayer Card Section */}
+        <View style={styles.cardSection}>
+          <GlassCard style={styles.prayerCard} variant="floating">
+            <LinearGradient colors={['#4A90D9', '#6DD5ED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.prayerGradient}>
+              <View style={styles.prayerShine} />
+              <View style={styles.prayerHeader}>
+                <View><Text style={styles.prayerCardTitle}>Next Prayer</Text><Text style={styles.nextPrayerName}>{nextPrayer}</Text></View>
+                <View style={styles.prayerTimeBox}><Text style={styles.prayerTimeText}>{p[nextPrayer.toLowerCase()]}</Text></View>
+              </View>
+              <View style={styles.prayerGrid}>
+                {PRAYER_NAMES.map((name) => {
+                  const isNext = name === nextPrayer;
+                  return (
+                    <View key={name} style={[styles.prayerItem, { width: prayerItemWidth }, isNext && styles.prayerItemActive]}>
+                      {isNext && <Text style={styles.nextLabel}>NEXT</Text>}
+                      <Text style={[styles.prayerName, isNext && styles.prayerNameActive]}>{name}</Text>
+                      <Text style={[styles.prayerTime, isNext && styles.prayerTimeActive]}>{p[name.toLowerCase()] || '--:--'}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </LinearGradient>
+          </GlassCard>
         </View>
 
         {/* Announcements */}
         {announcements.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Announcements</Text>
-            {announcements.slice(0, 3).map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => router.push(`/announcements/${item.id}`)}
-                activeOpacity={0.7}
-              >
-                <Card style={styles.announcementCard}>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Announcements</Text><TouchableOpacity onPress={() => router.push('/announcements/1')}><Text style={styles.viewAll}>View all →</Text></TouchableOpacity></View>
+            {announcements.slice(0, 2).map((item) => (
+              <TouchableOpacity key={item.id} onPress={() => router.push(`/announcements/${item.id}`)} activeOpacity={0.7} style={styles.announcementWrapper}>
+                <GlassCard>
                   <View style={styles.announcementInner}>
-                    <View
-                      style={[
-                        styles.announcementDot,
-                        {
-                          backgroundColor:
-                            item.type === 'ramadan'
-                              ? COLORS.accent
-                              : COLORS.primary,
-                        },
-                      ]}
-                    />
-                    <View style={styles.announcementText}>
-                      <Text style={styles.announcementTitle} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text
-                        style={styles.announcementMessage}
-                        numberOfLines={2}
-                      >
-                        {item.message}
-                      </Text>
-                    </View>
-                    <MaterialCommunityIcons
-                      name="chevron-right"
-                      size={18}
-                      color={COLORS.textSecondary}
-                    />
+                    <View style={[styles.announcementDot, { backgroundColor: item.type === 'ramadan' ? COLORS.accent : COLORS.primary }]} />
+                    <View style={styles.announcementText}><Text style={styles.announcementTitle} numberOfLines={1}>{item.title}</Text><Text style={styles.announcementMessage} numberOfLines={2}>{item.message}</Text></View>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.textSecondary} />
                   </View>
-                </Card>
+                </GlassCard>
               </TouchableOpacity>
             ))}
-          </>
+          </View>
         )}
 
         {/* Quick Actions */}
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionsGrid}>
-          {QUICK_ACTIONS.map((action) => (
-            <TouchableOpacity
-              key={action.label}
-              style={styles.actionButton}
-              onPress={() => router.push(action.route)}
-              activeOpacity={0.7}
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: action.color + '15' },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={action.icon as any}
-                  size={26}
-                  color={action.color}
-                />
-              </View>
-              <Text style={styles.actionText}>{action.label}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsGrid}>
+            {QUICK_ACTIONS.map((action) => (
+              <TouchableOpacity key={action.label} onPress={() => router.push(action.route as any)} activeOpacity={0.7} style={[styles.actionButtonWrapper, { width: actionCardWidth }]}>
+                <GlassCard style={styles.actionButton}>
+                  <FloatingIcon icon={action.iconComponent} size="md" color={action.color} glow />
+                  <Text style={styles.actionText}>{action.label}</Text>
+                </GlassCard>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
+
+        <View style={styles.bottomSpacer} />
       </ScrollView>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: SPACING.md, paddingBottom: SPACING.xxl },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingBottom: TAB_BAR_HEIGHT + SPACING.lg },
 
-  greeting: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.lg,
-  },
-  greetingText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  dateText: { fontSize: 13, color: COLORS.textSecondary },
-  notifButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...SHADOWS.sm,
-  },
-  notifDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.error,
-  },
+  headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  greetingColumn: { flex: 1 },
+  greetingText: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  dateText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
+  occasionBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.accent + '18', paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full, alignSelf: 'flex-start', marginTop: 6, gap: 4 },
+  occasionText: { fontSize: 11, fontWeight: '700', color: COLORS.accent },
+  hijriText: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
+  notifButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.surfaceGlass, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.glassBorder },
+  notifDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.error, borderWidth: 1.5, borderColor: COLORS.white },
 
-  prayerCard: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.md,
-  },
-  prayerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  prayerCardTitle: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  viewAll: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
-  prayerGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.xs + 2,
-  },
-  prayerItem: {
-    width: '30%',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: RADIUS.md,
-    padding: SPACING.sm + 2,
-    alignItems: 'center',
-    minHeight: 66,
-    justifyContent: 'center',
-  },
-  prayerItemActive: {
-    backgroundColor: COLORS.accent,
-  },
-  nextLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: COLORS.primary,
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  prayerName: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 11,
-    marginBottom: 4,
-  },
-  prayerNameActive: { color: COLORS.primary, fontWeight: '600' },
-  prayerTime: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  cardSection: { paddingHorizontal: SPACING.md, marginTop: SPACING.md, marginBottom: SPACING.md },
+  prayerCard: { borderRadius: RADIUS.xxl, overflow: 'hidden' },
+  prayerGradient: { borderRadius: RADIUS.xxl, padding: SPACING.lg, overflow: 'hidden' },
+  prayerShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 80, backgroundColor: 'rgba(255, 255, 255, 0.25)', borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl },
+  prayerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.md },
+  prayerCardTitle: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  nextPrayerName: { color: COLORS.white, fontSize: 28, fontWeight: '800' },
+  prayerTimeBox: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs, borderRadius: RADIUS.lg },
+  prayerTimeText: { color: COLORS.white, fontSize: 20, fontWeight: '700' },
+  prayerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  prayerItem: { minHeight: 70, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', justifyContent: 'center' },
+  prayerItemActive: { backgroundColor: COLORS.white },
+  nextLabel: { fontSize: 8, fontWeight: '800', color: COLORS.primary, letterSpacing: 0.5, marginBottom: 2 },
+  prayerName: { color: 'rgba(255,255,255,0.8)', fontSize: 10, marginBottom: 4, fontWeight: '600' },
+  prayerNameActive: { color: COLORS.primary, fontWeight: '700' },
+  prayerTime: { color: COLORS.white, fontSize: 14, fontWeight: '700' },
   prayerTimeActive: { color: COLORS.primary },
 
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.sm + 4,
-    marginTop: SPACING.xs,
-  },
+  section: { paddingHorizontal: SPACING.md, marginBottom: SPACING.lg },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
+  viewAll: { color: COLORS.primary, fontSize: 13, fontWeight: '600' },
 
-  announcementCard: { padding: SPACING.sm + 4, marginBottom: SPACING.sm },
-  announcementInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm + 4,
-  },
-  announcementDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    flexShrink: 0,
-  },
+  announcementWrapper: { marginBottom: SPACING.sm },
+  announcementInner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  announcementDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   announcementText: { flex: 1 },
-  announcementTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  announcementMessage: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
-  },
+  announcementTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginBottom: 2 },
+  announcementMessage: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
 
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.sm + 4,
-  },
-  actionButton: {
-    width: '47%',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-    ...SHADOWS.sm,
-  },
-  actionIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SPACING.xs + 4,
-  },
-  actionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  actionButtonWrapper: { minHeight: 110 },
+  actionButton: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  actionText: { fontSize: 13, fontWeight: '600', color: COLORS.text, marginTop: SPACING.sm },
+
+  bottomSpacer: { height: SPACING.lg },
 });

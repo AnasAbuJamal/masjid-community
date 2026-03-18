@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import type { ProposalStatus } from "@prisma/client";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -28,5 +29,6 @@ export async function POST(req: NextRequest) {
     if (body.endDate) body.endDate = new Date(body.endDate);
 
     const proposal = await prisma.projectProposal.create({ data: body });
+    await logAudit({ action: "create_proposal", details: `Created proposal "${body.title}"`, ipAddress: getClientIp(req) });
     return NextResponse.json(proposal, { status: 201 });
 }

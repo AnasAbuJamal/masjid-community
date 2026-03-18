@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -41,90 +40,88 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-emerald-950 to-gray-900 p-4">
-      {/* Background pattern */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-emerald-600/10 blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-emerald-500/5 blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-cream-100">
+      {/* Organic Background Gradients */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vh] rounded-[100%] bg-mocha-400 opacity-20 blur-[120px] mix-blend-multiply animate-float" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vh] rounded-[100%] bg-mocha-600 opacity-15 blur-[100px] mix-blend-multiply animate-float" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[30%] right-[10%] w-[40vw] h-[40vh] rounded-[100%] bg-white opacity-40 blur-[80px]" />
       </div>
 
-      <div className="relative w-full max-w-md animate-fade-in">
-        {/* Logo / Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/25 mb-4">
-            <span className="text-3xl">🕌</span>
+      <div className="relative z-10 w-full max-w-md animate-fade-in p-6">
+        
+        {/* Dynamic Mocha Card */}
+        <div className="mocha-gradient rounded-[2.5rem] p-10 shadow-elegant-dark flex flex-col relative overflow-hidden">
+          {/* Decorative glass overlay inside card */}
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/10 blur-3xl rounded-full" />
+          <div className="absolute -bottom-24 -left-24 w-56 h-56 bg-black/10 blur-2xl rounded-full" />
+
+          {/* Header */}
+          <div className="text-center mb-10 relative z-10 space-y-3">
+            <h1 className="font-serif text-5xl tracking-tight font-medium text-white mb-2 leading-tight">
+              Masjid <br/> <span className="text-cream-100/90 italic">Al-Momineen</span>
+            </h1>
+            <p className="font-sans text-cream-100/70 text-sm tracking-wide uppercase">Staff Portal</p>
           </div>
-          <h1 className="text-2xl font-bold text-white">Masjid Al-Momineen</h1>
-          <p className="text-emerald-300/70 mt-1">Staff Management Portal</p>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+            {error && (
+              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-5 py-4 text-sm text-cream-100 animate-slide-in text-center shadow-lg">
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-cream-100/80 pl-2 text-xs font-medium uppercase tracking-wider">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="admin@almomineen.org"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus-visible:ring-cream-100 focus-visible:border-transparent rounded-full h-14 px-6 shadow-inner backdrop-blur-md transition-all"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-cream-100/80 pl-2 text-xs font-medium uppercase tracking-wider">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus-visible:ring-cream-100 focus-visible:border-transparent rounded-full h-14 px-6 shadow-inner backdrop-blur-md transition-all"
+              />
+            </div>
+
+            {/* Honeypot */}
+            <div className="hidden">
+              <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-14 bg-white hover:bg-cream-100 text-mocha-900 font-semibold rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] mt-4"
+              disabled={loading}
+            >
+              {loading ? (
+                <span className="flex items-center gap-3">
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-mocha-900 border-t-transparent" />
+                  Authenticating...
+                </span>
+              ) : (
+                "Sign Into Portal"
+              )}
+            </Button>
+          </form>
         </div>
 
-        <Card className="border-gray-800 bg-gray-900/80 backdrop-blur-xl shadow-2xl">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-xl text-white">Sign in</CardTitle>
-            <CardDescription className="text-gray-400">
-              Enter your credentials to access the dashboard
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400 animate-fade-in">
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-300">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@almomineen.org"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus-visible:ring-emerald-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-300">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus-visible:ring-emerald-500"
-                />
-              </div>
-
-              {/* Honeypot */}
-              <div className="hidden">
-                <input type="text" name="website" tabIndex={-1} autoComplete="off" />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full h-11 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium shadow-lg shadow-emerald-500/25"
-                disabled={loading}
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Signing in...
-                  </span>
-                ) : (
-                  "Sign in"
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <p className="text-center text-xs text-gray-500 mt-6">
-          © {new Date().getFullYear()} Masjid Al-Momineen. All rights reserved.
+        <p className="text-center text-xs font-sans tracking-widest text-mocha-600/60 mt-8 uppercase">
+          © {new Date().getFullYear()} Masjid Al-Momineen
         </p>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -48,6 +49,8 @@ export async function POST(req: NextRequest) {
             teacher: { select: { firstName: true, lastName: true } },
         },
     });
+
+    await logAudit({ action: "create_assignment", userId: session.user.id, details: `Created assignment "${body.title || 'Untitled'}"`, ipAddress: getClientIp(req) });
 
     return NextResponse.json(assignment, { status: 201 });
 }

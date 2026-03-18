@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const session = await auth();
@@ -28,6 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.title) body.slug = slugify(body.title);
 
     const post = await prisma.blogPost.update({ where: { id }, data: body });
+    await logAudit({ action: "update_blog_post", userId: session.user.id, details: `Updated blog post ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(post);
 }
 
@@ -39,5 +41,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params;
     await prisma.blogPost.delete({ where: { id } });
+    await logAudit({ action: "delete_blog_post", userId: session.user.id, details: `Deleted blog post ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }
