@@ -7,18 +7,20 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlassButton, GlassCard, ScreenWrapper } from '../../components/common';
-import { useAuthStore } from '../../stores/authStore';
+import apiService from '../../services/api-service';
+import { useAuthStore, User } from '../../stores/authStore';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import { Input } from '../../components/common/Input';
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { login } = useAuthStore();
+  const { setUser } = useAuthStore();
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -48,9 +50,25 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validate()) return;
     setLoading(true);
-    await login(form.email.trim(), form.password);
-    setLoading(false);
-    router.replace('/(tabs)');
+    try {
+      const response = await apiService.auth.register({
+        email: form.email.trim(),
+        password: form.password,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+      });
+      const user: User = response.user;
+      setUser(user);
+      router.replace('/(tabs)');
+    } catch (error: unknown) {
+      let message = 'Unable to create account. Please try again.';
+      if (error instanceof Error && error.message) {
+        message = error.message;
+      }
+      Alert.alert('Registration Failed', message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

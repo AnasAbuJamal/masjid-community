@@ -24,11 +24,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+    const session = await auth();
+    if (!session || session.user.role !== "admin") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
     if (body.startDate) body.startDate = new Date(body.startDate);
     if (body.endDate) body.endDate = new Date(body.endDate);
 
     const proposal = await prisma.projectProposal.create({ data: body });
-    await logAudit({ action: "create_proposal", details: `Created proposal "${body.title}"`, ipAddress: getClientIp(req) });
+    await logAudit({ action: "create_proposal", userId: session.user.id, details: `Created proposal "${body.title}"`, ipAddress: getClientIp(req) });
     return NextResponse.json(proposal, { status: 201 });
 }

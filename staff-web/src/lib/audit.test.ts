@@ -27,6 +27,8 @@ describe('audit', () => {
         ipAddress: '192.168.1.1',
         success: true,
         createdAt: new Date(),
+        entity: null,
+        entityId: null,
       });
 
       await logAudit({
@@ -54,12 +56,14 @@ describe('audit', () => {
       vi.mocked(prisma.auditLog.create).mockResolvedValue({
         id: '1',
         action: 'test_action',
-        userId: undefined,
-        email: undefined,
-        details: undefined,
-        ipAddress: undefined,
+        userId: null,
+        email: null,
+        details: null,
+        ipAddress: null,
         success: true,
         createdAt: new Date(),
+        entity: null,
+        entityId: null,
       });
 
       await logAudit({ action: 'test_action' });

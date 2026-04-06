@@ -102,16 +102,16 @@ export default function PrayerTimesPage() {
 
   const updateForm = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Prayer Times</h1>
-          <p className="text-gray-500 mt-1">Manage daily prayer times for the mosque</p>
+          <h1 className="text-3xl font-serif font-bold text-mocha-900">Prayer Times</h1>
+          <p className="text-mocha-600 mt-1">Manage daily prayer times for the mosque</p>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreate}>
+        <Button className="mocha-gradient hover:opacity-90" onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
           Add Prayer Times
         </Button>
@@ -120,10 +120,10 @@ export default function PrayerTimesPage() {
       {/* Today's Prayer Times */}
       {todayPrayer && (
         <Card className="border-gray-200">
-          <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-emerald-600" />
-              Today&apos;s Prayer Times
+          <CardHeader className="bg-gradient-to-r from-cream-100 to-cream-50">
+            <CardTitle className="flex items-center gap-2 text-mocha-900">
+              <Calendar className="h-5 w-5 text-mocha-600" />
+              Today's Prayer Times
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
@@ -137,9 +137,9 @@ export default function PrayerTimesPage() {
                 { name: "Isha", time: todayPrayer.isha },
                 { name: "Jummah", time: todayPrayer.jummah1 || "N/A" },
               ].map((prayer) => (
-                <div key={prayer.name} className="text-center p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <p className="text-sm font-medium text-gray-500">{prayer.name}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{prayer.time}</p>
+                <div key={prayer.name} className="text-center p-4 rounded-xl bg-cream-50 border border-mocha-900/5">
+                  <p className="text-sm font-medium text-mocha-600">{prayer.name}</p>
+                  <p className="text-2xl font-serif font-bold text-mocha-900 mt-1">{prayer.time}</p>
                 </div>
               ))}
             </div>
@@ -247,7 +247,7 @@ export default function PrayerTimesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSave} disabled={saving}>
+            <Button className="mocha-gradient hover:opacity-90" onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : editing ? "Update" : "Create"}
             </Button>
           </DialogFooter>

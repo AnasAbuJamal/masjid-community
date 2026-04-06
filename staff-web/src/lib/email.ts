@@ -195,3 +195,44 @@ export async function shouldNotify(settingKey: string): Promise<boolean> {
   
   return setting?.value === "true";
 }
+
+export async function sendPasswordResetEmail(
+  email: string,
+  data: {
+    resetToken: string;
+    resetUrl: string;
+    userName: string;
+  }
+): Promise<boolean> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1a365d;">Assalamu Alaikum ${data.userName},</h2>
+      
+      <p>You have requested a password reset for your Al-Momineen staff account.</p>
+      
+      <p style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <strong>Click the link below to reset your password:</strong><br><br>
+        <a href="${data.resetUrl}" style="color: #3182ce; font-size: 16px;">Reset Password</a>
+      </p>
+      
+      <p style="color: #718096; font-size: 14px;">
+        <strong>Important:</strong>
+      </p>
+      <ul style="color: #718096; font-size: 14px;">
+        <li>This link will expire in 1 hour</li>
+        <li>If you didn't request this reset, please ignore this email</li>
+        <li>Your password will not change until you create a new one</li>
+      </ul>
+      
+      <p style="margin-top: 30px; color: #718096; font-size: 12px;">
+        Al-Momineen Mosque Management System
+      </p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: "Password Reset Request - Al-Momineen",
+    html,
+  });
+}

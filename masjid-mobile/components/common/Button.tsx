@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  View,
 } from 'react-native';
 import { COLORS, RADIUS, SHADOWS } from '../../constants/theme';
 
@@ -22,6 +23,7 @@ interface ButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   fullWidth?: boolean;
+  icon?: React.ReactNode;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -34,6 +36,7 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
   fullWidth = false,
+  icon,
 }) => {
   const containerStyle = [
     styles.base,
@@ -68,7 +71,10 @@ export const Button: React.FC<ButtonProps> = ({
       {loading ? (
         <ActivityIndicator color={loaderColor} size="small" />
       ) : (
-        <Text style={labelStyle}>{title}</Text>
+        <View style={styles.content}>
+          {icon && <View style={styles.iconContainer}>{icon}</View>}
+          <Text style={labelStyle}>{title}</Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -114,4 +120,15 @@ const styles = StyleSheet.create({
 
   // Shared label base
   label: { letterSpacing: 0.2 },
+  
+  // Content and icon
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  iconContainer: {
+    marginRight: 4,
+  },
 });

@@ -138,7 +138,7 @@ async function main() {
         await prisma.student.create({
             data: {
                 ...students[i],
-                studentId: `STU-2026-${String(i + 1).padStart(3, "0")}`,
+                studentId: i + 1,
             },
         });
     }

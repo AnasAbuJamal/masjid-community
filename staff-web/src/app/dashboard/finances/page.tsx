@@ -6,13 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
-import { DollarSign, TrendingUp, TrendingDown, PiggyBank, Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  DollarSign, TrendingUp, TrendingDown, PiggyBank, Plus, Pencil, Trash2,
+  Download, FileText, BarChart3, PieChart, Calendar, TrendingUpIcon,
+} from "lucide-react";
 
 interface FinancialRecord {
   id: string; month: string; year: number; donations: number; expenses: number; notes?: string;
@@ -20,15 +27,40 @@ interface FinancialRecord {
 interface FinancialSummary {
   id: string; totalSpent: number; bankBalance: number; totalGoal: number; totalRaised: number; remainingNeeded: number;
 }
+interface ReportData {
+  year: number;
+  summary: {
+    totalDonations: number;
+    totalExpenses: number;
+    totalNet: number;
+    totalTransactions: number;
+    averageDonation: number;
+  };
+  currentBalance: number;
+  goalProgress: { goal: number; raised: number; percentage: number } | null;
+  monthlyBreakdown: { month: string; donations: number; expenses: number; net: number }[];
+  byCategory: { name: string; amount: number }[];
+  trends: {
+    averageDonations: number;
+    averageExpenses: number;
+    maxDonationMonth: string;
+    maxExpenseMonth: string;
+  };
+  generatedAt: string;
+}
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function FinancesPage() {
   const [records, setRecords] = useState<FinancialRecord[]>([]);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
+  const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reportLoading, setReportLoading] = useState(false);
   const [recordDialog, setRecordDialog] = useState(false);
   const [summaryDialog, setSummaryDialog] = useState(false);
+  const [showReports, setShowReports] = useState(false);
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
   const [editing, setEditing] = useState<FinancialRecord | null>(null);
   const [form, setForm] = useState({ month: "Jan", year: new Date().getFullYear(), donations: 0, expenses: 0, notes: "" });
   const [summaryForm, setSummaryForm] = useState({ totalSpent: 0, bankBalance: 0, totalGoal: 0, totalRaised: 0, remainingNeeded: 0 });
@@ -44,6 +76,40 @@ export default function FinancesPage() {
     } catch { /* empty */ } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
+
+  const fetchReport = async (year: number) => {
+    setReportLoading(true);
+    try {
+      const res = await fetch(`/api/finances/reports?year=${year}`);
+      const data = await res.json();
+      setReport(data);
+    } catch (error) {
+      console.error("Error fetching report:", error);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const downloadCSV = async () => {
+    try {
+      const res = await fetch(`/api/finances/reports?year=${reportYear}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "csv" }),
+      });
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `financial-report-${reportYear}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading CSV:", error);
+    }
+  };
 
   const totalDonations = records.reduce((acc, r) => acc + r.donations, 0);
   const totalExpenses = records.reduce((acc, r) => acc + r.expenses, 0);
@@ -84,13 +150,18 @@ export default function FinancesPage() {
     } catch { /* empty */ }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-3xl font-bold text-gray-900">Finances</h1><p className="text-gray-500 mt-1">Track donations and expenses</p></div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreateRecord}><Plus className="h-4 w-4 mr-2" />Add Record</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setShowReports(true); fetchReport(reportYear); }}>
+            <BarChart3 className="h-4 w-4 mr-2" />Reports
+          </Button>
+          <Button className="mocha-gradient hover:opacity-90" onClick={openCreateRecord}><Plus className="h-4 w-4 mr-2" />Add Record</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -117,6 +188,20 @@ export default function FinancesPage() {
               <div><p className="text-sm text-gray-500">Total Goal</p><p className="text-2xl font-bold text-purple-600">${summary.totalGoal.toLocaleString()}</p></div>
               <div><p className="text-sm text-gray-500">Remaining</p><p className="text-2xl font-bold text-orange-600">${summary.remainingNeeded.toLocaleString()}</p></div>
             </div>
+            {summary.totalGoal > 0 && (
+              <div className="mt-4">
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Goal Progress</span>
+                  <span>{Math.round((summary.totalRaised / summary.totalGoal) * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-emerald-500 h-3 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (summary.totalRaised / summary.totalGoal) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -149,6 +234,164 @@ export default function FinancesPage() {
         </CardContent>
       </Card>
 
+      {/* Reports Dialog */}
+      <Dialog open={showReports} onOpenChange={setShowReports}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />Financial Reports
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-gray-400" />
+              <Select value={reportYear.toString()} onValueChange={(v) => { setReportYear(parseInt(v)); fetchReport(parseInt(v)); }}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2024, 2025, 2026].map((year) => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" onClick={downloadCSV} disabled={!report}>
+              <Download className="h-4 w-4 mr-2" />Export CSV
+            </Button>
+          </div>
+
+          {reportLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" />
+            </div>
+          ) : report ? (
+            <div className="space-y-6">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="bg-green-50 border-green-200">
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-green-600">Total Donations</p>
+                    <p className="text-2xl font-bold text-green-700">${report.summary.totalDonations.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-red-50 border-red-200">
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-red-600">Total Expenses</p>
+                    <p className="text-2xl font-bold text-red-700">${report.summary.totalExpenses.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-blue-600">Net Income</p>
+                    <p className="text-2xl font-bold text-blue-700">${report.summary.totalNet.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-purple-50 border-purple-200">
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-purple-600">Avg Donation</p>
+                    <p className="text-2xl font-bold text-purple-700">${report.summary.averageDonation.toFixed(2)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Monthly Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUpIcon className="h-5 w-5" />Monthly Breakdown
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {report.monthlyBreakdown.map((month) => (
+                      <div key={month.month} className="flex items-center gap-4">
+                        <div className="w-16 text-sm font-medium">{month.month}</div>
+                        <div className="flex-1">
+                          <div className="h-6 bg-gray-100 rounded-full overflow-hidden flex">
+                            {month.donations > 0 && (
+                              <div
+                                className="bg-green-500 h-full"
+                                style={{ width: `${Math.min(100, (month.donations / Math.max(...report.monthlyBreakdown.map((m) => Math.max(m.donations, m.expenses)))) * 100)}%` }}
+                              />
+                            )}
+                            {month.expenses > 0 && (
+                              <div
+                                className="bg-red-500 h-full"
+                                style={{ width: `${Math.min(100, (month.expenses / Math.max(...report.monthlyBreakdown.map((m) => Math.max(m.donations, m.expenses)))) * 100)}%` }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                        <div className="w-32 text-right text-sm">
+                          <span className="text-green-600">+${month.donations.toLocaleString()}</span>
+                          <span className="text-gray-300 mx-1">|</span>
+                          <span className="text-red-600">-${month.expenses.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Trends */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-sm">Trends</CardTitle></CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Avg Monthly Donations</span>
+                      <span className="font-medium">${report.trends.averageDonations.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Avg Monthly Expenses</span>
+                      <span className="font-medium">${report.trends.averageExpenses.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Best Donation Month</span>
+                      <Badge variant="secondary">{report.trends.maxDonationMonth}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Highest Expense Month</span>
+                      <Badge variant="outline">{report.trends.maxExpenseMonth}</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* By Category */}
+                <Card>
+                  <CardHeader><CardTitle className="flex items-center gap-2"><PieChart className="h-4 w-4" />Donations by Campaign</CardTitle></CardHeader>
+                  <CardContent>
+                    {report.byCategory.length > 0 ? (
+                      <div className="space-y-2">
+                        {report.byCategory.map((cat, i) => (
+                          <div key={cat.name} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `hsl(${(i * 360) / report.byCategory.length}, 70%, 50%)` }} />
+                              <span className="text-sm">{cat.name}</span>
+                            </div>
+                            <span className="font-medium">${cat.amount.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No donation data</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <p className="text-xs text-gray-400 text-center">
+                Report generated: {new Date(report.generatedAt).toLocaleString()}
+              </p>
+            </div>
+          ) : (
+            <p className="text-center py-8 text-gray-500">No report data available</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Record Dialog */}
       <Dialog open={recordDialog} onOpenChange={setRecordDialog}>
         <DialogContent>
@@ -164,7 +407,7 @@ export default function FinancesPage() {
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setRecordDialog(false)}>Cancel</Button><Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveRecord} disabled={saving}>{saving ? "Saving..." : editing ? "Update" : "Create"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setRecordDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSaveRecord} disabled={saving}>{saving ? "Saving..." : editing ? "Update" : "Create"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -177,7 +420,7 @@ export default function FinancesPage() {
               <div key={key}><Label>{key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())} ($)</Label><Input type="number" value={summaryForm[key]} onChange={(e) => setSummaryForm({ ...summaryForm, [key]: parseFloat(e.target.value) || 0 })} /></div>
             ))}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setSummaryDialog(false)}>Cancel</Button><Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveSummary} disabled={saving}>{saving ? "Saving..." : "Save"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setSummaryDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSaveSummary} disabled={saving}>{saving ? "Saving..." : "Save"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

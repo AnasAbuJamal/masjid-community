@@ -32,29 +32,29 @@ describe('role-config', () => {
       const dashboard = navItems.find(
         (item: { title: string }) => item.title === 'Dashboard'
       );
-      expect(dashboard.roles).toContain('admin');
-      expect(dashboard.roles).toContain('teacher');
+      expect(dashboard?.roles).toContain('admin');
+      expect(dashboard?.roles).toContain('teacher');
     });
 
     it('user management is admin only', () => {
       const users = navItems.find(
         (item: { title: string }) => item.title === 'User Management'
       );
-      expect(users.roles).toEqual(['admin']);
+      expect(users?.roles).toEqual(['admin']);
     });
 
     it('prayer times is admin only', () => {
       const prayers = navItems.find(
         (item: { title: string }) => item.title === 'Prayer Times'
       );
-      expect(prayers.roles).toEqual(['admin']);
+      expect(prayers?.roles).toEqual(['admin']);
     });
 
     it('classroom is accessible by teacher', () => {
       const classroom = navItems.find(
         (item: { title: string }) => item.title === 'Classroom'
       );
-      expect(classroom.roles).toContain('teacher');
+      expect(classroom?.roles).toContain('teacher');
     });
   });
 });

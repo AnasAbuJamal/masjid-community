@@ -93,16 +93,16 @@ export default function SettingsPage() {
     } catch { /* empty */ } finally { setSaving(false); }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Configure site settings and preferences</p>
+          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+          <p className="text-gray-500 mt-1">Configure site settings and preferences</p>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSave} disabled={saving}>
+        <Button className="mocha-gradient hover:opacity-90" onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
           {saved ? "Saved!" : saving ? "Saving..." : "Save All"}
         </Button>
@@ -119,8 +119,8 @@ export default function SettingsPage() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">Dark Mode</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Toggle between light and dark color scheme</p>
+              <p className="font-medium text-gray-900">Theme Mode</p>
+              <p className="text-sm text-gray-500">Switch between light and dark color scheme</p>
             </div>
             <div className="flex items-center gap-3">
               <Sun className="h-4 w-4 text-gray-400" />
@@ -145,7 +145,7 @@ export default function SettingsPage() {
             <div className="space-y-4">
               {group.settings.map((setting) => (
                 <div key={setting.key} className="flex items-center justify-between">
-                  <Label className="text-gray-700 dark:text-gray-300 font-medium">{setting.label}</Label>
+                  <Label className="text-gray-700 font-medium">{setting.label}</Label>
                   {setting.type === "boolean" ? (
                     <Switch
                       checked={settings[setting.key] === "true"}

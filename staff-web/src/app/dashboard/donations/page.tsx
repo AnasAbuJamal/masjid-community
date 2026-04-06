@@ -43,7 +43,7 @@ export default function DonationsPage() {
   const thisMonthTotal = thisMonth.reduce((acc, d) => acc + d.amount, 0);
   const recurringCount = donations.filter((d) => d.isRecurring && d.status === "completed").length;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
@@ -58,7 +58,7 @@ export default function DonationsPage() {
 
       <div className="flex gap-2">
         {["all", "completed", "pending", "failed", "refunded"].map((s) => (
-          <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)} className={statusFilter === s ? "bg-emerald-600" : ""}>
+          <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)} className={statusFilter === s ? "mocha-gradient" : ""}>
             {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
           </Button>
         ))}

@@ -50,6 +50,12 @@ export default function SettingsScreen() {
     setAnnouncementNotifications,
     donationNotifications,
     setDonationNotifications,
+    attendanceAlerts,
+    setAttendanceAlerts,
+    gradeNotifications,
+    setGradeNotifications,
+    paymentReminders,
+    setPaymentReminders,
   } = useSettingsStore();
 
   const handleLogout = () => {
@@ -166,6 +172,45 @@ export default function SettingsScreen() {
               <Switch
                 value={donationNotifications}
                 onValueChange={setDonationNotifications}
+                trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                thumbColor={COLORS.white}
+              />
+            }
+          />
+          <SettingsItem
+            icon="school"
+            title="Attendance Alerts"
+            subtitle="Notify when child is absent"
+            rightElement={
+              <Switch
+                value={attendanceAlerts}
+                onValueChange={setAttendanceAlerts}
+                trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                thumbColor={COLORS.white}
+              />
+            }
+          />
+          <SettingsItem
+            icon="certificate"
+            title="Grade Updates"
+            subtitle="New grades and assignments"
+            rightElement={
+              <Switch
+                value={gradeNotifications}
+                onValueChange={setGradeNotifications}
+                trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                thumbColor={COLORS.white}
+              />
+            }
+          />
+          <SettingsItem
+            icon="credit-card"
+            title="Payment Reminders"
+            subtitle="Upcoming tuition payments"
+            rightElement={
+              <Switch
+                value={paymentReminders}
+                onValueChange={setPaymentReminders}
                 trackColor={{ false: COLORS.border, true: COLORS.primary }}
                 thumbColor={COLORS.white}
               />

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
@@ -21,9 +22,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (body.email) body.email = body.email.toLowerCase();
 
+    // Field whitelist to prevent privilege escalation
+    const allowedFields: Prisma.UserUpdateInput = {};
+    if (body.firstName) allowedFields.firstName = body.firstName;
+    if (body.lastName) allowedFields.lastName = body.lastName;
+    if (body.phone !== undefined) allowedFields.phone = body.phone;
+    if (typeof body.isActive === 'boolean') allowedFields.isActive = body.isActive;
+    
+    // Role changes require extra validation (admin can demote other admins)
+    if (body.role && ['admin', 'teacher'].includes(body.role)) {
+        // Prevent self-demotion
+        if (id === session.user.id && body.role !== 'admin') {
+            return NextResponse.json({ error: "Cannot demote your own account" }, { status: 400 });
+        }
+        allowedFields.role = body.role;
+    }
+    
     const user = await prisma.user.update({
         where: { id },
-        data: body,
+        data: allowedFields,
         select: {
             id: true, email: true, firstName: true, lastName: true,
             role: true, isActive: true, isVerified: true,

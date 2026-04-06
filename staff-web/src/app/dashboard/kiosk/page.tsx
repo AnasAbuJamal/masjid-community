@@ -8,14 +8,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
-import { Tv, ExternalLink, Clock, Megaphone, Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  Tv, ExternalLink, Megaphone, Plus, Pencil, Trash2, AlertTriangle,
+  AlertOctagon, Radio, Clock, X,
+} from "lucide-react";
 import Link from "next/link";
 
 interface Announcement {
@@ -23,57 +25,173 @@ interface Announcement {
   isActive: boolean; priority: number; startDate?: string; endDate?: string;
 }
 
-const typeColors: Record<string, string> = { general: "bg-blue-100 text-blue-700", urgent: "bg-red-100 text-red-700", event: "bg-purple-100 text-purple-700", reminder: "bg-yellow-100 text-yellow-700" };
+interface EmergencyBroadcast {
+  isActive: boolean;
+  title: string | null;
+  message: string | null;
+  expiresAt: string | null;
+}
+
+const typeColors: Record<string, string> = {
+  general: "bg-blue-100 text-blue-700",
+  urgent: "bg-red-100 text-red-700",
+  event: "bg-purple-100 text-purple-700",
+  ramadan: "bg-green-100 text-green-700",
+  fundraiser: "bg-yellow-100 text-yellow-700",
+};
 
 export default function KioskPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [emergency, setEmergency] = useState<EmergencyBroadcast | null>(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [emergencyDialogOpen, setEmergencyDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Announcement | null>(null);
   const [form, setForm] = useState({ title: "", message: "", type: "general", isActive: true, priority: 1, startsAt: "", expiresAt: "" });
+  const [emergencyForm, setEmergencyForm] = useState({ title: "", message: "", expiresInMinutes: 60 });
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
-      const res = await fetch("/api/kiosk");
-      const data = await res.json();
-      setAnnouncements(data.announcements || []);
+      const [kioskRes, emergencyRes] = await Promise.all([
+        fetch("/api/kiosk"),
+        fetch("/api/kiosk/emergency"),
+      ]);
+      const kioskData = await kioskRes.json();
+      const emergencyData = await emergencyRes.json();
+      setAnnouncements(kioskData.announcements || []);
+      setEmergency(emergencyData);
     } catch { /* empty */ } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
 
-  const openCreate = () => { setEditing(null); setForm({ title: "", message: "", type: "general", isActive: true, priority: 1, startsAt: "", expiresAt: "" }); setDialogOpen(true); };
-  const openEdit = (a: Announcement) => { setEditing(a); setForm({ title: a.title, message: a.message, type: a.type, isActive: a.isActive, priority: a.priority, startsAt: a.startDate?.split("T")[0] || "", expiresAt: a.endDate?.split("T")[0] || "" }); setDialogOpen(true); };
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ title: "", message: "", type: "general", isActive: true, priority: 1, startsAt: "", expiresAt: "" });
+    setDialogOpen(true);
+  };
+  const openEdit = (a: Announcement) => {
+    setEditing(a);
+    setForm({ title: a.title, message: a.message, type: a.type, isActive: a.isActive, priority: a.priority, startsAt: a.startDate?.split("T")[0] || "", expiresAt: a.endDate?.split("T")[0] || "" });
+    setDialogOpen(true);
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const payload = { ...form, startsAt: form.startsAt || undefined, expiresAt: form.expiresAt || undefined };
-      if (editing) { await fetch(`/api/kiosk/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); }
-      else { await fetch("/api/kiosk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); }
-      setDialogOpen(false); fetchData();
+      if (editing) {
+        await fetch(`/api/kiosk/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      } else {
+        await fetch("/api/kiosk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      }
+      setDialogOpen(false);
+      fetchData();
     } catch { /* empty */ } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    try { await fetch(`/api/kiosk/${deleteId}`, { method: "DELETE" }); setDeleteId(null); fetchData(); } catch { /* empty */ }
+    try {
+      await fetch(`/api/kiosk/${deleteId}`, { method: "DELETE" });
+      setDeleteId(null);
+      fetchData();
+    } catch { /* empty */ }
+  };
+
+  const handleActivateEmergency = async () => {
+    if (!emergencyForm.title || !emergencyForm.message) return;
+    setSaving(true);
+    try {
+      await fetch("/api/kiosk/emergency", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(emergencyForm),
+      });
+      setEmergencyDialogOpen(false);
+      setEmergencyForm({ title: "", message: "", expiresInMinutes: 60 });
+      fetchData();
+    } catch (error) {
+      console.error("Error activating emergency:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClearEmergency = async () => {
+    if (!confirm("Clear the active emergency broadcast?")) return;
+    try {
+      await fetch("/api/kiosk/emergency", { method: "DELETE" });
+      fetchData();
+    } catch (error) {
+      console.error("Error clearing emergency:", error);
+    }
   };
 
   const activeCount = announcements.filter((a) => a.isActive).length;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-3xl font-bold text-gray-900">Kiosk / TV Mode</h1><p className="text-gray-500 mt-1">Digital signage for mosque lobby TVs</p></div>
         <div className="flex gap-2">
-          <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Announcement</Button>
           <Link href="/kiosk/tv" target="_blank"><Button variant="outline"><Tv className="h-4 w-4 mr-2" />Open TV Display</Button></Link>
+          <Button className="mocha-gradient hover:opacity-90" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Announcement</Button>
         </div>
       </div>
+
+      {/* Emergency Alert */}
+      {emergency?.isActive && (
+        <Card className="border-2 border-red-500 bg-red-50">
+          <CardContent className="pt-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 animate-pulse">
+                  <AlertOctagon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-red-700">{emergency.title}</h3>
+                  <p className="text-red-600">{emergency.message}</p>
+                  {emergency.expiresAt && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Expires: {new Date(emergency.expiresAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100" onClick={handleClearEmergency}>
+                <X className="h-4 w-4 mr-1" />Clear
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Emergency Broadcast Button */}
+      {!emergency?.isActive && (
+        <Card className="border-2 border-yellow-300 bg-yellow-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center">
+                  <AlertTriangle className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-yellow-800">Emergency Broadcast</h3>
+                  <p className="text-sm text-yellow-700">Send urgent alerts to all TV displays</p>
+                </div>
+              </div>
+              <Button className="bg-red-600 hover:bg-red-700" onClick={() => setEmergencyDialogOpen(true)}>
+                <Radio className="h-4 w-4 mr-2" />Activate Emergency
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-2 border-dashed border-gray-300">
         <CardHeader><CardTitle className="flex items-center gap-2"><Tv className="h-5 w-5" />TV Display Preview</CardTitle></CardHeader>
@@ -91,8 +209,63 @@ export default function KioskPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Announcements</p><p className="text-2xl font-bold">{announcements.length}</p></div><div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center"><Megaphone className="h-6 w-6 text-blue-600" /></div></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Active</p><p className="text-2xl font-bold text-green-600">{activeCount}</p></div><div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center"><Megaphone className="h-6 w-6 text-green-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Inactive</p><p className="text-2xl font-bold text-gray-600">{announcements.length - activeCount}</p></div><div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center"><Megaphone className="h-6 w-6 text-gray-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Emergency</p><p className="text-2xl font-bold text-red-600">{emergency?.isActive ? "ACTIVE" : "None"}</p></div><div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center"><AlertTriangle className="h-6 w-6 text-red-600" /></div></div></CardContent></Card>
       </div>
+
+      {/* Rotation Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Tv className="h-5 w-5" />Rotation Settings
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <Label>Rotation Interval</Label>
+                <Select defaultValue="10">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 seconds</SelectItem>
+                    <SelectItem value="10">10 seconds</SelectItem>
+                    <SelectItem value="15">15 seconds</SelectItem>
+                    <SelectItem value="30">30 seconds</SelectItem>
+                    <SelectItem value="60">1 minute</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 mt-1">How long each announcement displays</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <Label>Transition Effect</Label>
+                <Select defaultValue="fade">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fade">Fade</SelectItem>
+                    <SelectItem value="slide">Slide</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 mt-1">Animation between announcements</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Tip:</strong> Announcements are displayed in order of priority (highest first), then by creation date.
+              Use priority 1-10 to control the display order.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Announcements</CardTitle></CardHeader>
@@ -123,6 +296,65 @@ export default function KioskPage() {
         </CardContent>
       </Card>
 
+      {/* Emergency Broadcast Dialog */}
+      <Dialog open={emergencyDialogOpen} onOpenChange={setEmergencyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertOctagon className="h-5 w-5" />Emergency Broadcast
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                This will display an urgent alert on ALL TV displays connected to the kiosk system.
+                Use this only for genuine emergencies.
+              </p>
+            </div>
+            <div>
+              <Label>Alert Title</Label>
+              <Input
+                placeholder="EMERGENCY"
+                value={emergencyForm.title}
+                onChange={(e) => setEmergencyForm({ ...emergencyForm, title: e.target.value.toUpperCase() })}
+                className="font-bold"
+              />
+            </div>
+            <div>
+              <Label>Message</Label>
+              <Textarea
+                placeholder="Describe the emergency..."
+                value={emergencyForm.message}
+                onChange={(e) => setEmergencyForm({ ...emergencyForm, message: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div>
+              <Label>Auto-expire after (minutes)</Label>
+              <Select value={emergencyForm.expiresInMinutes.toString()} onValueChange={(v) => setEmergencyForm({ ...emergencyForm, expiresInMinutes: parseInt(v) })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 minutes</SelectItem>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                  <SelectItem value="0">No auto-expire</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmergencyDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-red-600 hover:bg-red-700" onClick={handleActivateEmergency} disabled={!emergencyForm.title || !emergencyForm.message || saving}>
+              {saving ? "Activating..." : "Activate Emergency"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Announcement Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? "Edit Announcement" : "New Announcement"}</DialogTitle></DialogHeader>
@@ -139,7 +371,7 @@ export default function KioskPage() {
             </div>
             <div className="flex items-center justify-between"><Label>Active</Label><Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editing ? "Update" : "Create"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editing ? "Update" : "Create"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

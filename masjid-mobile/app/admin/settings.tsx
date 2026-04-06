@@ -24,6 +24,7 @@ interface SettingSection {
     type: 'toggle' | 'navigation' | 'input';
     value?: boolean;
     onToggle?: (val: boolean) => void;
+    route?: string;
   }>;
 }
 

@@ -8,6 +8,9 @@ interface SettingsState {
   prayerNotifications: boolean;
   announcementNotifications: boolean;
   donationNotifications: boolean;
+  attendanceAlerts: boolean;
+  gradeNotifications: boolean;
+  paymentReminders: boolean;
   isLoading: boolean;
 }
 
@@ -17,6 +20,9 @@ interface SettingsActions {
   setPrayerNotifications: (enabled: boolean) => Promise<void>;
   setAnnouncementNotifications: (enabled: boolean) => Promise<void>;
   setDonationNotifications: (enabled: boolean) => Promise<void>;
+  setAttendanceAlerts: (enabled: boolean) => Promise<void>;
+  setGradeNotifications: (enabled: boolean) => Promise<void>;
+  setPaymentReminders: (enabled: boolean) => Promise<void>;
 }
 
 const SETTINGS_STORAGE_KEY = '@masjid:settings';
@@ -26,6 +32,9 @@ export const useSettingsStore = create<SettingsState & SettingsActions>((set, ge
   prayerNotifications: true,
   announcementNotifications: true,
   donationNotifications: true,
+  attendanceAlerts: true,
+  gradeNotifications: true,
+  paymentReminders: true,
   isLoading: true,
 
   initialize: async () => {
@@ -33,7 +42,13 @@ export const useSettingsStore = create<SettingsState & SettingsActions>((set, ge
       const settingsStr = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
       if (settingsStr) {
         const settings = JSON.parse(settingsStr);
-        set({ ...settings, isLoading: false });
+        set({ 
+          ...settings, 
+          isLoading: false,
+          attendanceAlerts: settings.attendanceAlerts ?? true,
+          gradeNotifications: settings.gradeNotifications ?? true,
+          paymentReminders: settings.paymentReminders ?? true,
+        });
       } else {
         set({ isLoading: false });
       }
@@ -61,13 +76,28 @@ export const useSettingsStore = create<SettingsState & SettingsActions>((set, ge
     set({ donationNotifications: enabled });
     await saveSettings(get());
   },
+
+  setAttendanceAlerts: async (enabled: boolean) => {
+    set({ attendanceAlerts: enabled });
+    await saveSettings(get());
+  },
+
+  setGradeNotifications: async (enabled: boolean) => {
+    set({ gradeNotifications: enabled });
+    await saveSettings(get());
+  },
+
+  setPaymentReminders: async (enabled: boolean) => {
+    set({ paymentReminders: enabled });
+    await saveSettings(get());
+  },
 }));
 
 async function saveSettings(state: SettingsState & SettingsActions) {
-  const { themeMode, prayerNotifications, announcementNotifications, donationNotifications } = state;
+  const { themeMode, prayerNotifications, announcementNotifications, donationNotifications, attendanceAlerts, gradeNotifications, paymentReminders } = state;
   await AsyncStorage.setItem(
     SETTINGS_STORAGE_KEY,
-    JSON.stringify({ themeMode, prayerNotifications, announcementNotifications, donationNotifications })
+    JSON.stringify({ themeMode, prayerNotifications, announcementNotifications, donationNotifications, attendanceAlerts, gradeNotifications, paymentReminders })
   );
 }
 

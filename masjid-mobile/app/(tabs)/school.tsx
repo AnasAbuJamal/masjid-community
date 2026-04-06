@@ -70,7 +70,7 @@ export default function SchoolScreen() {
   };
 
   const handleEnroll = () => {
-    Alert.alert('Enrollment', 'To enroll your child, please contact the school office.', [{ text: 'Got it' }]);
+    router.push('/school/enroll' as any);
   };
 
   const cardWidth = (width - SPACING.md * 2 - SPACING.sm) / 2;

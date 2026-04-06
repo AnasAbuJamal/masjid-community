@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,6 +17,7 @@ import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import apiService, { Proposal } from '../../services/api-service';
 
 const CATEGORIES = ['Education', 'Youth', 'Community Event', 'Facility', 'Social Services', 'Technology', 'Other'];
+const STATUS_OPTIONS = ['all', 'pending', 'approved', 'in_progress', 'completed'];
 
 const STATUS_COLORS: Record<string, string> = {
   pending: COLORS.warning,
@@ -28,6 +30,13 @@ const STATUS_COLORS: Record<string, string> = {
   on_hold: COLORS.textSecondary,
 };
 
+interface Comment {
+  id: string;
+  author: string;
+  text: string;
+  createdAt: string;
+}
+
 export default function ProposalsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -37,6 +46,9 @@ export default function ProposalsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', category: 'Other' });
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [sortBy, setSortBy] = useState<'votes' | 'recent'>('votes');
+  const [proposalComments, setProposalComments] = useState<Record<string, Comment[]>>({});
 
   useEffect(() => {
     loadProposals();
@@ -101,12 +113,16 @@ export default function ProposalsScreen() {
 
   const cardWidth = width - SPACING.md * 2;
 
+  const filteredProposals = proposals
+    .filter(p => selectedStatus === 'all' || p.status === selectedStatus)
+    .sort((a, b) => sortBy === 'votes' ? b.votes - a.votes : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const getCommentsCount = (proposalId: string) => {
+    return proposalComments[proposalId]?.length || 0;
+  };
+
   const renderHeader = () => (
     <View>
-      <View style={styles.headerSection}>
-        <Text style={styles.pageTitle}>Community Proposals</Text>
-        <Text style={styles.pageSubtitle}>Vote on ideas to improve our community</Text>
-      </View>
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.newButton, showForm && styles.newButtonCancel]}
@@ -165,12 +181,40 @@ export default function ProposalsScreen() {
           </TouchableOpacity>
         </GlassCard>
       )}
+
+      {/* Filters */}
+      <View style={styles.filterSection}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {STATUS_OPTIONS.map(status => (
+            <TouchableOpacity
+              key={status}
+              style={[styles.filterChip, selectedStatus === status && styles.filterChipActive]}
+              onPress={() => setSelectedStatus(status)}
+            >
+              <Text style={[styles.filterText, selectedStatus === status && styles.filterTextActive]}>
+                {status === 'all' ? 'All' : status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <View style={styles.sortRow}>
+          <TouchableOpacity style={[styles.sortButton, sortBy === 'votes' && styles.sortButtonActive]} onPress={() => setSortBy('votes')}>
+            <MaterialCommunityIcons name="fire" size={14} color={sortBy === 'votes' ? COLORS.white : COLORS.textSecondary} />
+            <Text style={[styles.sortText, sortBy === 'votes' && styles.sortTextActive]}>Top Voted</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.sortButton, sortBy === 'recent' && styles.sortButtonActive]} onPress={() => setSortBy('recent')}>
+            <MaterialCommunityIcons name="clock-outline" size={14} color={sortBy === 'recent' ? COLORS.white : COLORS.textSecondary} />
+            <Text style={[styles.sortText, sortBy === 'recent' && styles.sortTextActive]}>Recent</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 
   const renderProposal = ({ item }: { item: Proposal }) => {
     const statusColor = STATUS_COLORS[item.status] || COLORS.primary;
     const statusLabel = item.status ? item.status.replace(/_/g, ' ') : 'open';
+    const commentsCount = getCommentsCount(item.id);
     return (
       <TouchableOpacity activeOpacity={0.7} onPress={() => router.push({ pathname: '/proposals/[id]' as any, params: { id: item.id } })}>
         <GlassCard style={styles.proposalCard}>
@@ -189,8 +233,12 @@ export default function ProposalsScreen() {
               <Text style={styles.voteCount}>{item.votes}</Text>
               <Text style={styles.voteLabel}>votes</Text>
             </TouchableOpacity>
+            <View style={styles.commentButton}>
+              <MaterialCommunityIcons name="comment-outline" size={16} color={COLORS.textSecondary} />
+              <Text style={styles.commentCount}>{commentsCount > 0 ? commentsCount : 'Comments'}</Text>
+            </View>
             <View style={styles.detailBtn}>
-              <Text style={styles.detailBtnText}>View Details</Text>
+              <Text style={styles.detailBtnText}>Details</Text>
               <MaterialCommunityIcons name="chevron-right" size={16} color={COLORS.primary} />
             </View>
           </View>
@@ -209,6 +257,14 @@ export default function ProposalsScreen() {
 
   return (
     <ScreenWrapper contentPadding={false} bottomPadding={false}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Proposals</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -218,18 +274,18 @@ export default function ProposalsScreen() {
         {loading ? renderSkeleton() : (
           <>
             {renderHeader()}
-            {proposals.length === 0 ? (
+            {filteredProposals.length === 0 ? (
               <View style={styles.emptyWrapper}>
                 <GlassCard>
                   <View style={styles.centeredContent}>
                     <FloatingIcon icon={<MaterialCommunityIcons name="lightbulb-outline" size={32} color={COLORS.textSecondary} />} size="lg" color={COLORS.textSecondary} />
-                    <Text style={styles.emptyTitle}>No proposals yet</Text>
-                    <Text style={styles.emptySubtext}>Be the first to submit an idea for our community!</Text>
+                    <Text style={styles.emptyTitle}>No proposals found</Text>
+                    <Text style={styles.emptySubtext}>Try changing your filters or submit a new proposal!</Text>
                   </View>
                 </GlassCard>
               </View>
             ) : (
-              proposals.map((p) => (
+              filteredProposals.map((p) => (
                 <View key={p.id} style={styles.cardWrapper}>
                   {renderProposal({ item: p })}
                 </View>
@@ -253,6 +309,9 @@ function getMockProposals(): Proposal[] {
 const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
+  header: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
+  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
   pageTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
   pageSubtitle: { fontSize: 13, color: COLORS.textSecondary },
@@ -288,6 +347,20 @@ const styles = StyleSheet.create({
   voteLabel: { fontSize: 12, color: COLORS.primary },
   detailBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   detailBtnText: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
+  commentButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  commentCount: { fontSize: 12, color: COLORS.textSecondary },
+  
+  filterSection: { paddingHorizontal: SPACING.md, marginBottom: SPACING.sm, gap: SPACING.sm },
+  filterChip: { paddingHorizontal: SPACING.sm + 4, paddingVertical: SPACING.xs + 2, backgroundColor: COLORS.surface, borderRadius: RADIUS.full, marginRight: SPACING.xs, borderWidth: 1, borderColor: COLORS.border },
+  filterChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  filterText: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  filterTextActive: { color: COLORS.white },
+  sortRow: { flexDirection: 'row', gap: SPACING.xs },
+  sortButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs, borderRadius: RADIUS.full, backgroundColor: COLORS.surface },
+  sortButtonActive: { backgroundColor: COLORS.secondary },
+  sortText: { fontSize: 12, color: COLORS.textSecondary },
+  sortTextActive: { color: COLORS.white },
+
   emptyWrapper: { flex: 1, justifyContent: 'center', paddingTop: SPACING.xxl, paddingHorizontal: SPACING.md },
   centeredContent: { alignItems: 'center', gap: SPACING.sm },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text },

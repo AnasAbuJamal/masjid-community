@@ -3,6 +3,17 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { logAudit, getClientIp } from "@/lib/audit";
 
+// Allowed settings keys to prevent arbitrary key injection
+const ALLOWED_SETTINGS = [
+    'site_name', 'site_tagline', 'contact_email', 'contact_phone',
+    'address', 'kiosk_mode', 'kiosk_rotation_interval', 'kiosk_display_duration',
+    'theme', 'notification_email', 'notification_push',
+    'donation_goal', 'maintenance_mode', 'emergency_broadcast_title',
+    'emergency_broadcast_message', 'emergency_broadcast_expires',
+    'social_facebook', 'social_twitter', 'social_instagram',
+    'registration_enabled', 'require_email_verification',
+];
+
 export async function GET() {
     const session = await auth();
     if (!session || session.user.role !== "admin") {
@@ -23,18 +34,34 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const results = [];
-
-    for (const [key, value] of Object.entries(body)) {
-        const setting = await prisma.siteSetting.upsert({
-            where: { key },
-            update: { value: String(value) },
-            create: { key, value: String(value) },
-        });
-        results.push(setting);
+    
+    // Only allow updating one setting at a time for security
+    if (Object.keys(body).length !== 1) {
+        return NextResponse.json({ error: "Only one setting can be updated at a time" }, { status: 400 });
+    }
+    
+    const [key, value] = Object.entries(body)[0];
+    
+    // Validate setting key
+    if (!ALLOWED_SETTINGS.includes(key)) {
+        return NextResponse.json({ 
+            error: `Invalid setting key. Allowed: ${ALLOWED_SETTINGS.join(', ')}` 
+        }, { status: 400 });
+    }
+    
+    // Validate value is not too long
+    const stringValue = String(value);
+    if (stringValue.length > 1000) {
+        return NextResponse.json({ error: "Setting value too long (max 1000 chars)" }, { status: 400 });
     }
 
-    await logAudit({ action: "update_settings", userId: session.user.id, details: `Updated ${results.length} setting(s)`, ipAddress: getClientIp(req) });
+    const setting = await prisma.siteSetting.upsert({
+        where: { key },
+        update: { value: stringValue },
+        create: { key, value: stringValue },
+    });
 
-    return NextResponse.json({ success: true, settings: results });
+    await logAudit({ action: "update_settings", userId: session.user.id, details: `Updated setting: ${key}`, ipAddress: getClientIp(req) });
+
+    return NextResponse.json({ success: true, setting });
 }

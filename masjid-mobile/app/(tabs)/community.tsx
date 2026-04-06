@@ -8,15 +8,19 @@ import {
   Alert,
   useWindowDimensions,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlassCard, ScreenWrapper, FloatingIcon } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import apiService, { VolunteerOpportunity } from '../../services/api-service';
+import { useAuthStore } from '../../stores/authStore';
 
-type TabKey = 'volunteers' | 'proposals' | 'myvolunteers';
+type TabKey = 'volunteers' | 'proposals' | 'myvolunteers' | 'rentals';
 
 export default function CommunityScreen() {
   const { width } = useWindowDimensions();
+  const router = useRouter();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabKey>('volunteers');
   const [opportunities, setOpportunities] = useState<VolunteerOpportunity[]>([]);
   const [myOpportunities, setMyOpportunities] = useState<VolunteerOpportunity[]>([]);
@@ -49,6 +53,11 @@ export default function CommunityScreen() {
   };
 
   const handleSignUp = async (opp: VolunteerOpportunity) => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please login to sign up as a volunteer.');
+      return;
+    }
+    
     const spotsLeft = opp.spotsTotal - opp.spotsFilled;
     Alert.alert(`Sign up for "${opp.title}"`, `${spotsLeft} spots remaining.\n\nWould you like to volunteer?`, [
       { text: 'Cancel', style: 'cancel' },
@@ -56,7 +65,11 @@ export default function CommunityScreen() {
         text: 'Sign Up', 
         onPress: async () => {
           try {
-            await apiService.volunteers.signUp(opp.id);
+            await apiService.volunteers.signUp(opp.id, {
+              userName: `${user.firstName} ${user.lastName}`,
+              userEmail: user.email,
+              userPhone: user.phone,
+            });
             Alert.alert('✓ Success', 'Thank you for volunteering!');
             loadOpportunities();
           } catch {
@@ -78,15 +91,11 @@ export default function CommunityScreen() {
     { key: 'volunteers', label: 'Volunteer', icon: 'hand-heart-outline' },
     { key: 'myvolunteers', label: 'My Events', icon: 'calendar-check-outline' },
     { key: 'proposals', label: 'Proposals', icon: 'lightbulb-outline' },
+    { key: 'rentals', label: 'Rentals', icon: 'package-variant' },
   ];
 
   return (
     <ScreenWrapper contentPadding={false} bottomPadding={false}>
-      {/* Header Section */}
-      <View style={styles.headerSection}>
-        <Text style={styles.pageTitle}>Community</Text>
-      </View>
-
       {/* Tab Bar Section */}
       <View style={styles.tabBarSection}>
         <View style={styles.tabBar}>
@@ -190,6 +199,28 @@ export default function CommunityScreen() {
               </View>
             )}
           />
+        ) : activeTab === 'rentals' ? (
+          <FlatList
+            data={[] as any[]}
+            keyExtractor={(item: any) => item?.id || 'empty'}
+            renderItem={() => null}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyWrapper}>
+                <GlassCard>
+                  <View style={styles.centeredContent}>
+                    <FloatingIcon icon={<MaterialCommunityIcons name="package-variant" size={32} color={COLORS.textSecondary} />} size="lg" color={COLORS.textSecondary} />
+                    <Text style={styles.emptyText}>Equipment & Hall Rentals</Text>
+                    <Text style={styles.emptySubtext}>Browse and book halls, tables, chairs, and more</Text>
+                    <TouchableOpacity style={styles.proposeButton} onPress={() => router.push('/rentals' as any)}>
+                      <Text style={styles.proposeText}>Browse Rentals</Text>
+                    </TouchableOpacity>
+                  </View>
+                </GlassCard>
+              </View>
+            }
+          />
         ) : (
           <View style={styles.emptyWrapper}>
             <GlassCard>
@@ -210,7 +241,7 @@ const styles = StyleSheet.create({
   headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
   pageTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
 
-  tabBarSection: { paddingHorizontal: SPACING.md, paddingBottom: SPACING.md },
+  tabBarSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.md },
   tabBar: { flexDirection: 'row', backgroundColor: COLORS.surface, padding: SPACING.xs, gap: SPACING.xs, borderRadius: RADIUS.lg },
   tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: RADIUS.md, gap: 6 },
   tabActive: { backgroundColor: COLORS.primary },

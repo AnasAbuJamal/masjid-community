@@ -147,7 +147,7 @@ export default function BlogPage() {
   const publishedCount = posts.filter((p) => p.status === "published").length;
   const draftCount = posts.filter((p) => p.status === "draft").length;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
@@ -156,7 +156,7 @@ export default function BlogPage() {
           <h1 className="text-3xl font-bold text-gray-900">Blog / News</h1>
           <p className="text-gray-500 mt-1">Manage announcements and news articles</p>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreate}>
+        <Button className="mocha-gradient hover:opacity-90" onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" /> New Post
         </Button>
       </div>
@@ -171,7 +171,7 @@ export default function BlogPage() {
       {/* Filter */}
       <div className="flex gap-2">
         {["all", "draft", "published", "archived"].map((s) => (
-          <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)} className={statusFilter === s ? "bg-emerald-600" : ""}>
+          <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)} className={statusFilter === s ? "mocha-gradient" : ""}>
             {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
           </Button>
         ))}
@@ -279,7 +279,7 @@ export default function BlogPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editing ? "Update" : "Create"}</Button>
+            <Button className="mocha-gradient hover:opacity-90" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : editing ? "Update" : "Create"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

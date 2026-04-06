@@ -9,11 +9,13 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import apiService from '../services/api-service';
 
 interface Campaign {
   id: string;
@@ -23,6 +25,17 @@ interface Campaign {
   goal: number;
   icon: string;
   color: string;
+  endDate?: string;
+  donors?: number;
+}
+
+interface RecurringDonation {
+  id: string;
+  campaignName: string;
+  amount: number;
+  frequency: 'weekly' | 'monthly';
+  nextDate: string;
+  active: boolean;
 }
 
 const CAMPAIGNS: Campaign[] = [
@@ -34,6 +47,7 @@ const CAMPAIGNS: Campaign[] = [
     goal: 50000,
     icon: 'mosque',
     color: COLORS.primary,
+    donors: 156,
   },
   {
     id: 'construction',
@@ -43,6 +57,7 @@ const CAMPAIGNS: Campaign[] = [
     goal: 250000,
     icon: 'office-building',
     color: COLORS.secondary,
+    donors: 89,
   },
   {
     id: 'ramadan',
@@ -52,7 +67,13 @@ const CAMPAIGNS: Campaign[] = [
     goal: 15000,
     icon: 'star-crescent',
     color: COLORS.accent,
+    endDate: '2024-04-10',
+    donors: 234,
   },
+];
+
+const MOCK_RECURRING: RecurringDonation[] = [
+  { id: '1', campaignName: 'General Fund', amount: 50, frequency: 'monthly', nextDate: '2024-04-01', active: true },
 ];
 
 const PRESET_AMOUNTS = [10, 25, 50, 100, 250, 500];
@@ -64,11 +85,16 @@ export default function DonateScreen() {
   const [customAmount, setCustomAmount] = useState('');
   const [donorName, setDonorName] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringFrequency, setRecurringFrequency] = useState<'weekly' | 'monthly'>('monthly');
+  const [recurringDonations, setRecurringDonations] = useState<RecurringDonation[]>(MOCK_RECURRING);
 
   const campaign = CAMPAIGNS.find((c) => c.id === selectedCampaign)!;
   const donationAmount = selectedAmount ?? (parseFloat(customAmount) || null);
   const pct = Math.round((campaign.raised / campaign.goal) * 100);
   const remaining = campaign.goal - campaign.raised;
+
+  const totalRecurring = recurringDonations.filter(r => r.active).reduce((sum, r) => sum + r.amount, 0);
 
   const handleDonate = () => {
     if (!donationAmount || donationAmount <= 0) {
@@ -214,6 +240,41 @@ export default function DonateScreen() {
               {isAnonymous && <MaterialCommunityIcons name="check" size={14} color={COLORS.white} />}
             </View>
           </TouchableOpacity>
+
+          {/* Recurring donation toggle */}
+          <TouchableOpacity style={styles.anonymousRow} onPress={() => setIsRecurring(!isRecurring)}>
+            <View style={styles.anonymousContent}>
+              <MaterialCommunityIcons name="repeat" size={20} color={isRecurring ? COLORS.success : COLORS.textSecondary} />
+              <View>
+                <Text style={styles.anonymousTitle}>Make it Recurring</Text>
+                <Text style={styles.anonymousSubtitle}>Support us monthly with automatic donations</Text>
+              </View>
+            </View>
+            <View style={[styles.checkbox, isRecurring && styles.checkboxChecked, isRecurring && { backgroundColor: COLORS.success }]}>
+              {isRecurring && <MaterialCommunityIcons name="check" size={14} color={COLORS.white} />}
+            </View>
+          </TouchableOpacity>
+
+          {/* Recurring frequency selection */}
+          {isRecurring && (
+            <View style={styles.frequencyContainer}>
+              <Text style={styles.frequencyLabel}>Frequency</Text>
+              <View style={styles.frequencyRow}>
+                <TouchableOpacity
+                  style={[styles.frequencyOption, recurringFrequency === 'weekly' && styles.frequencyOptionActive]}
+                  onPress={() => setRecurringFrequency('weekly')}
+                >
+                  <Text style={[styles.frequencyText, recurringFrequency === 'weekly' && styles.frequencyTextActive]}>Weekly</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.frequencyOption, recurringFrequency === 'monthly' && styles.frequencyOptionActive]}
+                  onPress={() => setRecurringFrequency('monthly')}
+                >
+                  <Text style={[styles.frequencyText, recurringFrequency === 'monthly' && styles.frequencyTextActive]}>Monthly</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Donate button */}
           <TouchableOpacity
@@ -437,4 +498,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  frequencyContainer: { marginTop: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.surface, borderRadius: RADIUS.md },
+  frequencyLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  frequencyRow: { flexDirection: 'row', gap: SPACING.sm },
+  frequencyOption: { flex: 1, paddingVertical: SPACING.sm, alignItems: 'center', backgroundColor: COLORS.background, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border },
+  frequencyOptionActive: { backgroundColor: COLORS.success + '15', borderColor: COLORS.success },
+  frequencyText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  frequencyTextActive: { color: COLORS.success },
 });

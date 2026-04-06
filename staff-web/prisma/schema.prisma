@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -14,7 +14,7 @@ datasource db {
 // ──────────────────────────────────────
 
 model User {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  id            Int       @id @default(autoincrement())
   email         String    @unique
   passwordHash  String
   firstName     String
@@ -24,17 +24,25 @@ model User {
   isVerified    Boolean   @default(false)
   isActive      Boolean   @default(true)
   lastLoginAt   DateTime?
+  failedLoginAttempts Int  @default(0)
+  lockoutUntil  DateTime?
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   blogPosts     BlogPost[]
   assignments   Assignment[]  @relation("AssignmentTeacher")
   auditLogs     AuditLog[]
+  notifications Notification[]
 }
 
 enum UserRole {
   admin
   teacher
+  staff
+  member
+  student
 }
 
 // ──────────────────────────────────────
@@ -42,7 +50,7 @@ enum UserRole {
 // ──────────────────────────────────────
 
 model PrayerTime {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        Int       @id @default(autoincrement())
   date      DateTime @unique
   fajr      String
   sunrise   String
@@ -61,17 +69,39 @@ model PrayerTime {
 // ──────────────────────────────────────
 
 model BlogPost {
-  id         String     @id @default(auto()) @map("_id") @db.ObjectId
-  title      String
-  slug       String     @unique
-  body       String
-  coverImage String?
-  tags       String[]
-  status     PostStatus @default(draft)
-  authorId   String     @db.ObjectId
-  author     User       @relation(fields: [authorId], references: [id])
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id Int @id @default(autoincrement())
+  title         String
+  slug          String     @unique
+  body          String
+  excerpt       String?
+  coverImage    String?
+  tags          String[]
+  categoryId Int?    
+  category      Category?  @relation(fields: [categoryId], references: [id])
+  status        PostStatus @default(draft)
+  publishedAt   DateTime?
+  scheduledFor  DateTime?
+  metaTitle    String?
+  metaDescription String?
+  seoImage     String?
+  authorId Int     
+  author        User       @relation(fields: [authorId], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([categoryId])
+}
+
+model Category {
+  id Int @id @default(autoincrement())
+  name      String     @unique
+  slug      String     @unique
+  description String?
+  color     String?
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
 }
 
 enum PostStatus {
@@ -85,22 +115,24 @@ enum PostStatus {
 // ──────────────────────────────────────
 
 model Class {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   name         String
   teacherName  String
   schedule     String
+  dayOfWeek    String[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   students     Student[]
+  attendances  Attendance[]
 }
 
 model Student {
-  id               String           @id @default(auto()) @map("_id") @db.ObjectId
-  studentId        String           @unique
+  id Int @id @default(autoincrement())
+  studentId Int           @unique
   firstName        String
   lastName         String
-  classId          String           @db.ObjectId
+  classId Int           
   class            Class            @relation(fields: [classId], references: [id])
   parentName       String
   parentEmail      String?
@@ -115,13 +147,90 @@ model Student {
   updatedAt        DateTime         @updatedAt
 
   assignments      Assignment[]
+  attendances      Attendance[]
+
+  @@index([firstName, lastName])
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+}
+
+model StudentApplication {
+  id Int @id @default(autoincrement())
+  studentName             String
+  dateOfBirth             DateTime
+  gradeLevel              String
+  parentName              String
+  parentEmail             String
+  parentPhone             String
+  programName             String
+  notes                   String?
+  status                  ApplicationStatus @default(pending)
+  reviewedBy Int?           
+  reviewedAt              DateTime?
+  emergencyContactName    String?
+  emergencyContactPhone   String?
+  emergencyRelation       String?
+  parentPreferredContact  String?           @default("email")
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([status])
+}
+
+enum BookingStatus {
+  pending
+  approved
+  rejected
+  completed
+  cancelled
+}
+
+model RentalItem {
+  id Int @id @default(autoincrement())
+  name         String
+  description  String?
+  category     String           @default("other")
+  imageUrl     String?
+  priceHourly  Float?
+  priceDaily   Float?
+  isAvailable  Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  bookings     RentalBooking[]
+
+  @@index([category])
+  @@index([isAvailable])
+}
+
+model RentalBooking {
+  id Int @id @default(autoincrement())
+  itemId Int        
+  item         RentalItem    @relation(fields: [itemId], references: [id])
+  renterName   String
+  renterEmail  String
+  renterPhone  String
+  eventName    String?
+  startDate    DateTime
+  endDate      DateTime
+  totalPrice   Float
+  status       BookingStatus @default(pending)
+  adminNotes   String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status])
+  @@index([itemId, startDate])
 }
 
 model Assignment {
-  id          String             @id @default(auto()) @map("_id") @db.ObjectId
-  studentId   String             @db.ObjectId
+  id Int @id @default(autoincrement())
+  studentId Int             
   student     Student            @relation(fields: [studentId], references: [id])
-  teacherId   String             @db.ObjectId
+  teacherId Int             
   teacher     User               @relation("AssignmentTeacher", fields: [teacherId], references: [id])
   date        DateTime
   type        AssignmentType
@@ -169,7 +278,7 @@ enum AttendanceStatus {
 // ──────────────────────────────────────
 
 model ConstructionProject {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   title           String
   description     String?
   progressPercent Int      @default(0)
@@ -184,7 +293,7 @@ model ConstructionProject {
 // ──────────────────────────────────────
 
 model VolunteerOpportunity {
-  id           String          @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   title        String
   description  String
   eventDate    DateTime
@@ -203,8 +312,8 @@ enum VolunteerStatus {
 }
 
 model VolunteerApplication {
-  id              String              @id @default(auto()) @map("_id") @db.ObjectId
-  opportunityId   String              @db.ObjectId
+  id Int @id @default(autoincrement())
+  opportunityId Int              
   opportunity     VolunteerOpportunity @relation(fields: [opportunityId], references: [id])
   userName        String
   userEmail       String
@@ -215,18 +324,12 @@ model VolunteerApplication {
   updatedAt       DateTime            @updatedAt
 }
 
-enum ApplicationStatus {
-  pending
-  approved
-  rejected
-}
-
 // ──────────────────────────────────────
 //  COMMUNITY PROJECT PROPOSALS (Enhanced)
 // ──────────────────────────────────────
 
 model ProjectProposal {
-  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   title             String
   summary           String
   description       String
@@ -263,7 +366,7 @@ model ProjectProposal {
 
   status            ProposalStatus   @default(pending)
   adminNotes        String?
-  reviewedBy        String?
+  reviewedBy Int?
   reviewedAt        DateTime?
   rejectionReason   String?
   priority          ProposalPriority @default(normal)
@@ -280,8 +383,8 @@ model ProjectProposal {
 }
 
 model ProposalComment {
-  id          String          @id @default(auto()) @map("_id") @db.ObjectId
-  proposalId  String          @db.ObjectId
+  id Int @id @default(autoincrement())
+  proposalId Int          
   proposal    ProjectProposal @relation(fields: [proposalId], references: [id])
   authorName  String
   authorRole  String
@@ -326,7 +429,7 @@ enum ProposalCategory {
 // ──────────────────────────────────────
 
 model Donation {
-  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   stripeSessionId   String         @unique
   stripePaymentId   String?        @unique
   donorName         String?
@@ -356,7 +459,7 @@ enum DonationStatus {
 // ──────────────────────────────────────
 
 model SiteSetting {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        Int       @id @default(autoincrement())
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
@@ -367,7 +470,7 @@ model SiteSetting {
 // ──────────────────────────────────────
 
 model KioskAnnouncement {
-  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   title     String
   message   String
   type      AnnouncementType @default(general)
@@ -391,8 +494,35 @@ enum AnnouncementType {
 //  FINANCIALS
 // ──────────────────────────────────────
 
+model ExpenseCategory {
+  id Int @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  color       String?
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  expenses    FinancialExpense[]
+}
+
+model FinancialExpense {
+  id Int @id @default(autoincrement())
+  categoryId Int         
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
+  amount      Float
+  description String
+  date        DateTime
+  receiptUrl  String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([categoryId])
+  @@index([date])
+}
+
 model FinancialRecord {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        Int       @id @default(autoincrement())
   month     String
   year      Int
   donations Float    @default(0)
@@ -403,7 +533,7 @@ model FinancialRecord {
 }
 
 model FinancialSummary {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   totalSpent      Float    @default(0)
   bankBalance     Float    @default(0)
   totalGoal       Float    @default(0)
@@ -417,7 +547,7 @@ model FinancialSummary {
 // ──────────────────────────────────────
 
 model JobPosting {
-  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   title           String
   company         String
   contactName     String
@@ -472,15 +602,15 @@ enum JobStatus {
 }
 
 model JobApplication {
-  id              String        @id @default(auto()) @map("_id") @db.ObjectId
-  jobId           String        @db.ObjectId
+  id Int @id @default(autoincrement())
+  jobId Int        
   job             JobPosting    @relation(fields: [jobId], references: [id])
   applicantName   String
   applicantEmail  String
   applicantPhone  String?
   resumeUrl       String?
   coverLetter     String?
-  workerProfileId String?       @db.ObjectId
+  workerProfileId Int?       
   workerProfile   WorkerProfile? @relation(fields: [workerProfileId], references: [id])
   status          JobAppStatus  @default(submitted)
   createdAt       DateTime      @default(now())
@@ -496,7 +626,7 @@ enum JobAppStatus {
 }
 
 model WorkerProfile {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  id Int @id @default(autoincrement())
   fullName       String
   email          String        @unique
   phone          String?
@@ -537,13 +667,290 @@ enum ProfileStatus {
 // ──────────────────────────────────────
 
 model AuditLog {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        Int       @id @default(autoincrement())
   action    String
+  entity    String?  @map("_entity")
+  entityId  String?
   email     String?
-  userId    String?  @db.ObjectId
+  userId Int?  
   user      User?    @relation(fields: [userId], references: [id])
   details   String?
   ipAddress String?
   success   Boolean
   createdAt DateTime @default(now())
+
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// ──────────────────────────────────────
+//  ATTENDANCE TRACKING
+// ──────────────────────────────────────
+
+model Attendance {
+  id Int @id @default(autoincrement())
+  studentId Int            
+  student   Student           @relation(fields: [studentId], references: [id])
+  classId Int            
+  class     Class            @relation(fields: [classId], references: [id])
+  date      DateTime
+  status    AttendanceMark    @default(present)
+  notes     String?
+  markedBy Int?           
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([studentId, date])
+  @@index([date])
+  @@index([classId])
+  @@index([status])
+}
+
+enum AttendanceMark {
+  present
+  absent
+  late
+  excused
+}
+
+// ──────────────────────────────────────
+//  IN-APP NOTIFICATIONS
+// ──────────────────────────────────────
+
+model Notification {
+  id Int @id @default(autoincrement())
+  userId Int           
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  error
+  donation
+  volunteer
+  proposal
+  job
+  assignment
+  attendance
+  system
+}
+
+// ──────────────────────────────────────
+//  EVENTS
+// ──────────────────────────────────────
+
+model Event {
+  id Int @id @default(autoincrement())
+  title        String
+  description  String
+  location     String
+  startDate    DateTime
+  endDate      DateTime?
+  isAllDay     Boolean      @default(false)
+  capacity     Int?
+  isPublic     Boolean      @default(true)
+  coverImage   String?
+  category     String?
+  isRecurring  Boolean      @default(false)
+  recurrenceRule String?
+  status       EventStatus  @default(scheduled)
+  createdBy Int?      
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  rsvps        EventRSVP[]
+
+  @@index([startDate])
+  @@index([status])
+}
+
+model EventRSVP {
+  id Int @id @default(autoincrement())
+  eventId Int       
+  event     Event        @relation(fields: [eventId], references: [id])
+  name      String
+  email     String
+  phone     String?
+  status    RSVPStatus   @default(attending)
+  createdAt DateTime     @default(now())
+
+  @@unique([eventId, email])
+  @@index([eventId])
+}
+
+enum EventStatus {
+  scheduled
+  ongoing
+  completed
+  cancelled
+}
+
+enum RSVPStatus {
+  attending
+  not_attending
+  maybe
+}
+
+// ──────────────────────────────────────
+//  PASSWORD RESET
+// ──────────────────────────────────────
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+// ──────────────────────────────────────
+//  MEDIA LIBRARY
+// ──────────────────────────────────────
+
+model MediaFile {
+  id Int @id @default(autoincrement())
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  url         String
+  folder      String?
+  uploadedBy Int?  
+  createdAt   DateTime @default(now())
+
+  @@index([folder])
+  @@index([mimeType])
+}
+
+// ──────────────────────────────────────
+//  NEWSLETTER SUBSCRIPTIONS
+// ──────────────────────────────────────
+
+model NewsletterSubscription {
+  id        Int       @id @default(autoincrement())
+  email     String   @unique
+  firstName String?
+  isActive  Boolean  @default(true)
+  subscribedAt DateTime @default(now())
+  unsubscribedAt DateTime?
+  source    String?  @default("website")
+
+  @@index([isActive])
+}
+
+// ──────────────────────────────────────
+//  CONTACT FORM SUBMISSIONS
+// ──────────────────────────────────────
+
+model ContactSubmission {
+  id Int @id @default(autoincrement())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  status    ContactStatus   @default(pending)
+  notes     String?
+  assignedTo Int?        
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([status])
+  @@index([email])
+}
+
+enum ContactStatus {
+  pending
+  in_progress
+  resolved
+  closed
+}
+
+// ──────────────────────────────────────
+//  SEARCH ANALYTICS
+// ──────────────────────────────────────
+
+model SearchQuery {
+  id        Int       @id @default(autoincrement())
+  query     String
+  results   Int
+  userId Int?  
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([query])
+  @@index([createdAt])
+}
+
+// ──────────────────────────────────────
+//  ERROR LOGGING
+// ──────────────────────────────────────
+
+model ErrorLog {
+  id Int @id @default(autoincrement())
+  message   String
+  stack     String?
+  type      ErrorType   @default(server)
+  userId Int?
+  path      String?
+  method    String?
+  statusCode Int?
+  metadata  Json?
+  resolved  Boolean     @default(false)
+  createdAt DateTime    @default(now())
+
+  @@index([type])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+enum ErrorType {
+  server
+  client
+  database
+  auth
+  validation
+  external
+}
+
+// ──────────────────────────────────────
+//  USER NOTIFICATION PREFERENCES
+// ──────────────────────────────────────
+
+model NotificationPreference {
+  id Int @id @default(autoincrement())
+  userId Int   @unique 
+  emailDonations Boolean @default(true)
+  emailVolunteers Boolean @default(true)
+  emailProposals Boolean @default(true)
+  emailJobs     Boolean @default(true)
+  emailBlog    Boolean @default(false)
+  emailEvents  Boolean @default(true)
+  emailGeneral Boolean @default(true)
+  pushDonations Boolean @default(true)
+  pushVolunteers Boolean @default(true)
+  pushProposals Boolean @default(true)
+  pushJobs     Boolean @default(false)
+  pushBlog    Boolean @default(false)
+  pushEvents  Boolean @default(true)
+  pushGeneral Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

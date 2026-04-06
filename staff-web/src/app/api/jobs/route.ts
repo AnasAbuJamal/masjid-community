@@ -31,10 +31,15 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+    const session = await auth();
+    if (!session || session.user.role !== "admin") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
     if (body.expiresAt) body.expiresAt = new Date(body.expiresAt);
 
     const posting = await prisma.jobPosting.create({ data: body });
-    await logAudit({ action: "create_job", details: `Created job posting "${body.title}"`, ipAddress: getClientIp(req) });
+    await logAudit({ action: "create_job", userId: session.user.id, details: `Created job posting "${body.title}"`, ipAddress: getClientIp(req) });
     return NextResponse.json(posting, { status: 201 });
 }

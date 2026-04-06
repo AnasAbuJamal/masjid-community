@@ -95,12 +95,12 @@ export default function WorkersPage() {
   const approvedCount = profiles.filter((p) => p.status === "approved").length;
   const rejectedCount = profiles.filter((p) => p.status === "rejected").length;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Worker Profiles</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Worker Profiles</h1>
         <p className="text-gray-500 mt-1">Review and manage worker/freelancer profiles</p>
       </div>
 
@@ -113,7 +113,7 @@ export default function WorkersPage() {
 
       <div className="flex gap-2">
         {["all", "pending_review", "approved", "rejected", "suspended"].map((s) => (
-          <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => { setStatusFilter(s); setLoading(true); }} className={statusFilter === s ? "bg-emerald-600" : ""}>
+          <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => { setStatusFilter(s); setLoading(true); }} className={statusFilter === s ? "mocha-gradient" : ""}>
             {s === "all" ? "All" : s.replace("_", " ").split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
           </Button>
         ))}
@@ -185,7 +185,7 @@ export default function WorkersPage() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{detailProfile?.fullName}</DialogTitle></DialogHeader>
           {detailLoading ? (
-            <div className="flex justify-center py-8"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>
+            <div className="flex justify-center py-8"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>
           ) : detailProfile && (
             <div className="space-y-5">
               <div className="flex gap-2 flex-wrap">

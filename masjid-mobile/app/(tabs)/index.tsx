@@ -30,6 +30,55 @@ function getNextPrayer(prayers: Record<string, string>): string {
   return 'Fajr';
 }
 
+function getTimeUntilNextPrayer(prayers: Record<string, string>): { hours: number; minutes: number; seconds: number; total: number } {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  
+  let nextPrayerName = 'Fajr';
+  let nextPrayerMins = 0;
+  
+  for (const name of PRAYER_NAMES) {
+    if (name === 'Sunrise') continue;
+    const time = prayers[name.toLowerCase()];
+    if (!time) continue;
+    const [h, m] = time.split(':').map(Number);
+    const prayerMins = h * 60 + m;
+    if (prayerMins > nowMins) {
+      nextPrayerName = name;
+      nextPrayerMins = prayerMins;
+      break;
+    }
+  }
+  
+  if (nextPrayerMins <= nowMins) {
+    nextPrayerName = 'Fajr';
+    const fajrTime = prayers.fajr;
+    if (fajrTime) {
+      const [h, m] = fajrTime.split(':').map(Number);
+      nextPrayerMins = h * 60 + m;
+    } else {
+      nextPrayerMins = 5 * 60 + 45;
+    }
+    const tomorrowMins = 24 * 60;
+    nextPrayerMins += tomorrowMins;
+  }
+  
+  const currentTotalSecs = nowSecs;
+  const nextTotalSecs = nextPrayerMins * 60;
+  let diffSecs = nextTotalSecs - currentTotalSecs;
+  
+  if (nextPrayerName === 'Fajr' && nextPrayerMins > 24 * 60) {
+    diffSecs = nextTotalSecs - currentTotalSecs;
+  }
+  
+  const hours = Math.floor(diffSecs / 3600);
+  const minutes = Math.floor((diffSecs % 3600) / 60);
+  const seconds = diffSecs % 60;
+  
+  return { hours, minutes, seconds, total: diffSecs };
+}
+
 const QUICK_ACTIONS = [
   { icon: 'heart', label: 'Donate', color: '#FF6B6B', route: '/donate' as const, iconComponent: <MaterialCommunityIcons name="heart" size={26} color="#FF6B6B" /> },
   { icon: 'newspaper-variant-outline', label: 'News', color: COLORS.accent, route: '/blog' as const, iconComponent: <MaterialCommunityIcons name="newspaper-variant-outline" size={26} color={COLORS.accent} /> },
@@ -47,6 +96,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [hijriDate, setHijriDate] = useState(getHijriDate());
   const [occasion, setOccasion] = useState<string | null>(getIslamicOccasion());
+  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0, total: 0 });
 
   const prayerItemWidth = (width - SPACING.md * 2 - SPACING.sm * 2) / 3;
   const actionCardWidth = (width - SPACING.md * 2 - SPACING.sm) / 2;
@@ -55,12 +105,17 @@ export default function HomeScreen() {
     const interval = setInterval(() => {
       setHijriDate(getHijriDate());
       setOccasion(getIslamicOccasion());
-    }, 60000);
+      if (prayers) {
+        setCountdown(getTimeUntilNextPrayer(prayers));
+      }
+    }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [prayers]);
 
   const loadData = async () => {
-    setPrayers({ fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30' });
+    const prayerTimes = { fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30' };
+    setPrayers(prayerTimes);
+    setCountdown(getTimeUntilNextPrayer(prayerTimes));
     setAnnouncements([
       { id: '1', title: 'Friday Prayer', message: "Join us for Jumu'ah prayer this Friday at 1:30 PM", type: 'general' },
       { id: '2', title: 'Ramadan Mubarak', message: 'Ramadan Kareem! May Allah accept our fasting', type: 'ramadan' },
@@ -110,6 +165,28 @@ export default function HomeScreen() {
                 <View><Text style={styles.prayerCardTitle}>Next Prayer</Text><Text style={styles.nextPrayerName}>{nextPrayer}</Text></View>
                 <View style={styles.prayerTimeBox}><Text style={styles.prayerTimeText}>{p[nextPrayer.toLowerCase()]}</Text></View>
               </View>
+              
+              {/* Countdown Timer */}
+              <View style={styles.countdownContainer}>
+                <Text style={styles.countdownLabel}>Time Remaining</Text>
+                <View style={styles.countdownBox}>
+                  <View style={styles.countdownItem}>
+                    <Text style={styles.countdownNumber}>{String(countdown.hours).padStart(2, '0')}</Text>
+                    <Text style={styles.countdownUnit}>Hours</Text>
+                  </View>
+                  <Text style={styles.countdownSeparator}>:</Text>
+                  <View style={styles.countdownItem}>
+                    <Text style={styles.countdownNumber}>{String(countdown.minutes).padStart(2, '0')}</Text>
+                    <Text style={styles.countdownUnit}>Min</Text>
+                  </View>
+                  <Text style={styles.countdownSeparator}>:</Text>
+                  <View style={styles.countdownItem}>
+                    <Text style={styles.countdownNumber}>{String(countdown.seconds).padStart(2, '0')}</Text>
+                    <Text style={styles.countdownUnit}>Sec</Text>
+                  </View>
+                </View>
+              </View>
+              
               <View style={styles.prayerGrid}>
                 {PRAYER_NAMES.map((name) => {
                   const isNext = name === nextPrayer;
@@ -184,8 +261,16 @@ const styles = StyleSheet.create({
   prayerCard: { borderRadius: RADIUS.xxl, overflow: 'hidden' },
   prayerGradient: { borderRadius: RADIUS.xxl, padding: SPACING.lg, overflow: 'hidden' },
   prayerShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 80, backgroundColor: 'rgba(255, 255, 255, 0.25)', borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl },
-  prayerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.md },
+  prayerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.sm },
   prayerCardTitle: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600', marginBottom: 2 },
+
+  countdownContainer: { alignItems: 'center', marginBottom: SPACING.md },
+  countdownLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', marginBottom: SPACING.xs },
+  countdownBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: RADIUS.lg, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  countdownItem: { alignItems: 'center', minWidth: 50 },
+  countdownNumber: { color: COLORS.white, fontSize: 28, fontWeight: '800' },
+  countdownUnit: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '500' },
+  countdownSeparator: { color: COLORS.white, fontSize: 28, fontWeight: '700', marginHorizontal: 4 },
   nextPrayerName: { color: COLORS.white, fontSize: 28, fontWeight: '800' },
   prayerTimeBox: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs, borderRadius: RADIUS.lg },
   prayerTimeText: { color: COLORS.white, fontSize: 20, fontWeight: '700' },

@@ -55,7 +55,7 @@ export default function GamificationPage() {
     } catch { /* empty */ } finally { setSaving(false); }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
@@ -143,14 +143,14 @@ export default function GamificationPage() {
               <Label>Points to Add</Label>
               <div className="flex gap-2 mt-2">
                 {[5, 10, 25, 50, 100].map((p) => (
-                  <Button key={p} variant={pointsToAdd === p ? "default" : "outline"} size="sm" onClick={() => setPointsToAdd(p)} className={pointsToAdd === p ? "bg-emerald-600" : ""}>+{p}</Button>
+                  <Button key={p} variant={pointsToAdd === p ? "default" : "outline"} size="sm" onClick={() => setPointsToAdd(p)} className={pointsToAdd === p ? "mocha-gradient" : ""}>+{p}</Button>
                 ))}
               </div>
               <Input type="number" value={pointsToAdd} onChange={(e) => setPointsToAdd(parseInt(e.target.value) || 0)} className="mt-2" />
             </div>
             <div className="text-center"><p className="text-sm text-gray-500">New Total</p><p className="text-2xl font-bold text-green-600">{((selectedStudent?.totalPoints || 0) + pointsToAdd).toLocaleString()}</p></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setPointsDialog(false)}>Cancel</Button><Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleAddPoints} disabled={saving}>{saving ? "Saving..." : "Award Points"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setPointsDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleAddPoints} disabled={saving}>{saving ? "Saving..." : "Award Points"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

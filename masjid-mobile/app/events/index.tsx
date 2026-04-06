@@ -151,11 +151,6 @@ export default function EventsScreen() {
 
   const renderHeader = () => (
     <View>
-      <View style={styles.headerSection}>
-        <Text style={styles.pageTitle}>Events</Text>
-        <Text style={styles.pageSubtitle}>Upcoming activities & programs</Text>
-      </View>
-
       <View style={styles.categorySection}>
         <FlatList
           horizontal
@@ -258,6 +253,14 @@ export default function EventsScreen() {
 
   return (
     <ScreenWrapper contentPadding={false} bottomPadding={false}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Events</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <FlatList
         data={filteredEvents}
         keyExtractor={item => item.id}
@@ -274,11 +277,11 @@ export default function EventsScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
-  pageSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  header: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
+  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
 
-  categorySection: { paddingBottom: SPACING.sm },
+  categorySection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: SPACING.sm },
   categoryList: { paddingHorizontal: SPACING.md, gap: SPACING.xs },
   categoryChip: { 
     flexDirection: 'row', 

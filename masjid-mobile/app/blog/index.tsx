@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  TextInput,
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -14,13 +15,20 @@ import { GlassCard, ScreenWrapper, FloatingIcon, Skeleton } from '../../componen
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import apiService, { BlogPost } from '../../services/api-service';
 
+interface FeaturedPost extends BlogPost {
+  isFeatured?: boolean;
+}
+
 export default function BlogScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     loadPosts();
@@ -31,8 +39,11 @@ export default function BlogScreen() {
     try {
       const data = await apiService.blog.getAll();
       setPosts(data);
+      const featured = data.filter(p => p.isFeatured || p.tags.includes('featured')).slice(0, 3);
+      setFeaturedPosts(featured);
     } catch {
       setPosts([]);
+      setFeaturedPosts([]);
     }
     setLoading(false);
   };
@@ -43,12 +54,77 @@ export default function BlogScreen() {
     setRefreshing(false);
   };
 
-  const allTags = Array.from(new Set(posts.flatMap(p => p.tags))).slice(0, 6);
-  const filteredPosts = selectedTag ? posts.filter(p => p.tags.includes(selectedTag)) : posts;
+  const allTags = Array.from(new Set(posts.flatMap(p => p.tags))).slice(0, 8);
+  
+  const filteredPosts = posts.filter(post => {
+    const matchesTag = !selectedTag || post.tags.includes(selectedTag);
+    const matchesSearch = !searchQuery || 
+      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.body.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTag && matchesSearch;
+  });
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const renderSearchBar = () => (
+    <View style={styles.searchContainer}>
+      <View style={styles.searchBar}>
+        <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textSecondary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search articles..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <MaterialCommunityIcons name="close-circle" size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+      <TouchableOpacity style={styles.searchToggle} onPress={() => setShowSearch(!showSearch)}>
+        <MaterialCommunityIcons name={showSearch ? 'magnify-minus' : 'magnify-plus'} size={20} color={COLORS.primary} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderFeatured = () => {
+    if (featuredPosts.length === 0) return null;
+    return (
+      <View style={styles.featuredSection}>
+        <Text style={styles.sectionTitle}>Featured</Text>
+        <FlatList
+          horizontal
+          data={featuredPosts}
+          keyExtractor={item => item.id}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.featuredList}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.featuredCard}
+              onPress={() => router.push({ pathname: '/blog/[id]' as any, params: { id: item.slug } })}
+            >
+              <View style={styles.featuredImage}>
+                <View style={styles.featuredGradient}>
+                  <View style={styles.featuredBadge}>
+                    <MaterialCommunityIcons name="star" size={12} color={COLORS.warning} />
+                    <Text style={styles.featuredBadgeText}>Featured</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.featuredContent}>
+                <Text style={styles.featuredTitle} numberOfLines={2}>{item.title}</Text>
+                <Text style={styles.featuredMeta}>{formatDate(item.createdAt)}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    );
   };
 
   const renderHeader = () => (
@@ -57,6 +133,10 @@ export default function BlogScreen() {
         <Text style={styles.pageTitle}>News & Articles</Text>
         <Text style={styles.pageSubtitle}>Updates from our community</Text>
       </View>
+
+      {renderSearchBar()}
+
+      {!showSearch && renderFeatured()}
 
       <View style={styles.tagSection}>
         <FlatList
@@ -75,6 +155,12 @@ export default function BlogScreen() {
           )}
         />
       </View>
+
+      {(searchQuery || selectedTag) && (
+        <Text style={styles.resultsText}>
+          {filteredPosts.length} result{filteredPosts.length !== 1 ? 's' : ''} found
+        </Text>
+      )}
     </View>
   );
 
@@ -124,6 +210,10 @@ export default function BlogScreen() {
 
   const renderSkeleton = () => (
     <View style={{ padding: SPACING.md }}>
+      <View style={styles.headerSection}>
+        <Skeleton style={{ height: 30, width: 200, marginBottom: 8 }} />
+        <Skeleton style={{ height: 20, width: 150 }} />
+      </View>
       {[1, 2, 3].map(i => (
         <View key={i} style={styles.skeletonCard}>
           <Skeleton style={styles.skeletonCover} />
@@ -156,8 +246,12 @@ export default function BlogScreen() {
               <GlassCard>
                 <View style={styles.centeredContent}>
                   <FloatingIcon icon={<MaterialCommunityIcons name="newspaper-variant-outline" size={32} color={COLORS.textSecondary} />} size="lg" color={COLORS.textSecondary} />
-                  <Text style={styles.emptyTitle}>No articles yet</Text>
-                  <Text style={styles.emptySubtext}>Check back soon for news and updates</Text>
+                  <Text style={styles.emptyTitle}>
+                    {searchQuery || selectedTag ? 'No articles found' : 'No articles yet'}
+                  </Text>
+                  <Text style={styles.emptySubtext}>
+                    {searchQuery || selectedTag ? 'Try different search terms or filters' : 'Check back soon for news and updates'}
+                  </Text>
                 </View>
               </GlassCard>
             </View>
@@ -173,12 +267,33 @@ const styles = StyleSheet.create({
   headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
   pageTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
   pageSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  tagSection: { paddingBottom: SPACING.sm },
+
+  searchContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, gap: SPACING.sm },
+  searchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.lg, gap: SPACING.sm },
+  searchInput: { flex: 1, fontSize: 15, color: COLORS.text },
+  searchToggle: { width: 40, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center' },
+
+  featuredSection: { marginTop: SPACING.sm },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: SPACING.sm, marginLeft: SPACING.md },
+  featuredList: { paddingHorizontal: SPACING.md, gap: SPACING.sm },
+  featuredCard: { width: 260, backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, overflow: 'hidden' },
+  featuredImage: { height: 140, backgroundColor: COLORS.primary + '20' },
+  featuredGradient: { flex: 1, justifyContent: 'flex-start', padding: SPACING.sm },
+  featuredBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.warning + '20', paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, alignSelf: 'flex-start', gap: 4 },
+  featuredBadgeText: { fontSize: 11, fontWeight: '700', color: COLORS.warning },
+  featuredContent: { padding: SPACING.sm },
+  featuredTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, lineHeight: 20 },
+  featuredMeta: { fontSize: 11, color: COLORS.textSecondary, marginTop: 4 },
+
+  tagSection: { paddingBottom: SPACING.sm, marginTop: SPACING.sm },
   tagList: { paddingHorizontal: SPACING.md, gap: SPACING.xs },
   tagChip: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 2, backgroundColor: COLORS.surface, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border },
   tagChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   tagText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   tagTextActive: { color: COLORS.white },
+
+  resultsText: { fontSize: 13, color: COLORS.textSecondary, paddingHorizontal: SPACING.md, marginBottom: SPACING.sm },
+
   listContent: { paddingBottom: 100 },
   postCard: { marginHorizontal: SPACING.md, overflow: 'hidden' },
   coverImagePlaceholder: { height: 160, justifyContent: 'center', alignItems: 'center', borderTopLeftRadius: RADIUS.lg, borderTopRightRadius: RADIUS.lg },

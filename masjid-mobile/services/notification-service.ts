@@ -58,6 +58,18 @@ class NotificationService {
         name: 'Donations',
         importance: Notifications.AndroidImportance.DEFAULT,
       });
+
+      await Notifications.setNotificationChannelAsync('attendance', {
+        name: 'Attendance Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF9800',
+      });
+
+      await Notifications.setNotificationChannelAsync('school', {
+        name: 'School Updates',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
     }
 
     try {
@@ -148,6 +160,62 @@ class NotificationService {
 
   async cancelAllNotifications(): Promise<void> {
     await Notifications.cancelAllScheduledNotificationsAsync();
+  }
+
+  async sendAttendanceAlert(childName: string, className: string, status: string): Promise<string> {
+    const title = status === 'absent' 
+      ? `⚠️ Absence Alert: ${childName}` 
+      : `📋 Attendance Update: ${childName}`;
+    
+    const body = status === 'absent'
+      ? `${childName} was marked absent for ${className}. Please contact the school if this is an error.`
+      : `${childName}'s attendance for ${className} has been updated to: ${status}`;
+
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: { type: 'attendance', childName, className, status },
+        sound: status === 'absent' ? 'default' : undefined,
+      },
+      trigger: null,
+    });
+  }
+
+  async sendGradeNotification(childName: string, assignmentTitle: string, grade: string): Promise<string> {
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `📊 New Grade: ${childName}`,
+        body: `${childName} received a grade of ${grade} on "${assignmentTitle}"`,
+        data: { type: 'grade', childName, assignmentTitle, grade },
+        sound: 'default',
+      },
+      trigger: null,
+    });
+  }
+
+  async sendPaymentReminder(childName: string, amount: number, dueDate: string): Promise<string> {
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `💰 Payment Due: ${childName}`,
+        body: `Payment of $${amount} for ${childName} is due on ${dueDate}`,
+        data: { type: 'payment', childName, amount, dueDate },
+        sound: 'default',
+      },
+      trigger: null,
+    });
+  }
+
+  async sendAssignmentReminder(childName: string, assignmentTitle: string, dueDate: string): Promise<string> {
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `📝 Assignment Due: ${assignmentTitle}`,
+        body: `${childName} has an assignment "${assignmentTitle}" due on ${dueDate}`,
+        data: { type: 'assignment', childName, assignmentTitle, dueDate },
+        sound: 'default',
+      },
+      trigger: null,
+    });
   }
 
   getPushToken(): string | null {

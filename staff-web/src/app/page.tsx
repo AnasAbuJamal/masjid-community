@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Mail, Lock, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -27,7 +29,7 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("Invalid email or password");
+        setError(result.error || "Invalid email or password");
       } else {
         router.push("/dashboard");
         router.refresh();
@@ -40,88 +42,85 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-cream-100">
-      {/* Organic Background Gradients */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vh] rounded-[100%] bg-mocha-400 opacity-20 blur-[120px] mix-blend-multiply animate-float" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vh] rounded-[100%] bg-mocha-600 opacity-15 blur-[100px] mix-blend-multiply animate-float" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-[30%] right-[10%] w-[40vw] h-[40vh] rounded-[100%] bg-white opacity-40 blur-[80px]" />
-      </div>
-
-      <div className="relative z-10 w-full max-w-md animate-fade-in p-6">
-        
-        {/* Dynamic Mocha Card */}
-        <div className="mocha-gradient rounded-[2.5rem] p-10 shadow-elegant-dark flex flex-col relative overflow-hidden">
-          {/* Decorative glass overlay inside card */}
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/10 blur-3xl rounded-full" />
-          <div className="absolute -bottom-24 -left-24 w-56 h-56 bg-black/10 blur-2xl rounded-full" />
-
-          {/* Header */}
-          <div className="text-center mb-10 relative z-10 space-y-3">
-            <h1 className="font-serif text-5xl tracking-tight font-medium text-white mb-2 leading-tight">
-              Masjid <br/> <span className="text-cream-100/90 italic">Al-Momineen</span>
-            </h1>
-            <p className="font-sans text-cream-100/70 text-sm tracking-wide uppercase">Staff Portal</p>
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-900 mb-4">
+            <span className="text-2xl">🕌</span>
           </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
-            {error && (
-              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 px-5 py-4 text-sm text-cream-100 animate-slide-in text-center shadow-lg">
-                {error}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-cream-100/80 pl-2 text-xs font-medium uppercase tracking-wider">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="admin@almomineen.org"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus-visible:ring-cream-100 focus-visible:border-transparent rounded-full h-14 px-6 shadow-inner backdrop-blur-md transition-all"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-cream-100/80 pl-2 text-xs font-medium uppercase tracking-wider">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus-visible:ring-cream-100 focus-visible:border-transparent rounded-full h-14 px-6 shadow-inner backdrop-blur-md transition-all"
-              />
-            </div>
-
-            {/* Honeypot */}
-            <div className="hidden">
-              <input type="text" name="website" tabIndex={-1} autoComplete="off" />
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full h-14 bg-white hover:bg-cream-100 text-mocha-900 font-semibold rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] mt-4"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="flex items-center gap-3">
-                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-mocha-900 border-t-transparent" />
-                  Authenticating...
-                </span>
-              ) : (
-                "Sign Into Portal"
-              )}
-            </Button>
-          </form>
+          <h1 className="text-2xl font-semibold text-gray-900">Masjid Al-Momineen</h1>
+          <p className="text-sm text-gray-500 mt-1">Staff Portal</p>
         </div>
 
-        <p className="text-center text-xs font-sans tracking-widest text-mocha-600/60 mt-8 uppercase">
-          © {new Date().getFullYear()} Masjid Al-Momineen
+        <Card className="bg-white rounded-xl border border-gray-200">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl">Sign in</CardTitle>
+            <CardDescription>Enter your credentials to access the portal</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="admin@almomineen.org"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="hidden">
+                <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-gray-900 hover:bg-gray-800 text-white"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Signing in...
+                  </span>
+                ) : (
+                  "Sign in"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-xs text-gray-400 mt-6">
+          © {new Date().getFullYear()} Masjid Al-Momineen. All rights reserved.
         </p>
       </div>
     </div>

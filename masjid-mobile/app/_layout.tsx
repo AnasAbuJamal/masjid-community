@@ -72,11 +72,7 @@ function RootLayoutContent() {
           <Stack.Screen
             name="proposals/index"
             options={{
-              headerShown: true,
-              headerTitle: 'Proposals',
-              headerStyle: { backgroundColor: colors.surfaceGlass },
-              headerTintColor: colors.text,
-              headerTransparent: true,
+              headerShown: false,
             }}
           />
           <Stack.Screen
@@ -136,11 +132,7 @@ function RootLayoutContent() {
           <Stack.Screen
             name="events/index"
             options={{
-              headerShown: true,
-              headerTitle: 'Events',
-              headerStyle: { backgroundColor: colors.surfaceGlass },
-              headerTintColor: colors.text,
-              headerTransparent: true,
+              headerShown: false,
             }}
           />
           <Stack.Screen
@@ -349,11 +341,7 @@ function RootLayoutContent() {
           <Stack.Screen
             name="finances/index"
             options={{
-              headerShown: true,
-              headerTitle: 'Finances',
-              headerStyle: { backgroundColor: colors.surfaceGlass },
-              headerTintColor: colors.text,
-              headerTransparent: true,
+              headerShown: false,
             }}
           />
           <Stack.Screen

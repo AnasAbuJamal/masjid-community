@@ -95,7 +95,7 @@ export default function ClassroomPage() {
     } catch { /* empty */ }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
@@ -106,7 +106,7 @@ export default function ClassroomPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={openCreateStudent}><Plus className="h-4 w-4 mr-2" />Add Student</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreateClass}><Plus className="h-4 w-4 mr-2" />Add Class</Button>
+          <Button className="mocha-gradient hover:opacity-90" onClick={openCreateClass}><Plus className="h-4 w-4 mr-2" />Add Class</Button>
         </div>
       </div>
 
@@ -175,7 +175,7 @@ export default function ClassroomPage() {
             <div><Label>Teacher Name</Label><Input value={classForm.teacherName} onChange={(e) => setClassForm({ ...classForm, teacherName: e.target.value })} /></div>
             <div><Label>Schedule</Label><Input value={classForm.schedule} onChange={(e) => setClassForm({ ...classForm, schedule: e.target.value })} placeholder="e.g., Sat & Sun 10-12 AM" /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setClassDialog(false)}>Cancel</Button><Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveClass} disabled={saving}>{saving ? "Saving..." : editingClass ? "Update" : "Create"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setClassDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSaveClass} disabled={saving}>{saving ? "Saving..." : editingClass ? "Update" : "Create"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -201,7 +201,7 @@ export default function ClassroomPage() {
               <div><Label>Parent Phone</Label><Input value={studentForm.parentPhone} onChange={(e) => setStudentForm({ ...studentForm, parentPhone: e.target.value })} /></div>
             </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setStudentDialog(false)}>Cancel</Button><Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveStudent} disabled={saving}>{saving ? "Saving..." : editingStudent ? "Update" : "Create"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setStudentDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSaveStudent} disabled={saving}>{saving ? "Saving..." : editingStudent ? "Update" : "Create"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

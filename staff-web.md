@@ -1,286 +1,368 @@
-# Staff Web - Analysis & Completion Status
+# Staff Web - Missing Features Report
 
 ## Overview
 
-**staff-web** is a Next.js 16 (Turbopack) staff portal for a mosque (Al-Momineen) management system. It includes authentication, role-based access control, and full CRUD operations for multiple modules.
-
-## Tech Stack
-
-- **Framework**: Next.js 16.1.6 with App Router
-- **Language**: TypeScript
-- **Database**: MongoDB with Prisma ORM
-- **Authentication**: NextAuth.js (next-auth v4)
-- **UI Components**: Radix UI primitives + custom components
-- **Styling**: Tailwind CSS v4
-- **Payment**: Stripe integration
-- **Testing**: Vitest + Testing Library
+This document outlines features and improvements that should be added to the Staff Web application for a complete mosque management system.
 
 ---
 
-## ✅ Already Built
+## 1. User Management & Authentication
 
-### Authentication & Core
-- Login/Authentication (NextAuth with credentials)
-- Role-based access (admin, teacher)
-- Dark/Light theme toggle
-- Audit logging system
-- Session management
-- **Role Permission Middleware** (new)
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Password Reset Flow | High | Email-based password reset functionality |
+| Password Change | Medium | Allow users to change their own password |
+| User Profile Customization | Medium | Allow users to update their profile info (name, avatar) |
+| Active Sessions Management | Medium | View and revoke active sessions |
+| User Activity History | Low | Track individual user login history |
+| Two-Factor Authentication (2FA) | High | Add TOTP-based 2FA for admin accounts |
 
-### Dashboard & Stats
-- Dashboard with overview stats
-- Quick stats cards (students, donations, jobs, etc.)
-
-### Content Management
-- Prayer Times CRUD + today's display
-- Blog/News CRUD (draft/published/archived)
-- Kiosk Announcements CRUD
-
-### School Management
-- Classroom (Classes + Students) CRUD
-- Assignments CRUD with ratings
-- Gamification leaderboard + points system
-
-### Operations
-- Construction Projects CRUD with progress
-- Volunteers Opportunities + Applications CRUD
-- Project Proposals CRUD with comments
-
-### Finance
-- Financial Records CRUD
-- Donations tracking (Stripe integration)
-
-### Community
-- Jobs Board CRUD
-- Worker Profiles CRUD
-- Users Management CRUD
-
-### Administration
-- Audit Logs viewing
-- Settings (site configuration)
-- TV/Kiosk Display
-
-### Public API Endpoints (for Mobile App)
-- `/api/public/prayers` - Get prayer times
-- `/api/public/blog` - Get blog posts
-- `/api/public/volunteers` - Get/view volunteer opportunities, sign up
-- `/api/public/proposals` - Submit community proposals
-- `/api/public/jobs` - Get/view jobs, apply
-- `/api/public/workers` - Get worker profiles, submit profile
-- `/api/public/announcements` - Get kiosk announcements
-
-### Stripe Integration
-- `/api/webhooks/stripe` - Handle Stripe events (new)
-- `/api/donations/checkout` - Create Stripe checkout session (new)
-
-### Email Notifications
-- Email utility with multiple provider support: Resend, SendGrid, Nodemailer, Console
-- Templates for: new donations, volunteer signups, proposals, job applications
-- Automatic notifications based on settings
-
-### File Upload
-- `/api/upload` - Upload images (base64 or URL)
-- Used by Blog page for cover images
-
-### Role Permission Enforcement
-- Middleware-based route protection (`src/middleware.ts`)
-- Admin-only routes: users, prayers, blog, construction, volunteers, proposals, finances, donations, jobs, workers, audit-logs, settings, kiosk
-- Teacher routes: classroom, assignments, gamification
-- Permission utility functions (`src/lib/permissions.ts`)
-
-### Tests
-- Utils tests (formatCurrency, formatDate, slugify, etc.)
-- Role config tests
-- Audit logging tests
-- Auth tests (basic)
+### Recommended Implementation
+- Add `passwordResetToken` and `passwordResetExpiry` fields to User model
+- Create `/api/auth/reset-password` and `/api/auth/forgot-password` routes
+- Use `next-auth` built-in or `@next-auth/panic` for 2FA
 
 ---
 
-## Project Structure
+## 2. School Management
 
-```
-staff-web/
-├── prisma/
-│   └── schema.prisma       # Database schema (19 models)
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── public/     # Public endpoints for mobile app
-│   │   │   ├── webhooks/   # Stripe webhooks
-│   │   │   └── ...         # Admin API routes
-│   │   ├── dashboard/       # Admin dashboard pages (17 pages)
-│   │   ├── kiosk/          # Public kiosk display
-│   │   ├── layout.tsx      # Root layout with providers
-│   │   └── page.tsx        # Landing/login page
-│   ├── components/
-│   │   ├── ui/             # Reusable UI components (15+)
-│   │   ├── app-sidebar.tsx
-│   │   ├── role-guard.tsx
-│   │   └── require-role.tsx
-│   ├── lib/
-│   │   ├── auth.ts         # NextAuth config
-│   │   ├── prisma.ts       # Prisma client
-│   │   ├── utils.ts        # Utility functions
-│   │   ├── theme.tsx       # Dark/light theme
-│   │   ├── role-config.ts  # Navigation & roles
-│   │   ├── audit.ts        # Audit logging
-│   │   ├── email.ts        # Email notifications (new)
-│   │   └── permissions.ts  # Role guard utilities (new)
-│   └── middleware.ts       # Route protection (new)
-├── package.json
-├── next.config.ts
-├── vitest.config.ts
-└── tsconfig.json
-```
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Attendance Tracking | High | Daily/class attendance records for students |
+| Class Scheduling | High | Day/time slots for each class |
+| Parent Portal | Medium | Separate access for parents to view child progress |
+| Grade Book | Medium | Numeric/letter grade tracking per student |
+| Progress Reports | Medium | Generate PDF progress reports for parents |
+| Behavior Tracking | Low | Notes/incidents per student |
+| Student Documents | Low | Upload documents (registration forms, medical info) |
+
+### Recommended Implementation
+- Add `Attendance`, `ClassSchedule`, `Grade`, `BehaviorIncident` models
+- Create new API routes: `/api/classroom/attendance`, `/api/classroom/grades`
+- Add dashboard pages: Attendance calendar, Grade book view
 
 ---
 
-## API Routes (30+ endpoints)
+## 3. Finance & Donations
 
-### Admin API Routes
-| Route | Methods | Status |
-|-------|---------|--------|
-| `/api/auth/[...nextauth]` | GET, POST | ✅ |
-| `/api/users` | GET, POST | ✅ |
-| `/api/users/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/prayers` | GET, POST | ✅ |
-| `/api/prayers/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/blog` | GET, POST | ✅ |
-| `/api/blog/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/classroom/classes` | GET, POST | ✅ |
-| `/api/classroom/classes/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/classroom/students` | GET, POST | ✅ |
-| `/api/classroom/students/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/assignments` | GET, POST | ✅ |
-| `/api/assignments/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/construction` | GET, POST | ✅ |
-| `/api/construction/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/volunteers` | GET, POST | ✅ |
-| `/api/volunteers/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/proposals` | GET, POST | ✅ |
-| `/api/proposals/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/finances` | GET, POST | ✅ |
-| `/api/donations` | GET | ✅ |
-| `/api/donations/checkout` | POST | ✅ (new) |
-| `/api/jobs` | GET, POST | ✅ |
-| `/api/jobs/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/workers` | GET, POST | ✅ |
-| `/api/workers/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/kiosk` | GET, POST | ✅ |
-| `/api/kiosk/[id]` | GET, PUT, DELETE | ✅ |
-| `/api/settings` | GET, POST | ✅ |
-| `/api/audit-logs` | GET | ✅ |
-| `/api/upload` | POST | ✅ (new) |
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Expense Categories | High | Categorize expenses (utilities, maintenance, etc.) |
+| Budget Planning | Medium | Set annual/quarterly budget goals |
+| Financial Reports | High | Generate income statements, balance sheets |
+| Donation Goal Tracking | Medium | Campaign progress toward fundraising goals |
+| Tax Receipt Generation | Medium | Auto-generate PDF receipts for donations |
+| Recurring Donations Management | Medium | Backend management of recurring Stripe subscriptions |
+| Export to CSV/PDF | Medium | Export financial data |
 
-### Public API Routes (for Mobile App)
-| Route | Methods | Status |
-|-------|---------|--------|
-| `/api/public/prayers` | GET | ✅ (new) |
-| `/api/public/blog` | GET | ✅ (new) |
-| `/api/public/volunteers` | GET, POST | ✅ (new) |
-| `/api/public/proposals` | GET, POST | ✅ (new) |
-| `/api/public/jobs` | GET, POST | ✅ (new) |
-| `/api/public/workers` | GET, POST | ✅ (new) |
-| `/api/public/announcements` | GET | ✅ (new) |
-
-### Webhooks
-| Route | Methods | Status |
-|-------|---------|--------|
-| `/api/webhooks/stripe` | POST | ✅ (new) |
+### Recommended Implementation
+- Add `ExpenseCategory`, `Budget`, `DonationGoal` models
+- Create report generation utilities (use `react-pdf` or `jspdf`)
+- Add Stripe subscription management in dashboard
+- Create `/api/finances/reports` endpoint
 
 ---
 
-## Database Models (19 models)
+## 4. Content Management
 
-1. User - Authentication & roles
-2. PrayerTime - Prayer schedules
-3. BlogPost - News/articles
-4. Class - Islamic school classes
-5. Student - Class students
-6. Assignment - Student homework
-7. ConstructionProject - Renovation tracking
-8. VolunteerOpportunity - Volunteer slots
-9. VolunteerApplication - Signups
-10. ProjectProposal - Community proposals
-11. ProposalComment - Proposal discussions
-12. Donation - Stripe donations
-13. SiteSetting - Configuration
-14. KioskAnnouncement - Display announcements
-15. FinancialRecord - Monthly records
-16. FinancialSummary - Dashboard totals
-17. JobPosting - Job listings
-18. JobApplication - Job applications
-19. WorkerProfile - Worker resumes
-20. AuditLog - Activity tracking
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Media Library | High | Centralized file management for uploads |
+| Scheduled Publishing | Medium | Schedule blog posts for future dates |
+| Content Drafts | Medium | Save unpublished drafts before going live |
+| Categories/Tags | Medium | Organize blog posts by category |
+| SEO Metadata | Low | Custom meta title, description, og:image per post |
+| Content Versioning | Low | Track changes to blog posts over time |
+
+### Recommended Implementation
+- Add `MediaFile`, `Category`, `Tag` models
+- Create `/api/media` endpoints for file management
+- Add `publishedAt`, `scheduledFor` fields to BlogPost
+- Implement `next-seo` package for SEO
 
 ---
 
-## Setup Requirements
+## 5. Events & Calendar
 
-### Environment Variables
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Events Calendar | High | Manage Islamic events, community gatherings |
+| Event Registration | Medium | RSVP functionality for events |
+| Recurring Events | Medium | Events that repeat weekly/monthly |
+| Event Reminders | Low | Automated reminders for registered attendees |
+
+### Recommended Implementation
+- Add `Event` model with fields: title, description, date, location, capacity, isRecurring, recurrenceRule
+- Add `EventRSVP` model for registrations
+- Create `/api/events` CRUD routes
+- Add calendar view to dashboard
+
+---
+
+## 6. Community & Membership
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Membership Management | High | Track mosque members with profiles |
+| Member Directory | Medium | Searchable list of active members |
+| Newsletter Subscription | Medium | Email subscription management |
+| Contact Form | Medium | Public contact form submissions |
+| Family/Household Grouping | Low | Link family members together |
+
+### Recommended Implementation
+- Add `Member`, `Household`, `ContactSubmission` models
+- Create `/api/members`, `/api/contact` routes
+- Add subscription checkbox to user registration
+
+---
+
+## 7. Administrative Features
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Database Backup | High | One-click backup download |
+| System Logs | Medium | Application error logging beyond audit |
+| Multi-Language Support (i18n) | Medium | Arabic/Urdu language options |
+| Accessibility Features | Medium | WCAG compliance improvements |
+| API Rate Limiting | Medium | Protect public endpoints from abuse |
+| Maintenance Mode | Low | Toggle to disable public site |
+| IP Whitelist/Blacklist | Low | Restrict access by IP |
+
+### Recommended Implementation
+- Add `backup` script to package.json
+- Implement `next-i18next` for translations
+- Use `upstash/ratelimit` for API rate limiting
+- Add `isMaintenanceMode` to SiteSettings
+
+---
+
+## 8. Kiosk/TV Display
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Scheduled Content Rotation | Medium | Auto-rotate between announcements |
+| Emergency Broadcast | High | Override all content for emergencies |
+| Screen Layouts | Medium | Multiple display templates |
+| Remote Management | Medium | Update kiosk from admin panel |
+
+### Recommended Implementation
+- Add `KioskLayout`, `KioskSchedule` models
+- Create emergency broadcast endpoint `/api/kiosk/emergency`
+- Add visual indicator for active emergency mode
+
+---
+
+## 9. Notifications & Communications
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| In-App Notifications | High | Real-time notification bell for staff |
+| Push Notification Backend | Medium | Server-side push notification management |
+| SMS Notifications | Low | Optional SMS for critical alerts |
+| Notification Preferences | Medium | Granular control per notification type |
+
+### Recommended Implementation
+- Add `Notification` model for in-app notifications
+- Use Server-Sent Events (SSE) or WebSockets for real-time
+- Integrate Twilio for SMS
+- Add notification preferences to User model
+
+---
+
+## 10. Mobile App Integration
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Deep Linking | Medium | Handle `masjid://` and `https://` app links |
+| Offline Sync Conflict Resolution | Medium | Handle data conflicts when coming online |
+| Background Sync | Medium | Sync data when app is backgrounded |
+| App Analytics | Low | Track mobile app usage |
+
+### Recommended Implementation
+- Configure Expo deep links in `app.json`
+- Implement last-write-wins or manual merge for sync
+- Use `expo-task-manager` for background sync
+- Integrate Amplitude or Mixpanel
+
+---
+
+## 11. Search & Discovery
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Global Search | High | Search across all content types |
+| Advanced Filters | Medium | Filter lists by date, category, status |
+| Search Analytics | Low | Track popular search terms |
+
+### Recommended Implementation
+- Implement MongoDB text search or Algolia
+- Add search bar component with autocomplete
+- Create `/api/search` endpoint
+
+---
+
+## 12. Security Enhancements
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Data Retention Policy | Medium | Auto-delete old audit logs |
+| Audit Log Search/Filter | High | Searchable audit trail |
+| Login Attempt Limiting | High | Prevent brute force attacks |
+| CSRF Protection | Medium | Additional CSRF tokens |
+| Security Headers | Medium | HSTS, CSP, X-Frame-Options |
+
+### Recommended Implementation
+- Add `lastLoginAttempt` and `failedLoginAttempts` to User
+- Implement `next-secure-headers` middleware
+- Add TTL to AuditLog model with cleanup job
+
+---
+
+## 13. Reporting & Analytics
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Dashboard Charts | Medium | More detailed analytics charts |
+| Donation Analytics | High | Donation trends, donor retention |
+| School Analytics | Medium | Enrollment trends, completion rates |
+| Export Reports | Medium | PDF/CSV export of reports |
+
+### Recommended Implementation
+- Add `analytics` field to dashboard
+- Create trend charts using Recharts
+- Add export buttons with `jspdf` generation
+
+---
+
+## 14. Testing
+
+### Missing
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| API Integration Tests | High | Test all CRUD endpoints |
+| Component Tests | Medium | Test UI components |
+| E2E Tests | Medium | Test critical user flows |
+| Mock Stripe Webhooks | Low | Test payment flows locally |
+
+### Recommended Implementation
+- Add `supertest` for API testing
+- Add Playwright for E2E tests
+- Create Stripe CLI webhook forwarding script
+
+---
+
+## Priority Summary
+
+### High Priority (Core Functionality)
+- Password Reset Flow
+- Attendance Tracking
+- Financial Reports
+- Database Backup
+- Emergency Broadcast
+- In-App Notifications
+- Global Search
+- Audit Log Search/Filter
+- Login Attempt Limiting
+- Two-Factor Authentication
+
+### Medium Priority (Important)
+- Parent Portal
+- Tax Receipt Generation
+- Events Calendar
+- Member Directory
+- Multi-Language Support
+- API Rate Limiting
+- Deep Linking
+- Dashboard Charts
+- API Integration Tests
+
+### Low Priority (Nice to Have)
+- Behavior Tracking
+- SEO Metadata
+- SMS Notifications
+- App Analytics
+- E2E Tests
+
+---
+
+## Implementation Roadmap
+
+### Phase 1: Security & Core (1-2 weeks)
+1. Password Reset Flow
+2. Login Attempt Limiting
+3. Audit Log Search/Filter
+4. Two-Factor Authentication
+5. Global Search
+
+### Phase 2: Essential Features (2-3 weeks)
+1. Attendance Tracking
+2. Events Calendar
+3. Financial Reports
+4. In-App Notifications
+5. Database Backup
+
+### Phase 3: Enhanced Experience (2-3 weeks)
+1. Parent Portal
+2. Events Registration
+3. Media Library
+4. Scheduled Content
+5. Dashboard Analytics
+
+### Phase 4: Polish (1-2 weeks)
+1. Multi-Language Support
+2. Tax Receipt Generation
+3. Accessibility Improvements
+4. Testing Suite
+5. Documentation
+
+---
+
+## Technical Notes
+
+### Database Changes Required
+Add approximately 8-10 new models:
+- `Attendance`, `Grade`, `ClassSchedule`
+- `Event`, `EventRSVP`
+- `Member`, `Household`
+- `Notification`
+- `MediaFile`, `Category`
+- `Backup` (for tracking backup history)
+
+### API Routes to Add
+- `/api/auth/forgot-password`, `/api/auth/reset-password`
+- `/api/classroom/attendance/*`
+- `/api/classroom/grades/*`
+- `/api/finances/reports`
+- `/api/events/*`
+- `/api/members/*`
+- `/api/search`
+- `/api/notifications/*`
+- `/api/backup`
+
+### Environment Variables to Add
 ```env
-DATABASE_URL="mongodb+srv://..."
-NEXTAUTH_URL="http://localhost:3000"
-AUTH_SECRET="生成的安全密钥"
-STRIPE_SECRET_KEY="sk_test_..."
-STRIPE_PUBLISHABLE_KEY="pk_test_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-ADMIN_SEED_EMAIL="admin@almomineen.org"
-ADMIN_SEED_PASSWORD="AdminPass123!"
-
-# Email (optional - defaults to console logging)
-EMAIL_PROVIDER="console|resend|sendgrid|nodemailer"
-RESEND_API_KEY="re_..."
-SENDGRID_API_KEY="SG...."
-SMTP_HOST="smtp.example.com"
-SMTP_PORT="587"
-SMTP_USER="user"
-SMTP_PASS="pass"
-EMAIL_FROM="noreply@almomineen.org"
-
-# Notification settings (in database)
-notification_email="admin1@example.com,admin2@example.com"
-notify_new_donation="true"
-notify_new_volunteer="true"
-notify_new_proposal="true"
-```
-
-### Setup Commands
-```bash
-cd staff-web
-npm install
-npx prisma generate
-npx prisma db push
-npm run db:seed
-npm run dev
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+TWILIO_PHONE_NUMBER=""
+ALGOLIA_APP_ID=""
+ALGOLIA_API_KEY=""
 ```
 
 ---
 
-## Completion Estimate
-
-**Current Status**: ~95% complete
-
-All major features have been implemented including:
-- Full CRUD operations for all modules
-- Authentication and role-based access
-- Public API endpoints for mobile app integration
-- Stripe payment integration with webhook handling
-- Email notification system
-- File upload functionality
-- Role-based route protection
-- Test coverage for core utilities
-
----
-
-## Quick Reference
-
-| Feature | Status | Priority |
-|---------|--------|----------|
-| Stripe Webhook | ✅ Complete | High |
-| Email Notifications | ✅ Complete | High |
-| File Upload | ✅ Complete | High |
-| Mobile App CORS | ✅ Complete | Medium |
-| Tests | ✅ Complete | Medium |
-| Role Permissions | ✅ Complete | Medium |
+*Report generated: March 2026*
+*Total missing features identified: 50+*
+*Estimated implementation time: 6-10 weeks*

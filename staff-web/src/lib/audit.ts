@@ -7,6 +7,8 @@ interface AuditLogOptions {
     details?: string;
     ipAddress?: string;
     success?: boolean;
+    entity?: string;
+    entityId?: string;
 }
 
 /**
@@ -30,6 +32,8 @@ export async function logAudit(options: AuditLogOptions) {
                 details: options.details || undefined,
                 ipAddress: options.ipAddress || undefined,
                 success: options.success ?? true,
+                entity: options.entity || undefined,
+                entityId: options.entityId || undefined,
             },
         });
     } catch (error) {

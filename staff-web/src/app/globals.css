@@ -25,64 +25,31 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --color-mocha-900: #2B1A10;
-  --color-mocha-800: #4A2E1B;
-  --color-mocha-600: #7B4F35;
-  --color-mocha-400: #A67653;
-  --color-cream-100: #F5F2EC;
-  --color-cream-50: #FAFAF8;
-
-  --font-serif: "Playfair Display", serif;
   --font-sans: "Inter", sans-serif;
-
-  --shadow-elegant: 0 20px 40px -15px rgba(74, 46, 27, 0.1);
-  --shadow-elegant-dark: 0 20px 40px -15px rgba(0, 0, 0, 0.3);
 }
 
 @layer base {
   :root {
-    --background: 40 30% 94%; /* Cream */
-    --foreground: 24 47% 20%; /* Mocha Dark */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 24 47% 20%;
+    --background: 0 0% 100%;
+    --foreground: 215 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 24 47% 20%;
-    --primary: 24 47% 20%; /* Mocha Dark */
-    --primary-foreground: 40 30% 94%;
-    --secondary: 40 20% 88%;
-    --secondary-foreground: 24 47% 20%;
-    --muted: 40 20% 88%;
-    --muted-foreground: 22 40% 35%;
-    --accent: 25 33% 49%; /* Caramel */
-    --accent-foreground: 40 30% 94%;
+    --popover-foreground: 215 25% 10%;
+    --primary: 215 75% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 215 25% 10%;
+    --muted: 0 0% 98%;
+    --muted-foreground: 215 15% 40%;
+    --accent: 0 0% 98%;
+    --accent-foreground: 215 25% 10%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 40 20% 80%;
-    --input: 40 20% 80%;
-    --ring: 24 47% 20%;
-    --radius: 1.5rem; /* Generous radius for aesthetic */
-  }
-
-  .dark {
-    --background: 24 47% 10%;
-    --foreground: 40 30% 94%;
-    --card: 24 47% 15%;
-    --card-foreground: 40 30% 94%;
-    --popover: 24 47% 15%;
-    --popover-foreground: 40 30% 94%;
-    --primary: 25 33% 49%; /* Caramel */
-    --primary-foreground: 24 47% 10%;
-    --secondary: 24 47% 20%;
-    --secondary-foreground: 40 30% 94%;
-    --muted: 24 47% 20%;
-    --muted-foreground: 40 20% 80%;
-    --accent: 25 33% 49%; /* Caramel */
-    --accent-foreground: 40 30% 94%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 24 47% 20%;
-    --input: 24 47% 20%;
-    --ring: 25 33% 49%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 10% 90%;
+    --input: 220 10% 90%;
+    --ring: 215 75% 50%;
+    --radius: 0.5rem;
   }
 }
 
@@ -91,18 +58,13 @@
     @apply border-border;
   }
   body {
-    @apply antialiased font-sans selection:bg-mocha-400 selection:text-white;
-    background-color: var(--color-cream-100);
-    color: var(--color-mocha-900);
-  }
-  
-  .dark body {
-    background-color: #1a100a;
-    color: var(--color-cream-100);
+    @apply antialiased font-sans;
+    background-color: #ffffff !important;
+    color: #111827 !important;
   }
 }
 
-/* Custom scrollbar */
+/* Clean scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -113,70 +75,55 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-mocha-400);
+  background: #cbd5e1;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-mocha-600);
+  background: #94a3b8;
 }
 
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Card - Clean CRM style */
+.card-clean {
+  @apply bg-white rounded-xl border border-gray-200;
 }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-10px); }
-  to { opacity: 1; transform: translateX(0); }
+/* Text utilities */
+.text-muted {
+  @apply text-gray-500;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-15px) rotate(1deg); }
+/* Table row hover */
+.table-row-hover {
+  @apply transition-colors duration-150;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+.table-row-hover:hover {
+  @apply bg-gray-50;
 }
 
-.animate-slide-in {
-  animation: slideIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+/* Section spacing */
+.section-spacing {
+  @apply space-y-6;
 }
 
-.animate-float {
-  animation: float 6s ease-in-out infinite;
+/* Status badges */
+.badge-default {
+  @apply bg-gray-100 text-gray-700;
 }
 
-/* Staggered animation for cards */
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-.stagger-4 { animation-delay: 0.4s; }
-.stagger-5 { animation-delay: 0.5s; }
-
-/* Elegant Glass & Gradients */
-.glass {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+.badge-success {
+  @apply bg-green-100 text-green-700;
 }
 
-.dark .glass {
-  background: rgba(74, 46, 27, 0.4);
-  border: 1px solid rgba(166, 118, 83, 0.2);
+.badge-warning {
+  @apply bg-amber-100 text-amber-700;
 }
 
-.mocha-gradient {
-  background: linear-gradient(135deg, var(--color-mocha-800), var(--color-mocha-600), var(--color-caramel, #A67653));
-  color: white;
+.badge-error {
+  @apply bg-red-100 text-red-700;
 }
 
-.mocha-text-gradient {
-  background: linear-gradient(135deg, var(--color-mocha-800), var(--color-mocha-400));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.badge-info {
+  @apply bg-blue-100 text-blue-700;
 }

@@ -90,6 +90,20 @@ export interface Student {
   attendance: number;
 }
 
+export interface StudentApplication {
+  id: string;
+  studentName: string;
+  dateOfBirth: string;
+  gradeLevel: string;
+  parentName: string;
+  parentEmail: string;
+  parentPhone: string;
+  programName: string;
+  notes: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+}
+
 export interface Assignment {
   id: string;
   title: string;
@@ -108,6 +122,7 @@ export interface BlogPost {
   author?: { firstName: string; lastName: string };
   createdAt: string;
   updatedAt?: string;
+  isFeatured?: boolean;
 }
 
 export interface ConstructionProject {
@@ -187,14 +202,53 @@ export interface MyApplications {
   volunteers: VolunteerApplication[];
 }
 
+export interface RentalItem {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  imageUrl: string | null;
+  priceHourly: number | null;
+  priceDaily: number | null;
+}
+
+export interface RentalBooking {
+  id: string;
+  itemId: string;
+  renterName: string;
+  renterEmail: string;
+  renterPhone: string;
+  eventName: string | null;
+  startDate: string;
+  endDate: string;
+  totalPrice: number;
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  adminNotes: string | null;
+  createdAt: string;
+  item: { name: string; category: string };
+}
+
 // API Service
 export const apiService = {
   // Auth
   auth: {
     login: async (email: string, password: string): Promise<AuthResponse> => {
-      const response = await api.instance.post<AuthResponse>('/auth/login', { email, password });
-      await apiClient.setToken(response.data.token);
-      return response.data;
+      console.log('[API] Calling login endpoint for:', email);
+      try {
+        const response = await api.instance.post<AuthResponse>('/auth/login', { email, password });
+        console.log('[API] Login response status:', response.status);
+        console.log('[API] Login response data:', response.data);
+        await apiClient.setToken(response.data.token);
+        return response.data;
+      } catch (error: unknown) {
+        console.log('[API] Login request failed:', error);
+        if (error && typeof error === 'object' && 'response' in error) {
+          const axiosError = error as { response?: { status?: number; data?: unknown } };
+          console.log('[API] HTTP status:', axiosError.response?.status);
+          console.log('[API] Response data:', axiosError.response?.data);
+        }
+        throw error;
+      }
     },
 
     register: async (data: { email: string; password: string; firstName: string; lastName: string }): Promise<AuthResponse> => {
@@ -302,20 +356,20 @@ export const apiService = {
   volunteers: {
     getOpportunities: async (): Promise<VolunteerOpportunity[]> => {
       try {
-        const response = await api.instance.get<VolunteerOpportunity[]>('/volunteers');
-        return response.data;
+        const response = await api.instance.get<{ opportunities: VolunteerOpportunity[] }>('/public/volunteers');
+        return response.data.opportunities || [];
       } catch {
         return getMockVolunteers();
       }
     },
 
-    signUp: async (opportunityId: string): Promise<void> => {
-      await api.instance.post(`/volunteers/${opportunityId}/signup`);
+    signUp: async (opportunityId: string, data: { userName: string; userEmail: string; userPhone?: string }): Promise<void> => {
+      await api.instance.post('/public/volunteers', { opportunityId, ...data });
     },
 
     getMyOpportunities: async (): Promise<VolunteerOpportunity[]> => {
-      const response = await api.instance.get<VolunteerOpportunity[]>('/volunteers/mine');
-      return response.data;
+      const response = await api.instance.get<{ opportunities: VolunteerOpportunity[] }>('/public/volunteers');
+      return response.data.opportunities || [];
     },
   },
 
@@ -391,6 +445,68 @@ export const apiService = {
       const response = await api.instance.get(`/school/attendance/${studentId}`);
       return response.data;
     },
+
+    submitApplication: async (data: {
+      studentName: string;
+      dateOfBirth: string;
+      gradeLevel: string;
+      parentName: string;
+      parentEmail: string;
+      parentPhone: string;
+      programName: string;
+      notes?: string;
+      emergencyContactName?: string;
+      emergencyContactPhone?: string;
+      emergencyRelation?: string;
+      parentPreferredContact?: string;
+    }): Promise<StudentApplication> => {
+      const response = await api.instance.post<StudentApplication>('/public/students', data);
+      return response.data;
+    },
+
+    getMyApplications: async (): Promise<StudentApplication[]> => {
+      try {
+        const response = await api.instance.get<StudentApplication[]>('/public/students');
+        return response.data;
+      } catch {
+        return [];
+      }
+    },
+  },
+
+  // Rentals
+  rentals: {
+    getAll: async (): Promise<RentalItem[]> => {
+      try {
+        const response = await api.instance.get<RentalItem[]>('/public/rentals');
+        return response.data;
+      } catch {
+        return [];
+      }
+    },
+
+    book: async (data: {
+      itemId: string;
+      renterName: string;
+      renterEmail: string;
+      renterPhone: string;
+      eventName?: string;
+      startDate: string;
+      endDate: string;
+      priceType: 'hourly' | 'daily';
+    }): Promise<RentalBooking> => {
+      const response = await api.instance.post<RentalBooking>('/public/rentals/book', data);
+      return response.data;
+    },
+
+    getMyBookings: async (): Promise<RentalBooking[]> => {
+      try {
+        const response = await api.instance.get<RentalBooking[]>('/public/rentals/bookings');
+        return response.data;
+      } catch {
+        return [];
+      }
+    },
   },
 
   // Notifications
@@ -458,8 +574,8 @@ export const apiService = {
   finances: {
     getSummary: async (): Promise<FinancialSummary> => {
       try {
-        const response = await api.instance.get<FinancialSummary>('/public/finances/summary');
-        return response.data;
+        const response = await api.instance.get<{ summary: FinancialSummary }>('/public/finances');
+        return response.data.summary || getMockFinancialSummary();
       } catch {
         return getMockFinancialSummary();
       }

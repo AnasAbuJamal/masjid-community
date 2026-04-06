@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
@@ -26,9 +27,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    if (body.title) body.slug = slugify(body.title);
+    const { tags, categoryId, metaTitle, metaDescription, seoImage, scheduledFor, publishedAt, ...rest } = body;
 
-    const post = await prisma.blogPost.update({ where: { id }, data: body });
+    const data: Prisma.BlogPostUpdateInput = { ...rest };
+    if (body.title) data.slug = slugify(body.title);
+    if (tags !== undefined) data.tags = tags;
+    if (categoryId !== undefined) data.category = categoryId ? { connect: { id: categoryId } } : { disconnect: true };
+    if (metaTitle !== undefined) data.metaTitle = metaTitle || null;
+    if (metaDescription !== undefined) data.metaDescription = metaDescription || null;
+    if (seoImage !== undefined) data.seoImage = seoImage || null;
+    if (scheduledFor !== undefined) data.scheduledFor = scheduledFor ? new Date(scheduledFor) : null;
+    if (publishedAt !== undefined) data.publishedAt = publishedAt ? new Date(publishedAt) : null;
+
+    const post = await prisma.blogPost.update({ where: { id }, data });
     await logAudit({ action: "update_blog_post", userId: session.user.id, details: `Updated blog post ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(post);
 }

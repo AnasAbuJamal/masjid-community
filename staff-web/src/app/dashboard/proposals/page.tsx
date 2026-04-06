@@ -71,7 +71,7 @@ export default function ProposalsPage() {
   const inProgressCount = proposals.filter((p) => p.status === "in_progress").length;
   const totalBudget = proposals.reduce((acc, p) => acc + p.totalBudget, 0);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-6">
@@ -161,7 +161,7 @@ export default function ProposalsPage() {
               </div>
             )}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setReviewDialog(false)}>Cancel</Button><Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setReviewDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

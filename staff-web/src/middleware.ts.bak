@@ -1,0 +1,17 @@
+import { NextResponse } from "next/server";
+
+const publicPaths = ["/", "/api/auth", "/kiosk", "/api/login", "/api/public", "/api/webhooks"];
+
+export function middleware(req: { nextUrl: { pathname: string }; url: string }) {
+  const { pathname } = req.nextUrl;
+
+  if (publicPaths.some(path => pathname === path || pathname.startsWith(path + "/"))) {
+    return NextResponse.next();
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/((?!_next|favicon.ico).*)"],
+};
