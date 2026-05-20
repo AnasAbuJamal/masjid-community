@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     body.eventDate = new Date(body.eventDate);
+    if (body.spotsTotal !== undefined) body.spotsTotal = parseInt(String(body.spotsTotal));
+    if (body.spotsFilled !== undefined) body.spotsFilled = parseInt(String(body.spotsFilled));
 
     const opportunity = await prisma.volunteerOpportunity.create({ data: body });
     await logAudit({ action: "create_volunteer_opp", userId: session.user.id, details: `Created volunteer opportunity "${body.title}"`, ipAddress: getClientIp(req) });

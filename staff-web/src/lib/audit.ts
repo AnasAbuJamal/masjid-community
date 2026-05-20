@@ -27,7 +27,7 @@ export async function logAudit(options: AuditLogOptions) {
         await prisma.auditLog.create({
             data: {
                 action: options.action,
-                userId: options.userId || undefined,
+                userId: options.userId ? parseInt(options.userId) : undefined,
                 email: options.email || undefined,
                 details: options.details || undefined,
                 ipAddress: options.ipAddress || undefined,

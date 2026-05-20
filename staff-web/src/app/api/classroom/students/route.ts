@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    const where = classId ? { classId, isActive: true } : { isActive: true };
+    const where = classId ? { classId: parseInt(classId), isActive: true } : { isActive: true };
 
     const [students, total] = await Promise.all([
         prisma.student.findMany({
@@ -34,10 +34,17 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
+    if (body.classId !== undefined) body.classId = parseInt(String(body.classId));
+    if (body.studentId !== undefined) body.studentId = parseInt(String(body.studentId));
+    if (body.totalPoints !== undefined) body.totalPoints = parseInt(String(body.totalPoints));
+    if (body.currentLevel !== undefined) body.currentLevel = parseInt(String(body.currentLevel));
+
+    const finalStudentId = body.studentId || parseInt(String(generateStudentId()));
+
     const student = await prisma.student.create({
         data: {
             ...body,
-            studentId: body.studentId || generateStudentId(),
+            studentId: finalStudentId,
         },
     });
 

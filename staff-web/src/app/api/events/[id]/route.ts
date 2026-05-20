@@ -7,7 +7,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     
     const event = await prisma.event.findUnique({
-        where: { id },
+        where: { id: parseInt(id) },
         include: {
             rsvps: true,
         },
@@ -29,8 +29,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const body = await req.json();
 
+    if (body.capacity !== undefined) {
+        body.capacity = body.capacity !== null && body.capacity !== "" ? parseInt(String(body.capacity)) : null;
+    }
+    if (body.isAllDay !== undefined) body.isAllDay = body.isAllDay === true || body.isAllDay === "true";
+    if (body.isPublic !== undefined) body.isPublic = body.isPublic === true || body.isPublic === "true";
+    if (body.isRecurring !== undefined) body.isRecurring = body.isRecurring === true || body.isRecurring === "true";
+
     const event = await prisma.event.update({
-        where: { id },
+        where: { id: parseInt(id) },
         data: {
             ...body,
             startDate: body.startDate ? new Date(body.startDate) : undefined,
@@ -41,7 +48,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await logAudit({
         action: "update_event",
         entity: "event",
-        entityId: event.id,
+        entityId: String(event.id),
         userId: session.user.id,
         details: `Updated event: ${event.title}`,
         ipAddress: getClientIp(req),
@@ -58,19 +65,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     const { id } = await params;
+    const parsedId = parseInt(id);
 
     await prisma.eventRSVP.deleteMany({
-        where: { eventId: id },
+        where: { eventId: parsedId },
     });
 
     await prisma.event.delete({
-        where: { id },
+        where: { id: parsedId },
     });
 
     await logAudit({
         action: "delete_event",
         entity: "event",
-        entityId: id,
+        entityId: String(id),
         userId: session.user.id,
         details: `Deleted event`,
         ipAddress: getClientIp(req),

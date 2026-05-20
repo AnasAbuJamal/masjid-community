@@ -50,19 +50,29 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    if (body.capacity !== undefined) {
+        body.capacity = body.capacity !== null && body.capacity !== "" ? parseInt(String(body.capacity)) : null;
+    }
+    if (body.isAllDay !== undefined) body.isAllDay = body.isAllDay === true || body.isAllDay === "true";
+    if (body.isPublic !== undefined) body.isPublic = body.isPublic === true || body.isPublic === "true";
+    if (body.isRecurring !== undefined) body.isRecurring = body.isRecurring === true || body.isRecurring === "true";
+
+    const createdByInt = session.user.id ? parseInt(session.user.id) : null;
+
     const event = await prisma.event.create({
         data: {
             ...body,
             startDate: new Date(body.startDate),
             endDate: body.endDate ? new Date(body.endDate) : null,
-            createdBy: session.user.id,
+            createdBy: createdByInt,
         },
     });
 
     await logAudit({
         action: "create_event",
         entity: "event",
-        entityId: event.id,
+        entityId: String(event.id),
         userId: session.user.id,
         details: `Created event: ${body.title}`,
         ipAddress: getClientIp(req),

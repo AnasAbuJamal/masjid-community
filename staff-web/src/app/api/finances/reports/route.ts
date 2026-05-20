@@ -3,6 +3,31 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
+const MONTH_MAP: Record<string, number> = {
+    Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
+    Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12,
+    January: 1, February: 2, March: 3, April: 4, June: 6,
+    July: 7, August: 8, September: 9, October: 10, November: 11, December: 12
+};
+
+function getMonthIndex(monthStr: string): number {
+    if (!monthStr) return -1;
+    const clean = monthStr.trim();
+    if (MONTH_MAP[clean] !== undefined) {
+        return MONTH_MAP[clean] - 1;
+    }
+    const parsed = parseInt(clean);
+    if (!isNaN(parsed)) {
+        return parsed - 1;
+    }
+    for (const [key, value] of Object.entries(MONTH_MAP)) {
+        if (clean.toLowerCase().startsWith(key.toLowerCase())) {
+            return value - 1;
+        }
+    }
+    return -1;
+}
+
 export async function GET(req: NextRequest) {
     const session = await auth();
     if (!session || session.user.role !== "admin") {
@@ -51,7 +76,8 @@ export async function GET(req: NextRequest) {
         });
 
         financialRecords.forEach((record) => {
-            const monthName = months[parseInt(record.month) - 1];
+            const monthIndex = getMonthIndex(record.month);
+            const monthName = months[monthIndex];
             if (monthName) {
                 monthlyData[monthName].expenses = record.expenses;
                 monthlyData[monthName].net = record.donations - record.expenses;
@@ -174,7 +200,8 @@ export async function POST(req: NextRequest) {
     });
 
     financialRecords.forEach((record) => {
-        const monthName = months[parseInt(record.month) - 1];
+        const monthIndex = getMonthIndex(record.month);
+        const monthName = months[monthIndex];
         if (monthName) {
             monthlyData[monthName].expenses = record.expenses;
         }

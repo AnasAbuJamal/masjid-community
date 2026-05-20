@@ -25,6 +25,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
+    if (body.donations !== undefined) body.donations = parseFloat(String(body.donations));
+    if (body.expenses !== undefined) body.expenses = parseFloat(String(body.expenses));
+    if (body.year !== undefined) body.year = parseInt(String(body.year));
+
     if (body._type === "record") {
         delete body._type;
         const record = await prisma.financialRecord.create({ data: body });
@@ -47,6 +51,12 @@ export async function PATCH(req: NextRequest) {
 
     if (body._type === "summary") {
         delete body._type;
+        if (body.totalSpent !== undefined) body.totalSpent = parseFloat(String(body.totalSpent));
+        if (body.bankBalance !== undefined) body.bankBalance = parseFloat(String(body.bankBalance));
+        if (body.totalGoal !== undefined) body.totalGoal = parseFloat(String(body.totalGoal));
+        if (body.totalRaised !== undefined) body.totalRaised = parseFloat(String(body.totalRaised));
+        if (body.remainingNeeded !== undefined) body.remainingNeeded = parseFloat(String(body.remainingNeeded));
+
         // Upsert the financial summary
         const existing = await prisma.financialSummary.findFirst({ orderBy: { lastUpdated: "desc" } });
         if (existing) {
@@ -64,15 +74,20 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body._type === "delete_record") {
-        const id = body._id;
+        const id = parseInt(body._id);
         await prisma.financialRecord.delete({ where: { id } });
         return NextResponse.json({ success: true });
     }
 
     if (body._type === "record" && body._id) {
-        const id = body._id;
+        const id = parseInt(body._id);
         delete body._type;
         delete body._id;
+
+        if (body.donations !== undefined) body.donations = parseFloat(String(body.donations));
+        if (body.expenses !== undefined) body.expenses = parseFloat(String(body.expenses));
+        if (body.year !== undefined) body.year = parseInt(String(body.year));
+
         const record = await prisma.financialRecord.update({ where: { id }, data: body });
         return NextResponse.json(record);
     }

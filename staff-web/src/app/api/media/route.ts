@@ -78,7 +78,7 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
 
     if (id) {
-        await prisma.mediaFile.delete({ where: { id } });
+        await prisma.mediaFile.delete({ where: { id: parseInt(id) } });
         return NextResponse.json({ success: true });
     }
 

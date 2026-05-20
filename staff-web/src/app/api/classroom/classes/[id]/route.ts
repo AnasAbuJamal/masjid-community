@@ -9,7 +9,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    const cls = await prisma.class.update({ where: { id }, data: body });
+    const cls = await prisma.class.update({ 
+        where: { id: parseInt(id) }, 
+        data: body 
+    });
     await logAudit({ action: "update_class", userId: session.user.id, details: `Updated class ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(cls);
 }
@@ -19,7 +22,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    await prisma.class.delete({ where: { id } });
+    await prisma.class.delete({ 
+        where: { id: parseInt(id) } 
+    });
     await logAudit({ action: "delete_class", userId: session.user.id, details: `Deleted class ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }

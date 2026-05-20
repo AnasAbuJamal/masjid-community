@@ -11,7 +11,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    const project = await prisma.constructionProject.update({ where: { id }, data: body });
+    if (body.progressPercent !== undefined) body.progressPercent = parseInt(String(body.progressPercent));
+    if (body.displayOrder !== undefined) body.displayOrder = parseInt(String(body.displayOrder));
+
+    const project = await prisma.constructionProject.update({ 
+        where: { id: parseInt(id) }, 
+        data: body 
+    });
     await logAudit({ action: "update_construction", userId: session.user.id, details: `Updated construction project ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(project);
 }
@@ -23,7 +29,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.constructionProject.delete({ where: { id } });
+    await prisma.constructionProject.delete({ 
+        where: { id: parseInt(id) } 
+    });
     await logAudit({ action: "delete_construction", userId: session.user.id, details: `Deleted construction project ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }

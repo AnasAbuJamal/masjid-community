@@ -45,10 +45,10 @@ export async function PATCH(req: NextRequest) {
         }
 
         const application = await prisma.studentApplication.update({
-            where: { id },
+            where: { id: parseInt(String(id)) },
             data: {
                 status: newStatus,
-                reviewedBy: session.user.id,
+                reviewedBy: session.user.id ? parseInt(session.user.id) : null,
                 reviewedAt: new Date(),
                 notes: notes,
             },

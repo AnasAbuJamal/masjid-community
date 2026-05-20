@@ -23,6 +23,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    if (body.progressPercent !== undefined) body.progressPercent = parseInt(String(body.progressPercent));
+    if (body.displayOrder !== undefined) body.displayOrder = parseInt(String(body.displayOrder));
+
     const project = await prisma.constructionProject.create({ data: body });
     await logAudit({ action: "create_construction", userId: session.user.id, details: `Created construction project "${body.title}"`, ipAddress: getClientIp(req) });
     return NextResponse.json(project, { status: 201 });
