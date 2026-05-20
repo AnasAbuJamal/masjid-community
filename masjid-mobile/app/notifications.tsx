@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import { ScreenHeader } from '../components/common';
 import apiService from '../services/api-service';
 
 interface Notification {
@@ -117,12 +117,14 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        {unreadCount > 0 && (
-          <Text style={styles.unreadBadge}>{unreadCount} new</Text>
-        )}
-      </View>
+      <ScreenHeader 
+        title="Notifications" 
+        showBack 
+        rightAction={unreadCount > 0 ? {
+          icon: 'check-all',
+          onPress: () => setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+        } : undefined}
+      />
 
       <FlatList
         data={notifications}
@@ -161,30 +163,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  unreadBadge: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-    backgroundColor: COLORS.primary + '15',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
   },
   list: {
     padding: SPACING.md,

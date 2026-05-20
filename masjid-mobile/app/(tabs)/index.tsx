@@ -149,7 +149,7 @@ export default function HomeScreen() {
               )}
               <Text style={styles.hijriText}>{hijriDate.format}</Text>
             </View>
-            <TouchableOpacity style={styles.notifButton} onPress={() => router.push('/announcements/1')}>
+            <TouchableOpacity style={styles.notifButton} onPress={() => router.push('/notifications')}>
               <MaterialCommunityIcons name="bell-outline" size={22} color={COLORS.primary} />
               {announcements.length > 0 && <View style={styles.notifDot} />}
             </TouchableOpacity>
@@ -161,9 +161,12 @@ export default function HomeScreen() {
           <GlassCard style={styles.prayerCard} variant="floating">
             <LinearGradient colors={['#4A90D9', '#6DD5ED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.prayerGradient}>
               <View style={styles.prayerShine} />
-              <View style={styles.prayerHeader}>
-                <View><Text style={styles.prayerCardTitle}>Next Prayer</Text><Text style={styles.nextPrayerName}>{nextPrayer}</Text></View>
-                <View style={styles.prayerTimeBox}><Text style={styles.prayerTimeText}>{p[nextPrayer.toLowerCase()]}</Text></View>
+              
+              {/* Main Header */}
+              <View style={styles.prayerMainHeader}>
+                <Text style={styles.prayerCardTitle}>Next Prayer</Text>
+                <Text style={styles.nextPrayerName}>{nextPrayer}</Text>
+                <Text style={styles.prayerTimeText}>{p[nextPrayer.toLowerCase()]}</Text>
               </View>
               
               {/* Countdown Timer */}
@@ -261,20 +264,19 @@ const styles = StyleSheet.create({
   prayerCard: { borderRadius: RADIUS.xxl, overflow: 'hidden' },
   prayerGradient: { borderRadius: RADIUS.xxl, padding: SPACING.lg, overflow: 'hidden' },
   prayerShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 80, backgroundColor: 'rgba(255, 255, 255, 0.25)', borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl },
-  prayerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.sm },
-  prayerCardTitle: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  prayerMainHeader: { alignItems: 'center', marginBottom: SPACING.md },
+  prayerCardTitle: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  nextPrayerName: { color: COLORS.white, fontSize: 36, fontWeight: '800', marginBottom: 4 },
+  prayerTimeText: { color: COLORS.white, fontSize: 24, fontWeight: '700' },
 
-  countdownContainer: { alignItems: 'center', marginBottom: SPACING.md },
+  countdownContainer: { alignItems: 'center', marginBottom: SPACING.lg },
   countdownLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', marginBottom: SPACING.xs },
-  countdownBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: RADIUS.lg, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  countdownBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: RADIUS.lg, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
   countdownItem: { alignItems: 'center', minWidth: 50 },
   countdownNumber: { color: COLORS.white, fontSize: 28, fontWeight: '800' },
   countdownUnit: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '500' },
   countdownSeparator: { color: COLORS.white, fontSize: 28, fontWeight: '700', marginHorizontal: 4 },
-  nextPrayerName: { color: COLORS.white, fontSize: 28, fontWeight: '800' },
-  prayerTimeBox: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs, borderRadius: RADIUS.lg },
-  prayerTimeText: { color: COLORS.white, fontSize: 20, fontWeight: '700' },
-  prayerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  prayerGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: SPACING.sm },
   prayerItem: { minHeight: 70, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', justifyContent: 'center' },
   prayerItemActive: { backgroundColor: COLORS.white },
   nextLabel: { fontSize: 8, fontWeight: '800', color: COLORS.primary, letterSpacing: 0.5, marginBottom: 2 },

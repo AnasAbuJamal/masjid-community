@@ -1,7 +1,7 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
-const publicPaths = ["/", "/api/auth", "/kiosk"];
+const publicPaths = ["/", "/api/auth", "/kiosk", "/api/public/notifications"];
 
 const publicApiPaths = [
   "/api/public",

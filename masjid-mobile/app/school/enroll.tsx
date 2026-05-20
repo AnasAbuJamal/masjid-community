@@ -9,10 +9,11 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, Button, ScreenWrapper } from '../../components/common';
+import { GlassCard, Button, ScreenWrapper, ScreenHeader } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import apiService from '../../services/api-service';
 import { validateForm, studentEnrollmentSchema } from '../../utils/validation';
@@ -98,9 +99,9 @@ export default function EnrollScreen() {
   };
 
   return (
-    <ScreenWrapper>
-      <Stack.Screen options={{ title: 'Enroll My Child' }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader title="Enrollment" showBack />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.innerContainer}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <View style={[styles.iconContainer, { backgroundColor: COLORS.primary + '15' }]}>
@@ -324,12 +325,13 @@ export default function EnrollScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  innerContainer: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: { padding: SPACING.md, paddingBottom: 100 },
   header: { alignItems: 'center', marginBottom: SPACING.lg },

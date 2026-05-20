@@ -310,8 +310,8 @@ export const apiService = {
   announcements: {
     getAll: async (): Promise<Announcement[]> => {
       try {
-        const response = await api.instance.get<Announcement[]>('/announcements');
-        return response.data;
+        const response = await api.instance.get<{ announcements: Announcement[] }>('/public/announcements');
+        return response.data.announcements || [];
       } catch {
         return getMockAnnouncements();
       }
@@ -404,8 +404,8 @@ export const apiService = {
   proposals: {
     getAll: async (): Promise<Proposal[]> => {
       try {
-        const response = await api.instance.get<Proposal[]>('/public/proposals');
-        return response.data || [];
+        const response = await api.instance.get<{ proposals: Proposal[] }>('/public/proposals');
+        return response.data.proposals || [];
       } catch {
         return [];
       }

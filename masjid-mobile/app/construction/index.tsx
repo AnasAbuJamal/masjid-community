@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, FloatingIcon, Skeleton } from '../../components/common';
+import { GlassCard, FloatingIcon, Skeleton, ScreenHeader } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import apiService, { ConstructionProject } from '../../services/api-service';
 
@@ -151,7 +152,9 @@ export default function ConstructionScreen() {
   );
 
   return (
-    <ScreenWrapper contentPadding={false} bottomPadding={false}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader title="Construction" showBack />
+
       {loading ? (
         renderSkeleton()
       ) : (
@@ -177,11 +180,12 @@ export default function ConstructionScreen() {
           ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
         />
       )}
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
   headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm, gap: SPACING.sm },
   pageTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
   pageSubtitle: { fontSize: 13, color: COLORS.textSecondary },

@@ -6,10 +6,11 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, FloatingIcon } from '../../../components/common';
+import { GlassCard, ScreenWrapper, FloatingIcon, ScreenHeader } from '../../../components/common';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../../constants/theme';
 
 interface ClassSession {
@@ -199,23 +200,27 @@ export default function ClassesScreen() {
   );
 
   return (
-    <ScreenWrapper contentPadding={false} bottomPadding={false}>
-      <FlatList
-        data={filteredClasses}
-        keyExtractor={item => item.id}
-        renderItem={renderClass}
-        ListHeaderComponent={renderHeader}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />}
-        ListEmptyComponent={renderEmpty}
-        ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
-      />
-    </ScreenWrapper>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader title="Classes" showBack />
+      <ScreenWrapper contentPadding={false} bottomPadding={false}>
+        <FlatList
+          data={filteredClasses}
+          keyExtractor={item => item.id}
+          renderItem={renderClass}
+          ListHeaderComponent={renderHeader}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />}
+          ListEmptyComponent={renderEmpty}
+          ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+        />
+      </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
   headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
   pageTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
   pageSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },

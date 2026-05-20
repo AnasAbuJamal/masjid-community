@@ -17,6 +17,14 @@ import { useAuthStore } from '../../stores/authStore';
 
 type TabKey = 'volunteers' | 'proposals' | 'myvolunteers' | 'rentals';
 
+interface Proposal {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  createdAt: string;
+}
+
 export default function CommunityScreen() {
   const { width } = useWindowDimensions();
   const router = useRouter();
@@ -24,11 +32,18 @@ export default function CommunityScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('volunteers');
   const [opportunities, setOpportunities] = useState<VolunteerOpportunity[]>([]);
   const [myOpportunities, setMyOpportunities] = useState<VolunteerOpportunity[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadOpportunities();
-  }, []);
+    if (activeTab === 'volunteers') {
+      loadOpportunities();
+    } else if (activeTab === 'myvolunteers') {
+      loadMyOpportunities();
+    } else if (activeTab === 'proposals') {
+      loadProposals();
+    }
+  }, [activeTab]);
 
   const loadOpportunities = async () => {
     setLoading(true);
@@ -48,6 +63,17 @@ export default function CommunityScreen() {
       setMyOpportunities(data);
     } catch {
       setMyOpportunities([]);
+    }
+    setLoading(false);
+  };
+
+  const loadProposals = async () => {
+    setLoading(true);
+    try {
+      const data = await apiService.proposals.getAll();
+      setProposals(data);
+    } catch {
+      setProposals([]);
     }
     setLoading(false);
   };
@@ -82,9 +108,14 @@ export default function CommunityScreen() {
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
-    if (tab === 'myvolunteers') {
-      loadMyOpportunities();
-    }
+  };
+
+  const handleProposalPress = (proposal: Proposal) => {
+    Alert.alert(proposal.title, proposal.description || 'No description');
+  };
+
+  const handleSubmitProposal = () => {
+    Alert.alert('Submit Proposal', 'This feature is coming soon!');
   };
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
@@ -221,13 +252,55 @@ export default function CommunityScreen() {
               </View>
             }
           />
+        ) : activeTab === 'proposals' ? (
+          <FlatList
+            data={proposals}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyWrapper}>
+                <GlassCard>
+                  <View style={styles.centeredContent}>
+                    <FloatingIcon icon={<MaterialCommunityIcons name="lightbulb-outline" size={32} color={COLORS.textSecondary} />} size="lg" color={COLORS.textSecondary} />
+                    <Text style={styles.emptyText}>No proposals yet</Text>
+                    <Text style={styles.emptySubtext}>Submit your ideas to help improve our community</Text>
+                    <TouchableOpacity style={styles.proposeButton} onPress={handleSubmitProposal}>
+                      <Text style={styles.proposeText}>Submit a Proposal</Text>
+                    </TouchableOpacity>
+                  </View>
+                </GlassCard>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.cardWrapper}>
+                <GlassCard>
+                  <TouchableOpacity onPress={() => handleProposalPress(item)}>
+                    <View style={styles.cardContent}>
+                      <View style={styles.cardHeader}>
+                        <Text style={styles.cardTitle}>{item.title}</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: item.status === 'approved' ? COLORS.success + '18' : COLORS.warning + '18' }]}>
+                          <Text style={[styles.statusText, { color: item.status === 'approved' ? COLORS.success : COLORS.warning }]}>{item.status?.toUpperCase()}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+                      <Text style={styles.metaText}>Submitted: {new Date(item.createdAt).toLocaleDateString()}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </GlassCard>
+              </View>
+            )}
+          />
         ) : (
           <View style={styles.emptyWrapper}>
             <GlassCard>
               <View style={styles.centeredContent}>
-                <FloatingIcon icon={<MaterialCommunityIcons name="lightbulb-outline" size={32} color={COLORS.textSecondary} />} size="lg" color={COLORS.textSecondary} />
-                <Text style={styles.emptyText}>No proposals yet</Text>
-                <TouchableOpacity style={styles.proposeButton}><Text style={styles.proposeText}>Submit a Proposal</Text></TouchableOpacity>
+                <FloatingIcon icon={<MaterialCommunityIcons name="package-variant" size={32} color={COLORS.textSecondary} />} size="lg" color={COLORS.textSecondary} />
+                <Text style={styles.emptyText}>Equipment & Hall Rentals</Text>
+                <Text style={styles.emptySubtext}>Browse and book halls, tables, chairs, and more</Text>
+                <TouchableOpacity style={styles.proposeButton} onPress={() => router.push('/rentals' as any)}>
+                  <Text style={styles.proposeText}>Browse Rentals</Text>
+                </TouchableOpacity>
               </View>
             </GlassCard>
           </View>
