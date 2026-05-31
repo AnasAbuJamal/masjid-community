@@ -27,8 +27,17 @@ export default function RentalDetailScreen() {
     try {
       const data = await apiService.rentals.getAll();
       const found = data.find((i) => i.id === id);
-      setItem(found || null);
+      setItem(found || getMockRentalItem(id));
     } catch { /* empty */ } finally { setLoading(false); }
+  };
+
+  const getMockRentalItem = (itemId: string): RentalItem => {
+    const mockItems: Record<string, RentalItem> = {
+      '1': { id: '1', name: 'Main Hall', description: 'Spacious hall for weddings, conferences, and community events. Seats up to 300 guests with a stage area.', category: 'hall', imageUrl: null, priceHourly: 150, priceDaily: 800 },
+      '2': { id: '2', name: 'Folding Tables (Set of 10)', description: 'Heavy-duty 6ft folding tables. Ideal for banquets, meetings, and community dinners.', category: 'furniture', imageUrl: null, priceHourly: null, priceDaily: 50 },
+      '3': { id: '3', name: 'Sound System', description: 'Complete PA system with wireless microphones, speakers, and mixer board.', category: 'equipment', imageUrl: null, priceHourly: 75, priceDaily: 300 },
+    };
+    return mockItems[itemId] || { id: itemId, name: 'Unknown Item', description: 'Details not available', category: 'other', imageUrl: null, priceHourly: null, priceDaily: null };
   };
 
   if (loading) {

@@ -12,19 +12,34 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
-import { Plus, HardHat, AlertTriangle, GripVertical, Pencil, Trash2 } from "lucide-react";
+import { Plus, HardHat, AlertTriangle, Pencil, Trash2, Image, Building2, TrendingUp, Clock } from "lucide-react";
 
 interface Project {
-  id: number; title: string; description?: string;
+  id: number; title: string; description?: string; imageUrl?: string;
   progressPercent: number; isUrgent: boolean; displayOrder: number;
 }
+
+const getProgressColor = (pct: number) => {
+  if (pct >= 75) return "bg-green-500";
+  if (pct >= 40) return "bg-blue-500";
+  if (pct >= 20) return "bg-yellow-500";
+  return "bg-red-500";
+};
+
+const getProgressLabel = (pct: number) => {
+  if (pct >= 100) return "Completed";
+  if (pct >= 75) return "Almost Done";
+  if (pct >= 40) return "In Progress";
+  if (pct >= 20) return "Started";
+  return "Planning";
+};
 
 export default function ConstructionPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", progressPercent: 0, isUrgent: false, displayOrder: 0 });
+  const [form, setForm] = useState({ title: "", description: "", imageUrl: "", progressPercent: 0, isUrgent: false, displayOrder: 0 });
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -39,9 +54,10 @@ export default function ConstructionPage() {
 
   const totalProgress = projects.length > 0 ? Math.round(projects.reduce((acc, p) => acc + p.progressPercent, 0) / projects.length) : 0;
   const urgentCount = projects.filter((p) => p.isUrgent).length;
+  const completedCount = projects.filter((p) => p.progressPercent >= 100).length;
 
-  const openCreate = () => { setEditing(null); setForm({ title: "", description: "", progressPercent: 0, isUrgent: false, displayOrder: projects.length }); setDialogOpen(true); };
-  const openEdit = (p: Project) => { setEditing(p); setForm({ title: p.title, description: p.description || "", progressPercent: p.progressPercent, isUrgent: p.isUrgent, displayOrder: p.displayOrder }); setDialogOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ title: "", description: "", imageUrl: "", progressPercent: 0, isUrgent: false, displayOrder: projects.length }); setDialogOpen(true); };
+  const openEdit = (p: Project) => { setEditing(p); setForm({ title: p.title, description: p.description || "", imageUrl: p.imageUrl || "", progressPercent: p.progressPercent, isUrgent: p.isUrgent, displayOrder: p.displayOrder }); setDialogOpen(true); };
 
   const handleSave = async () => {
     setSaving(true);
@@ -63,62 +79,108 @@ export default function ConstructionPage() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
 
+  const sorted = [...projects].sort((a, b) => {
+    if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
+    return b.progressPercent - a.progressPercent;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-3xl font-bold text-gray-900">Construction</h1><p className="text-gray-500 mt-1">Track mosque construction and renovation projects</p></div>
+        <div><h1 className="text-3xl font-bold text-gray-900">Construction Projects</h1><p className="text-gray-500 mt-1">Track mosque expansion and renovation progress</p></div>
         <Button className="mocha-gradient hover:opacity-90" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Project</Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Active Projects</p><p className="text-3xl font-bold">{projects.length}</p></div><div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center"><HardHat className="h-6 w-6 text-orange-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Overall Progress</p><p className="text-3xl font-bold text-blue-600">{totalProgress}%</p></div><div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center"><HardHat className="h-6 w-6 text-blue-600" /></div></div></CardContent></Card>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Active Projects</p><p className="text-3xl font-bold">{projects.length}</p></div><div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center"><Building2 className="h-6 w-6 text-orange-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Overall Progress</p><p className="text-3xl font-bold text-blue-600">{totalProgress}%</p></div><div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center"><TrendingUp className="h-6 w-6 text-blue-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Completed</p><p className="text-3xl font-bold text-green-600">{completedCount}</p></div><div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center"><HardHat className="h-6 w-6 text-green-600" /></div></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Urgent</p><p className="text-3xl font-bold text-red-600">{urgentCount}</p></div><div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center"><AlertTriangle className="h-6 w-6 text-red-600" /></div></div></CardContent></Card>
       </div>
 
-      <div className="grid gap-4">
-        {projects.length === 0 ? (
-          <Card><CardContent className="py-12 text-center"><HardHat className="h-12 w-12 text-gray-400 mx-auto mb-4" /><p className="text-gray-500">No construction projects found.</p></CardContent></Card>
+      {/* Progress Overview */}
+      <Card>
+        <CardHeader><CardTitle>Overall Progress</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Progress value={totalProgress} className={`h-4 ${getProgressColor(totalProgress)}`} />
+            </div>
+            <span className="text-2xl font-bold text-blue-600">{totalProgress}%</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Project Cards */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {sorted.length === 0 ? (
+          <Card className="md:col-span-2"><CardContent className="py-16 text-center"><HardHat className="h-16 w-16 text-gray-300 mx-auto mb-4" /><p className="text-gray-500 text-lg">No construction projects yet</p><p className="text-gray-400 text-sm mt-1">Click &quot;Add Project&quot; to get started</p></CardContent></Card>
         ) : (
-          projects.map((project) => (
-            <Card key={project.id} className={project.isUrgent ? "border-red-300" : ""}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <GripVertical className="h-5 w-5 text-gray-400" />
-                    <CardTitle>{project.title}</CardTitle>
-                    {project.isUrgent && (<Badge className="bg-red-100 text-red-700"><AlertTriangle className="h-3 w-3 mr-1" />Urgent</Badge>)}
+          sorted.map((project) => {
+            const progressColor = getProgressColor(project.progressPercent);
+            const statusLabel = getProgressLabel(project.progressPercent);
+            const statusColor = project.progressPercent >= 100 ? "bg-green-100 text-green-700" : project.progressPercent >= 40 ? "bg-blue-100 text-blue-700" : project.progressPercent >= 20 ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700";
+            return (
+              <Card key={project.id} className={`overflow-hidden hover:shadow-lg transition-shadow ${project.isUrgent ? "ring-2 ring-red-300" : ""}`}>
+                {project.imageUrl && (
+                  <div className="h-40 bg-gray-100 overflow-hidden">
+                    <img src={project.imageUrl} alt={project.title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(project)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(project.id)}><Trash2 className="h-4 w-4" /></Button>
+                )}
+                <CardHeader className={project.imageUrl ? "pt-4" : ""}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CardTitle className="text-lg">{project.title}</CardTitle>
+                        {project.isUrgent && (<Badge className="bg-red-100 text-red-700"><AlertTriangle className="h-3 w-3 mr-1" />Urgent</Badge>)}
+                      </div>
+                      <Badge className={statusColor}>{statusLabel}</Badge>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(project)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(String(project.id))}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
                   </div>
-                </div>
-                {project.description && <p className="text-sm text-gray-500 mt-2">{project.description}</p>}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm"><span className="text-gray-500">Progress</span><span className="font-semibold">{project.progressPercent}%</span></div>
-                  <Progress value={project.progressPercent} className="h-2" />
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardHeader>
+                <CardContent>
+                  {project.description && <p className="text-sm text-gray-500 mb-4 line-clamp-2">{project.description}</p>}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Progress</span>
+                      <span className="font-semibold">{project.progressPercent}%</span>
+                    </div>
+                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${progressColor} rounded-full transition-all duration-500`} style={{ width: `${project.progressPercent}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>0%</span>
+                      <span>{project.progressPercent >= 100 ? "Done!" : `${100 - project.progressPercent}% remaining`}</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
 
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Project" : "Add Project"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+            <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Project name" /></div>
+            <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Describe the project..." /></div>
+            <div><Label>Image URL (optional)</Label><Input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://example.com/photo.jpg" /></div>
             <div>
               <Label>Progress ({form.progressPercent}%)</Label>
               <input type="range" min={0} max={100} value={form.progressPercent} onChange={(e) => setForm({ ...form, progressPercent: parseInt(e.target.value) })} className="mt-2 w-full" />
+              <div className="flex justify-between text-xs text-gray-400 mt-1"><span>0%</span><span>50%</span><span>100%</span></div>
             </div>
             <div className="flex items-center justify-between">
-              <Label>Mark as Urgent</Label>
+              <Label className="mb-0">Mark as Urgent</Label>
               <Switch checked={form.isUrgent} onCheckedChange={(v) => setForm({ ...form, isUrgent: v })} />
             </div>
             <div><Label>Display Order</Label><Input type="number" value={form.displayOrder} onChange={(e) => setForm({ ...form, displayOrder: parseInt(e.target.value) || 0 })} /></div>

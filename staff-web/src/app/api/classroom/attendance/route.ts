@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
     const classId = searchParams.get("classId");
     const studentId = searchParams.get("studentId");
     const date = searchParams.get("date");
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
 
@@ -40,6 +42,15 @@ export async function GET(req: NextRequest) {
         const endOfDay = new Date(targetDate);
         endOfDay.setHours(23, 59, 59, 999);
         where.date = { gte: startOfDay, lte: endOfDay };
+    } else if (dateFrom || dateTo) {
+        const dateFilter: Prisma.DateTimeFilter = {};
+        if (dateFrom) dateFilter.gte = new Date(dateFrom);
+        if (dateTo) {
+            const endOfDay = new Date(dateTo);
+            endOfDay.setHours(23, 59, 59, 999);
+            dateFilter.lte = endOfDay;
+        }
+        where.date = dateFilter;
     }
 
     const [records, total, classRecords, studentRecords] = await Promise.all([

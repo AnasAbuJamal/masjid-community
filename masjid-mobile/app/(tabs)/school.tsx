@@ -66,7 +66,7 @@ export default function SchoolScreen() {
 
   const handleLookup = () => {
     if (!studentId.trim()) { Alert.alert('Error', 'Please enter a student ID'); return; }
-    Alert.alert('Student Lookup', `Looking up student ID: ${studentId}`, [{ text: 'OK' }]);
+    router.push({ pathname: '/school/student' as any, params: { id: studentId.trim() } });
   };
 
   const handleEnroll = () => {

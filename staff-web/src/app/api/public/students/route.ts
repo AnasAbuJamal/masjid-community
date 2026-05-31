@@ -14,6 +14,10 @@ export async function POST(req: NextRequest) {
                 parentPhone: body.parentPhone,
                 programName: body.programName,
                 notes: body.notes,
+                emergencyContactName: body.emergencyContactName,
+                emergencyContactPhone: body.emergencyContactPhone,
+                emergencyRelation: body.emergencyRelation,
+                parentPreferredContact: body.parentPreferredContact,
                 status: "pending",
             },
         });

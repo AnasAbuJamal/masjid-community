@@ -127,3 +127,9 @@
 .badge-info {
   @apply bg-blue-100 text-blue-700;
 }
+
+/* Mocha gradient button / active state */
+.mocha-gradient {
+  background: linear-gradient(135deg, #6f4e37 0%, #a0765c 100%);
+  color: white;
+}

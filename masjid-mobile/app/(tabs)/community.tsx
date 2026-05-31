@@ -115,7 +115,7 @@ export default function CommunityScreen() {
   };
 
   const handleSubmitProposal = () => {
-    Alert.alert('Submit Proposal', 'This feature is coming soon!');
+    router.push('/proposals' as any);
   };
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [

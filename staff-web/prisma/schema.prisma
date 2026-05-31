@@ -281,6 +281,7 @@ model ConstructionProject {
   id Int @id @default(autoincrement())
   title           String
   description     String?
+  imageUrl        String?
   progressPercent Int      @default(0)
   isUrgent        Boolean  @default(false)
   displayOrder    Int      @default(0)
@@ -953,4 +954,31 @@ model NotificationPreference {
   pushGeneral Boolean @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
+//  STUDENT REPORTS
+// ──────────────────────────────────────
+
+enum ReportCategory {
+  daily
+  academic
+  behavioral
+  general
+}
+
+model StudentReport {
+  id Int @id @default(autoincrement())
+  studentId Int         
+  student   Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId Int?
+  teacher   User?           @relation("ReportTeacher", fields: [teacherId], references: [id])
+  title     String
+  content   String
+  category  ReportCategory  @default(general)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([studentId])
+  @@index([category])
 }

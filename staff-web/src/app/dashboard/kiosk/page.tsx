@@ -51,17 +51,25 @@ export default function KioskPage() {
   const [emergencyForm, setEmergencyForm] = useState({ title: "", message: "", expiresInMinutes: 60 });
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [rotationInterval, setRotationInterval] = useState("10");
+  const [displayDuration, setDisplayDuration] = useState("30000");
+  const [savingRotation, setSavingRotation] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [kioskRes, emergencyRes] = await Promise.all([
+      const [kioskRes, emergencyRes, settingsRes] = await Promise.all([
         fetch("/api/kiosk"),
         fetch("/api/kiosk/emergency"),
+        fetch("/api/settings"),
       ]);
       const kioskData = await kioskRes.json();
       const emergencyData = await emergencyRes.json();
+      const settingsData = await settingsRes.json();
       setAnnouncements(kioskData.announcements || []);
       setEmergency(emergencyData);
+      const s = settingsData.settings || {};
+      if (s.kiosk_rotation_interval) setRotationInterval(s.kiosk_rotation_interval);
+      if (s.kiosk_display_duration) setDisplayDuration(s.kiosk_display_duration);
     } catch { /* empty */ } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
@@ -117,6 +125,17 @@ export default function KioskPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveRotation = async () => {
+    setSavingRotation(true);
+    try {
+      await fetch("/api/kiosk/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rotationInterval: parseInt(rotationInterval), displayDuration: parseInt(displayDuration) }),
+      });
+    } catch { /* empty */ } finally { setSavingRotation(false); }
   };
 
   const handleClearEmergency = async () => {
@@ -225,8 +244,8 @@ export default function KioskPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <Label>Rotation Interval</Label>
-                <Select defaultValue="10">
+                <Label>Display Duration</Label>
+                <Select value={rotationInterval} onValueChange={setRotationInterval}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -258,11 +277,15 @@ export default function KioskPage() {
               </div>
             </div>
           </div>
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Tip:</strong> Announcements are displayed in order of priority (highest first), then by creation date.
-              Use priority 1-10 to control the display order.
-            </p>
+          <div className="flex items-center justify-between mt-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex-1 mr-4">
+              <p className="text-sm text-blue-800">
+                <strong>Tip:</strong> Announcements are displayed in order of priority (highest first), then by creation date.
+              </p>
+            </div>
+            <Button onClick={handleSaveRotation} disabled={savingRotation} size="sm">
+              {savingRotation ? "Saving..." : "Save Settings"}
+            </Button>
           </div>
         </CardContent>
       </Card>

@@ -35,33 +35,29 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     
-    // Only allow updating one setting at a time for security
-    if (Object.keys(body).length !== 1) {
-        return NextResponse.json({ error: "Only one setting can be updated at a time" }, { status: 400 });
-    }
-    
-    const [key, value] = Object.entries(body)[0];
-    
-    // Validate setting key
-    if (!ALLOWED_SETTINGS.includes(key)) {
-        return NextResponse.json({ 
-            error: `Invalid setting key. Allowed: ${ALLOWED_SETTINGS.join(', ')}` 
-        }, { status: 400 });
-    }
-    
-    // Validate value is not too long
-    const stringValue = String(value);
-    if (stringValue.length > 1000) {
-        return NextResponse.json({ error: "Setting value too long (max 1000 chars)" }, { status: 400 });
+    const entries = Object.entries(body);
+    if (entries.length === 0) {
+        return NextResponse.json({ error: "No settings provided" }, { status: 400 });
     }
 
-    const setting = await prisma.siteSetting.upsert({
-        where: { key },
-        update: { value: stringValue },
-        create: { key, value: stringValue },
-    });
+    const results = [];
+    for (const [key, value] of entries) {
+        if (!ALLOWED_SETTINGS.includes(key)) {
+            continue;
+        }
 
-    await logAudit({ action: "update_settings", userId: session.user.id, details: `Updated setting: ${key}`, ipAddress: getClientIp(req) });
+        const stringValue = String(value);
+        if (stringValue.length > 1000) continue;
 
-    return NextResponse.json({ success: true, setting });
+        const setting = await prisma.siteSetting.upsert({
+            where: { key },
+            update: { value: stringValue },
+            create: { key, value: stringValue },
+        });
+        results.push(setting);
+    }
+
+    await logAudit({ action: "update_settings", userId: session.user.id, details: `Updated ${results.length} setting(s)`, ipAddress: getClientIp(req) });
+
+    return NextResponse.json({ success: true, count: results.length, settings: results });
 }

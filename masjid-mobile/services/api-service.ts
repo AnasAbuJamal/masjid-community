@@ -90,6 +90,42 @@ export interface Student {
   attendance: number;
 }
 
+export interface StudentDetail {
+  id: number;
+  studentId: number;
+  firstName: string;
+  lastName: string;
+  class: { id: number; name: string; teacherName: string; schedule: string | null };
+  totalPoints: number;
+  currentLevel: number;
+  attendanceRate: number;
+  attendance: {
+    rate: number;
+    totalPresent: number;
+    totalAbsent: number;
+    totalLate: number;
+    recentRecords: { date: string; status: string; className: string }[];
+  };
+  recentAssignments: {
+    id: number;
+    date: string;
+    type: string;
+    description: string;
+    status: string;
+    rating: string;
+  }[];
+  reports: StudentReport[];
+}
+
+export interface StudentReport {
+  id: number;
+  title: string;
+  content: string;
+  category: string;
+  createdAt: string;
+  teacher?: { firstName: string; lastName: string };
+}
+
 export interface StudentApplication {
   id: string;
   studentName: string;
@@ -470,6 +506,34 @@ export const apiService = {
         return response.data;
       } catch {
         return [];
+      }
+    },
+
+    lookupByStudentId: async (studentId: string): Promise<StudentDetail | null> => {
+      try {
+        const response = await api.instance.get<StudentDetail>(`/public/students/${studentId}`);
+        return response.data;
+      } catch {
+        return null;
+      }
+    },
+
+    getReports: async (studentId?: number): Promise<StudentReport[]> => {
+      try {
+        const url = studentId ? `/student-reports?studentId=${studentId}` : '/student-reports';
+        const response = await api.instance.get<{ reports: StudentReport[] }>(url);
+        return response.data.reports || [];
+      } catch {
+        return [];
+      }
+    },
+
+    createReport: async (data: { studentId: number; title: string; content: string; category?: string }): Promise<boolean> => {
+      try {
+        await api.instance.post('/student-reports', data);
+        return true;
+      } catch {
+        return false;
       }
     },
   },
