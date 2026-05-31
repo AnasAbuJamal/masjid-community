@@ -15,6 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlassCard, ScreenWrapper, FloatingIcon, Skeleton } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import apiService, { Proposal } from '../../services/api-service';
+import { validateForm, proposalSchema } from '../../utils/validation';
 
 const CATEGORIES = ['Education', 'Youth', 'Community Event', 'Facility', 'Social Services', 'Technology', 'Other'];
 const STATUS_OPTIONS = ['all', 'pending', 'approved', 'in_progress', 'completed'];
@@ -46,6 +47,11 @@ export default function ProposalsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', category: 'Other' });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const updateForm = (field: string, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    if (formErrors[field]) setFormErrors(prev => ({ ...prev, [field]: '' }));
+  };
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [sortBy, setSortBy] = useState<'votes' | 'recent'>('votes');
   const [proposalComments, setProposalComments] = useState<Record<string, Comment[]>>({});
@@ -83,8 +89,9 @@ export default function ProposalsScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!form.title.trim()) { Alert.alert('Error', 'Title is required'); return; }
-    if (!form.description.trim()) { Alert.alert('Error', 'Description is required'); return; }
+    const errors = validateForm(proposalSchema, form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     setSubmitting(true);
     try {
       await apiService.proposals.create({ title: form.title.trim(), description: form.description.trim(), category: form.category });
@@ -126,7 +133,7 @@ export default function ProposalsScreen() {
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.newButton, showForm && styles.newButtonCancel]}
-          onPress={() => setShowForm(!showForm)}
+          onPress={() => { setShowForm(!showForm); if (showForm) setFormErrors({}); }}
         >
           <MaterialCommunityIcons name={showForm ? 'close' : 'plus'} size={18} color={COLORS.white} />
           <Text style={styles.newButtonText}>{showForm ? 'Cancel' : 'Submit Proposal'}</Text>
@@ -139,12 +146,13 @@ export default function ProposalsScreen() {
 
           <Text style={styles.formLabel}>Title *</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, formErrors.title && styles.formInputError]}
             value={form.title}
-            onChangeText={v => setForm({ ...form, title: v })}
+            onChangeText={v => updateForm('title', v)}
             placeholder="e.g., New Parking Lot Expansion"
             placeholderTextColor={COLORS.textLight}
           />
+          {formErrors.title && <Text style={styles.formError}>{formErrors.title}</Text>}
 
           <Text style={styles.formLabel}>Category</Text>
           <View style={styles.categoryRow}>
@@ -152,7 +160,7 @@ export default function ProposalsScreen() {
               <TouchableOpacity
                 key={cat}
                 style={[styles.categoryChip, form.category === cat && styles.categoryChipActive]}
-                onPress={() => setForm({ ...form, category: cat })}
+                onPress={() => updateForm('category', cat)}
               >
                 <Text style={[styles.categoryChipText, form.category === cat && styles.categoryChipTextActive]}>{cat}</Text>
               </TouchableOpacity>
@@ -161,15 +169,16 @@ export default function ProposalsScreen() {
 
           <Text style={styles.formLabel}>Description *</Text>
           <TextInput
-            style={[styles.formInput, styles.formTextArea]}
+            style={[styles.formInput, styles.formTextArea, formErrors.description && styles.formInputError]}
             value={form.description}
-            onChangeText={v => setForm({ ...form, description: v })}
+            onChangeText={v => updateForm('description', v)}
             placeholder="Describe your proposal in detail. Include the problem it solves, estimated impact, and any resources needed..."
             placeholderTextColor={COLORS.textLight}
             multiline
             numberOfLines={5}
             textAlignVertical="top"
           />
+          {formErrors.description && <Text style={styles.formError}>{formErrors.description}</Text>}
 
           <TouchableOpacity
             style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
@@ -329,6 +338,8 @@ const styles = StyleSheet.create({
   categoryChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   categoryChipText: { fontSize: 12, fontWeight: '500', color: COLORS.textSecondary },
   categoryChipTextActive: { color: COLORS.white },
+  formInputError: { borderColor: COLORS.error, borderWidth: 1.5 },
+  formError: { fontSize: 12, color: COLORS.error, marginTop: 4, marginBottom: 4 },
   submitButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.secondary, paddingVertical: 13, borderRadius: RADIUS.md, gap: 6, marginTop: SPACING.md },
   submitButtonDisabled: { opacity: 0.6 },
   submitText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },

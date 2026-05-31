@@ -9,3 +9,4 @@ export { ScreenWrapper, TAB_BAR_HEIGHT, SPACING } from './ScreenWrapper';
 export { Skeleton } from './Skeleton';
 export { EmptyState } from './EmptyState';
 export { ScreenHeader } from './ScreenHeader';
+export { DatePicker } from './DatePicker';

@@ -54,13 +54,19 @@ export default function KioskPage() {
   const [rotationInterval, setRotationInterval] = useState("10");
   const [displayDuration, setDisplayDuration] = useState("30000");
   const [savingRotation, setSavingRotation] = useState(false);
+  const [kioskContent, setKioskContent] = useState({
+    bannerImage: "", masjidName: "Masjid Al-Momineen", welcomeMessage: "",
+    donationEnabled: true, donationUrl: "", footerText: "",
+  });
+  const [savingContent, setSavingContent] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [kioskRes, emergencyRes, settingsRes] = await Promise.all([
+      const [kioskRes, emergencyRes, settingsRes, contentRes] = await Promise.all([
         fetch("/api/kiosk"),
         fetch("/api/kiosk/emergency"),
         fetch("/api/settings"),
+        fetch("/api/kiosk/content"),
       ]);
       const kioskData = await kioskRes.json();
       const emergencyData = await emergencyRes.json();
@@ -70,6 +76,10 @@ export default function KioskPage() {
       const s = settingsData.settings || {};
       if (s.kiosk_rotation_interval) setRotationInterval(s.kiosk_rotation_interval);
       if (s.kiosk_display_duration) setDisplayDuration(s.kiosk_display_duration);
+      if (contentRes.ok) {
+        const contentData = await contentRes.json();
+        if (contentData.content) setKioskContent(contentData.content);
+      }
     } catch { /* empty */ } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
@@ -136,6 +146,17 @@ export default function KioskPage() {
         body: JSON.stringify({ rotationInterval: parseInt(rotationInterval), displayDuration: parseInt(displayDuration) }),
       });
     } catch { /* empty */ } finally { setSavingRotation(false); }
+  };
+
+  const handleSaveContent = async () => {
+    setSavingContent(true);
+    try {
+      await fetch("/api/kiosk/content", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(kioskContent),
+      });
+    } catch { /* empty */ } finally { setSavingContent(false); }
   };
 
   const handleClearEmergency = async () => {
@@ -230,6 +251,82 @@ export default function KioskPage() {
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Active</p><p className="text-2xl font-bold text-green-600">{activeCount}</p></div><div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center"><Megaphone className="h-6 w-6 text-green-600" /></div></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Emergency</p><p className="text-2xl font-bold text-red-600">{emergency?.isActive ? "ACTIVE" : "None"}</p></div><div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center"><AlertTriangle className="h-6 w-6 text-red-600" /></div></div></CardContent></Card>
       </div>
+
+      {/* TV Content Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tv className="h-5 w-5" />TV Display Content
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <Label>Banner Image URL</Label>
+                <Input
+                  value={kioskContent.bannerImage}
+                  onChange={(e) => setKioskContent({ ...kioskContent, bannerImage: e.target.value })}
+                  placeholder="https://example.com/banner.jpg"
+                />
+                <p className="text-xs text-gray-500 mt-1">URL for the TV header background image</p>
+              </div>
+              <div>
+                <Label>Masjid Name</Label>
+                <Input
+                  value={kioskContent.masjidName}
+                  onChange={(e) => setKioskContent({ ...kioskContent, masjidName: e.target.value })}
+                  placeholder="Masjid Al-Momineen"
+                />
+              </div>
+              <div>
+                <Label>Welcome Message</Label>
+                <Textarea
+                  value={kioskContent.welcomeMessage}
+                  onChange={(e) => setKioskContent({ ...kioskContent, welcomeMessage: e.target.value })}
+                  placeholder="Welcome to Masjid Al-Momineen..."
+                  rows={2}
+                />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <Label>Footer Text</Label>
+                <Input
+                  value={kioskContent.footerText}
+                  onChange={(e) => setKioskContent({ ...kioskContent, footerText: e.target.value })}
+                  placeholder="Masjid Al-Momineen | 1234 Peachtree Rd, Atlanta, GA"
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <Label className="mb-0">Donation Button</Label>
+                  <p className="text-xs text-gray-500">Show donation button on TV display</p>
+                </div>
+                <Switch
+                  checked={kioskContent.donationEnabled}
+                  onCheckedChange={(v) => setKioskContent({ ...kioskContent, donationEnabled: v })}
+                />
+              </div>
+              {kioskContent.donationEnabled && (
+                <div>
+                  <Label>Donation URL</Label>
+                  <Input
+                    value={kioskContent.donationUrl}
+                    onChange={(e) => setKioskContent({ ...kioskContent, donationUrl: e.target.value })}
+                    placeholder="https://masjidalmomineen.com/donate"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button onClick={handleSaveContent} disabled={savingContent} size="sm">
+              {savingContent ? "Saving..." : "Save TV Content"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Rotation Settings */}
       <Card>

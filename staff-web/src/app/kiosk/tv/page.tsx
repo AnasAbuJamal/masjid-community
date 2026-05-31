@@ -16,11 +16,21 @@ interface ConstructionProject {
   id: string; title: string; progressPercent: number;
 }
 
+interface KioskContent {
+  bannerImage: string | null;
+  masjidName: string;
+  welcomeMessage: string | null;
+  donationEnabled: boolean;
+  donationUrl: string | null;
+  footerText: string | null;
+}
+
 interface KioskData {
   prayers: PrayerTimes | null;
   announcements: Announcement[];
   projects: ConstructionProject[];
   settings: Record<string, string>;
+  kioskContent: KioskContent | null;
 }
 
 function getNextPrayer(prayers: PrayerTimes | null) {
@@ -67,17 +77,24 @@ export default function KioskTVPage() {
         const result = await res.json();
         setData(result);
       } else {
-        const [projectsRes, settingsRes] = await Promise.all([
+        const [projectsRes, settingsRes, contentRes] = await Promise.all([
           fetch("/api/public/construction"),
           fetch("/api/settings"),
+          fetch("/api/kiosk/content"),
         ]);
         const projects = await projectsRes.json();
         const settings = await settingsRes.json();
+        let kioskContent = null;
+        if (contentRes.ok) {
+          const contentData = await contentRes.json();
+          kioskContent = contentData.content || null;
+        }
         setData({
           prayers: null,
           announcements: [],
           projects: projects.projects || [],
           settings: settings.settings || {},
+          kioskContent,
         });
       }
     } catch { /* empty */ }
@@ -101,6 +118,14 @@ export default function KioskTVPage() {
     return () => clearInterval(annInterval);
   }, [data?.announcements?.length]);
 
+  const content = data?.kioskContent;
+  const masjidName = content?.masjidName || "Masjid Al-Momineen";
+  const welcomeMessage = content?.welcomeMessage || "";
+  const donationUrl = content?.donationUrl || data?.settings?.donationPortalUrl || "masjidalmomineen.com/donate";
+  const footerText = content?.footerText || "";
+  const bannerImage = content?.bannerImage || "";
+  const donationEnabled = content?.donationEnabled !== false;
+
   const nextPrayer = getNextPrayer(data?.prayers || null);
   const today = time.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const currentTime = time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
@@ -114,9 +139,13 @@ export default function KioskTVPage() {
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto grid grid-cols-12 gap-6">
         {/* Header */}
-        <div className="col-span-12 flex items-center justify-between bg-gradient-to-r from-emerald-800 to-teal-800 rounded-2xl p-6">
-          <div>
-            <h1 className="text-4xl font-bold">Masjid Al-Momineen</h1>
+        <div
+          className="col-span-12 flex items-center justify-between bg-gradient-to-r from-emerald-800 to-teal-800 rounded-2xl p-6"
+          style={bannerImage ? { backgroundImage: `url(${bannerImage})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
+        >
+          <div className={bannerImage ? "bg-black/40 p-4 rounded-xl" : ""}>
+            <h1 className="text-4xl font-bold">{masjidName}</h1>
+            {welcomeMessage && <p className="text-emerald-200 text-lg mt-1">{welcomeMessage}</p>}
             <p className="text-emerald-200 text-xl mt-1">{today}</p>
             <p className="text-emerald-300 text-lg mt-1">{currentTime}</p>
           </div>
@@ -163,19 +192,21 @@ export default function KioskTVPage() {
         </div>
 
         {/* Donation QR */}
-        <div className="col-span-5 bg-gradient-to-br from-emerald-700 to-teal-700 rounded-2xl p-6">
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <Heart className="h-6 w-6" />
-            Support the Masjid
-          </h2>
-          <div className="flex flex-col items-center justify-center h-[calc(100%-2rem)]">
-            <div className="w-40 h-40 bg-white rounded-xl flex items-center justify-center">
-              <QrCode className="h-20 w-20 text-gray-800" />
+        {donationEnabled && (
+          <div className="col-span-5 bg-gradient-to-br from-emerald-700 to-teal-700 rounded-2xl p-6">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <Heart className="h-6 w-6" />
+              Support the Masjid
+            </h2>
+            <div className="flex flex-col items-center justify-center h-[calc(100%-2rem)]">
+              <div className="w-40 h-40 bg-white rounded-xl flex items-center justify-center">
+                <QrCode className="h-20 w-20 text-gray-800" />
+              </div>
+              <p className="mt-4 text-xl font-semibold">Scan to Donate</p>
+              <p className="text-emerald-200">{donationUrl}</p>
             </div>
-            <p className="mt-4 text-xl font-semibold">Scan to Donate</p>
-            <p className="text-emerald-200">{data?.settings?.donationPortalUrl || "masjidalmomineen.com/donate"}</p>
           </div>
-        </div>
+        )}
 
         {/* Announcements */}
         <div className="col-span-7 bg-gray-800 rounded-2xl p-6">
@@ -232,7 +263,7 @@ export default function KioskTVPage() {
         {/* Footer */}
         <div className="col-span-12 bg-gray-800 rounded-2xl p-4 text-center">
           <p className="text-gray-400">
-            Masjid Al-Momineen &bull; {data?.settings?.mosque_address || "1234 Peachtree Rd, Atlanta, GA"} &bull; {data?.settings?.mosque_phone || "(404) 555-0000"}
+            {footerText || `${masjidName} \u2022 ${data?.settings?.mosque_address || "1234 Peachtree Rd, Atlanta, GA"} \u2022 ${data?.settings?.mosque_phone || "(404) 555-0000"}`}
           </p>
         </div>
       </div>

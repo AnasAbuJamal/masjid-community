@@ -26,8 +26,13 @@ export default function StudentDetailScreen() {
 
   const loadStudent = async () => {
     setLoading(true);
-    const data = await apiService.school.lookupByStudentId(id);
-    setStudent(data);
+    try {
+      const data = await apiService.school.lookupByStudentId(id);
+      setStudent(data);
+    } catch (e: any) {
+      console.error('Student lookup error:', e?.response?.data || e?.message || e);
+      setStudent(null);
+    }
     setLoading(false);
   };
 

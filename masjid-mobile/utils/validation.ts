@@ -137,8 +137,15 @@ export const donationSchema = z.object({
   isAnonymous: z.boolean(),
 });
 
+export const proposalSchema = z.object({
+  title: z.string().min(1, 'Title is required').min(5, 'Title must be at least 5 characters').max(200, 'Title must be less than 200 characters'),
+  description: z.string().min(1, 'Description is required').min(20, 'Please provide at least 20 characters of detail'),
+  category: z.string().min(1, 'Category is required'),
+});
+
 export type StudentEnrollmentData = z.infer<typeof studentEnrollmentSchema>;
 export type RentalBookingData = z.infer<typeof rentalBookingSchema>;
 export type JobApplicationData = z.infer<typeof jobApplicationSchema>;
 export type ProfileUpdateData = z.infer<typeof profileUpdateSchema>;
 export type DonationData = z.infer<typeof donationSchema>;
+export type ProposalData = z.infer<typeof proposalSchema>;

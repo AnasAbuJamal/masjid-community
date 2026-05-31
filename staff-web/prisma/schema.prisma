@@ -467,6 +467,21 @@ model SiteSetting {
 }
 
 // ──────────────────────────────────────
+//  KIOSK / TV CONTENT SETTINGS
+// ──────────────────────────────────────
+
+model KioskContent {
+  id               Int      @id @default(autoincrement())
+  bannerImage      String?
+  masjidName       String   @default("Masjid Al-Momineen")
+  welcomeMessage   String?
+  donationEnabled  Boolean  @default(true)
+  donationUrl      String?
+  footerText       String?
+  updatedAt        DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
 //  KIOSK / TV ANNOUNCEMENTS
 // ──────────────────────────────────────
 

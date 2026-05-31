@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenHeader } from '../../components/common';
+import { GlassCard, ScreenHeader, DatePicker } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import apiService from '../../services/api-service';
 
@@ -184,15 +184,13 @@ export default function EnrollScreen() {
                 {errors.studentName && <Text style={styles.error}>{errors.studentName}</Text>}
               </View>
               <View style={styles.field}>
-                <Text style={styles.label}>Date of Birth *</Text>
-                <TextInput
-                  style={[styles.input, errors.dateOfBirth && styles.inputError]}
+                <DatePicker
+                  label="Date of Birth *"
                   value={form.dateOfBirth}
-                  onChangeText={v => updateField('dateOfBirth', v)}
+                  onChange={(v) => updateField('dateOfBirth', v)}
+                  error={errors.dateOfBirth}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor={COLORS.textLight}
                 />
-                {errors.dateOfBirth && <Text style={styles.error}>{errors.dateOfBirth}</Text>}
               </View>
               <View style={styles.field}>
                 <Text style={styles.label}>Grade Level *</Text>

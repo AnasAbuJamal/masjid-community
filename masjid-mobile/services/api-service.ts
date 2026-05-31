@@ -510,12 +510,8 @@ export const apiService = {
     },
 
     lookupByStudentId: async (studentId: string): Promise<StudentDetail | null> => {
-      try {
-        const response = await api.instance.get<StudentDetail>(`/public/students/${studentId}`);
-        return response.data;
-      } catch {
-        return null;
-      }
+      const response = await api.instance.get<StudentDetail>(`/public/students/${studentId}`);
+      return response.data;
     },
 
     getReports: async (studentId?: number): Promise<StudentReport[]> => {
