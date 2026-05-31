@@ -35,6 +35,7 @@ model User {
   assignments   Assignment[]  @relation("AssignmentTeacher")
   auditLogs     AuditLog[]
   notifications Notification[]
+  reports       StudentReport[] @relation("ReportTeacher")
 }
 
 enum UserRole {
@@ -148,6 +149,7 @@ model Student {
 
   assignments      Assignment[]
   attendances      Attendance[]
+  reports          StudentReport[]
 
   @@index([firstName, lastName])
 }
