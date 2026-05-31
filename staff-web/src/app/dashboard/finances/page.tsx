@@ -21,6 +21,9 @@ import {
   Download, FileText, BarChart3, PieChart, Calendar, TrendingUpIcon, Receipt,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from "recharts";
 
 interface FinancialRecord {
   id: number; month: string; year: number; donations: number; expenses: number; notes?: string;
@@ -58,6 +61,7 @@ interface ExpenseCategory {
 }
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const CAMPAIGN_COLORS = ["#6F4E37", "#8B6B4F", "#A0765C", "#B88A6A", "#C49A7A", "#D4AA8A", "#4A3525", "#7A5C3E"];
 
 export default function FinancesPage() {
   const [records, setRecords] = useState<FinancialRecord[]>([]);
@@ -196,10 +200,10 @@ export default function FinancesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Bank Balance</p><p className="text-3xl font-bold text-green-600">${(summary?.bankBalance || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center"><PiggyBank className="h-6 w-6 text-green-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Raised</p><p className="text-3xl font-bold text-emerald-600">${(summary?.totalRaised || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center"><TrendingUp className="h-6 w-6 text-emerald-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Spent</p><p className="text-3xl font-bold text-red-600">${(summary?.totalSpent || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center"><TrendingDown className="h-6 w-6 text-red-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Remaining</p><p className="text-3xl font-bold text-orange-600">${(summary?.remainingNeeded || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center"><DollarSign className="h-6 w-6 text-orange-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Bank Balance</p><p className="text-3xl font-bold text-emerald-700">${(summary?.bankBalance || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center"><PiggyBank className="h-6 w-6 text-emerald-700" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Raised</p><p className="text-3xl font-bold text-blue-700">${(summary?.totalRaised || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center"><TrendingUp className="h-6 w-6 text-blue-700" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Spent</p><p className="text-3xl font-bold text-red-700">${(summary?.totalSpent || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center"><TrendingDown className="h-6 w-6 text-red-700" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Remaining</p><p className="text-3xl font-bold text-amber-700">${(summary?.remainingNeeded || 0).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center"><DollarSign className="h-6 w-6 text-amber-700" /></div></div></CardContent></Card>
       </div>
 
       {/* Summary Card */}
@@ -213,11 +217,11 @@ export default function FinancesPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-              <div><p className="text-sm text-gray-500">Total Raised</p><p className="text-2xl font-bold text-green-600">${summary.totalRaised.toLocaleString()}</p></div>
-              <div><p className="text-sm text-gray-500">Total Spent</p><p className="text-2xl font-bold text-red-600">${summary.totalSpent.toLocaleString()}</p></div>
-              <div><p className="text-sm text-gray-500">Bank Balance</p><p className="text-2xl font-bold text-blue-600">${summary.bankBalance.toLocaleString()}</p></div>
-              <div><p className="text-sm text-gray-500">Total Goal</p><p className="text-2xl font-bold text-purple-600">${summary.totalGoal.toLocaleString()}</p></div>
-              <div><p className="text-sm text-gray-500">Remaining</p><p className="text-2xl font-bold text-orange-600">${summary.remainingNeeded.toLocaleString()}</p></div>
+              <div><p className="text-sm text-gray-500">Total Raised</p><p className="text-2xl font-bold text-blue-700">${summary.totalRaised.toLocaleString()}</p></div>
+              <div><p className="text-sm text-gray-500">Total Spent</p><p className="text-2xl font-bold text-red-700">${summary.totalSpent.toLocaleString()}</p></div>
+              <div><p className="text-sm text-gray-500">Bank Balance</p><p className="text-2xl font-bold text-emerald-700">${summary.bankBalance.toLocaleString()}</p></div>
+              <div><p className="text-sm text-gray-500">Total Goal</p><p className="text-2xl font-bold text-amber-700">${summary.totalGoal.toLocaleString()}</p></div>
+              <div><p className="text-sm text-gray-500">Remaining</p><p className="text-2xl font-bold text-gray-700">${summary.remainingNeeded.toLocaleString()}</p></div>
             </div>
             {summary.totalGoal > 0 && (
               <div className="mt-4">
@@ -348,28 +352,28 @@ export default function FinancesPage() {
             <div className="space-y-6">
               {/* Summary Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-green-50 border-green-200">
+                <Card className="bg-emerald-50/50 border-emerald-200">
                   <CardContent className="pt-4">
-                    <p className="text-sm text-green-600">Total Donations</p>
-                    <p className="text-2xl font-bold text-green-700">${report.summary.totalDonations.toLocaleString()}</p>
+                    <p className="text-sm text-emerald-700">Total Donations</p>
+                    <p className="text-2xl font-bold text-emerald-800">${report.summary.totalDonations.toLocaleString()}</p>
                   </CardContent>
                 </Card>
-                <Card className="bg-red-50 border-red-200">
+                <Card className="bg-red-50/50 border-red-200">
                   <CardContent className="pt-4">
-                    <p className="text-sm text-red-600">Total Expenses</p>
-                    <p className="text-2xl font-bold text-red-700">${report.summary.totalExpenses.toLocaleString()}</p>
+                    <p className="text-sm text-red-700">Total Expenses</p>
+                    <p className="text-2xl font-bold text-red-800">${report.summary.totalExpenses.toLocaleString()}</p>
                   </CardContent>
                 </Card>
-                <Card className="bg-blue-50 border-blue-200">
+                <Card className="bg-blue-50/50 border-blue-200">
                   <CardContent className="pt-4">
-                    <p className="text-sm text-blue-600">Net Income</p>
-                    <p className="text-2xl font-bold text-blue-700">${report.summary.totalNet.toLocaleString()}</p>
+                    <p className="text-sm text-blue-700">Net Income</p>
+                    <p className="text-2xl font-bold text-blue-800">${report.summary.totalNet.toLocaleString()}</p>
                   </CardContent>
                 </Card>
-                <Card className="bg-purple-50 border-purple-200">
+                <Card className="bg-amber-50/50 border-amber-200">
                   <CardContent className="pt-4">
-                    <p className="text-sm text-purple-600">Avg Donation</p>
-                    <p className="text-2xl font-bold text-purple-700">${report.summary.averageDonation.toFixed(2)}</p>
+                    <p className="text-sm text-amber-700">Avg Donation</p>
+                    <p className="text-2xl font-bold text-amber-800">${report.summary.averageDonation.toFixed(2)}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -382,33 +386,19 @@ export default function FinancesPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {report.monthlyBreakdown.map((month) => (
-                      <div key={month.month} className="flex items-center gap-4">
-                        <div className="w-16 text-sm font-medium">{month.month}</div>
-                        <div className="flex-1">
-                          <div className="h-6 bg-gray-100 rounded-full overflow-hidden flex">
-                            {month.donations > 0 && (
-                              <div
-                                className="bg-green-500 h-full"
-                                style={{ width: `${Math.min(100, (month.donations / Math.max(...report.monthlyBreakdown.map((m) => Math.max(m.donations, m.expenses)))) * 100)}%` }}
-                              />
-                            )}
-                            {month.expenses > 0 && (
-                              <div
-                                className="bg-red-500 h-full"
-                                style={{ width: `${Math.min(100, (month.expenses / Math.max(...report.monthlyBreakdown.map((m) => Math.max(m.donations, m.expenses)))) * 100)}%` }}
-                              />
-                            )}
-                          </div>
-                        </div>
-                        <div className="w-32 text-right text-sm">
-                          <span className="text-green-600">+${month.donations.toLocaleString()}</span>
-                          <span className="text-gray-300 mx-1">|</span>
-                          <span className="text-red-600">-${month.expenses.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={report.monthlyBreakdown}>
+                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb" }}
+                          formatter={(value: number) => [`$${value.toLocaleString()}`, undefined]}
+                        />
+                        <Bar dataKey="donations" name="Donations" fill="#6F4E37" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="expenses" name="Expenses" fill="#B33A3A" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
@@ -446,7 +436,7 @@ export default function FinancesPage() {
                         {report.byCategory.map((cat, i) => (
                           <div key={cat.name} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `hsl(${(i * 360) / report.byCategory.length}, 70%, 50%)` }} />
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length] }} />
                               <span className="text-sm">{cat.name}</span>
                             </div>
                             <span className="font-medium">${cat.amount.toLocaleString()}</span>

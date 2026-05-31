@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { Users, BookOpen, FileText, Building2, HandHeart, Lightbulb, Briefcase, UserCheck } from "lucide-react";
+import { Users } from "lucide-react";
 import { DonationChart, DonationBarChart, RecentDonations, StatCard, QuickActions, ActivityFeed } from "./dashboard-charts";
 
 interface MonthlyData {
@@ -92,14 +92,14 @@ export default async function DashboardPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Active Students" value={stats.totalStudents} icon={Users} color="mocha" trend={0} />
-        <StatCard label="Classes" value={stats.activeClasses} icon={BookOpen} color="blue" />
-        <StatCard label="Published Posts" value={stats.publishedPosts} icon={FileText} color="green" />
-        <StatCard label="Projects" value={stats.constructionProjects} icon={Building2} color="amber" />
-        <StatCard label="Volunteers" value={stats.pendingVolunteers} icon={HandHeart} color="purple" />
-        <StatCard label="Proposals" value={stats.pendingProposals} icon={Lightbulb} color="pink" />
-        <StatCard label="Job Listings" value={stats.activeJobs} icon={Briefcase} color="cyan" />
-        <StatCard label="Approved Workers" value={stats.approvedWorkers} icon={UserCheck} color="indigo" />
+        <StatCard label="Active Students" value={stats.totalStudents} icon="Users" color="mocha" trend={0} />
+        <StatCard label="Classes" value={stats.activeClasses} icon="BookOpen" color="blue" />
+        <StatCard label="Published Posts" value={stats.publishedPosts} icon="FileText" color="green" />
+        <StatCard label="Projects" value={stats.constructionProjects} icon="Building2" color="amber" />
+        <StatCard label="Volunteers" value={stats.pendingVolunteers} icon="HandHeart" color="purple" />
+        <StatCard label="Proposals" value={stats.pendingProposals} icon="Lightbulb" color="pink" />
+        <StatCard label="Job Listings" value={stats.activeJobs} icon="Briefcase" color="cyan" />
+        <StatCard label="Approved Workers" value={stats.approvedWorkers} icon="UserCheck" color="indigo" />
       </div>
 
       {/* Charts Row */}

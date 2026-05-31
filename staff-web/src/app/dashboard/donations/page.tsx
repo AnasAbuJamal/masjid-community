@@ -19,7 +19,7 @@ interface Donation {
   receiptUrl?: string; createdAt: string;
 }
 
-const statusColors: Record<string, string> = { pending: "bg-yellow-100 text-yellow-700", completed: "bg-green-100 text-green-700", failed: "bg-red-100 text-red-700", refunded: "bg-gray-100 text-gray-700" };
+const statusColors: Record<string, string> = { pending: "bg-yellow-50 text-yellow-700 border border-yellow-200", completed: "bg-emerald-50 text-emerald-700 border border-emerald-200", failed: "bg-red-50 text-red-700 border border-red-200", refunded: "bg-gray-50 text-gray-600 border border-gray-200" };
 const campaignLabels: Record<string, string> = { general: "General Fund", construction: "Construction", ramadan: "Ramadan", education: "Education", zakat: "Zakat", sadaqah: "Sadaqah" };
 
 export default function DonationsPage() {
@@ -50,10 +50,10 @@ export default function DonationsPage() {
       <div><h1 className="text-3xl font-bold text-gray-900">Donations</h1><p className="text-gray-500 mt-1">Track donations via Stripe</p></div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Raised</p><p className="text-3xl font-bold text-green-600">${(totalRaised / 100).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center"><Heart className="h-6 w-6 text-green-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">This Month</p><p className="text-3xl font-bold text-blue-600">${(thisMonthTotal / 100).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center"><TrendingUp className="h-6 w-6 text-blue-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Donations</p><p className="text-3xl font-bold">{donations.length}</p></div><div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center"><DollarSign className="h-6 w-6 text-purple-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Recurring Donors</p><p className="text-3xl font-bold text-emerald-600">{recurringCount}</p></div><div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center"><CreditCard className="h-6 w-6 text-emerald-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Raised</p><p className="text-3xl font-bold text-emerald-700">${(totalRaised / 100).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center"><Heart className="h-6 w-6 text-emerald-700" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">This Month</p><p className="text-3xl font-bold text-blue-700">${(thisMonthTotal / 100).toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center"><TrendingUp className="h-6 w-6 text-blue-700" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Donations</p><p className="text-3xl font-bold text-gray-800">{donations.length}</p></div><div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center"><DollarSign className="h-6 w-6 text-gray-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Recurring Donors</p><p className="text-3xl font-bold text-amber-700">{recurringCount}</p></div><div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center"><CreditCard className="h-6 w-6 text-amber-700" /></div></div></CardContent></Card>
       </div>
 
       <div className="flex gap-2">

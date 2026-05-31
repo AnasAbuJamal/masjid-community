@@ -24,20 +24,20 @@ interface Budget {
 }
 
 const EXPENSE_CATEGORIES = [
-  { name: 'Utilities', icon: 'lightning-bolt', color: '#FF9800' },
-  { name: 'Maintenance', icon: 'wrench', color: '#2196F3' },
-  { name: 'Salaries', icon: 'account-tie', color: '#9C27B0' },
-  { name: 'Programs', icon: 'calendar', color: '#4CAF50' },
-  { name: 'Equipment', icon: 'toolbox', color: '#F44336' },
-  { name: 'Other', icon: 'dots-horizontal', color: '#607D8B' },
+  { name: 'Utilities', icon: 'lightning-bolt', color: '#B8860B' },
+  { name: 'Maintenance', icon: 'wrench', color: '#3B6FA0' },
+  { name: 'Salaries', icon: 'account-tie', color: '#6B4F8A' },
+  { name: 'Programs', icon: 'calendar', color: '#3D7A4A' },
+  { name: 'Equipment', icon: 'toolbox', color: '#A04040' },
+  { name: 'Other', icon: 'dots-horizontal', color: '#5A6B7A' },
 ];
 
 const MOCK_BUDGETS: Budget[] = [
-  { id: '1', category: 'Utilities', allocated: 5000, spent: 4200, color: '#FF9800' },
-  { id: '2', category: 'Maintenance', allocated: 3000, spent: 2800, color: '#2196F3' },
-  { id: '3', category: 'Salaries', allocated: 15000, spent: 14500, color: '#9C27B0' },
-  { id: '4', category: 'Programs', allocated: 8000, spent: 6500, color: '#4CAF50' },
-  { id: '5', category: 'Equipment', allocated: 2000, spent: 1800, color: '#F44336' },
+  { id: '1', category: 'Utilities', allocated: 5000, spent: 4200, color: '#B8860B' },
+  { id: '2', category: 'Maintenance', allocated: 3000, spent: 2800, color: '#3B6FA0' },
+  { id: '3', category: 'Salaries', allocated: 15000, spent: 14500, color: '#6B4F8A' },
+  { id: '4', category: 'Programs', allocated: 8000, spent: 6500, color: '#3D7A4A' },
+  { id: '5', category: 'Equipment', allocated: 2000, spent: 1800, color: '#A04040' },
 ];
 
 const MOCK_RECENT_EXPENSES = [

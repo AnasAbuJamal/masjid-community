@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import {
   TrendingUp, TrendingDown, DollarSign, UserCheck, Users, BookOpen,
-  Image, Calendar, Lightbulb, Settings, ArrowRight,
+  Image, Calendar, Lightbulb, Settings, ArrowRight, Building2, HandHeart, Briefcase, FileText,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -75,8 +75,8 @@ export function DonationBarChart({ data }: { data: MonthlyData[] }) {
               <Tooltip
                 contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb" }}
               />
-              <Bar dataKey="donations" fill="#8B5E3C" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expenses" fill="#EF4444" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="donations" fill="#6F4E37" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expenses" fill="#B33A3A" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -138,10 +138,14 @@ export function RecentDonations({ donations }: { donations: DonationData[] }) {
   );
 }
 
+const iconMap: Record<string, React.ElementType> = {
+  Users, BookOpen, FileText, Building2, HandHeart, Lightbulb, Briefcase, UserCheck, DollarSign,
+};
+
 interface StatCardProps {
   label: string;
   value: number;
-  icon: React.ElementType;
+  icon: string;
   trend?: number;
   color: "mocha" | "blue" | "green" | "amber" | "purple" | "pink" | "cyan" | "indigo";
   format?: "number" | "currency";
@@ -158,8 +162,9 @@ const colorMap: Record<string, { bg: string; text: string; iconBg: string; gradi
   indigo: { bg: "bg-indigo-50", text: "text-indigo-700", iconBg: "bg-indigo-100", gradient: "from-indigo-500/10 to-indigo-500/5" },
 };
 
-export function StatCard({ label, value, icon: Icon, trend, color, format }: StatCardProps) {
+export function StatCard({ label, value, icon, trend, color, format }: StatCardProps) {
   const colors = colorMap[color];
+  const Icon = iconMap[icon];
   return (
     <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all duration-200">
       <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} opacity-50`} />
@@ -185,7 +190,7 @@ export function StatCard({ label, value, icon: Icon, trend, color, format }: Sta
             )}
           </div>
           <div className={`w-12 h-12 rounded-xl ${colors.iconBg} flex items-center justify-center`}>
-            <Icon className={`h-6 w-6 ${colors.text}`} />
+            {Icon && <Icon className={`h-6 w-6 ${colors.text}`} />}
           </div>
         </div>
       </CardContent>
