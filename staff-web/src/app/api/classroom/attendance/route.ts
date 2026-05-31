@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         prisma.attendance.findMany({
             where,
             include: {
-                student: { select: { firstName: true, lastName: true, studentId: true, class: { select: { name: true } } } },
+                student: { select: { id: true, firstName: true, lastName: true, studentId: true, class: { select: { name: true } } } },
                 class: { select: { name: true, teacherName: true } },
             },
             orderBy: { date: "desc" },

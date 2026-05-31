@@ -470,12 +470,12 @@ export default function MediaLibraryPage() {
             </div>
             <div>
               <Label>Folder (optional)</Label>
-              <Select value={uploadFolder} onValueChange={setUploadFolder}>
+              <Select value={uploadFolder} onValueChange={(v) => setUploadFolder(v === "_none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="No folder" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No folder</SelectItem>
+                  <SelectItem value="_none">No folder</SelectItem>
                   {folders.map((folder) => (
                     <SelectItem key={folder} value={folder}>{folder}</SelectItem>
                   ))}

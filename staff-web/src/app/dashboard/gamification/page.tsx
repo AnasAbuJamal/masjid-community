@@ -7,13 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
-import { Trophy, Star, Medal, Crown } from "lucide-react";
+import { Trophy, Star, Medal, Crown, Filter } from "lucide-react";
 
 interface Student {
   id: number; firstName: string; lastName: string; studentId: number;
   totalPoints: number; currentLevel: number; attendanceRate: number;
+  class?: { id: number; name: string };
+}
+
+interface ClassInfo {
+  id: number; name: string;
 }
 
 const levelIcons: Record<number, React.ElementType> = { 1: Star, 2: Medal, 3: Crown, 4: Trophy };
@@ -22,24 +30,35 @@ const levelNames: Record<number, string> = { 1: "Bronze", 2: "Silver", 3: "Gold"
 
 export default function GamificationPage() {
   const [leaderboard, setLeaderboard] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [pointsDialog, setPointsDialog] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [pointsToAdd, setPointsToAdd] = useState(10);
   const [saving, setSaving] = useState(false);
+  const [selectedClass, setSelectedClass] = useState<string>("all");
 
   const fetchData = async () => {
     try {
-      const res = await fetch("/api/classroom/students");
-      const data = await res.json();
-      const students = (data.students || []).sort((a: Student, b: Student) => b.totalPoints - a.totalPoints);
+      const [studentsRes, classesRes] = await Promise.all([
+        fetch("/api/classroom/students"),
+        fetch("/api/classroom/classes"),
+      ]);
+      const studentsData = await studentsRes.json();
+      const classesData = await classesRes.json();
+      const students = (studentsData.students || []).sort((a: Student, b: Student) => b.totalPoints - a.totalPoints);
       setLeaderboard(students);
+      setClasses(classesData.classes || []);
     } catch { /* empty */ } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
 
-  const totalPoints = leaderboard.reduce((acc, s) => acc + s.totalPoints, 0);
-  const avgAttendance = leaderboard.length > 0 ? leaderboard.reduce((acc, s) => acc + s.attendanceRate, 0) / leaderboard.length : 0;
+  const filteredLeaderboard = selectedClass === "all"
+    ? leaderboard
+    : leaderboard.filter((s) => s.class && String(s.class.id) === selectedClass);
+
+  const totalPoints = filteredLeaderboard.reduce((acc, s) => acc + s.totalPoints, 0);
+  const avgAttendance = filteredLeaderboard.length > 0 ? filteredLeaderboard.reduce((acc, s) => acc + s.attendanceRate, 0) / filteredLeaderboard.length : 0;
 
   const openPointsDialog = (s: Student) => { setSelectedStudent(s); setPointsToAdd(10); setPointsDialog(true); };
   
@@ -59,19 +78,33 @@ export default function GamificationPage() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-3xl font-bold text-gray-900">Gamification</h1><p className="text-gray-500 mt-1">Student leaderboard and achievements</p></div>
+      <div className="flex items-center justify-between">
+        <div><h1 className="text-3xl font-bold text-gray-900">Gamification</h1><p className="text-gray-500 mt-1">Student leaderboard and achievements</p></div>
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-gray-400" />
+          <Select value={selectedClass} onValueChange={setSelectedClass}>
+            <SelectTrigger className="w-44"><SelectValue placeholder="All classes" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Classes</SelectItem>
+              {classes.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Total Points Distributed</p><p className="text-3xl font-bold text-yellow-600">{totalPoints.toLocaleString()}</p></div><div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center"><Trophy className="h-6 w-6 text-yellow-600" /></div></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Average Attendance</p><p className="text-3xl font-bold text-green-600">{avgAttendance.toFixed(1)}%</p></div><div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center"><Star className="h-6 w-6 text-green-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Active Students</p><p className="text-3xl font-bold text-blue-600">{leaderboard.length}</p></div><div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center"><Medal className="h-6 w-6 text-blue-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-500">Active Students</p><p className="text-3xl font-bold text-blue-600">{filteredLeaderboard.length}</p></div><div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center"><Medal className="h-6 w-6 text-blue-600" /></div></div></CardContent></Card>
       </div>
 
       {/* Top 3 Podium */}
-      {leaderboard.length >= 3 && (
+      {filteredLeaderboard.length >= 3 && (
         <div className="grid grid-cols-3 gap-4">
           {[1, 0, 2].map((idx) => {
-            const student = leaderboard[idx];
+            const student = filteredLeaderboard[idx];
             const LevelIcon = levelIcons[student.currentLevel] || Star;
             const medals = ["🥈", "🥇", "🥉"];
             return (
@@ -94,12 +127,12 @@ export default function GamificationPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-yellow-500" />Student Leaderboard</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-yellow-500" />Student Leaderboard {selectedClass !== "all" && <span className="text-sm font-normal text-gray-500">- {classes.find(c => String(c.id) === selectedClass)?.name}</span>}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {leaderboard.length === 0 ? <p className="text-center py-8 text-gray-500">No students found.</p> : (
-              leaderboard.map((student, index) => {
+            {filteredLeaderboard.length === 0 ? <p className="text-center py-8 text-gray-500">No students found in this class.</p> : (
+              filteredLeaderboard.map((student, index) => {
                 const LevelIcon = levelIcons[student.currentLevel] || Star;
                 return (
                   <div key={student.id} className={`flex items-center justify-between p-4 rounded-xl ${
