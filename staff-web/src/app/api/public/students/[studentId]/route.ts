@@ -7,7 +7,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
     const numericId = parseInt(studentId);
 
     const student = await prisma.student.findFirst({
-      where: isNaN(numericId) ? { studentId: numericId } : { studentId: numericId },
+      where: isNaN(numericId)
+        ? { studentId: numericId }
+        : { OR: [{ id: numericId }, { studentId: numericId }] },
       include: {
         class: { select: { id: true, name: true, teacherName: true, schedule: true } },
         attendances: {

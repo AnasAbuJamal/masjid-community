@@ -12,13 +12,11 @@ export const nameSchema = z
   .string()
   .min(1, 'Name is required')
   .min(2, 'Name must be at least 2 characters')
-  .max(100, 'Name must be less than 100 characters')
-  .regex(/^[a-zA-Z\s\-']+$/, 'Name can only contain letters, spaces, hyphens, and apostrophes');
+  .max(100, 'Name must be less than 100 characters');
 
 export const optionalNameSchema = z
   .string()
   .max(100, 'Name must be less than 100 characters')
-  .regex(/^[a-zA-Z\s\-']*$/, 'Name can only contain letters, spaces, hyphens, and apostrophes')
   .optional()
   .or(z.literal(''));
 
@@ -57,7 +55,7 @@ export const gradeLevelSchema = z.enum([
   '12th Grade',
 ]);
 
-export const contactMethodSchema = z.enum(['email', 'phone', 'text']);
+export const contactMethodSchema = z.enum(['email', 'phone', 'text', 'both']);
 
 export const priceTypeSchema = z.enum(['hourly', 'daily']);
 

@@ -982,3 +982,9 @@ model StudentReport {
   @@index([studentId])
   @@index([category])
 }
+
+model PushToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  createdAt DateTime @default(now())
+}

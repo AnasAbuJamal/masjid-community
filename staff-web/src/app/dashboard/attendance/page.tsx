@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -62,6 +63,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
 type ViewTab = "daily" | "history" | "reports";
 
 export default function AttendancePage() {
+  const { toast } = useToast();
   const [activeView, setActiveView] = useState<ViewTab>("daily");
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>("");
@@ -163,18 +165,20 @@ export default function AttendancePage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ classId: selectedClass, date: selectedDate, records }),
       });
-      if (res.ok) { fetchAttendance(); setShowBulkModal(false); }
-    } catch (error) { console.error("Error saving attendance:", error); } finally { setBulkLoading(false); }
+      if (res.ok) { fetchAttendance(); setShowBulkModal(false); toast({ title: "Attendance saved", description: `Marked ${records.length} students` }); }
+      else { const err = await res.json(); toast({ title: "Error saving attendance", description: err.error || "Unauthorized", variant: "destructive" }); }
+    } catch (error) { toast({ title: "Error saving attendance", description: "Network error", variant: "destructive" }); } finally { setBulkLoading(false); }
   };
 
   const handleIndividualMark = async (studentId: string, status: string) => {
     try {
-      await fetch("/api/classroom/attendance", {
+      const res = await fetch("/api/classroom/attendance", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId, classId: selectedClass, date: selectedDate, status }),
       });
-      fetchAttendance();
-    } catch (error) { console.error("Error marking attendance:", error); }
+      if (res.ok) { fetchAttendance(); toast({ title: "Marked as " + status }); }
+      else { const err = await res.json(); toast({ title: "Error", description: err.error || "Failed to mark", variant: "destructive" }); }
+    } catch (error) { toast({ title: "Error marking attendance", description: "Network error", variant: "destructive" }); }
   };
 
   const changeDate = (days: number) => {
