@@ -18,14 +18,15 @@ import {
 } from "@/components/ui/table";
 import {
   DollarSign, TrendingUp, TrendingDown, PiggyBank, Plus, Pencil, Trash2,
-  Download, FileText, BarChart3, PieChart, Calendar, TrendingUpIcon,
+  Download, FileText, BarChart3, PieChart, Calendar, TrendingUpIcon, Receipt,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FinancialRecord {
-  id: string; month: string; year: number; donations: number; expenses: number; notes?: string;
+  id: number; month: string; year: number; donations: number; expenses: number; notes?: string;
 }
 interface FinancialSummary {
-  id: string; totalSpent: number; bankBalance: number; totalGoal: number; totalRaised: number; remainingNeeded: number;
+  id: number; totalSpent: number; bankBalance: number; totalGoal: number; totalRaised: number; remainingNeeded: number;
 }
 interface ReportData {
   year: number;
@@ -48,6 +49,13 @@ interface ReportData {
   };
   generatedAt: string;
 }
+interface ExpenseItem {
+  id: number; amount: number; description: string; date: string;
+  category: { id: number; name: string; color?: string; icon?: string };
+}
+interface ExpenseCategory {
+  id: number; name: string; color?: string; icon?: string; _count?: { expenses: number };
+}
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -66,6 +74,12 @@ export default function FinancesPage() {
   const [summaryForm, setSummaryForm] = useState({ totalSpent: 0, bankBalance: 0, totalGoal: 0, totalRaised: 0, remainingNeeded: 0 });
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("records");
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  const [expenseDialog, setExpenseDialog] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ categoryId: "", amount: 0, description: "", date: new Date().toISOString().split("T")[0] });
+  const [expenseTotal, setExpenseTotal] = useState(0);
 
   const fetchData = async () => {
     try {
@@ -75,7 +89,7 @@ export default function FinancesPage() {
       setSummary(data.summary || null);
     } catch { /* empty */ } finally { setLoading(false); }
   };
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); fetchExpenses(); fetchCategories(); }, []);
 
   const fetchReport = async (year: number) => {
     setReportLoading(true);
@@ -88,6 +102,23 @@ export default function FinancesPage() {
     } finally {
       setReportLoading(false);
     }
+  };
+
+  const fetchExpenses = async () => {
+    try {
+      const res = await fetch("/api/finances/expenses");
+      const data = await res.json();
+      setExpenses(data.expenses || []);
+      setExpenseTotal(data.summary?.totalAmount || 0);
+    } catch (e) { console.error("Error fetching expenses:", e); }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch("/api/finances/categories");
+      const data = await res.json();
+      setExpenseCategories(data.categories || []);
+    } catch (e) { console.error("Error fetching categories:", e); }
   };
 
   const downloadCSV = async () => {
@@ -206,33 +237,80 @@ export default function FinancesPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader><CardTitle>Monthly Records</CardTitle></CardHeader>
-        <CardContent>
-          {records.length === 0 ? <p className="text-center py-8 text-gray-500">No financial records found.</p> : (
-            <div className="space-y-2">
-              {records.map((record) => (
-                <div key={record.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{record.month} {record.year}</p>
-                    {record.notes && <p className="text-sm text-gray-500">{record.notes}</p>}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-green-600 font-medium">+${record.donations.toLocaleString()}</p>
-                      <p className="text-red-600 font-medium">-${record.expenses.toLocaleString()}</p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEditRecord(record)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(record.id)}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="records">Monthly Records</TabsTrigger>
+            <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          </TabsList>
+          {activeTab === "expenses" && (
+            <Button onClick={() => { setExpenseForm({ categoryId: expenseCategories[0]?.id || "", amount: 0, description: "", date: new Date().toISOString().split("T")[0] }); setExpenseDialog(true); }}>
+              <Plus className="h-4 w-4 mr-2" />Add Expense
+            </Button>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        <TabsContent value="records" className="mt-4">
+          <Card>
+            <CardHeader><CardTitle>Monthly Records</CardTitle></CardHeader>
+            <CardContent>
+              {records.length === 0 ? <p className="text-center py-8 text-gray-500">No financial records found.</p> : (
+                <div className="space-y-2">
+                  {records.map((record) => (
+                    <div key={record.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <p className="font-medium">{record.month} {record.year}</p>
+                        {record.notes && <p className="text-sm text-gray-500">{record.notes}</p>}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-green-600 font-medium">+${record.donations.toLocaleString()}</p>
+                          <p className="text-red-600 font-medium">-${record.expenses.toLocaleString()}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEditRecord(record)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(record.id)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="expenses" className="mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><Receipt className="h-5 w-5" />Expenses</CardTitle>
+                <p className="text-lg font-bold text-red-600">Total: ${expenseTotal.toLocaleString()}</p>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {expenses.length === 0 ? <p className="text-center py-8 text-gray-500">No expenses recorded.</p> : (
+                <div className="space-y-2">
+                  {expenses.map((exp) => (
+                    <div key={exp.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: exp.category?.color || "#6B7280" }} />
+                        <div>
+                          <p className="font-medium">{exp.description}</p>
+                          <p className="text-sm text-gray-500">{exp.category?.name} &bull; {new Date(exp.date).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-red-600 font-medium">-${exp.amount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Reports Dialog */}
       <Dialog open={showReports} onOpenChange={setShowReports}>
@@ -408,6 +486,50 @@ export default function FinancesPage() {
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setRecordDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSaveRecord} disabled={saving}>{saving ? "Saving..." : editing ? "Update" : "Create"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expense Dialog */}
+      <Dialog open={expenseDialog} onOpenChange={setExpenseDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add Expense</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Category</Label>
+              <Select value={expenseForm.categoryId} onValueChange={(v) => setExpenseForm({ ...expenseForm, categoryId: v })}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  {expenseCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Input value={expenseForm.description} onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })} placeholder="Expense description" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Amount ($)</Label><Input type="number" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: parseFloat(e.target.value) || 0 })} /></div>
+              <div><Label>Date</Label><Input type="date" value={expenseForm.date} onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExpenseDialog(false)}>Cancel</Button>
+            <Button className="mocha-gradient hover:opacity-90" onClick={async () => {
+              if (!expenseForm.categoryId || !expenseForm.description || !expenseForm.amount) return;
+              setSaving(true);
+              try {
+                const res = await fetch("/api/finances/expenses", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(expenseForm),
+                });
+                if (res.ok) { setExpenseDialog(false); fetchExpenses(); }
+              } catch (e) { console.error(e); }
+              finally { setSaving(false); }
+            }} disabled={saving}>{saving ? "Saving..." : "Add Expense"}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

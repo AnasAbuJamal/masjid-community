@@ -38,10 +38,10 @@ export function slugify(text: string): string {
         .replace(/^-+|-+$/g, "");
 }
 
-export function generateStudentId(): string {
+export function generateStudentId(): number {
     const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 900) + 100;
-    return `STU-${year}-${random}`;
+    const random = Math.floor(Math.random() * 90000) + 10000;
+    return year * 100000 + random;
 }
 
 export function getAttendanceColor(status: string): string {

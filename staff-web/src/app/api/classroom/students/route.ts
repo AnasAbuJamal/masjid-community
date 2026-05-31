@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (body.totalPoints !== undefined) body.totalPoints = parseInt(String(body.totalPoints));
     if (body.currentLevel !== undefined) body.currentLevel = parseInt(String(body.currentLevel));
 
-    const finalStudentId = body.studentId || parseInt(String(generateStudentId()));
+    const finalStudentId = body.studentId || generateStudentId();
 
     const student = await prisma.student.create({
         data: {

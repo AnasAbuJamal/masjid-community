@@ -19,13 +19,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, GraduationCap, Users, Star, Pencil, Trash2, Clock } from "lucide-react";
 
 interface Student {
-  id: string; studentId: string; firstName: string; lastName: string;
-  classId: string; parentName: string; parentEmail?: string; parentPhone?: string;
+  id: number; studentId: number; firstName: string; lastName: string;
+  classId: number; parentName: string; parentEmail?: string; parentPhone?: string;
   totalPoints: number; currentLevel: number; attendanceRate: number;
   attendanceStatus: string; isActive: boolean; photoUrl?: string;
 }
 interface ClassItem {
-  id: string; name: string; teacherName: string; schedule: string;
+  id: number; name: string; teacherName: string; schedule: string;
   students: Student[];
 }
 
@@ -51,7 +51,7 @@ export default function ClassroomPage() {
       const res = await fetch("/api/classroom/classes");
       const data = await res.json();
       setClasses(data.classes || []);
-    } catch { /* empty */ } finally { setLoading(false); }
+    } catch (e) { console.error("Error fetching classes:", e); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
 
@@ -71,19 +71,20 @@ export default function ClassroomPage() {
         await fetch("/api/classroom/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(classForm) });
       }
       setClassDialog(false); fetchData();
-    } catch { /* empty */ } finally { setSaving(false); }
+    } catch (e) { console.error("Error saving class:", e); } finally { setSaving(false); }
   };
 
   const handleSaveStudent = async () => {
     setSaving(true);
     try {
-      if (editingStudent) {
-        await fetch(`/api/classroom/students/${editingStudent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(studentForm) });
-      } else {
-        await fetch("/api/classroom/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(studentForm) });
-      }
+      const res = await fetch(editingStudent ? `/api/classroom/students/${editingStudent.id}` : "/api/classroom/students", {
+        method: editingStudent ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...studentForm, classId: studentForm.classId }),
+      });
+      if (!res.ok) throw new Error("Failed to save student");
       setStudentDialog(false); fetchData();
-    } catch { /* empty */ } finally { setSaving(false); }
+    } catch (e) { console.error("Error saving student:", e); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -92,7 +93,7 @@ export default function ClassroomPage() {
       const endpoint = deleteItem.type === "class" ? `/api/classroom/classes/${deleteItem.id}` : `/api/classroom/students/${deleteItem.id}`;
       await fetch(endpoint, { method: "DELETE" });
       setDeleteItem(null); fetchData();
-    } catch { /* empty */ }
+    } catch (e) { console.error("Error deleting:", e); }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
@@ -192,7 +193,7 @@ export default function ClassroomPage() {
               <Label>Class</Label>
               <Select value={studentForm.classId} onValueChange={(v) => setStudentForm({ ...studentForm, classId: v })}>
                 <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                <SelectContent>{classes.map((cls) => (<SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>))}</SelectContent>
+                <SelectContent>{classes.map((cls) => (<SelectItem key={cls.id} value={String(cls.id)}>{cls.name}</SelectItem>))}</SelectContent>
               </Select>
             </div>
             <div><Label>Parent Name</Label><Input value={studentForm.parentName} onChange={(e) => setStudentForm({ ...studentForm, parentName: e.target.value })} /></div>

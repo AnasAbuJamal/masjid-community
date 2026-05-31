@@ -15,7 +15,7 @@ import {
 import { Plus, HardHat, AlertTriangle, GripVertical, Pencil, Trash2 } from "lucide-react";
 
 interface Project {
-  id: string; title: string; description?: string;
+  id: number; title: string; description?: string;
   progressPercent: number; isUrgent: boolean; displayOrder: number;
 }
 
@@ -33,7 +33,7 @@ export default function ConstructionPage() {
       const res = await fetch("/api/construction");
       const data = await res.json();
       setProjects(data.projects || []);
-    } catch { /* empty */ } finally { setLoading(false); }
+    } catch (e) { console.error("Error fetching projects:", e); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
 
@@ -46,18 +46,19 @@ export default function ConstructionPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (editing) {
-        await fetch(`/api/construction/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      } else {
-        await fetch("/api/construction", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      }
+      const res = await fetch(editing ? `/api/construction/${editing.id}` : "/api/construction", {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) throw new Error("Failed to save");
       setDialogOpen(false); fetchData();
-    } catch { /* empty */ } finally { setSaving(false); }
+    } catch (e) { console.error("Error saving project:", e); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    try { await fetch(`/api/construction/${deleteId}`, { method: "DELETE" }); setDeleteId(null); fetchData(); } catch { /* empty */ }
+    try { const res = await fetch(`/api/construction/${deleteId}`, { method: "DELETE" }); if (!res.ok) throw new Error("Delete failed"); setDeleteId(null); fetchData(); } catch (e) { console.error(e); }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
@@ -114,7 +115,7 @@ export default function ConstructionPage() {
             <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
             <div>
               <Label>Progress ({form.progressPercent}%)</Label>
-              <Input type="range" min={0} max={100} value={form.progressPercent} onChange={(e) => setForm({ ...form, progressPercent: parseInt(e.target.value) })} className="mt-2" />
+              <input type="range" min={0} max={100} value={form.progressPercent} onChange={(e) => setForm({ ...form, progressPercent: parseInt(e.target.value) })} className="mt-2 w-full" />
             </div>
             <div className="flex items-center justify-between">
               <Label>Mark as Urgent</Label>

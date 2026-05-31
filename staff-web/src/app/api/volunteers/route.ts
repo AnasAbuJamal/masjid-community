@@ -31,7 +31,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    if (!body.title || !body.description || !body.eventDate) {
+        return NextResponse.json({ error: "Title, description, and event date are required" }, { status: 400 });
+    }
     body.eventDate = new Date(body.eventDate);
+    if (isNaN(body.eventDate.getTime())) {
+        return NextResponse.json({ error: "Invalid event date" }, { status: 400 });
+    }
     if (body.spotsTotal !== undefined) body.spotsTotal = parseInt(String(body.spotsTotal));
     if (body.spotsFilled !== undefined) body.spotsFilled = parseInt(String(body.spotsFilled));
 

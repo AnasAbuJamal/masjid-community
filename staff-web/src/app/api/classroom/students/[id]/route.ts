@@ -12,8 +12,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (body.classId !== undefined) body.classId = parseInt(String(body.classId));
     if (body.studentId !== undefined) body.studentId = parseInt(String(body.studentId));
-    if (body.totalPoints !== undefined) body.totalPoints = parseInt(String(body.totalPoints));
-    if (body.currentLevel !== undefined) body.currentLevel = parseInt(String(body.currentLevel));
+    if (body.totalPoints !== undefined) {
+        body.totalPoints = parseInt(String(body.totalPoints));
+        body.currentLevel = body.totalPoints >= 1000 ? 4 : body.totalPoints >= 500 ? 3 : body.totalPoints >= 100 ? 2 : 1;
+    }
+    if (body.currentLevel !== undefined && body.totalPoints === undefined) body.currentLevel = parseInt(String(body.currentLevel));
     if (body.attendanceRate !== undefined) body.attendanceRate = parseFloat(String(body.attendanceRate));
 
     const student = await prisma.student.update({ 

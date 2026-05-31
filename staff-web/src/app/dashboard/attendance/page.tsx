@@ -18,11 +18,11 @@ import {
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, RefreshCw, Download, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Student {
-  id: string;
+  id: number;
   firstName: string;
   lastName: string;
-  studentId: string;
-  class: { id: string; name: string };
+  studentId: number;
+  class: { id: number; name: string };
 }
 
 interface AttendanceRecord {
@@ -31,16 +31,16 @@ interface AttendanceRecord {
   status: string;
   notes?: string;
   student: {
-    id: string;
+    id: number;
     firstName: string;
     lastName: string;
-    studentId: string;
+    studentId: number;
     class: { name: string };
   };
 }
 
 interface Class {
-  id: string;
+  id: number;
   name: string;
   teacherName: string;
   schedule: string;
@@ -71,7 +71,7 @@ export default function AttendancePage() {
       const data = await res.json();
       setClasses(data.classes || []);
       if (data.classes?.length > 0 && !selectedClass) {
-        setSelectedClass(data.classes[0].id);
+        setSelectedClass(String(data.classes[0].id));
       }
     } catch (error) {
       console.error("Error fetching classes:", error);
@@ -257,7 +257,7 @@ export default function AttendancePage() {
             </SelectTrigger>
             <SelectContent>
               {classes.map((cls) => (
-                <SelectItem key={cls.id} value={cls.id}>
+                <SelectItem key={cls.id} value={String(cls.id)}>
                   {cls.name} - {cls.teacherName}
                 </SelectItem>
               ))}

@@ -20,7 +20,7 @@ import { Calendar, Plus, Edit, Trash2, RefreshCw, MapPin, Clock, Users, External
 import { format } from "date-fns";
 
 interface Event {
-  id: string;
+  id: number;
   title: string;
   description: string;
   location: string;

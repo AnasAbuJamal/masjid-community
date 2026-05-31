@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface MediaFile {
-  id: string;
+  id: number;
   filename: string;
   originalName: string;
   mimeType: string;

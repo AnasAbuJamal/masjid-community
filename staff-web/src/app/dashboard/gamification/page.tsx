@@ -12,7 +12,7 @@ import {
 import { Trophy, Star, Medal, Crown } from "lucide-react";
 
 interface Student {
-  id: string; firstName: string; lastName: string; studentId: string;
+  id: number; firstName: string; lastName: string; studentId: number;
   totalPoints: number; currentLevel: number; attendanceRate: number;
 }
 

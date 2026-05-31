@@ -19,12 +19,12 @@ import {
 import { Plus, HandHelping, Users, Calendar, Clock, CheckCircle, XCircle, Pencil, Trash2 } from "lucide-react";
 
 interface Opportunity {
-  id: string; title: string; description: string; eventDate: string;
+  id: number; title: string; description: string; eventDate: string;
   spotsTotal: number; spotsFilled: number; status: string;
   _count?: { applications: number };
 }
 interface Application {
-  id: string; opportunityId: string; userName: string; userEmail: string;
+  id: number; opportunityId: number; userName: string; userEmail: string;
   userPhone?: string; skills?: string; status: string;
   opportunity?: { title: string };
 }
@@ -41,6 +41,7 @@ export default function VolunteersPage() {
   const [form, setForm] = useState({ title: "", description: "", eventDate: "", spotsTotal: 10, status: "open" });
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -48,7 +49,7 @@ export default function VolunteersPage() {
       const data = await res.json();
       setOpportunities(data.opportunities || []);
       setApplications(data.applications || []);
-    } catch { /* empty */ } finally { setLoading(false); }
+    } catch (e) { setError("Failed to fetch data"); console.error(e); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
 
@@ -56,27 +57,33 @@ export default function VolunteersPage() {
   const openEdit = (o: Opportunity) => { setEditing(o); setForm({ title: o.title, description: o.description, eventDate: o.eventDate?.split("T")[0] || "", spotsTotal: o.spotsTotal, status: o.status }); setOppDialog(true); };
 
   const handleSave = async () => {
+    if (!form.eventDate) { setError("Event date is required"); return; }
+    if (!form.title) { setError("Title is required"); return; }
+    if (!form.description) { setError("Description is required"); return; }
     setSaving(true);
+    setError(null);
     try {
-      if (editing) {
-        await fetch(`/api/volunteers/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      } else {
-        await fetch("/api/volunteers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      }
+      const res = await fetch(editing ? `/api/volunteers/${editing.id}` : "/api/volunteers", {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to save"); }
       setOppDialog(false); fetchData();
-    } catch { /* empty */ } finally { setSaving(false); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to save"); console.error(e); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    try { await fetch(`/api/volunteers/${deleteId}`, { method: "DELETE" }); setDeleteId(null); fetchData(); } catch { /* empty */ }
+    try { const res = await fetch(`/api/volunteers/${deleteId}`, { method: "DELETE" }); if (!res.ok) throw new Error("Delete failed"); setDeleteId(null); fetchData(); } catch (e) { console.error(e); }
   };
 
   const updateAppStatus = async (appId: string, status: string) => {
     try {
-      await fetch(`/api/volunteers/applications/${appId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, _type: "application" }) });
+      const res = await fetch(`/api/volunteers/applications/${appId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      if (!res.ok) throw new Error("Failed to update status");
       fetchData();
-    } catch { /* empty */ }
+    } catch (e) { console.error(e); }
   };
 
   const openCount = opportunities.filter((o) => o.status === "open").length;
@@ -160,11 +167,12 @@ export default function VolunteersPage() {
       <Dialog open={oppDialog} onOpenChange={setOppDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? "Edit Opportunity" : "Create Opportunity"}</DialogTitle></DialogHeader>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
           <div className="space-y-4">
-            <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+            <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></div>
+            <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} required /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Event Date</Label><Input type="date" value={form.eventDate} onChange={(e) => setForm({ ...form, eventDate: e.target.value })} /></div>
+              <div><Label>Event Date</Label><Input type="date" value={form.eventDate} onChange={(e) => setForm({ ...form, eventDate: e.target.value })} required /></div>
               <div><Label>Spots Total</Label><Input type="number" value={form.spotsTotal} onChange={(e) => setForm({ ...form, spotsTotal: parseInt(e.target.value) || 0 })} /></div>
             </div>
             <div>
