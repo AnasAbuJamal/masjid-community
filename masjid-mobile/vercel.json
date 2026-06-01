@@ -1,0 +1,7 @@
+{
+  "framework": "expo",
+  "buildCommand": "npx expo export --platform web",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "regions": ["iad1"]
+}
