@@ -135,8 +135,10 @@ async function main() {
     ];
 
     for (let i = 0; i < students.length; i++) {
-        await prisma.student.create({
-            data: {
+        await prisma.student.upsert({
+            where: { studentId: i + 1 },
+            update: {},
+            create: {
                 ...students[i],
                 studentId: i + 1,
             },

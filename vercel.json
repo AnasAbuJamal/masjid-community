@@ -1,7 +1,7 @@
 {
   "rootDirectory": "staff-web",
   "framework": "nextjs",
-  "buildCommand": "npm run build",
+  "buildCommand": "npx prisma db push && npx prisma db seed && npm run build",
   "installCommand": "npm install",
   "regions": ["iad1"]
 }
