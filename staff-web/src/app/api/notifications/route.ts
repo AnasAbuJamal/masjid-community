@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { notificationId, notificationQuery, notificationMutation } from "@/lib/notification-input";
 import { auth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -10,9 +11,10 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = req.nextUrl;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
-    const unreadOnly = searchParams.get("unreadOnly") === "true";
+    const parsed = notificationQuery.safeParse(Object.fromEntries(searchParams));
+    if (!parsed.success) return NextResponse.json({ error: "Invalid notification filters" }, { status: 400 });
+    const { page, limit } = parsed.data;
+    const unreadOnly = parsed.data.unreadOnly === 'true';
 
     const where: Prisma.NotificationWhereInput = { userId: session.user.id };
 
@@ -39,7 +41,7 @@ export async function GET(req: NextRequest) {
         unreadCount,
         page,
         totalPages: Math.ceil(total / limit),
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: NextRequest) {
@@ -48,27 +50,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { id, markAllRead } = body;
-
-    if (markAllRead) {
-        await prisma.notification.updateMany({
-            where: { userId: session.user.id, isRead: false },
-            data: { isRead: true },
-        });
-        return NextResponse.json({ success: true, message: "All notifications marked as read" });
+    const parsed = notificationMutation.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: "Invalid notification update" }, { status: 400 });
+    if ('markAllRead' in parsed.data) {
+        await prisma.notification.updateMany({ where: { userId: session.user.id, isRead: false }, data: { isRead: true } });
+        return NextResponse.json({ success: true });
     }
-
-    if (!id) {
-        return NextResponse.json({ error: "Notification ID required" }, { status: 400 });
-    }
-
-    const notification = await prisma.notification.update({
-        where: { id: Number(id), userId: session.user.id },
-        data: { isRead: true },
-    });
-
-    return NextResponse.json(notification);
+    const result = await prisma.notification.updateMany({ where: { id: parsed.data.id, userId: session.user.id }, data: { isRead: true } });
+    return result.count ? NextResponse.json({ success: true }) : NextResponse.json({ error: "Notification not found" }, { status: 404 });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -78,18 +67,13 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const id = searchParams.has("id") ? Number(searchParams.get("id")) : null;
-
-    if (id) {
-        await prisma.notification.delete({
-            where: { id: Number(id), userId: session.user.id },
-        });
-        return NextResponse.json({ success: true });
+    // A malformed ID must never fall through to deletion of all notifications.
+    if (searchParams.has('id')) {
+        const parsed = notificationId.safeParse(searchParams.get('id'));
+        if (!parsed.success) return NextResponse.json({ error: "Invalid notification ID" }, { status: 400 });
+        const result = await prisma.notification.deleteMany({ where: { id: parsed.data, userId: session.user.id } });
+        return result.count ? NextResponse.json({ success: true }) : NextResponse.json({ error: "Notification not found" }, { status: 404 });
     }
-
-    await prisma.notification.deleteMany({
-        where: { userId: session.user.id },
-    });
-
+    await prisma.notification.deleteMany({ where: { userId: session.user.id } });
     return NextResponse.json({ success: true, message: "All notifications deleted" });
 }

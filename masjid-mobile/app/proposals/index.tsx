@@ -43,6 +43,9 @@ export default function ProposalsScreen() {
   const { width } = useWindowDimensions();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [voting, setVoting] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -62,11 +65,13 @@ export default function ProposalsScreen() {
 
   const loadProposals = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await apiService.proposals.getAll();
-      setProposals(data.length > 0 ? data : getMockProposals());
+      setProposals(data);
     } catch {
-      setProposals(getMockProposals());
+      setProposals([]);
+      setLoadError(true);
     }
     setLoading(false);
   };
@@ -78,21 +83,21 @@ export default function ProposalsScreen() {
   };
 
   const handleVote = async (id: string) => {
-    const prev = [...proposals];
-    setProposals(prev => prev.map(p => p.id === id ? { ...p, votes: p.votes + 1 } : p));
-    try {
-      await apiService.proposals.vote(id);
-    } catch {
-      setProposals(prev);
-      Alert.alert('Vote Added', 'Thank you for supporting this proposal!');
-    }
+    if (voting) return;
+    setVoting(true);
+    setActionMessage(null);
+    try { await apiService.proposals.vote(id); await loadProposals(); }
+    catch { setActionMessage('Vote not saved. Please sign in and try again.'); }
+    finally { setVoting(false); }
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
     const errors = validateForm(proposalSchema, form);
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setSubmitting(true);
+    setActionMessage(null);
     try {
       await apiService.proposals.create({ title: form.title.trim(), description: form.description.trim(), category: form.category });
       Alert.alert('Submitted!', 'Your proposal has been submitted for review.');
@@ -100,19 +105,7 @@ export default function ProposalsScreen() {
       setShowForm(false);
       loadProposals();
     } catch {
-      const newProposal: Proposal = {
-        id: Date.now().toString(),
-        title: form.title.trim(),
-        description: form.description.trim(),
-        author: 'You',
-        status: 'pending',
-        votes: 0,
-        createdAt: new Date().toISOString(),
-      };
-      setProposals(prev => [newProposal, ...prev]);
-      setForm({ title: '', description: '', category: 'Other' });
-      setShowForm(false);
-      Alert.alert('Submitted!', 'Your proposal has been submitted.');
+      setActionMessage('Proposal not submitted. Please sign in and try again. Your draft has been kept.');
     } finally {
       setSubmitting(false);
     }
@@ -193,7 +186,9 @@ export default function ProposalsScreen() {
 
       {/* Filters */}
       <View style={styles.filterSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {actionMessage && <Text accessibilityRole="alert" style={{ padding: SPACING.md, color: COLORS.text }}>{actionMessage}</Text>}
+      {loadError && <View style={{ padding: SPACING.md }}><Text accessibilityRole="alert">Unable to load proposals.</Text><TouchableOpacity accessibilityRole="button" onPress={loadProposals} style={{ minHeight: 44 }}><Text>Try again</Text></TouchableOpacity></View>}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {STATUS_OPTIONS.map(status => (
             <TouchableOpacity
               key={status}
@@ -305,14 +300,6 @@ export default function ProposalsScreen() {
       </ScrollView>
     </ScreenWrapper>
   );
-}
-
-function getMockProposals(): Proposal[] {
-  return [
-    { id: '1', title: 'New Parking Lot Expansion', description: 'Propose expanding the parking lot to accommodate 50 more vehicles during Jummah prayers. This would greatly reduce congestion on adjacent streets and improve accessibility for elderly and disabled community members.', author: 'Ahmad Hassan', votes: 24, status: 'approved', createdAt: '2026-02-15T00:00:00Z' },
-    { id: '2', title: "Sister's Halaqa Program", description: 'Weekly Islamic study circle for sisters on Saturday mornings. This program would provide a dedicated space for sisters to learn, discuss, and grow together in a comfortable environment.', author: 'Fatima Al-Rashid', votes: 38, status: 'in_progress', createdAt: '2026-02-10T00:00:00Z' },
-    { id: '3', title: 'Youth Soccer League', description: 'Establish a weekend soccer league for youth ages 8-16. Sports programs help build character, teamwork, and physical fitness while building community bonds among families.', author: 'Omar Malik', votes: 15, status: 'pending', createdAt: '2026-03-01T00:00:00Z' },
-  ];
 }
 
 const styles = StyleSheet.create({

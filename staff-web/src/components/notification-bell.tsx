@@ -50,16 +50,19 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchNotifications = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const res = await fetch("/api/notifications?limit=20");
+      if (!res.ok) throw new Error("Notifications unavailable");
       const data = await res.json();
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      setErrorMessage("Unable to load notifications. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -73,29 +76,33 @@ export default function NotificationBell() {
 
   const markAsRead = async (id: string) => {
     try {
-      await fetch("/api/notifications", {
+      setErrorMessage(null);
+      const response = await fetch("/api/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
+      if (!response.ok) throw new Error("Read status not saved");
       setNotifications(notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
       setUnreadCount(Math.max(0, unreadCount - 1));
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      setErrorMessage("Read status was not saved. Please try again.");
     }
   };
 
   const markAllAsRead = async () => {
     try {
-      await fetch("/api/notifications", {
+      setErrorMessage(null);
+      const response = await fetch("/api/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ markAllRead: true }),
       });
+      if (!response.ok) throw new Error("Read status not saved");
       setNotifications(notifications.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {
-      console.error("Error marking all as read:", error);
+      setErrorMessage("Read status was not saved. Please try again.");
     }
   };
 
@@ -103,7 +110,7 @@ export default function NotificationBell() {
     if (!notification.isRead) {
       markAsRead(notification.id);
     }
-    if (notification.link) {
+    if (notification.link && /^\/(dashboard|donate)(\/|$)/.test(notification.link) && !notification.link.includes("\\")) {
       window.location.href = notification.link;
     }
     setOpen(false);
@@ -127,6 +134,8 @@ export default function NotificationBell() {
   return (
     <div className="relative">
       <button
+        aria-label="Notifications"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
       >
@@ -141,7 +150,7 @@ export default function NotificationBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+          <div className="absolute right-0 top-full mt-2 w-[min(24rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
               <h3 className="font-semibold text-gray-900">Notifications</h3>
               <div className="flex gap-2">
@@ -152,6 +161,7 @@ export default function NotificationBell() {
                   </Button>
                 )}
                 <button
+                  aria-label="Close notifications"
                   onClick={() => setOpen(false)}
                   className="p-1 hover:bg-gray-100 rounded-lg"
                 >
@@ -160,6 +170,7 @@ export default function NotificationBell() {
               </div>
             </div>
 
+            {errorMessage && <div role="alert" className="p-4 text-sm"><p>{errorMessage}</p><Button variant="ghost" onClick={fetchNotifications}>Try again</Button></div>}
             <ScrollArea className="max-h-[400px]">
               {loading ? (
                 <div className="flex items-center justify-center py-8">

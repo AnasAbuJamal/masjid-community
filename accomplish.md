@@ -298,3 +298,24 @@ Before the final release, repeat a product-wide consistency review: individual f
 - Next work: finish jobs staff CRUD/status validation and saved jobs persistence; then real database/admin setup and remaining feature batches.
 - Blocking external setup: live database and hosting environment access/configuration are not confirmed. No production account was created and no live database was modified.
 - Update this section after every work session with changed files, commit/PR, checks, blockers, and next action.
+
+## Checkpoint — proposals and notification persistence
+
+Implemented in the next batch (not a claim of release readiness):
+- Notification API envelopes now map to app records; no invented notification feed on errors.
+- Read/read-all actions persist before the app updates its state; staff bell checks HTTP failures.
+- Notification pagination is bounded, ownership is enforced, and malformed deletion IDs cannot delete the entire feed.
+- Member notification destinations use a known-route allowlist and the actual linked record, not the notification ID.
+- Proposal lists/details/comments load from APIs; simulated detail content, timer comments, fake vote increments, and fake submission success are removed.
+- Voting uses a database unique constraint for one vote per account/proposal with idempotent upsert. The old simulated voting route opens the real proposals workflow.
+- Proposal submissions validate fields and derive identity from the session. Comments use server-derived authorship; public queries exclude internal comments and sensitive submission fields.
+- Legacy staff comment-list/create endpoints require staff/admin access.
+- The staff notification panel has narrower-screen sizing, accessible toggle/close labels, and visible error feedback.
+
+Verification: both TypeScript checks passed; 12 focused backend tests and 2 mobile destination tests passed. Prisma client generation passed. Schema-only migration diff matches the committed voting migration (no database connection used). `git diff --check` passed.
+
+Deployment prerequisite: apply `20261026000000_proposal_votes` via the reviewed migration process BEFORE deploying these proposal queries. No live migration or account provisioning has run. Do not call the preview functional until database configuration, migrations, and deployed smoke checks pass.
+
+Remaining in these areas: physical-device push registration/delivery and token ownership; comprehensive visual/accessibility testing; proposal milestone JSON contracts; rate limits, large-list pagination, moderation/status transitions and database-backed concurrent vote tests. Existing pending-proposal visibility is retained and needs a product/moderation review. School, CRM and other release backlog items remain unfinished.
+
+Next session: read this checkpoint and current git/remote state first. Finish push-token ownership and school/CRM API/model inventory, then complete one end-to-end workflow at a time. Do not ask the user to reauthorize continuing the agreed backlog.

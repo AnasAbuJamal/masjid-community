@@ -14,12 +14,12 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
     if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
         return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
     }
-    const notification = await prisma.notification.update({
+    const notification = await prisma.notification.updateMany({
       where: { id, userId: session.user.id },
       data: { isRead: true },
     });
 
-    return NextResponse.json(notification);
+    return notification.count ? NextResponse.json({ success: true }) : NextResponse.json({ error: "Notification not found" }, { status: 404 });
   } catch (error) {
     console.error("Error marking notification as read:", error);
     return NextResponse.json({ error: "Failed to mark as read" }, { status: 500 });

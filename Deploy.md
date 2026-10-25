@@ -75,3 +75,7 @@ The checkout return pages are `/donate/success` and `/donate/cancel`. They do no
 - Configure a real email provider and test password reset delivery.
 - Use durable object storage for media on serverless hosting; the legacy local upload implementation is not durable on Vercel.
 - Complete browser, accessibility, Android, and iOS review and the unfinished feature checklist before calling this a completed production release.
+
+## Proposal voting migration prerequisite
+
+The proposal persistence batch adds `20261026000000_proposal_votes`. Apply committed migrations using `npm run db:deploy` in a configured, reviewed environment before promoting the matching app/API revision. This migration creates a vote table with unique `(proposalId, userId)` records and foreign keys; it does not populate sample content. Back up existing data first and verify deployed proposal listing, authenticated voting, repeated votes, comments, and internal-note privacy. This workspace has only checked the schema diff, not executed the migration against a live database.

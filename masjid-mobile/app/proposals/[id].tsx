@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Alert,
   RefreshControl,
   useWindowDimensions,
 } from 'react-native';
@@ -13,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlassCard, ScreenWrapper, FloatingIcon } from '../../components/common';
+import apiService from '../../services/api-service';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 
 interface Milestone {
@@ -44,31 +46,6 @@ interface Proposal {
   milestones?: Milestone[];
 }
 
-const MOCK_PROPOSAL: Proposal = {
-  id: '1',
-  title: 'New Parking Lot Expansion',
-  description: 'Propose expanding the parking lot to accommodate 50 more vehicles during Jummah prayers. This would greatly reduce congestion on adjacent streets and improve accessibility for elderly and disabled community members.\n\nThe expansion would include:\n- 50 new parking spaces\n- LED lighting for evening safety\n- Accessible parking spots near the entrance\n- Stormwater drainage system\n\nTotal estimated cost: $75,000',
-  author: 'Ahmad Hassan',
-  votes: 24,
-  status: 'approved',
-  createdAt: '2026-02-15T00:00:00Z',
-  category: 'Facility',
-  budget: 75000,
-  timeline: '6 months',
-  milestones: [
-    { id: '1', title: 'Planning & Design', description: 'Architectural planning and permitting', status: 'completed', targetDate: '2026-03-01' },
-    { id: '2', title: 'Site Preparation', description: 'Clear land and prepare foundation', status: 'in_progress', targetDate: '2026-04-15' },
-    { id: '3', title: 'Paving & Lighting', description: 'Asphalt paving and LED installation', status: 'pending', targetDate: '2026-06-01' },
-    { id: '4', title: 'Final Inspection', description: 'Safety checks and final approval', status: 'pending', targetDate: '2026-07-15' },
-  ],
-};
-
-const MOCK_COMMENTS: Comment[] = [
-  { id: '1', author: 'Fatima Al-Rashid', content: 'This is much needed! The parking situation on Fridays is really difficult.', createdAt: '2026-02-16T10:30:00Z' },
-  { id: '2', author: 'Omar Malik', content: 'Great initiative. Would this also help with the Eid parking?', createdAt: '2026-02-16T14:22:00Z' },
-  { id: '3', author: 'Sarah Johnson', content: 'I support this 100%. Can we also add some shade structures?', createdAt: '2026-02-17T09:15:00Z' },
-];
-
 export default function ProposalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -76,6 +53,9 @@ export default function ProposalDetailScreen() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [voting, setVoting] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -86,11 +66,13 @@ export default function ProposalDetailScreen() {
 
   const loadProposal = async () => {
     setLoading(true);
-    setTimeout(() => {
-      setProposal(MOCK_PROPOSAL);
-      setComments(MOCK_COMMENTS);
-      setLoading(false);
-    }, 500);
+    setLoadError(false);
+    try {
+      const data = await apiService.proposals.getById(id);
+      setProposal(data.proposal);
+      setComments(data.comments);
+    } catch { setProposal(null); setLoadError(true); }
+    finally { setLoading(false); }
   };
 
   const handleRefresh = async () => {
@@ -98,26 +80,24 @@ export default function ProposalDetailScreen() {
     await loadProposal();
     setRefreshing(false);
   };
-
-  const handleVote = () => {
-    if (!proposal) return;
-    setProposal(prev => prev ? { ...prev, votes: prev.votes + 1 } : null);
+  const handleVote = async () => {
+    if (!proposal || voting) return;
+    setVoting(true);
+    setActionMessage(null);
+    try { await apiService.proposals.vote(proposal.id); await loadProposal(); }
+    catch { setActionMessage('Vote not saved. Please sign in and try again.'); }
+    finally { setVoting(false); }
   };
-
-  const handleSubmitComment = () => {
-    if (!newComment.trim()) return;
+  const handleSubmitComment = async () => {
+    if (!proposal || !newComment.trim() || submitting) return;
     setSubmitting(true);
-    setTimeout(() => {
-      const comment: Comment = {
-        id: Date.now().toString(),
-        author: 'You',
-        content: newComment.trim(),
-        createdAt: new Date().toISOString(),
-      };
-      setComments(prev => [...prev, comment]);
+    setActionMessage(null);
+    try {
+      const comment = await apiService.proposals.comment(proposal.id, newComment.trim());
+      setComments(previous => [...previous, comment]);
       setNewComment('');
-      setSubmitting(false);
-    }, 500);
+    } catch { setActionMessage('Comment not saved. Please sign in and try again. Your comment has been kept.'); }
+    finally { setSubmitting(false); }
   };
 
   const getStatusColor = (status: string) => {
@@ -144,7 +124,8 @@ export default function ProposalDetailScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loading}>
-          <Text>Loading...</Text>
+          <Text>{loading ? 'Loading…' : 'Proposal unavailable'}</Text>
+          {loadError && <TouchableOpacity accessibilityRole="button" onPress={loadProposal} style={{ minHeight: 44 }}><Text>Try again</Text></TouchableOpacity>}
         </View>
       </SafeAreaView>
     );
@@ -166,6 +147,7 @@ export default function ProposalDetailScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />}
       >
+        {actionMessage && <Text accessibilityRole="alert" style={styles.description}>{actionMessage}</Text>}
         {/* Status Badge */}
         <View style={styles.statusRow}>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + '18' }]}>
@@ -189,7 +171,7 @@ export default function ProposalDetailScreen() {
         </View>
 
         {/* Vote Section */}
-        <TouchableOpacity style={styles.voteCard} onPress={handleVote}>
+        <TouchableOpacity style={styles.voteCard} accessibilityRole="button" disabled={voting} onPress={handleVote}>
           <View style={styles.voteContent}>
             <MaterialCommunityIcons name="arrow-up-bold" size={28} color={COLORS.primary} />
             <View>
@@ -197,7 +179,7 @@ export default function ProposalDetailScreen() {
               <Text style={styles.voteLabel}>votes</Text>
             </View>
           </View>
-          <Text style={styles.voteHint}>Tap to vote</Text>
+          <Text style={styles.voteHint}>Support this proposal</Text>
         </TouchableOpacity>
 
         {/* Budget & Timeline */}

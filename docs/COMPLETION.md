@@ -58,3 +58,9 @@ Added Community navigation for jobs/events/applications/workers/news/projects, j
 Removed seed password logging and database push/demo seeding from root deployment builds. Added `npm run admin:create` for explicit administrator creation without demo records. This command has not been run against a live database.
 
 Eight focused job validation/API tests passed; staff and mobile type checks completed without diagnostics. Database concurrency integration tests, device/visual review, complete jobs staff CRUD/saved-job behavior, and live deployment checks are pending. See `FEATURE-AUDIT.md` and `../accomplish.md`.
+
+## Proposals and notification persistence batch
+
+Removed mock notification feeds and proposal list/detail/vote/comment behavior; connected proposal detail, comments, votes and submissions to persisted APIs. Added unique voter/proposal records and migration `20261026000000_proposal_votes`. Apply that migration before deploying the new proposal queries. Public comment queries exclude internal notes; member identities come from authenticated sessions. Notification read actions persist, API payloads match the app, invalid delete IDs return 400 instead of deleting all records, and pagination/ownership boundaries are tested.
+
+Verification: both TypeScript checks passed; 12 backend tests and 2 mobile link tests passed. Prisma schema diff matches the migration; no live database was touched. Device push/token ownership, visual review, live migration and full deployment checks remain pending. See accomplish.md for the detailed checkpoint.

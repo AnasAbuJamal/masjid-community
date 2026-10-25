@@ -31,6 +31,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  proposalVotes ProposalVote[]
   blogPosts     BlogPost[]
   assignments   Assignment[]  @relation("AssignmentTeacher")
   auditLogs     AuditLog[]
@@ -383,6 +384,7 @@ model ProjectProposal {
   updatedAt         DateTime         @updatedAt
 
   comments          ProposalComment[]
+  votes             ProposalVote[]
 }
 
 model ProposalComment {
@@ -1004,4 +1006,15 @@ model PushToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
   createdAt DateTime @default(now())
+}
+
+model ProposalVote {
+  id Int @id @default(autoincrement())
+  proposalId Int
+  userId Int
+  proposal ProjectProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([proposalId, userId])
+  @@index([userId])
 }

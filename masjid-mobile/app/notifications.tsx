@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { ScreenHeader } from '../components/common';
+import { notificationDestination } from '../services/notification-link';
 import apiService from '../services/api-service';
 
 interface Notification {
   id: string;
   title: string;
   body: string;
-  type: 'prayer' | 'announcement' | 'donation' | 'job' | 'general';
+  type: string;
+  link: string | null;
   read: boolean;
   createdAt: string;
   data?: Record<string, unknown>;
@@ -21,18 +23,23 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadNotifications();
   }, []);
 
   const loadNotifications = async () => {
+    setError(null);
     try {
       const data = await apiService.notifications.getAll();
-      setNotifications(data as Notification[]);
+      setNotifications(data);
     } catch {
-      setNotifications(getMockNotifications());
-    }
+      setNotifications([]);
+      setError("Unable to load notifications. Please sign in and try again.");
+    } finally { setLoading(false); }
   };
 
   const onRefresh = async () => {
@@ -41,13 +48,16 @@ export default function NotificationsScreen() {
     setRefreshing(false);
   };
 
-  const markAsRead = async (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
+  const markAsRead = async (id?: string) => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
     try {
-      await apiService.notifications.markAsRead(id);
-    } catch {}
+      if (id) await apiService.notifications.markAsRead(id);
+      else await apiService.notifications.markAllRead();
+      setNotifications(prev => prev.map(n => !id || n.id === id ? { ...n, read: true } : n));
+    } catch { setError('Unable to save read status. Please try again.'); }
+    finally { setSaving(false); }
   };
 
   const getIcon = (type: string) => {
@@ -86,11 +96,13 @@ export default function NotificationsScreen() {
   const renderItem = ({ item }: { item: Notification }) => (
     <TouchableOpacity
       style={[styles.notificationItem, !item.read && styles.notificationUnread]}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.title}, ${item.read ? 'read' : 'unread'}`}
+      disabled={saving}
       onPress={() => {
-        markAsRead(item.id);
-        if (item.type === 'announcement') {
-          router.push(`/announcements/${item.id}`);
-        }
+        void markAsRead(item.id);
+        const destination = notificationDestination(item.link);
+        if (destination) router.push(destination as Href);
       }}
       activeOpacity={0.7}
     >
@@ -123,10 +135,11 @@ export default function NotificationsScreen() {
         showBack 
         rightAction={unreadCount > 0 ? {
           icon: 'check-all',
-          onPress: () => setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+          onPress: () => { void markAsRead(); }
         } : undefined}
       />
 
+      {error && <View style={{ padding: SPACING.md }}><Text accessibilityRole="alert" style={styles.notificationBody}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={onRefresh} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.notificationTitle}>Try again</Text></TouchableOpacity></View>}
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id}
@@ -142,22 +155,14 @@ export default function NotificationsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="bell-off-outline" size={64} color={COLORS.textLight} />
-            <Text style={styles.emptyText}>No notifications yet</Text>
-            <Text style={styles.emptySubtext}>We'll notify you about important updates</Text>
+            {loading && <ActivityIndicator accessibilityLabel="Loading notifications" />}
+            <Text style={styles.emptyText}>{loading ? 'Loading…' : error ? 'Notifications unavailable' : 'No notifications yet'}</Text>
+            <Text style={styles.emptySubtext}>{!loading && !error ? 'Your latest 100 notifications appear here.' : ''}</Text>
           </View>
         }
       />
     </SafeAreaView>
   );
-}
-
-function getMockNotifications(): Notification[] {
-  return [
-    { id: '1', title: 'Fajr Prayer in 30 minutes', body: 'Time for Fajr prayer. May Allah accept your prayers.', type: 'prayer', read: false, createdAt: new Date(Date.now() - 30 * 60000).toISOString() },
-    { id: '2', title: 'Ramadan Mubarak!', body: 'Wishing our entire community a blessed Ramadan.', type: 'announcement', read: false, createdAt: new Date(Date.now() - 2 * 3600000).toISOString() },
-    { id: '3', title: 'New Job Posted', body: 'Part-time Arabic Teacher position available.', type: 'job', read: true, createdAt: new Date(Date.now() - 24 * 3600000).toISOString() },
-    { id: '4', title: 'Thank you for your donation!', body: 'Your generous donation has been received.', type: 'donation', read: true, createdAt: new Date(Date.now() - 48 * 3600000).toISOString() },
-  ];
 }
 
 const styles = StyleSheet.create({

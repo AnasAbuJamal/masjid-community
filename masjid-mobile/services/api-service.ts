@@ -93,6 +93,17 @@ export interface Proposal {
   createdAt: string;
 }
 
+export interface ProposalComment {
+  id: string;
+  author: string;
+  content: string;
+  createdAt: string;
+}
+export interface ProposalDetail {
+  proposal: Proposal & { category?: string; budget?: number; timeline?: string };
+  comments: ProposalComment[];
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -427,12 +438,16 @@ export const apiService = {
   // Proposals
   proposals: {
     getAll: async (): Promise<Proposal[]> => {
-      try {
-        const response = await api.instance.get<{ proposals: Proposal[] }>('/public/proposals');
-        return response.data.proposals || [];
-      } catch {
-        return [];
-      }
+      const response = await api.instance.get<{ proposals: Proposal[] }>('/public/proposals');
+      return response.data.proposals;
+    },
+    getById: async (id: string) => {
+      const response = await api.instance.get<ProposalDetail>(`/public/proposals/${id}`);
+      return response.data;
+    },
+    comment: async (id: string, message: string) => {
+      const response = await api.instance.post<ProposalComment>(`/public/proposals/${id}/comments`, { message });
+      return response.data;
     },
 
     vote: async (proposalId: string): Promise<void> => {
@@ -564,8 +579,15 @@ export const apiService = {
     },
 
     getAll: async () => {
-      const response = await api.instance.get('/notifications');
-      return response.data;
+      const response = await api.instance.get<{ notifications: { id: number; title: string; message: string; type: string; isRead: boolean; createdAt: string; link: string | null }[] }>('/notifications?limit=100');
+      return response.data.notifications.map(item => ({
+        id: String(item.id), title: item.title, body: item.message, type: item.type,
+        read: item.isRead, createdAt: item.createdAt, link: item.link,
+      }));
+    },
+
+    markAllRead: async (): Promise<void> => {
+      await api.instance.post('/notifications', { markAllRead: true });
     },
 
     markAsRead: async (id: string): Promise<void> => {
