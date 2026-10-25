@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     if (body.isPublic !== undefined) body.isPublic = body.isPublic === true || body.isPublic === "true";
     if (body.isRecurring !== undefined) body.isRecurring = body.isRecurring === true || body.isRecurring === "true";
 
-    const createdByInt = session.user.id ? parseInt(session.user.id) : null;
+    const createdByInt = session.user.id ? session.user.id : null;
 
     const event = await prisma.event.create({
         data: {

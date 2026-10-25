@@ -1,13 +1,16 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+import { resolveApiUrl } from './api-config';
+
+const BASE_URL = resolveApiUrl(process.env.EXPO_PUBLIC_API_URL);
 
 const TOKEN_KEY = '@masjid:token';
 
 class ApiClient {
   private client: AxiosInstance;
   private token: string | null = null;
+  onUnauthorized?: () => void;
 
   constructor() {
     this.client = axios.create({
@@ -42,6 +45,7 @@ class ApiClient {
       async (error: AxiosError) => {
         if (error.response?.status === 401) {
           await this.clearToken();
+          this.onUnauthorized?.();
         }
         return Promise.reject(error);
       }

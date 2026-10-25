@@ -11,7 +11,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
 
     // If password is being changed, hash it
@@ -28,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.lastName) allowedFields.lastName = body.lastName;
     if (body.phone !== undefined) allowedFields.phone = body.phone;
     if (typeof body.isActive === 'boolean') allowedFields.isActive = body.isActive;
-    
+
     // Role changes require extra validation (admin can demote other admins)
     if (body.role && ['admin', 'teacher'].includes(body.role)) {
         // Prevent self-demotion
@@ -37,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
         allowedFields.role = body.role;
     }
-    
+
     const user = await prisma.user.update({
         where: { id },
         data: allowedFields,
@@ -57,7 +61,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
 
     // Don't allow deleting self
     if (id === session.user.id) {

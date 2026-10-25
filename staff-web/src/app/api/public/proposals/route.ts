@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
           totalBudget: 0,
           objectives: [],
           timeline: [],
+          estimatedDuration: "To be confirmed",
           resourcesNeeded: [],
           skillsRequired: [],
           successMetrics: [],
@@ -143,9 +144,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: "Proposal submitted successfully",
-      proposalId: proposal.id 
+      proposalId: proposal.id
     }, { status: 201 });
   } catch (error) {
     console.error("Proposal submission error:", error);

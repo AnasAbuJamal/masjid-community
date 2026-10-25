@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = req.nextUrl;
-    const eventId = searchParams.get("eventId");
+    const eventId = searchParams.has("eventId") ? Number(searchParams.get("eventId")) : null;
     const status = searchParams.get("status");
 
     const where: Prisma.EventRSVPWhereInput = {};

@@ -8,7 +8,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -39,7 +40,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "typescript": "~5.9.0",
-    "vitest": "^1.6.1"
+    "vitest": "^4.1.0"
   },
   "private": true
 }

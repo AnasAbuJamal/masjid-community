@@ -7,8 +7,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { id } = await params;
-    await prisma.studentReport.delete({ where: { id: parseInt(id) } });
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
+    await prisma.studentReport.delete({ where: { id: id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting report:", error);

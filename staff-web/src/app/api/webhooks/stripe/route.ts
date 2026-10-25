@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        
+
         const donationData = {
           stripeSessionId: session.id,
           stripePaymentId: session.payment_intent as string,
@@ -44,9 +44,9 @@ export async function POST(req: NextRequest) {
           campaign: session.metadata?.campaign || "general",
           isRecurring: session.subscription ? true : false,
           stripeSubId: session.subscription as string || null,
-          receiptUrl: session.customer_details?.email ? 
+          receiptUrl: session.customer_details?.email ?
             `https://dashboard.stripe.com/payments/${session.payment_intent}` : null,
-          metadata: session.metadata || null,
+          metadata: session.metadata || undefined,
         };
 
         await prisma.donation.upsert({
@@ -61,17 +61,17 @@ export async function POST(req: NextRequest) {
 
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice & { subscription?: string; payment_intent?: string | null };
-        
+
         if (invoice.subscription) {
           const subscription = invoice.subscription as string;
-          
+
           await prisma.donation.updateMany({
             where: { stripeSubId: subscription },
             data: { status: "completed" as const },
           });
 
           const subscriptionDetails = invoice.lines?.data[0];
-          
+
           await prisma.donation.create({
             data: {
               stripeSessionId: `sub_${invoice.id}`,
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
       case "checkout.session.expired": {
         const session = event.data.object as Stripe.Checkout.Session;
-        
+
         await prisma.donation.update({
           where: { stripeSessionId: session.id },
           data: { status: "failed" as const },
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
       case "charge.refunded": {
         const charge = event.data.object as Stripe.Charge;
-        
+
         if (charge.payment_intent) {
           await prisma.donation.updateMany({
             where: { stripePaymentId: charge.payment_intent as string },
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ 
+  return NextResponse.json({
     message: "Stripe webhook endpoint",
     events: ["checkout.session.completed", "invoice.payment_succeeded", "checkout.session.expired", "charge.refunded"]
   });

@@ -13,6 +13,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GlassCard, ScreenWrapper, FloatingIcon, TAB_BAR_HEIGHT } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import apiService from '../../services/api-service';
+import { DEMO_MODE } from '../../services/api-config';
 import { getHijriDate, getIslamicOccasion } from '../../utils/hijri';
 
 const PRAYER_NAMES = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
@@ -34,10 +36,10 @@ function getTimeUntilNextPrayer(prayers: Record<string, string>): { hours: numbe
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-  
+
   let nextPrayerName = 'Fajr';
   let nextPrayerMins = 0;
-  
+
   for (const name of PRAYER_NAMES) {
     if (name === 'Sunrise') continue;
     const time = prayers[name.toLowerCase()];
@@ -50,7 +52,7 @@ function getTimeUntilNextPrayer(prayers: Record<string, string>): { hours: numbe
       break;
     }
   }
-  
+
   if (nextPrayerMins <= nowMins) {
     nextPrayerName = 'Fajr';
     const fajrTime = prayers.fajr;
@@ -63,19 +65,19 @@ function getTimeUntilNextPrayer(prayers: Record<string, string>): { hours: numbe
     const tomorrowMins = 24 * 60;
     nextPrayerMins += tomorrowMins;
   }
-  
+
   const currentTotalSecs = nowSecs;
   const nextTotalSecs = nextPrayerMins * 60;
   let diffSecs = nextTotalSecs - currentTotalSecs;
-  
+
   if (nextPrayerName === 'Fajr' && nextPrayerMins > 24 * 60) {
     diffSecs = nextTotalSecs - currentTotalSecs;
   }
-  
+
   const hours = Math.floor(diffSecs / 3600);
   const minutes = Math.floor((diffSecs % 3600) / 60);
   const seconds = diffSecs % 60;
-  
+
   return { hours, minutes, seconds, total: diffSecs };
 }
 
@@ -94,12 +96,14 @@ export default function HomeScreen() {
   const [prayers, setPrayers] = useState<Record<string, string> | null>(null);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [hijriDate, setHijriDate] = useState(getHijriDate());
   const [occasion, setOccasion] = useState<string | null>(getIslamicOccasion());
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0, total: 0 });
 
-  const prayerItemWidth = (width - SPACING.md * 2 - SPACING.sm * 2) / 3;
-  const actionCardWidth = (width - SPACING.md * 2 - SPACING.sm) / 2;
+  const prayerItemWidth = (Math.min(width, 960) - SPACING.md * 2 - SPACING.sm * 2) / 3;
+  const actionCardWidth = (Math.min(width, 960) - SPACING.md * 2 - SPACING.sm) / 2;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -113,20 +117,29 @@ export default function HomeScreen() {
   }, [prayers]);
 
   const loadData = async () => {
-    const prayerTimes = { fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30' };
-    setPrayers(prayerTimes);
-    setCountdown(getTimeUntilNextPrayer(prayerTimes));
-    setAnnouncements([
-      { id: '1', title: 'Friday Prayer', message: "Join us for Jumu'ah prayer this Friday at 1:30 PM", type: 'general' },
-      { id: '2', title: 'Ramadan Mubarak', message: 'Ramadan Kareem! May Allah accept our fasting', type: 'ramadan' },
+    setLoadError(null);
+    const [prayerResult, announcementResult] = await Promise.allSettled([
+      apiService.prayers.getToday(), apiService.announcements.getAll(),
     ]);
+    if (prayerResult.status === 'fulfilled') {
+      const { fajr, sunrise, dhuhr, asr, maghrib, isha } = prayerResult.value;
+      const times = { fajr, sunrise, dhuhr, asr, maghrib, isha };
+      setPrayers(times);
+      setCountdown(getTimeUntilNextPrayer(times));
+    } else {
+      setPrayers(null);
+      setLoadError(prayerResult.reason?.message || 'Unable to load prayer times.');
+    }
+    if (announcementResult.status === 'fulfilled') setAnnouncements(announcementResult.value);
+    else setLoadError(message => message || 'Unable to load announcements. Please try again.');
+    setLoading(false);
   };
 
   useEffect(() => { loadData(); }, []);
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
-  const p = prayers ?? { fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30' };
+  const p = prayers ?? { fajr: '--:--', sunrise: '--:--', dhuhr: '--:--', asr: '--:--', maghrib: '--:--', isha: '--:--' };
   const nextPrayer = getNextPrayer(p);
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -156,21 +169,31 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {DEMO_MODE && <Text style={styles.statusText}>Preview mode · Sample community data</Text>}
+        {loadError && (
+          <View style={styles.statusCard} accessibilityRole="alert">
+            <MaterialCommunityIcons name="wifi-off" size={22} color={COLORS.primary} />
+            <Text style={styles.statusText}>{loadError}</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={onRefresh}>
+              <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {/* Prayer Card Section */}
         <View style={styles.cardSection}>
           <GlassCard style={styles.prayerCard} variant="floating">
-            <LinearGradient colors={['#4A90D9', '#6DD5ED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.prayerGradient}>
+            <LinearGradient colors={[COLORS.primaryDark, COLORS.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.prayerGradient}>
               <View style={styles.prayerShine} />
-              
+
               {/* Main Header */}
               <View style={styles.prayerMainHeader}>
-                <Text style={styles.prayerCardTitle}>Next Prayer</Text>
-                <Text style={styles.nextPrayerName}>{nextPrayer}</Text>
+                <Text style={styles.prayerCardTitle}>{loading ? 'Loading prayer times…' : prayers ? 'Next Prayer' : 'Prayer times unavailable'}</Text>
+                <Text style={styles.nextPrayerName}>{prayers ? nextPrayer : '—'}</Text>
                 <Text style={styles.prayerTimeText}>{p[nextPrayer.toLowerCase()]}</Text>
               </View>
-              
+
               {/* Countdown Timer */}
-              <View style={styles.countdownContainer}>
+              {prayers && <View style={styles.countdownContainer}>
                 <Text style={styles.countdownLabel}>Time Remaining</Text>
                 <View style={styles.countdownBox}>
                   <View style={styles.countdownItem}>
@@ -188,8 +211,8 @@ export default function HomeScreen() {
                     <Text style={styles.countdownUnit}>Sec</Text>
                   </View>
                 </View>
-              </View>
-              
+              </View>}
+
               <View style={styles.prayerGrid}>
                 {PRAYER_NAMES.map((name) => {
                   const isNext = name === nextPrayer;
@@ -209,7 +232,7 @@ export default function HomeScreen() {
         {/* Announcements */}
         {announcements.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Announcements</Text><TouchableOpacity onPress={() => router.push('/announcements/1')}><Text style={styles.viewAll}>View all →</Text></TouchableOpacity></View>
+            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Announcements</Text><TouchableOpacity onPress={() => router.push(`/announcements/${announcements[0].id}`)}><Text style={styles.viewAll}>Read latest →</Text></TouchableOpacity></View>
             {announcements.slice(0, 2).map((item) => (
               <TouchableOpacity key={item.id} onPress={() => router.push(`/announcements/${item.id}`)} activeOpacity={0.7} style={styles.announcementWrapper}>
                 <GlassCard>
@@ -246,8 +269,10 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  statusCard: { marginHorizontal: SPACING.md, marginBottom: SPACING.md, padding: SPACING.md, gap: SPACING.sm, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border },
+  statusText: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, padding: SPACING.sm },
   scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: TAB_BAR_HEIGHT + SPACING.lg },
+  scrollContent: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingBottom: TAB_BAR_HEIGHT + SPACING.lg },
 
   headerSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },

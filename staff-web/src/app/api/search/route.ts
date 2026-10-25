@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 
 interface SearchResult {
     type: string;
-    id: string;
+    id: number;
     title: string;
     subtitle: string;
     link: string;
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
                     OR: [
                         { firstName: { contains: searchTerm } },
                         { lastName: { contains: searchTerm } },
-                        { studentId: { contains: searchTerm } },
+                        ...( /^\d+$/.test(searchTerm) ? [{ studentId: Number(searchTerm) }] : []),
                         { parentName: { contains: searchTerm } },
                     ],
                 },

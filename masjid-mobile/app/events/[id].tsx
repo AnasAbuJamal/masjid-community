@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Alert } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { eventService } from '../../services/event-service';
+import { useAuthStore } from '../../stores/authStore';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 
 interface Event {
@@ -19,32 +21,22 @@ interface Event {
   isRegistered: boolean;
 }
 
-const MOCK_EVENT: Event = {
-  id: '1',
-  title: 'Ramadan Iftar Program',
-  description: 'Join us for a blessed iftar experience. We will be serving iftar meals to the community. All are welcome to attend and participate in this spiritual gathering.\n\nHighlights:\n- Complete iftar meal\n- Quran recitation\n- Spiritual reflection\n- Community bonding',
-  date: '2026-03-15',
-  time: '6:30 PM',
-  location: 'Masjid Al-Momineen Main Hall',
-  organizer: 'Masjid Committee',
-  category: 'religious',
-  attendees: 85,
-  isRegistered: false,
-};
-
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [event, setEvent] = useState<Event | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const { isAuthenticated } = useAuthStore();
   const [registering, setRegistering] = useState(false);
 
   useEffect(() => {
-    setEvent(MOCK_EVENT);
+    eventService.getById(id).then(item => { setEvent(item); if (!item) setLoadError('Event not found.'); }).catch(() => setLoadError('Unable to load this event. Please try again.'));
   }, [id]);
 
   const handleRegister = () => {
     if (!event) return;
-    
+    if (!isAuthenticated) { router.push('/(auth)/login'); return; }
+
     Alert.alert(
       'Register for Event',
       `Would you like to register for "${event.title}"?`,
@@ -52,13 +44,15 @@ export default function EventDetailScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Register',
-          onPress: () => {
+          onPress: async () => {
             setRegistering(true);
-            setTimeout(() => {
-              setEvent(prev => prev ? { ...prev, isRegistered: true, attendees: prev.attendees + 1 } : null);
-              setRegistering(false);
-              Alert.alert('Success!', 'You have registered for this event.');
-            }, 1000);
+            try {
+              await eventService.register(event.id);
+              setEvent(await eventService.getById(event.id));
+              Alert.alert('Registration confirmed', 'You are registered for this event.');
+            } catch {
+              Alert.alert('Unable to register', 'Registration was not confirmed. Please try again.');
+            } finally { setRegistering(false); }
           },
         },
       ]
@@ -90,7 +84,8 @@ export default function EventDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loading}>
-          <Text>Loading...</Text>
+          <Text>{loadError || 'Loading event…'}</Text>
+          {loadError && <TouchableOpacity onPress={() => router.back()}><Text style={{ color: COLORS.primary, marginTop: SPACING.md }}>Go back</Text></TouchableOpacity>}
         </View>
       </SafeAreaView>
     );
@@ -122,22 +117,22 @@ export default function EventDetailScreen() {
         {/* Event Info */}
         <View style={styles.infoSection}>
           <Text style={styles.eventTitle}>{event.title}</Text>
-          
+
           <View style={styles.metaRow}>
             <MaterialCommunityIcons name="calendar" size={18} color={COLORS.primary} />
             <Text style={styles.metaText}>{formatDate(event.date)}</Text>
           </View>
-          
+
           <View style={styles.metaRow}>
             <MaterialCommunityIcons name="clock-outline" size={18} color={COLORS.primary} />
             <Text style={styles.metaText}>{event.time}</Text>
           </View>
-          
+
           <View style={styles.metaRow}>
             <MaterialCommunityIcons name="map-marker" size={18} color={COLORS.primary} />
             <Text style={styles.metaText}>{event.location}</Text>
           </View>
-          
+
           <View style={styles.metaRow}>
             <MaterialCommunityIcons name="account-group" size={18} color={COLORS.primary} />
             <Text style={styles.metaText}>{event.attendees} attending</Text>
@@ -169,16 +164,16 @@ export default function EventDetailScreen() {
           onPress={handleRegister}
           disabled={event.isRegistered || registering}
         >
-          <MaterialCommunityIcons 
-            name={event.isRegistered ? 'check' : 'calendar-plus'} 
-            size={20} 
-            color={COLORS.white} 
+          <MaterialCommunityIcons
+            name={event.isRegistered ? 'check' : 'calendar-plus'}
+            size={20}
+            color={COLORS.white}
           />
           <Text style={styles.registerText}>
-            {registering 
-              ? 'Registering...' 
-              : event.isRegistered 
-                ? 'Registered' 
+            {registering
+              ? 'Registering...'
+              : event.isRegistered
+                ? 'Registered'
                 : 'Register for Event'}
           </Text>
         </TouchableOpacity>

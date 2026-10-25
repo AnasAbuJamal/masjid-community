@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,7 +7,6 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -61,8 +61,8 @@ export default function ClassesScreen() {
     setRefreshing(false);
   };
 
-  const filteredClasses = selectedType === 'all' 
-    ? classes 
+  const filteredClasses = selectedType === 'all'
+    ? classes
     : classes.filter(c => c.type === selectedType);
 
   const getTypeIcon = (type: string) => {
@@ -112,10 +112,10 @@ export default function ClassesScreen() {
               style={[styles.typeChip, selectedType === item.key && styles.typeChipActive]}
               onPress={() => setSelectedType(item.key)}
             >
-              <MaterialCommunityIcons 
-                name={item.icon as any} 
-                size={16} 
-                color={selectedType === item.key ? COLORS.white : COLORS.textSecondary} 
+              <MaterialCommunityIcons
+                name={item.icon as any}
+                size={16}
+                color={selectedType === item.key ? COLORS.white : COLORS.textSecondary}
               />
               <Text style={[styles.typeText, selectedType === item.key && styles.typeTextActive]}>
                 {item.label}
@@ -187,10 +187,10 @@ export default function ClassesScreen() {
     <View style={styles.emptyWrapper}>
       <GlassCard>
         <View style={styles.centeredContent}>
-          <FloatingIcon 
-            icon={<MaterialCommunityIcons name="school" size={32} color={COLORS.textSecondary} />} 
-            size="lg" 
-            color={COLORS.textSecondary} 
+          <FloatingIcon
+            icon={<MaterialCommunityIcons name="school" size={32} color={COLORS.textSecondary} />}
+            size="lg"
+            color={COLORS.textSecondary}
           />
           <Text style={styles.emptyTitle}>No classes found</Text>
           <Text style={styles.emptySubtext}>Check back soon for new classes</Text>
@@ -227,13 +227,13 @@ const styles = StyleSheet.create({
 
   typeSection: { paddingBottom: SPACING.sm },
   typeList: { paddingHorizontal: SPACING.md, gap: SPACING.xs },
-  typeChip: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingHorizontal: SPACING.sm + 4, 
-    paddingVertical: SPACING.xs + 2, 
-    backgroundColor: COLORS.surface, 
-    borderRadius: RADIUS.full, 
+  typeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm + 4,
+    paddingVertical: SPACING.xs + 2,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.full,
     gap: 4,
     borderWidth: 1,
     borderColor: COLORS.border,

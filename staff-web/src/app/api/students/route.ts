@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest) {
             where: { id: parseInt(String(id)) },
             data: {
                 status: newStatus,
-                reviewedBy: session.user.id ? parseInt(session.user.id) : null,
+                reviewedBy: session.user.id ? session.user.id : null,
                 reviewedAt: new Date(),
                 notes: notes,
             },

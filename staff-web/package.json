@@ -15,7 +15,12 @@
     "test:e2e:headed": "playwright test --headed",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "check": "npm run db:generate && npm run typecheck && npm run test:run"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const report = await prisma.studentReport.create({
       data: {
         studentId: parseInt(studentId),
-        teacherId: parseInt(session.user.id),
+        teacherId: session.user.id,
         title,
         content,
         category: category || "general",

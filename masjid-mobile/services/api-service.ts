@@ -1,4 +1,13 @@
 import api, { api as apiClient } from './api-client';
+import { DEMO_MODE } from './api-config';
+
+function fallback<T>(value: T): T {
+  if (!DEMO_MODE) throw new Error('Unable to load data. Check your connection and try again.');
+  return value;
+}
+function withStringId<T extends { id: string | number }>(item: T): T & { id: string } {
+  return { ...item, id: String(item.id) };
+}
 
 // Types
 export interface User {
@@ -6,7 +15,7 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'staff' | 'member' | 'student';
+  role: 'admin' | 'teacher' | 'staff' | 'member' | 'student';
   phone?: string;
   avatar?: string;
   createdAt?: string;
@@ -269,22 +278,9 @@ export const apiService = {
   // Auth
   auth: {
     login: async (email: string, password: string): Promise<AuthResponse> => {
-      console.log('[API] Calling login endpoint for:', email);
-      try {
-        const response = await api.instance.post<AuthResponse>('/auth/login', { email, password });
-        console.log('[API] Login response status:', response.status);
-        console.log('[API] Login response data:', response.data);
-        await apiClient.setToken(response.data.token);
-        return response.data;
-      } catch (error: unknown) {
-        console.log('[API] Login request failed:', error);
-        if (error && typeof error === 'object' && 'response' in error) {
-          const axiosError = error as { response?: { status?: number; data?: unknown } };
-          console.log('[API] HTTP status:', axiosError.response?.status);
-          console.log('[API] Response data:', axiosError.response?.data);
-        }
-        throw error;
-      }
+      const response = await api.instance.post<AuthResponse>('/auth/login', { email, password });
+      await apiClient.setToken(response.data.token);
+      return response.data;
     },
 
     register: async (data: { email: string; password: string; firstName: string; lastName: string }): Promise<AuthResponse> => {
@@ -308,37 +304,27 @@ export const apiService = {
     },
 
     changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
-      await api.instance.post('/auth/change-password', { currentPassword, newPassword });
+      await api.instance.post('/auth/change-password', { currentPassword, newPassword, confirmPassword: newPassword });
     },
   },
 
-  // Prayer Times
+  // Prayer Times: use the same public contract as staff-web.
   prayers: {
     getToday: async (): Promise<PrayerTimes> => {
-      try {
-        const response = await api.instance.get<PrayerTimes>('/prayers/today');
-        return response.data;
-      } catch {
-        return getMockPrayerTimes();
-      }
+      if (DEMO_MODE) return getMockPrayerTimes();
+      const response = await api.instance.get<{ prayerTimes: PrayerTimes[] }>('/public/prayers');
+      const today = response.data.prayerTimes[0];
+      if (!today) throw new Error('Prayer times have not been published for today.');
+      return today;
     },
-
     getWeek: async (): Promise<PrayerTimes[]> => {
-      try {
-        const response = await api.instance.get<PrayerTimes[]>('/prayers/week');
-        return response.data;
-      } catch {
-        return getMockWeekPrayers();
-      }
+      if (DEMO_MODE) return getMockWeekPrayers();
+      const response = await api.instance.get<{ prayerTimes: PrayerTimes[] }>('/public/prayers?days=7');
+      return response.data.prayerTimes;
     },
-
     getMonth: async (month: number, year: number): Promise<PrayerTimes[]> => {
-      try {
-        const response = await api.instance.get<PrayerTimes[]>(`/prayers/${year}/${month}`);
-        return response.data;
-      } catch {
-        return [];
-      }
+      const response = await api.instance.get<{ prayerTimes: PrayerTimes[] }>('/public/prayers', { params: { month, year } });
+      return response.data.prayerTimes;
     },
   },
 
@@ -347,18 +333,18 @@ export const apiService = {
     getAll: async (): Promise<Announcement[]> => {
       try {
         const response = await api.instance.get<{ announcements: Announcement[] }>('/public/announcements');
-        return response.data.announcements || [];
+        return (response.data.announcements || []).map(withStringId);
       } catch {
-        return getMockAnnouncements();
+        return fallback(getMockAnnouncements());
       }
     },
 
     getById: async (id: string): Promise<Announcement | null> => {
       try {
-        const response = await api.instance.get<Announcement>(`/announcements/${id}`);
-        return response.data;
+        const all = await apiService.announcements.getAll();
+        return all.find(a => a.id === id) || null;
       } catch {
-        return getMockAnnouncements().find(a => a.id === id) || null;
+        return fallback(getMockAnnouncements().find(a => a.id === id) || null);
       }
     },
   },
@@ -367,24 +353,25 @@ export const apiService = {
   jobs: {
     getAll: async (): Promise<Job[]> => {
       try {
-        const response = await api.instance.get<Job[]>('/jobs');
-        return response.data;
+        const response = await api.instance.get<{ jobs: Job[] }>('/public/jobs');
+        return response.data.jobs.map(j => ({ ...withStringId(j), status: 'active', postedAt: j.postedAt || (j as Job & { createdAt: string }).createdAt }));
       } catch {
-        return getMockJobs();
+        return fallback(getMockJobs());
       }
     },
 
     getById: async (id: string): Promise<Job | null> => {
       try {
-        const response = await api.instance.get<Job>(`/jobs/${id}`);
-        return response.data;
+        const jobs = await apiService.jobs.getAll();
+        return jobs.find(j => j.id === id) || null;
       } catch {
-        return getMockJobs().find(j => j.id === id) || null;
+        return fallback(getMockJobs().find(j => j.id === id) || null);
       }
     },
 
     apply: async (jobId: string, data: { coverLetter: string }): Promise<void> => {
-      await api.instance.post(`/jobs/${jobId}/apply`, data);
+      const user = await apiService.auth.me();
+      await api.instance.post('/public/jobs', { ...data, jobId, applicantName: `${user.firstName} ${user.lastName}`, applicantEmail: user.email, applicantPhone: user.phone });
     },
   },
 
@@ -393,9 +380,9 @@ export const apiService = {
     getOpportunities: async (): Promise<VolunteerOpportunity[]> => {
       try {
         const response = await api.instance.get<{ opportunities: VolunteerOpportunity[] }>('/public/volunteers');
-        return response.data.opportunities || [];
+        return (response.data.opportunities || []).map(withStringId);
       } catch {
-        return getMockVolunteers();
+        return fallback(getMockVolunteers());
       }
     },
 
@@ -405,7 +392,7 @@ export const apiService = {
 
     getMyOpportunities: async (): Promise<VolunteerOpportunity[]> => {
       const response = await api.instance.get<{ opportunities: VolunteerOpportunity[] }>('/public/volunteers');
-      return response.data.opportunities || [];
+      return (response.data.opportunities || []).map(withStringId);
     },
   },
 
@@ -413,7 +400,7 @@ export const apiService = {
   donations: {
     getHistory: async (): Promise<Donation[]> => {
       try {
-        const response = await api.instance.get<Donation[]>('/donations');
+        const response = await api.instance.get<Donation[]>('/donations/mine');
         return response.data;
       } catch {
         return [];
@@ -539,7 +526,7 @@ export const apiService = {
     getAll: async (): Promise<RentalItem[]> => {
       try {
         const response = await api.instance.get<RentalItem[]>('/public/rentals');
-        return response.data;
+        return response.data.map(withStringId);
       } catch {
         return [];
       }
@@ -590,9 +577,9 @@ export const apiService = {
     getAll: async (): Promise<BlogPost[]> => {
       try {
         const response = await api.instance.get<{ posts: BlogPost[] }>('/public/blog');
-        return response.data.posts || [];
+        return (response.data.posts || []).map(withStringId);
       } catch {
-        return getMockBlogPosts();
+        return fallback(getMockBlogPosts());
       }
     },
 
@@ -601,7 +588,7 @@ export const apiService = {
         const response = await api.instance.get<{ post: BlogPost }>(`/public/blog?slug=${slug}`);
         return response.data.post;
       } catch {
-        return getMockBlogPosts().find(p => p.slug === slug) || null;
+        return fallback(getMockBlogPosts().find(p => p.slug === slug) || null);
       }
     },
   },
@@ -613,7 +600,7 @@ export const apiService = {
         const response = await api.instance.get<{ projects: ConstructionProject[] }>('/public/construction');
         return response.data.projects || [];
       } catch {
-        return getMockConstructionProjects();
+        return fallback(getMockConstructionProjects());
       }
     },
   },
@@ -625,7 +612,7 @@ export const apiService = {
         const response = await api.instance.get<{ students: GamificationStudent[] }>('/public/gamification');
         return response.data.students || [];
       } catch {
-        return getMockLeaderboard();
+        return fallback(getMockLeaderboard());
       }
     },
   },
@@ -635,9 +622,9 @@ export const apiService = {
     getSummary: async (): Promise<FinancialSummary> => {
       try {
         const response = await api.instance.get<{ summary: FinancialSummary }>('/public/finances');
-        return response.data.summary || getMockFinancialSummary();
+        return response.data.summary || fallback(getMockFinancialSummary());
       } catch {
-        return getMockFinancialSummary();
+        return fallback(getMockFinancialSummary());
       }
     },
 
@@ -646,7 +633,7 @@ export const apiService = {
         const response = await api.instance.get<{ records: FinancialRecord[] }>('/public/finances');
         return response.data.records || [];
       } catch {
-        return getMockFinancialRecords();
+        return fallback(getMockFinancialRecords());
       }
     },
   },
@@ -656,18 +643,18 @@ export const apiService = {
     getAll: async (): Promise<WorkerProfile[]> => {
       try {
         const response = await api.instance.get<{ workers: WorkerProfile[] }>('/public/workers');
-        return response.data.workers || [];
+        return (response.data.workers || []).map(withStringId);
       } catch {
-        return getMockWorkers();
+        return fallback(getMockWorkers());
       }
     },
 
     getById: async (id: string): Promise<WorkerProfile | null> => {
       try {
-        const response = await api.instance.get<WorkerProfile>(`/public/workers/${id}`);
-        return response.data;
+        const workers = await apiService.workers.getAll();
+        return workers.find(w => w.id === id) || null;
       } catch {
-        return getMockWorkers().find(w => w.id === id) || null;
+        return fallback(getMockWorkers().find(w => w.id === id) || null);
       }
     },
   },
@@ -679,16 +666,18 @@ export const apiService = {
         const response = await api.instance.get<MyApplications>('/applications/mine');
         return response.data;
       } catch {
-        return getMockMyApplications();
+        return fallback(getMockMyApplications());
       }
     },
 
     submitJobApplication: async (jobId: string, data: { coverLetter: string; resumeUrl?: string }): Promise<void> => {
-      await api.instance.post(`/applications/jobs/${jobId}`, data);
+      const user = await apiService.auth.me();
+      await api.instance.post('/public/jobs', { ...data, jobId, applicantName: `${user.firstName} ${user.lastName}`, applicantEmail: user.email, applicantPhone: user.phone });
     },
 
     submitVolunteerApplication: async (opportunityId: string, data: { skills?: string; notes?: string }): Promise<void> => {
-      await api.instance.post(`/applications/volunteers/${opportunityId}`, data);
+      const user = await apiService.auth.me();
+      await apiService.volunteers.signUp(opportunityId, { userName: `${user.firstName} ${user.lastName}`, userEmail: user.email, userPhone: user.phone, ...data });
     },
   },
 };

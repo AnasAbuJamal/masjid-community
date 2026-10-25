@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -8,7 +9,11 @@ async function main() {
 
     // ── Admin User ──
     const adminEmail = process.env.ADMIN_SEED_EMAIL || "admin@almomineen.org";
-    const adminPassword = process.env.ADMIN_SEED_PASSWORD || "AdminPass123!";
+    const adminPassword = process.env.ADMIN_SEED_PASSWORD;
+    if (!adminPassword || adminPassword.length < 12) throw new Error("Set ADMIN_SEED_PASSWORD to at least 12 characters before seeding.");
+    if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "true") {
+        throw new Error("This seed includes sample data. Use a development database, or explicitly set ALLOW_DEMO_SEED=true.");
+    }
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
     const admin = await prisma.user.upsert({
@@ -32,7 +37,7 @@ async function main() {
         update: {},
         create: {
             email: "teacher@almomineen.org",
-            passwordHash: await bcrypt.hash("Teacher123!", 12),
+            passwordHash: await bcrypt.hash(crypto.randomUUID() + crypto.randomUUID(), 12),
             firstName: "Ahmed",
             lastName: "Hassan",
             role: "teacher",

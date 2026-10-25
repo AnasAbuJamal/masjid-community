@@ -4,10 +4,14 @@ import { auth } from "@/lib/auth";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
-    
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
+
     const event = await prisma.event.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: id },
         include: {
             rsvps: true,
         },
@@ -26,7 +30,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
 
     if (body.capacity !== undefined) {
@@ -37,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.isRecurring !== undefined) body.isRecurring = body.isRecurring === true || body.isRecurring === "true";
 
     const event = await prisma.event.update({
-        where: { id: parseInt(id) },
+        where: { id: id },
         data: {
             ...body,
             startDate: body.startDate ? new Date(body.startDate) : undefined,
@@ -64,8 +72,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
-    const parsedId = parseInt(id);
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
+    const parsedId = id;
 
     await prisma.eventRSVP.deleteMany({
         where: { eventId: parsedId },

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "15");
   const action = searchParams.get("action");
   const entity = searchParams.get("entity");
-  const userId = searchParams.get("userId");
+  const userId = searchParams.has("userId") ? Number(searchParams.get("userId")) : null;
   const success = searchParams.get("success");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (userId) {
-    where.userId = userId;
+    where.userId = Number(userId);
   }
 
   if (success !== null && success !== undefined) {

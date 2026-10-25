@@ -101,7 +101,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    const id = searchParams.has("id") ? Number(searchParams.get("id")) : null;
     const email = searchParams.get("email");
 
     if (id) {

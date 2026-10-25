@@ -20,14 +20,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                localStorage.setItem('theme', 'light');
-                document.documentElement.classList.remove('dark');
+                const stored = localStorage.getItem('theme');
+                const dark = stored === 'dark' || (!stored && matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.classList.toggle('dark', dark);
               } catch(e) {}
             `,
           }}
         />
       </head>
-      <body className="min-h-screen antialiased" style={{ backgroundColor: '#ffffff', color: '#111827' }}>
+      <body className="min-h-screen antialiased">
         <ThemeProvider>
           {children}
           <Toaster />

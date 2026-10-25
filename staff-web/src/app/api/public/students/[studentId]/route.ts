@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ studentId: string }> }) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { studentId } = await params;
-    const numericId = parseInt(studentId);
+    const numericId = Number(studentId);
+    if (!/^\d+$/.test(studentId) || !Number.isSafeInteger(numericId) || numericId < 1) return NextResponse.json({ error: "Invalid student ID" }, { status: 400 });
 
     const student = await prisma.student.findFirst({
-      where: isNaN(numericId)
-        ? { studentId: numericId }
-        : { OR: [{ id: numericId }, { studentId: numericId }] },
+      where: { OR: [{ id: numericId }, { studentId: numericId }],
+        ...(["admin", "teacher"].includes(session.user.role) ? {} : { parentEmail: { equals: session.user.email, mode: "insensitive" as const } }),
+      },
       include: {
         class: { select: { id: true, name: true, teacherName: true, schedule: true } },
         attendances: {

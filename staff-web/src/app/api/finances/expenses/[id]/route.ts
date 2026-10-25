@@ -10,7 +10,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const expense = await prisma.financialExpense.findUnique({
         where: { id },
         include: { category: { select: { id: true, name: true, color: true, icon: true } } },
@@ -26,7 +30,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
     const data: Prisma.FinancialExpenseUpdateInput = { ...body };
     if (body.date) data.date = new Date(body.date);
@@ -47,7 +55,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     await prisma.financialExpense.delete({ where: { id } });
     await logAudit({ action: "delete_expense", userId: session.user.id, details: `Deleted expense ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });

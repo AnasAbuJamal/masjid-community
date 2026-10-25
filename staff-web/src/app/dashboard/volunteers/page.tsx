@@ -40,7 +40,7 @@ export default function VolunteersPage() {
   const [editing, setEditing] = useState<Opportunity | null>(null);
   const [form, setForm] = useState({ title: "", description: "", eventDate: "", spotsTotal: 10, status: "open" });
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
@@ -78,7 +78,7 @@ export default function VolunteersPage() {
     try { const res = await fetch(`/api/volunteers/${deleteId}`, { method: "DELETE" }); if (!res.ok) throw new Error("Delete failed"); setDeleteId(null); fetchData(); } catch (e) { console.error(e); }
   };
 
-  const updateAppStatus = async (appId: string, status: string) => {
+  const updateAppStatus = async (appId: number, status: string) => {
     try {
       const res = await fetch(`/api/volunteers/applications/${appId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
       if (!res.ok) throw new Error("Failed to update status");

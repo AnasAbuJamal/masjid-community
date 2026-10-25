@@ -4,7 +4,8 @@ import type { DefaultSession, NextAuthOptions } from "next-auth";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { logAudit } from "./audit";
-import { getClientIp } from "./audit";
+import { headers } from "next/headers";
+import { verifyMobileToken } from "./mobile-token";
 
 declare module "next-auth" {
     interface Session extends DefaultSession {
@@ -63,7 +64,7 @@ export const authOptions: NextAuthOptions = {
                 }
 
                 const isValid = await bcrypt.compare(password, user.passwordHash);
-                
+
                 if (!isValid) {
                     const attempts = user.failedLoginAttempts + 1;
                     const lockoutUntil = attempts >= MAX_LOGIN_ATTEMPTS
@@ -118,7 +119,7 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 return {
-                    id: user.id,
+                    id: String(user.id),
                     email: user.email,
                     name: `${user.firstName} ${user.lastName}`,
                     role: user.role,
@@ -136,8 +137,8 @@ export const authOptions: NextAuthOptions = {
         },
         async session({ session, token }) {
             if (session?.user) {
-                session.user.role = token.role;
-                session.user.id = token.id;
+                session.user.role = token.role || "member";
+                session.user.id = token.id || token.sub || "";
             }
             return session;
         },
@@ -157,5 +158,29 @@ export const authOptions: NextAuthOptions = {
  * Usage: `const session = await auth();`
  */
 export async function auth() {
-    return getServerSession(authOptions);
+    const authorization = (await headers()).get("authorization");
+    let id: number;
+    let expires: string;
+    if (authorization) {
+        const match = /^Bearer (.+)$/.exec(authorization);
+        if (!match) return null;
+        const token = await verifyMobileToken(match[1]);
+        if (!token) return null;
+        id = Number(token.sub);
+        expires = new Date(Number(token.exp) * 1000).toISOString();
+    } else {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) return null;
+        id = Number(session.user.id);
+        expires = session.expires;
+    }
+    if (!Number.isSafeInteger(id) || id < 1) return null;
+    // Recheck current status and role so deactivated accounts lose access.
+    const user = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, role: true, email: true, firstName: true, lastName: true, isActive: true },
+    });
+    if (!user?.isActive) return null;
+    return { user: { id: user.id, role: user.role, email: user.email,
+        name: `${user.firstName} ${user.lastName}` }, expires };
 }

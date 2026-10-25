@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GlassCard, ScreenWrapper, TAB_BAR_HEIGHT } from '../../components/common';
+import apiService from '../../services/api-service';
+import { DEMO_MODE } from '../../services/api-config';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
 interface PrayerTimes { fajr: string; sunrise: string; dhuhr: string; asr: string; maghrib: string; isha: string; jummah1: string; jummah2: string; }
@@ -44,9 +47,16 @@ function addMinutes(time: string, mins: number): string {
 
 export default function PrayersScreen() {
   const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = async () => { setRefreshing(true); setTimeout(() => setRefreshing(false), 1000); };
+  const [p, setPrayers] = useState<PrayerTimes>({ fajr: '--:--', sunrise: '--:--', dhuhr: '--:--', asr: '--:--', maghrib: '--:--', isha: '--:--', jummah1: '--:--', jummah2: '--:--' });
+  const [error, setError] = useState<string | null>(null);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { setPrayers(await apiService.prayers.getToday()); setError(null); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to load prayer times.'); }
+    finally { setRefreshing(false); }
+  };
+  useEffect(() => { void onRefresh(); }, []);
 
-  const p: PrayerTimes = { fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30', jummah1: '13:00', jummah2: '14:00' };
   const nextKey = getNextPrayerKey(p);
 
   return (
@@ -54,10 +64,12 @@ export default function PrayersScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
 
+        {DEMO_MODE && <Text style={styles.note}>Preview mode · Sample prayer times</Text>}
+        {error && <TouchableOpacity onPress={onRefresh} accessibilityRole="button" style={{ padding: SPACING.md }}><Text accessibilityRole="alert" style={{ color: COLORS.error }}>{error} Tap to retry.</Text></TouchableOpacity>}
         {/* Column Layout: Jummah Card Section */}
         <View style={styles.cardSection}>
           <GlassCard style={styles.jummahCard} variant="floating">
-            <LinearGradient colors={['#4A90D9', '#6DD5ED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.jummahGradient}>
+            <LinearGradient colors={[COLORS.primaryDark, COLORS.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.jummahGradient}>
               <View style={styles.jummahShine} />
               <View style={styles.jummahHeader}>
                 <MaterialCommunityIcons name="mosque" size={24} color={COLORS.white} />
@@ -85,7 +97,7 @@ export default function PrayersScreen() {
         <View style={styles.prayersSection}>
           {PRAYER_ROWS.map((row) => {
             const isNext = row.key === nextKey;
-            const iqamahTime = row.iqamah ? addMinutes(p[row.key], parseInt(row.iqamah)) : null;
+            const iqamahTime = null; // Publish confirmed iqamah times before displaying them.
             return (
               <GlassCard key={row.key} style={styles.prayerRow} variant={isNext ? 'floating' : 'default'}>
                 <View style={[styles.prayerNameCell, { flex: 2 }]}>
@@ -105,7 +117,7 @@ export default function PrayersScreen() {
 
         {/* Note */}
         <View style={styles.noteSection}>
-          <Text style={styles.note}>* Iqamah times are approximate. Please arrive early.</Text>
+          <Text style={styles.note}>Iqamah times have not been published. Please confirm with the masjid.</Text>
         </View>
 
         <View style={styles.bottomSpacer} />

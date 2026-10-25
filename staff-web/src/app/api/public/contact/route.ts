@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             message: "Thank you for your message. We will get back to you soon!",
-            reference: submission.id.slice(-8).toUpperCase(),
+            reference: String(submission.id).slice(-8).toUpperCase(),
         }, { status: 201 });
     } catch (error) {
         console.error("Public contact form error:", error);

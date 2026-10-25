@@ -77,7 +77,7 @@ export default function FinancesPage() {
   const [form, setForm] = useState({ month: "Jan", year: new Date().getFullYear(), donations: 0, expenses: 0, notes: "" });
   const [summaryForm, setSummaryForm] = useState({ totalSpent: 0, bankBalance: 0, totalGoal: 0, totalRaised: 0, remainingNeeded: 0 });
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("records");
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
@@ -248,7 +248,7 @@ export default function FinancesPage() {
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
           </TabsList>
           {activeTab === "expenses" && (
-            <Button onClick={() => { setExpenseForm({ categoryId: expenseCategories[0]?.id || "", amount: 0, description: "", date: new Date().toISOString().split("T")[0] }); setExpenseDialog(true); }}>
+            <Button onClick={() => { setExpenseForm({ categoryId: expenseCategories[0] ? String(expenseCategories[0].id) : "", amount: 0, description: "", date: new Date().toISOString().split("T")[0] }); setExpenseDialog(true); }}>
               <Plus className="h-4 w-4 mr-2" />Add Expense
             </Button>
           )}
@@ -393,7 +393,7 @@ export default function FinancesPage() {
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                         <Tooltip
                           contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb" }}
-                          formatter={(value: number) => [`$${value.toLocaleString()}`, undefined]}
+                          formatter={(value: number | undefined) => [`$${(value ?? 0).toLocaleString()}`, undefined]}
                         />
                         <Bar dataKey="donations" name="Donations" fill="#6F4E37" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="expenses" name="Expenses" fill="#B33A3A" radius={[4, 4, 0, 0]} />
@@ -490,7 +490,7 @@ export default function FinancesPage() {
                 <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                 <SelectContent>
                   {expenseCategories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

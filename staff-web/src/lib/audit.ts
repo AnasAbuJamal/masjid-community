@@ -2,7 +2,7 @@ import prisma from "@/lib/prisma";
 
 interface AuditLogOptions {
     action: string;
-    userId?: string;
+    userId?: string | number;
     email?: string;
     details?: string;
     ipAddress?: string;
@@ -27,7 +27,7 @@ export async function logAudit(options: AuditLogOptions) {
         await prisma.auditLog.create({
             data: {
                 action: options.action,
-                userId: options.userId ? parseInt(options.userId) : undefined,
+                userId: options.userId ? Number(options.userId) : undefined,
                 email: options.email || undefined,
                 details: options.details || undefined,
                 ipAddress: options.ipAddress || undefined,

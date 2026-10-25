@@ -10,12 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
-import apiService from '../services/api-service';
+import api from '../services/api-client';
 
 interface Campaign {
   id: string;
@@ -80,6 +81,7 @@ const PRESET_AMOUNTS = [10, 25, 50, 100, 250, 500];
 
 export default function DonateScreen() {
   const router = useRouter();
+  const [processing, setProcessing] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState('general');
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
@@ -87,7 +89,7 @@ export default function DonateScreen() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState<'weekly' | 'monthly'>('monthly');
-  const [recurringDonations, setRecurringDonations] = useState<RecurringDonation[]>(MOCK_RECURRING);
+  const [recurringDonations, setRecurringDonations] = useState<RecurringDonation[]>([]);
 
   const campaign = CAMPAIGNS.find((c) => c.id === selectedCampaign)!;
   const donationAmount = selectedAmount ?? (parseFloat(customAmount) || null);
@@ -96,17 +98,23 @@ export default function DonateScreen() {
 
   const totalRecurring = recurringDonations.filter(r => r.active).reduce((sum, r) => sum + r.amount, 0);
 
-  const handleDonate = () => {
-    if (!donationAmount || donationAmount <= 0) {
-      Alert.alert('Amount Required', 'Please select or enter a donation amount.');
+  const handleDonate = async () => {
+    if (!donationAmount || !Number.isFinite(donationAmount) || donationAmount < 1) {
+      Alert.alert('Amount Required', 'Please select or enter an amount of at least $1.00.');
       return;
     }
-    const donorDisplay = isAnonymous ? 'Anonymous' : (donorName || 'Anonymous');
-    Alert.alert(
-      'Jazakallah Khayran!',
-      `Your donation of $${donationAmount} to the ${campaign.name} ${isAnonymous ? '(anonymous)' : ''} has been received. May Allah bless you abundantly.`,
-      [{ text: 'Ameen!', onPress: () => router.back() }]
-    );
+    if (processing) return;
+    setProcessing(true);
+    try {
+      const { data } = await api.instance.post<{ url: string }>('/donations/checkout', {
+        amount: donationAmount, campaign: selectedCampaign, isAnonymous, isRecurring,
+        frequency: recurringFrequency, donorName: isAnonymous ? undefined : donorName || undefined,
+      });
+      if (!data.url?.startsWith('https://checkout.stripe.com/')) throw new Error('Checkout unavailable');
+      await Linking.openURL(data.url);
+    } catch {
+      Alert.alert('Unable to open checkout', 'Your donation has not been processed. Please try again or contact the masjid.');
+    } finally { setProcessing(false); }
   };
 
   const formatCurrency = (n: number) =>
@@ -147,21 +155,7 @@ export default function DonateScreen() {
                 <View style={styles.campaignInfo}>
                   <Text style={styles.campaignName}>{c.name}</Text>
                   <Text style={styles.campaignDesc}>{c.description}</Text>
-                  <View style={styles.progressRow}>
-                    <View style={styles.progressBarWrap}>
-                      <View style={[styles.progressFill, { width: `${cp}%`, backgroundColor: c.color }]} />
-                    </View>
-                    <Text style={styles.progressLabel}>
-                      {formatCurrency(c.raised)} / {formatCurrency(c.goal)}
-                    </Text>
-                  </View>
-                  <View style={styles.goalProgressRow}>
-                    <View style={styles.goalInfo}>
-                      <View style={[styles.goalDot, { backgroundColor: c.color }]} />
-                      <Text style={styles.goalText}>{cp}% funded</Text>
-                    </View>
-                    <Text style={styles.remainingText}>{formatCurrency(remainingAmount)} remaining</Text>
-                  </View>
+
                 </View>
                 {isSelected && (
                   <MaterialCommunityIcons name="check-circle" size={20} color={c.color} />
@@ -282,6 +276,9 @@ export default function DonateScreen() {
               styles.donateButton,
               !donationAmount && styles.donateButtonDisabled,
             ]}
+            disabled={processing || !donationAmount}
+            accessibilityRole="button"
+            accessibilityLabel="Continue to secure donation checkout"
             onPress={handleDonate}
             activeOpacity={0.8}
           >
@@ -291,14 +288,14 @@ export default function DonateScreen() {
               color={COLORS.white}
             />
             <Text style={styles.donateText}>
-              {donationAmount
-                ? `Donate $${donationAmount}`
+              {processing ? 'Opening checkout…' : donationAmount
+                ? `Continue with $${donationAmount}`
                 : 'Select an Amount'}
             </Text>
           </TouchableOpacity>
 
           <Text style={styles.disclaimer}>
-            All donations are processed securely. Tax receipt will be emailed to you.
+            Continue to Stripe to complete your donation securely. A donation is confirmed only after successful payment.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

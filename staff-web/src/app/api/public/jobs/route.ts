@@ -42,17 +42,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { 
-      jobId, 
-      applicantName, 
-      applicantEmail, 
-      applicantPhone, 
-      resumeUrl, 
+    const {
+      jobId: rawjobId,
+      applicantName,
+      applicantEmail,
+      applicantPhone,
+      resumeUrl,
       coverLetter,
       workerProfileId,
     } = body;
 
-    if (!jobId || !applicantName || !applicantEmail) {
+    const jobId = Number(rawjobId);
+    if (!Number.isSafeInteger(jobId) || jobId < 1 || !applicantName || !applicantEmail) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -96,9 +97,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: "Application submitted successfully",
-      applicationId: application.id 
+      applicationId: application.id
     }, { status: 201 });
   } catch (error) {
     console.error("Job application error:", error);

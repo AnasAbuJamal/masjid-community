@@ -13,12 +13,12 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const status = searchParams.get("status");
-    const categoryId = searchParams.get("categoryId");
+    const categoryId = searchParams.has("categoryId") ? Number(searchParams.get("categoryId")) : null;
     const tag = searchParams.get("tag");
 
     const where: Prisma.BlogPostWhereInput = {};
     if (status) where.status = status as "draft" | "published" | "archived";
-    if (categoryId) where.categoryId = categoryId;
+    if (categoryId) where.categoryId = Number(categoryId);
     if (tag) where.tags = { has: tag };
 
     const [posts, total] = await Promise.all([

@@ -1,6 +1,7 @@
-import axios from 'axios';
+import api from './api-client';
+const axios = api.instance;
 
-const API_BASE = 'https://api.masjidalmomineen.com';
+const API_BASE = ''; // Paths resolve against the shared API client.
 
 export interface Teacher {
   id: string;

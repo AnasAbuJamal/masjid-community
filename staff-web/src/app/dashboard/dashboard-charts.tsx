@@ -20,13 +20,13 @@ interface DonationData {
   id: number;
   donorName: string | null;
   amount: number;
-  createdAt: string;
+  createdAt: string | Date;
   status: string;
 }
 
 export function DonationChart({ data }: { data: MonthlyData[] }) {
   return (
-    <Card className="col-span-2 border-0 shadow-sm">
+    <Card className="lg:col-span-2 border-0 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Revenue Overview</CardTitle>
       </CardHeader>
@@ -36,8 +36,8 @@ export function DonationChart({ data }: { data: MonthlyData[] }) {
             <AreaChart data={data}>
               <defs>
                 <linearGradient id="donationGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8B5E3C" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#8B5E3C" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
@@ -48,7 +48,7 @@ export function DonationChart({ data }: { data: MonthlyData[] }) {
               <Area
                 type="monotone"
                 dataKey="donations"
-                stroke="#8B5E3C"
+                stroke="#2563eb"
                 fill="url(#donationGradient)"
                 strokeWidth={2}
               />
@@ -75,7 +75,7 @@ export function DonationBarChart({ data }: { data: MonthlyData[] }) {
               <Tooltip
                 contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb" }}
               />
-              <Bar dataKey="donations" fill="#6F4E37" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="donations" fill="#2563eb" radius={[4, 4, 0, 0]} />
               <Bar dataKey="expenses" fill="#B33A3A" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -243,7 +243,7 @@ interface NotificationItem {
   type: string;
   title: string;
   message: string;
-  createdAt: string;
+  createdAt: string | Date;
   isRead: boolean;
 }
 

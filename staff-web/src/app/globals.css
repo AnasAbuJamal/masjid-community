@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -25,7 +26,17 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --font-sans: "Inter", sans-serif;
+  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
+  --color-mocha-50: #eff6ff;
+  --color-mocha-100: #dbeafe;
+  --color-mocha-200: #bfdbfe;
+  --color-mocha-300: #93c5fd;
+  --color-mocha-400: #60a5fa;
+  --color-mocha-500: #3b82f6;
+  --color-mocha-600: #2563eb;
+  --color-mocha-700: #1d4ed8;
+  --color-mocha-800: #1e40af;
+  --color-mocha-900: #1e3a8a;
 }
 
 @layer base {
@@ -59,8 +70,8 @@
   }
   body {
     @apply antialiased font-sans;
-    background-color: #ffffff !important;
-    color: #111827 !important;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
 
@@ -130,6 +141,26 @@
 
 /* Mocha gradient button / active state */
 .mocha-gradient {
-  background: linear-gradient(135deg, #6f4e37 0%, #a0765c 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
   color: white;
 }
+
+/* Keyboard and touch affordances are consistent throughout the portal. */
+:focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+button:not(:disabled), a, [role="button"] { -webkit-tap-highlight-color: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+.login-pattern {
+  background-image: radial-gradient(circle at 20% 20%, #60a5fa24 0, transparent 45%), repeating-linear-gradient(45deg, transparent, transparent 39px, #ffffff08 40px, transparent 41px);
+}
+/* Legacy page components share these neutral surfaces in dark mode. */
+.dark { --background: 222 47% 8%; --foreground: 214 32% 91%; --card: 222 35% 12%; --border: 217 25% 25%; --input: 217 25% 25%; color-scheme: dark; }
+.dark .bg-white { background-color: #111c30; }
+.dark .bg-slate-50, .dark .bg-gray-50, .dark .bg-gray-100 { background-color: #0c1526; }
+.dark .text-gray-900, .dark .text-slate-900, .dark .text-slate-700, .dark .text-gray-700 { color: #e2e8f0; }
+.dark .text-gray-600, .dark .text-gray-500, .dark .text-slate-500 { color: #a4b3c8; }
+.dark .border-gray-200 { border-color: #2a3951; }
+.dark .bg-blue-50 { background-color: #172e53; }
+.dark .text-blue-800 { color: #93c5fd; }
+.dark header { background-color: #111c30f2; }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { z } from "zod";
 import Stripe from "stripe";
 
 function getStripe() {
@@ -10,12 +11,16 @@ function getStripe() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName, successUrl, cancelUrl } = body;
-
-    if (!amount || amount < 100) {
-      return NextResponse.json({ error: "Minimum donation is $1.00" }, { status: 400 });
-    }
+    const parsed = z.object({
+      amount: z.number().finite().min(1).max(100000),
+      campaign: z.enum(["general", "construction", "ramadan", "education", "zakat", "sadaqah"]).default("general"),
+      isAnonymous: z.boolean().default(false), isRecurring: z.boolean().default(false),
+      frequency: z.enum(["weekly", "monthly"]).default("monthly"),
+      donorEmail: z.string().email().optional(), donorName: z.string().trim().max(150).optional(),
+    }).safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: "Enter a valid donation amount (minimum $1.00) and campaign" }, { status: 400 });
+    const { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName, frequency } = parsed.data;
+    if (!process.env.STRIPE_SECRET_KEY) return NextResponse.json({ error: "Online donations are not configured yet. Please contact the masjid." }, { status: 503 });
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -34,13 +39,14 @@ export async function POST(req: NextRequest) {
               description: `Donation to Al-Momineen - ${campaign || "General Fund"}`,
             },
             unit_amount: Math.round(amount * 100),
+            ...(isRecurring ? { recurring: { interval: frequency === "weekly" ? "week" as const : "month" as const } } : {}),
           },
           quantity: 1,
         },
       ],
       mode: isRecurring ? "subscription" : "payment",
-      success_url: successUrl || `${appUrl}/donate/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${appUrl}/donate/cancel`,
+      success_url: `${appUrl}/donate/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/donate/cancel`,
       metadata: {
         campaign: campaign || "general",
         isAnonymous: isAnonymous ? "true" : "false",
@@ -60,13 +66,6 @@ export async function POST(req: NextRequest) {
       sessionParams.customer_email = donorEmail;
     }
 
-    if (!isAnonymous && donorName) {
-      sessionParams.customer = {
-        name: donorName,
-        email: donorEmail,
-      } as unknown as string;
-    }
-
     const session = await getStripe().checkout.sessions.create(sessionParams);
 
     await prisma.donation.create({
@@ -75,17 +74,17 @@ export async function POST(req: NextRequest) {
         amount: Math.round(amount * 100),
         currency: "usd",
         status: "pending",
-        donorName: isAnonymous ? null : donorName,
-        donorEmail: isAnonymous ? null : donorEmail,
+        donorName: isAnonymous ? null : donorName || null,
+        donorEmail: isAnonymous ? null : donorEmail || null,
         isAnonymous: isAnonymous || false,
         campaign: campaign || "general",
         isRecurring: isRecurring || false,
       },
     });
 
-    return NextResponse.json({ 
-      sessionId: session.id, 
-      url: session.url 
+    return NextResponse.json({
+      sessionId: session.id,
+      url: session.url
     });
   } catch (error) {
     console.error("Stripe checkout error:", error);
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ 
+  return NextResponse.json({
     message: "Create donation checkout session",
     usage: "POST with { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName }"
   });

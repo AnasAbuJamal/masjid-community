@@ -64,7 +64,7 @@ export default function MediaLibraryPage() {
   const [uploadFilename, setUploadFilename] = useState("");
   const [uploadFolder, setUploadFolder] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const [totalSize, setTotalSize] = useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -90,7 +90,7 @@ export default function MediaLibraryPage() {
     fetchFiles();
   }, [currentFolder]);
 
-  const copyToClipboard = async (text: string, id: string) => {
+  const copyToClipboard = async (text: string, id: number) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(id);
@@ -171,7 +171,7 @@ export default function MediaLibraryPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Delete this file?")) return;
     try {
       await fetch(`/api/media?id=${id}`, { method: "DELETE" });

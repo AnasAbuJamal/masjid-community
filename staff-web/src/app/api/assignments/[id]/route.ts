@@ -7,7 +7,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
     if (body.date) body.date = new Date(body.date);
 
@@ -20,7 +24,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     await prisma.assignment.delete({ where: { id } });
     await logAudit({ action: "delete_assignment", userId: session.user.id, details: `Deleted assignment ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });

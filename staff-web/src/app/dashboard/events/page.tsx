@@ -108,7 +108,7 @@ export default function EventsPage() {
   const openEditModal = (event: Event) => {
     const startDate = new Date(event.startDate);
     const endDate = event.endDate ? new Date(event.endDate) : null;
-    
+
     setFormData({
       title: event.title,
       description: event.description,
@@ -136,7 +136,7 @@ export default function EventsPage() {
       const startDateTime = formData.isAllDay
         ? new Date(`${formData.startDate}T00:00:00`).toISOString()
         : new Date(`${formData.startDate}T${formData.startTime}:00`).toISOString();
-      
+
       const endDateTime = formData.endDate
         ? formData.isAllDay
           ? new Date(`${formData.endDate}T23:59:59`).toISOString()
@@ -178,9 +178,9 @@ export default function EventsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this event?")) return;
-    
+
     try {
       await fetch(`/api/events/${id}`, { method: "DELETE" });
       fetchEvents();

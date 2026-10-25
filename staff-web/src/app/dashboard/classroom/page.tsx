@@ -44,7 +44,7 @@ export default function ClassroomPage() {
   const [classForm, setClassForm] = useState({ name: "", teacherName: "", schedule: "" });
   const [studentForm, setStudentForm] = useState({ firstName: "", lastName: "", classId: "", parentName: "", parentEmail: "", parentPhone: "" });
   const [saving, setSaving] = useState(false);
-  const [deleteItem, setDeleteItem] = useState<{ type: "class" | "student"; id: string } | null>(null);
+  const [deleteItem, setDeleteItem] = useState<{ type: "class" | "student"; id: number } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -59,8 +59,8 @@ export default function ClassroomPage() {
 
   const openCreateClass = () => { setEditingClass(null); setClassForm({ name: "", teacherName: "", schedule: "" }); setClassDialog(true); };
   const openEditClass = (cls: ClassItem) => { setEditingClass(cls); setClassForm({ name: cls.name, teacherName: cls.teacherName, schedule: cls.schedule }); setClassDialog(true); };
-  const openCreateStudent = () => { setEditingStudent(null); setStudentForm({ firstName: "", lastName: "", classId: classes[0]?.id || "", parentName: "", parentEmail: "", parentPhone: "" }); setStudentDialog(true); };
-  const openEditStudent = (s: Student) => { setEditingStudent(s); setStudentForm({ firstName: s.firstName, lastName: s.lastName, classId: s.classId, parentName: s.parentName, parentEmail: s.parentEmail || "", parentPhone: s.parentPhone || "" }); setStudentDialog(true); };
+  const openCreateStudent = () => { setEditingStudent(null); setStudentForm({ firstName: "", lastName: "", classId: classes[0] ? String(classes[0].id) : "", parentName: "", parentEmail: "", parentPhone: "" }); setStudentDialog(true); };
+  const openEditStudent = (s: Student) => { setEditingStudent(s); setStudentForm({ firstName: s.firstName, lastName: s.lastName, classId: String(s.classId), parentName: s.parentName, parentEmail: s.parentEmail || "", parentPhone: s.parentPhone || "" }); setStudentDialog(true); };
 
   const handleSaveClass = async () => {
     setSaving(true);

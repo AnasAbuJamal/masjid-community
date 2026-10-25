@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
@@ -30,13 +31,15 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     try {
         const { searchParams } = req.nextUrl;
-        const email = searchParams.get("email");
+        const email = session.user.role === "admin" ? searchParams.get("email") : session.user.email;
 
         if (email) {
             const applications = await prisma.studentApplication.findMany({
-                where: { parentEmail: email },
+                where: { parentEmail: { equals: email, mode: "insensitive" } },
                 orderBy: { createdAt: "desc" },
             });
             return NextResponse.json(applications);

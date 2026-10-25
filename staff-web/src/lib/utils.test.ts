@@ -69,14 +69,14 @@ describe('utils', () => {
     describe('generateStudentId', () => {
         it('generates student ID with correct format', () => {
             const id = generateStudentId();
-            expect(id).toMatch(/^STU-\d{4}-\d{3}$/);
+            expect(String(id)).toMatch(/^\d{9}$/);
         });
 
         it('generates student IDs in correct format', () => {
             const ids = new Set(Array.from({ length: 100 }, () => generateStudentId()));
             expect(ids.size).toBeGreaterThanOrEqual(90);
             ids.forEach(id => {
-                expect(id).toMatch(/^STU-\d{4}-\d{3}$/);
+                expect(String(id)).toMatch(/^\d{9}$/);
             });
         });
     });

@@ -1,3 +1,4 @@
+import apiService from './api-service';
 /**
  * API Service Layer
  * Connected to the staff-web backend API.
@@ -56,60 +57,10 @@ export interface VolunteerOpportunity {
 // ─────────────────────────────────────────
 export const prayerService = {
   getToday: async (): Promise<PrayerTimes> => {
-    try {
-      const res = await api.instance.get('/prayers', {
-        params: { limit: 1 },
-      });
-      const prayers = res.data.prayers;
-      if (prayers && prayers.length > 0) {
-        const p = prayers[0];
-        return {
-          fajr: p.fajr,
-          sunrise: p.sunrise,
-          dhuhr: p.dhuhr,
-          asr: p.asr,
-          maghrib: p.maghrib,
-          isha: p.isha,
-          jummah1: p.jummah1 || '',
-          jummah2: p.jummah2 || '',
-        };
-      }
-    } catch (error) {
-      console.error('[API] Failed to fetch prayer times:', error);
-    }
-    // Fallback if API fails
-    return {
-      fajr: '--:--',
-      sunrise: '--:--',
-      dhuhr: '--:--',
-      asr: '--:--',
-      maghrib: '--:--',
-      isha: '--:--',
-      jummah1: '--:--',
-      jummah2: '--:--',
-    };
+    const times = await apiService.prayers.getToday();
+    return times;
   },
-
-  getWeek: async (): Promise<PrayerTimes[]> => {
-    try {
-      const res = await api.instance.get('/prayers', {
-        params: { limit: 7 },
-      });
-      return (res.data.prayers || []).map((p: any) => ({
-        fajr: p.fajr,
-        sunrise: p.sunrise,
-        dhuhr: p.dhuhr,
-        asr: p.asr,
-        maghrib: p.maghrib,
-        isha: p.isha,
-        jummah1: p.jummah1 || '',
-        jummah2: p.jummah2 || '',
-      }));
-    } catch (error) {
-      console.error('[API] Failed to fetch weekly prayers:', error);
-      return [];
-    }
-  },
+  getWeek: async (): Promise<PrayerTimes[]> => apiService.prayers.getWeek(),
 };
 
 // ─────────────────────────────────────────
@@ -118,11 +69,11 @@ export const prayerService = {
 export const announcementService = {
   getAll: async (): Promise<Announcement[]> => {
     try {
-      const res = await api.instance.get('/kiosk');
+      const res = await api.instance.get('/public/announcements');
       return (res.data.announcements || [])
         .filter((a: any) => a.isActive)
         .map((a: any) => ({
-          id: a.id,
+          id: String(a.id),
           title: a.title,
           message: a.message,
           type: a.type,
@@ -147,9 +98,9 @@ export const announcementService = {
 export const jobService = {
   getAll: async (): Promise<Job[]> => {
     try {
-      const res = await api.instance.get('/jobs');
-      return (res.data.postings || []).map((j: any) => ({
-        id: j.id,
+      const res = await api.instance.get('/public/jobs');
+      return (res.data.jobs || []).map((j: any) => ({
+        id: String(j.id),
         title: j.title,
         company: j.company,
         description: j.description,
@@ -175,9 +126,9 @@ export const jobService = {
 export const communityService = {
   getVolunteerOpportunities: async (): Promise<VolunteerOpportunity[]> => {
     try {
-      const res = await api.instance.get('/volunteers');
+      const res = await api.instance.get('/public/volunteers');
       return (res.data.opportunities || []).map((v: any) => ({
-        id: v.id,
+        id: String(v.id),
         title: v.title,
         description: v.description,
         eventDate: v.eventDate,

@@ -7,8 +7,8 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "10");
 
   if (slug) {
-    const post = await prisma.blogPost.findUnique({
-      where: { slug },
+    const post = await prisma.blogPost.findFirst({
+      where: { slug, status: "published" },
       include: { author: { select: { firstName: true, lastName: true } } },
     });
     return NextResponse.json({ post });
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       updatedAt: true,
     },
     orderBy: { createdAt: "desc" },
-    take: limit,
+    take: Math.min(100, Math.max(1, Number.isFinite(limit) ? limit : 10)),
   });
 
   return NextResponse.json({ posts });

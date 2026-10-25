@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { searchParams } = req.nextUrl;
     const studentId = searchParams.get("studentId");
     const parentEmail = searchParams.get("email");
@@ -16,7 +18,7 @@ export async function GET(req: NextRequest) {
 
         if (studentId) {
             const student = await prisma.student.findUnique({
-                where: { id: studentId },
+                where: { id: Number(studentId), ...(["admin", "teacher"].includes(session.user.role) ? {} : { parentEmail: { equals: session.user.email, mode: "insensitive" as const } }) },
                 include: {
                     class: true,
                     assignments: {
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest) {
             students = student ? [student] : [];
         } else {
             students = await prisma.student.findMany({
-                where: { parentEmail: parentEmail?.toLowerCase() },
+                where: { parentEmail: { equals: ["admin", "teacher"].includes(session.user.role) ? parentEmail?.toLowerCase() : session.user.email, mode: "insensitive" } },
                 include: {
                     class: true,
                     assignments: {

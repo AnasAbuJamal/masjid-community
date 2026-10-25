@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
             },
         });
 
-        const markedByInt = parseInt(session.user.id);
+        const markedByInt = session.user.id;
 
         for (const record of records) {
             const parsedStudentId = parseInt(record.studentId);
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
             },
         });
 
-        const markedByInt = parseInt(session.user.id);
+        const markedByInt = session.user.id;
 
         if (existing) {
             const updated = await prisma.attendance.update({
@@ -226,7 +226,7 @@ async function updateStudentAttendanceRate(studentId: number) {
     else attendanceStatus = "poor";
 
     await prisma.student.update({
-        where: { id: studentId },
+        where: { id: Number(studentId) },
         data: { attendanceRate: rate, attendanceStatus },
     });
 }

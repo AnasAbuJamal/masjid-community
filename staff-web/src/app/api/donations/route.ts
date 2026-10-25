@@ -77,7 +77,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { searchParams } = req.nextUrl;
-    const id = searchParams.get("id");
+    const id = searchParams.has("id") ? Number(searchParams.get("id")) : null;
 
     if (!id) {
         return NextResponse.json({ error: "ID required" }, { status: 400 });

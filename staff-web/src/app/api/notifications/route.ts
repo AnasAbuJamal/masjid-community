@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     const notification = await prisma.notification.update({
-        where: { id },
+        where: { id: Number(id), userId: session.user.id },
         data: { isRead: true },
     });
 
@@ -78,11 +78,11 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    const id = searchParams.has("id") ? Number(searchParams.get("id")) : null;
 
     if (id) {
         await prisma.notification.delete({
-            where: { id },
+            where: { id: Number(id), userId: session.user.id },
         });
         return NextResponse.json({ success: true });
     }
@@ -92,26 +92,4 @@ export async function DELETE(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, message: "All notifications deleted" });
-}
-
-export async function createNotification(
-    userId: string,
-    data: {
-        type: "info" | "success" | "warning" | "error" | "donation" | "volunteer" | "proposal" | "job" | "assignment" | "attendance" | "system";
-        title: string;
-        message: string;
-        link?: string;
-        metadata?: Record<string, unknown> | null;
-    }
-) {
-    return prisma.notification.create({
-        data: {
-            userId,
-            type: data.type as "info" | "success" | "warning" | "error" | "donation" | "volunteer" | "proposal" | "job" | "assignment" | "attendance" | "system",
-            title: data.title,
-            message: data.message,
-            link: data.link || undefined,
-            metadata: data.metadata as Prisma.InputJsonValue | null | undefined,
-        },
-    });
 }

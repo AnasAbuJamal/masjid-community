@@ -9,7 +9,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
     if (body.startDate) body.startDate = new Date(body.startDate);
     if (body.endDate) body.endDate = new Date(body.endDate);
@@ -23,9 +27,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.isFundingSecured !== undefined) body.isFundingSecured = body.isFundingSecured === true || body.isFundingSecured === "true";
     if (body.isCompleted !== undefined) body.isCompleted = body.isCompleted === true || body.isCompleted === "true";
 
-    const proposal = await prisma.projectProposal.update({ 
-        where: { id: parseInt(id) }, 
-        data: body 
+    const proposal = await prisma.projectProposal.update({
+        where: { id: id },
+        data: body
     });
     await logAudit({ action: "update_proposal", userId: session.user.id, details: `Updated proposal ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(proposal);
@@ -37,9 +41,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
-    await prisma.projectProposal.delete({ 
-        where: { id: parseInt(id) } 
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
+    await prisma.projectProposal.delete({
+        where: { id: id }
     });
     await logAudit({ action: "delete_proposal", userId: session.user.id, details: `Deleted proposal ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });

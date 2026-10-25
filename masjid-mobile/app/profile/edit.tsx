@@ -8,7 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScreenWrapper, Input, Button, GlassCard } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
@@ -51,10 +51,7 @@ export default function EditProfileScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch {
-      updateUser({ firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() || undefined });
-      Alert.alert('Saved', 'Profile updated locally.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Alert.alert('Unable to save', 'Your changes were not saved. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -171,7 +168,6 @@ export default function EditProfileScreen() {
   );
 }
 
-import { Stack } from 'expo-router';
 
 const styles = StyleSheet.create({
   keyboardView: { flex: 1, backgroundColor: COLORS.background },

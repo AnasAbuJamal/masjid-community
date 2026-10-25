@@ -1,67 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { registrationSchema } from "@/lib/auth-validation";
+import { issueMobileToken } from "@/lib/mobile-token";
 
 export async function POST(req: NextRequest) {
-  try {
-    const { email, password, firstName, lastName } = await req.json();
-
-    if (!email || !password || !firstName || !lastName) {
-      return NextResponse.json(
-        { error: "Email, password, first name, and last name are required" },
-        { status: 400 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
-      );
+    try {
+        const parsed = registrationSchema.safeParse(await req.json());
+        if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+        const { password, ...data } = parsed.data;
+        if (!process.env.AUTH_SECRET) throw new Error("AUTH_SECRET is required");
+        const user = await prisma.user.create({ data: {
+            ...data, passwordHash: await bcrypt.hash(password, 12), role: "member",
+        } });
+        const token = await issueMobileToken(user.id);
+        return NextResponse.json({ user: {
+            id: String(user.id), email: user.email, firstName: user.firstName,
+            lastName: user.lastName, role: user.role, phone: user.phone,
+        }, token }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+        if (error instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+            return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+        }
+        console.error("Registration failed", error);
+        return NextResponse.json({ error: "Unable to create account" }, { status: 500 });
     }
-
-    const existing = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "User with this email already exists" },
-        { status: 409 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
-      );
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    const user = await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        passwordHash,
-        firstName,
-        lastName,
-        role: "member",
-        isActive: true,
-      },
-    });
-
-    const token = Buffer.from(`${user.id}:${user.email}:${Date.now()}`).toString("base64");
-
-    return NextResponse.json(
-      {
-        user: {
-          id: user.id.toString(),
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          phone: user.phone,
-          avatar: user.avatar,
-        },
-        token,
-      },
-      { status: 201, headers: { "Access-Control-Allow-Origin": "*" } }
-    );
-  } catch (error) {
-    console.error("Registration error:", error);
-    return NextResponse.json(
-      { error: "Registration failed" },
-      { status: 500 },
-      { headers: { "Access-Control-Allow-Origin": "*" } }
-    );
-  }
 }

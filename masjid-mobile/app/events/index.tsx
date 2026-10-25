@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Alert,
   Text,
   StyleSheet,
   FlatList,
@@ -11,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlassCard, ScreenWrapper, FloatingIcon } from '../../components/common';
+import { eventService } from '../../services/event-service';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
 interface Event {
@@ -20,79 +22,10 @@ interface Event {
   date: string;
   time: string;
   location: string;
-  category: 'religious' | 'educational' | 'community' | 'youth' | 'family';
+  category: string;
   attendees: number;
   isRegistered: boolean;
 }
-
-const MOCK_EVENTS: Event[] = [
-  {
-    id: '1',
-    title: 'Ramadan Iftar Program',
-    description: 'Join us for a blessed iftar experience with complete iftar meals, Quran recitation, and community bonding.',
-    date: '2026-03-18',
-    time: '6:30 PM',
-    location: 'Main Prayer Hall',
-    category: 'religious',
-    attendees: 85,
-    isRegistered: false,
-  },
-  {
-    id: '2',
-    title: 'Youth Islamic Quiz Night',
-    description: 'Test your knowledge of Islamic history and Quran in a fun competitive environment. Prizes for winners!',
-    date: '2026-03-20',
-    time: '7:00 PM',
-    location: 'Youth Center',
-    category: 'youth',
-    attendees: 45,
-    isRegistered: false,
-  },
-  {
-    id: '3',
-    title: "Women's Circle: Ramadan Reflections",
-    description: 'A spiritual gathering for sisters to discuss the benefits of Ramadan and share meaningful experiences.',
-    date: '2026-03-21',
-    time: '10:00 AM',
-    location: "Women's Lounge",
-    category: 'family',
-    attendees: 30,
-    isRegistered: false,
-  },
-  {
-    id: '4',
-    title: 'Quran Memorization Workshop',
-    description: 'Learn effective techniques for memorizing and retaining Quranic verses. Open to all ages.',
-    date: '2026-03-22',
-    time: '9:00 AM',
-    location: 'Islamic School Rooms',
-    category: 'educational',
-    attendees: 25,
-    isRegistered: false,
-  },
-  {
-    id: '5',
-    title: 'Community Cleanup Day',
-    description: 'Help maintain our mosque grounds and surrounding area. Refreshments provided for all volunteers.',
-    date: '2026-03-25',
-    time: '8:00 AM',
-    location: 'Masjid Grounds',
-    category: 'community',
-    attendees: 40,
-    isRegistered: false,
-  },
-  {
-    id: '6',
-    title: 'Eid al-Fitr Preparation Meeting',
-    description: 'Organizing committee meeting for Eid celebrations. All volunteers welcome to attend.',
-    date: '2026-03-28',
-    time: '6:00 PM',
-    location: 'Conference Room',
-    category: 'religious',
-    attendees: 20,
-    isRegistered: false,
-  },
-];
 
 const CATEGORIES = [
   { key: 'all', label: 'All Events', icon: 'calendar-multiple' },
@@ -117,10 +50,9 @@ export default function EventsScreen() {
 
   const loadEvents = async () => {
     setLoading(true);
-    setTimeout(() => {
-      setEvents(MOCK_EVENTS);
-      setLoading(false);
-    }, 500);
+    try { setEvents(await eventService.getAll()); }
+    catch { Alert.alert('Unable to load events', 'Please check your connection and pull down to retry.'); }
+    finally { setLoading(false); }
   };
 
   const handleRefresh = async () => {
@@ -129,8 +61,8 @@ export default function EventsScreen() {
     setRefreshing(false);
   };
 
-  const filteredEvents = selectedCategory === 'all' 
-    ? events 
+  const filteredEvents = selectedCategory === 'all'
+    ? events
     : events.filter(e => e.category === selectedCategory);
 
   const formatDate = (dateStr: string) => {
@@ -163,10 +95,10 @@ export default function EventsScreen() {
               style={[styles.categoryChip, selectedCategory === item.key && styles.categoryChipActive]}
               onPress={() => setSelectedCategory(item.key)}
             >
-              <MaterialCommunityIcons 
-                name={item.icon as any} 
-                size={16} 
-                color={selectedCategory === item.key ? COLORS.white : COLORS.textSecondary} 
+              <MaterialCommunityIcons
+                name={item.icon as any}
+                size={16}
+                color={selectedCategory === item.key ? COLORS.white : COLORS.textSecondary}
               />
               <Text style={[styles.categoryText, selectedCategory === item.key && styles.categoryTextActive]}>
                 {item.label}
@@ -239,10 +171,10 @@ export default function EventsScreen() {
     <View style={styles.emptyWrapper}>
       <GlassCard>
         <View style={styles.centeredContent}>
-          <FloatingIcon 
-            icon={<MaterialCommunityIcons name="calendar-blank" size={32} color={COLORS.textSecondary} />} 
-            size="lg" 
-            color={COLORS.textSecondary} 
+          <FloatingIcon
+            icon={<MaterialCommunityIcons name="calendar-blank" size={32} color={COLORS.textSecondary} />}
+            size="lg"
+            color={COLORS.textSecondary}
           />
           <Text style={styles.emptyTitle}>No events found</Text>
           <Text style={styles.emptySubtext}>Check back soon for upcoming events</Text>
@@ -283,13 +215,13 @@ const styles = StyleSheet.create({
 
   categorySection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: SPACING.sm },
   categoryList: { paddingHorizontal: SPACING.md, gap: SPACING.xs },
-  categoryChip: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingHorizontal: SPACING.sm + 4, 
-    paddingVertical: SPACING.xs + 2, 
-    backgroundColor: COLORS.surface, 
-    borderRadius: RADIUS.full, 
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm + 4,
+    paddingVertical: SPACING.xs + 2,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.full,
     gap: 4,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -309,7 +241,7 @@ const styles = StyleSheet.create({
 
   eventTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, lineHeight: 22 },
   eventDesc: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  
+
   eventMeta: { flexDirection: 'row', gap: SPACING.md },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { fontSize: 12, color: COLORS.textSecondary },

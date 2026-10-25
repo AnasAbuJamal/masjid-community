@@ -1,6 +1,7 @@
-import axios from 'axios';
+import api from './api-client';
+const axios = api.instance;
 
-const API_BASE = 'https://api.masjidalmomineen.com';
+const API_BASE = ''; // Paths resolve against the shared API client.
 
 export type ResourceType = 'video' | 'document' | 'link' | 'audio' | 'image';
 
@@ -47,7 +48,7 @@ class ResourceService {
     if (filters?.type) params.append('type', filters.type);
     if (filters?.gradeLevel) params.append('gradeLevel', filters.gradeLevel);
     if (filters?.search) params.append('search', filters.search);
-    
+
     const response = await axios.get(`${API_BASE}/resources?${params}`);
     return response.data;
   }

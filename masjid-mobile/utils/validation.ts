@@ -10,6 +10,8 @@ export const phoneSchema = z
 
 export const nameSchema = z
   .string()
+  .trim()
+  .regex(/^[\p{L}\p{M} .’'\-]+$/u, 'Name may only contain letters, spaces, apostrophes, periods, and hyphens')
   .min(1, 'Name is required')
   .min(2, 'Name must be at least 2 characters')
   .max(100, 'Name must be less than 100 characters');

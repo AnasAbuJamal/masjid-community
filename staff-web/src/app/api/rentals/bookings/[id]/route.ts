@@ -4,7 +4,11 @@ import { auth } from "@/lib/auth";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const session = await auth();
     if (!session || session.user.role !== "admin") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -14,9 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         const body = await req.json();
         const { action, adminNotes } = body;
 
-        const newStatus = action === "approve" ? "approved" : 
-                         action === "reject" ? "rejected" : 
-                         action === "complete" ? "completed" : 
+        const newStatus = action === "approve" ? "approved" :
+                         action === "reject" ? "rejected" :
+                         action === "complete" ? "completed" :
                          action === "cancel" ? "cancelled" : undefined;
 
         if (!newStatus) {
@@ -33,8 +37,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         });
 
         await logAudit({
-            action: action === "approve" ? "approve_rental_booking" : 
-                    action === "reject" ? "reject_rental_booking" : 
+            action: action === "approve" ? "approve_rental_booking" :
+                    action === "reject" ? "reject_rental_booking" :
                     action === "complete" ? "complete_rental_booking" : "cancel_rental_booking",
             userId: session.user.id,
             details: `${action === "approve" ? "Approved" : action === "reject" ? "Rejected" : action === "complete" ? "Completed" : "Cancelled"} rental booking for ${booking.item.name}`,

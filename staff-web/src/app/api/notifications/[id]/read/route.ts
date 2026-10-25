@@ -9,9 +9,13 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
   }
 
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const notification = await prisma.notification.update({
-      where: { id: parseInt(id) },
+      where: { id, userId: session.user.id },
       data: { isRead: true },
     });
 

@@ -9,7 +9,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
 
     if (!body.status || !["pending", "approved", "rejected"].includes(body.status)) {
@@ -17,7 +21,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const application = await prisma.volunteerApplication.update({
-        where: { id: parseInt(id) },
+        where: { id: id },
         data: { status: body.status },
     });
 

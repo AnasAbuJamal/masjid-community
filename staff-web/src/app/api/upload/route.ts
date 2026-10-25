@@ -1,3 +1,4 @@
+import { auth } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
@@ -40,6 +41,8 @@ function getMimeType(dataUrl: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session || !["admin", "teacher"].includes(session.user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   try {
     const body = await req.json();
     const { image, type = "blog" } = body;
@@ -54,26 +57,26 @@ export async function POST(req: NextRequest) {
     if (image.startsWith("http://") || image.startsWith("https://")) {
       imageUrl = image;
       fileName = image.split("/").pop() || "image.jpg";
-    } 
+    }
     else if (isValidBase64(image)) {
       await ensureUploadDir();
-      
+
       const base64Data = image.split(",")[1];
       const buffer = Buffer.from(base64Data, "base64");
       const mimeType = getMimeType(image);
       const ext = mimeType.split("/")[1] || "jpg";
       fileName = `${type}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      
+
       const filePath = join(UPLOAD_DIR, fileName);
       await writeFile(filePath, buffer);
-      
+
       imageUrl = `/uploads/${fileName}`;
-    } 
+    }
     else {
       return NextResponse.json({ error: "Invalid image format. Use URL or base64 data URL" }, { status: 400 });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       url: imageUrl,
       fileName,
       message: "Image uploaded successfully"
@@ -85,7 +88,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ 
+  return NextResponse.json({
     message: "Image upload endpoint",
     usage: "POST with { image: 'base64 or url', type: 'blog|student|worker' }",
     note: "For production, consider using S3 or Cloudinary"

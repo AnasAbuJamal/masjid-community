@@ -1,4 +1,5 @@
 import { withAuth } from "next-auth/middleware";
+import { navItems, type UserRole } from "@/lib/role-config";
 import { NextResponse } from "next/server";
 
 const publicPaths = ["/", "/api/auth", "/kiosk", "/api/public/notifications"];
@@ -7,13 +8,6 @@ const publicApiPaths = [
   "/api/public",
   "/api/webhooks",
   "/api/auth-login"
-];
-
-const teacherAllowedPaths = [
-  "/dashboard",
-  "/dashboard/classroom",
-  "/dashboard/assignments",
-  "/dashboard/gamification",
 ];
 
 export default withAuth(
@@ -30,33 +24,22 @@ export default withAuth(
     }
 
     const token = req.nextauth.token;
-    
+
     if (!token && pathname.startsWith("/dashboard")) {
       return NextResponse.redirect(new URL("/", req.url));
     }
 
-    if (token) {
-      const role = token.role as string;
-
-      if (role === "admin") {
-        return NextResponse.next();
-      }
-
-      if (role === "teacher" && pathname.startsWith("/dashboard")) {
-        const isAllowed = teacherAllowedPaths.some((path) => {
-          if (path === "/dashboard") return pathname === "/dashboard";
-          return pathname === path || pathname.startsWith(path + "/");
-        });
-
-        if (!isAllowed) {
-          return NextResponse.redirect(new URL("/dashboard", req.url));
-        }
+    if (token && pathname.startsWith("/dashboard")) {
+      const item = [...navItems].sort((a, b) => b.href.length - a.href.length).find(item => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + "/")));
+      if (item && !item.roles.includes(token.role as UserRole)) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
       }
     }
 
     return NextResponse.next();
   },
   {
+    secret: process.env.AUTH_SECRET,
     callbacks: {
       authorized: () => true,
     },

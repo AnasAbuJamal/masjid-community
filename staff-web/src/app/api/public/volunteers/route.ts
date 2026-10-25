@@ -13,9 +13,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { opportunityId, userName, userEmail, userPhone, skills } = body;
+    const { opportunityId: rawopportunityId, userName, userEmail, userPhone, skills } = body;
 
-    if (!opportunityId || !userName || !userEmail) {
+    const opportunityId = Number(rawopportunityId);
+    if (!Number.isSafeInteger(opportunityId) || opportunityId < 1 || !userName || !userEmail) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 

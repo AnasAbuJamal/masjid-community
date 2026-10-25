@@ -1,219 +1,73 @@
-# Masjid Community App - Deployment Guide
+# Deployment and database connection
 
-## Architecture Overview
+## Server configuration
 
-This project has two main applications:
+Deploy `staff-web` as the Next.js project. Copy the variable names from `staff-web/.env.example` into your hosting provider's environment settings.
 
-- **staff-web**: Next.js 16 dashboard for mosque administrators (staff-web/)
-- **masjid-mobile**: React Native / Expo mobile app for community members (masjid-mobile/)
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string, including SSL settings required by your provider |
+| `AUTH_SECRET` | Random server-side secret used for both web and mobile sessions |
+| `NEXTAUTH_URL` | Public HTTPS origin of the staff portal |
+| `NEXT_PUBLIC_APP_URL` | Same origin, used in reset and payment return links |
+| `MASJID_TIME_ZONE` | IANA timezone used for the masjid's calendar; defaults to America/New_York |
+| `STRIPE_SECRET_KEY` | Optional; required to create real donation checkouts |
+| `STRIPE_WEBHOOK_SECRET` | Required to verify payment confirmation webhooks |
+| `ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD` | Development seed account; password must be at least 12 characters |
 
-Both share a PostgreSQL database via Prisma ORM.
+Earlier repository versions contained credentials. Removing those files does not remove Git history or revoke credentials. Rotate the previously committed database password and authentication secret through their providers before using a deployment. Do not reuse them.
 
----
-
-## Prerequisites
-
-- Node.js 20+
-- PostgreSQL 14+
-- npm or yarn
-- Git
-
----
-
-## 1. Database Setup
-
-Create a PostgreSQL database:
-
-```bash
-createdb masjid_community
-```
-
-Set the `DATABASE_URL` environment variable:
-
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/masjid_community"
-```
-
----
-
-## 2. Staff-Web (Admin Dashboard)
-
-### Environment Variables
-
-Create `staff-web/.env`:
-
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/masjid_community"
-AUTH_SECRET="generate-a-random-secret-here"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-```
-
-Generate `AUTH_SECRET`:
-```bash
-openssl rand -base64 32
-```
-
-### Install & Build
+## New database
 
 ```bash
 cd staff-web
-npm install
-npx prisma generate
-npx prisma db push
+npm ci
+npm run db:validate
+npm run db:deploy
 npm run build
 npm start
 ```
 
-The dashboard runs on `http://localhost:3000`.
+The initial migration creates the current schema. Use `prisma migrate dev` to create subsequent development migrations; deploy committed migrations with `npm run db:deploy`.
 
-### Seed Data (Optional)
+The seed includes demonstration prayer times, school records, and content. Run it only against a development database. Production seeding is blocked unless `ALLOW_DEMO_SEED=true` is explicitly set. Create the first production administrator through a controlled provisioning process; there is no default production password.
 
-```bash
-npx prisma db seed
-```
+## Existing database
 
-Creates:
-- Admin user: `admin@masjid.com` / `Admin123!`
-- Sample classes, prayer times, blog posts
+Back up the database and compare its schema with `prisma/schema.prisma` before deploying this initial migration. A database previously created with `prisma db push` must be baselined, not recreated.
 
----
-
-## 3. Masjid-Mobile (React Native / Expo)
-
-### Environment Variables
-
-Create `masjid-mobile/.env`:
-
-```
-EXPO_PUBLIC_API_URL=http://localhost:3000
-```
-
-### Install & Run
-
-```bash
-cd masjid-mobile
-npm install
-npx expo start
-```
-
-Scan the QR code with Expo Go (Android/iOS) or press `w` for web.
-
----
-
-## 4. Production Deployment (Staff-Web)
-
-### Vercel (Recommended)
-
-1. Push to GitHub
-2. Import repo on Vercel
-3. Set root directory to `staff-web`
-4. Add environment variables
-5. Deploy
-
-### Manual (Any VPS)
+Only after verifying that all tables, columns, constraints, and indexes match the initial migration, mark that migration as already applied:
 
 ```bash
 cd staff-web
-npm install
-npx prisma generate
-npx prisma db push
-npm run build
-npm start -- -p 3000
+npx prisma migrate resolve --applied 20261025000000_initial
+npm run db:deploy
 ```
 
-Use PM2 for process management:
+If the existing schema differs, prepare and review a reconciliation migration first. Do not run the initial create-table migration against an existing populated schema.
 
-```bash
-npm install -g pm2
-pm2 start npm --name "masjid-staff" -- start
-pm2 save
-pm2 startup
-```
+## Mobile configuration
 
----
+Set `EXPO_PUBLIC_API_URL` to the server origin, such as `https://your-portal.example`, or its full `/api` URL. All mobile service modules now use the shared API client and token handling. This does not implement every endpoint used by the older extended service modules; consult the completion checklist.
 
-## 5. Production Deployment (Mobile)
+Keep `EXPO_PUBLIC_DEMO_MODE=false` in production. Demo fallbacks in the primary API service require an explicit `true` value. Several older screens still have local sample data and are listed as unfinished.
 
-### Expo Build (iOS/Android)
+Use `npx expo export --platform web` for a web export. Native builds need the usual Expo/EAS project and signing configuration and must be checked on real Android and iOS devices.
 
-```bash
-cd masjid-mobile
-eas build --platform all
-```
+## Donations
 
-### Web Build
+The mobile donation form opens Stripe Checkout. Amounts sent to the checkout endpoint are in USD; the database stores cents. Recurring checkout supports weekly and monthly billing. The app does not report a donation received merely because the button was pressed or a return page was opened.
 
-```bash
-cd masjid-mobile
-npx expo build:web
-```
+Configure Stripe to send signed events to `/api/webhooks/stripe`. Validate checkout completion, declined payments, cancellation, webhook retries, and recurring billing in Stripe test mode before accepting donations. The existing recurring webhook bookkeeping and donor receipt/subscription management still require the acceptance checks in the completion checklist.
 
-Serve the `web-build/` folder with any static hosting (Vercel, Netlify, etc.).
+The checkout return pages are `/donate/success` and `/donate/cancel`. They do not independently prove that payment succeeded.
 
----
+## Release checks
 
-## 6. Important Considerations
-
-### Authentication
-- NextAuth.js with JWT strategy
-- Session expires after 30 minutes
-- Account locks after 5 failed login attempts (15-minute lockout)
-- Default admin: `admin@masjid.com` / `Admin123!`
-
-### Database Migrations
-Always run `npx prisma db push` (dev) or `npx prisma migrate deploy` (prod) after pulling schema changes.
-
-### Media Library
-Files are stored as URL references (not uploaded to the server). The app stores URLs in the database. For actual file upload, configure an S3 bucket or use a service like Uploadthing.
-
-### Known Issues to Verify
-- **Attendance**: If bulk marking fails, check that the user role is `admin` or `teacher`. The API accepts both roles.
-- **Student Applications**: When approving, ensure the student's ID is generated. If `generateStudentId` fails, the application approval may silently fail.
-- **Media Folder Select**: The folder dropdown uses `_none` internally for the "no folder" option (avoids Radix UI Select bug with empty string values).
-
-### CORS
-If running staff-web and masjid-mobile on different domains, ensure CORS is configured on the staff-web server:
-
-```bash
-# In next.config.js or proxy config
-Access-Control-Allow-Origin: *
-```
-
-### Environment Variables Checklist
-
-| Variable | Required | Where |
-|---|---|---|
-| `DATABASE_URL` | ✅ | staff-web |
-| `AUTH_SECRET` | ✅ | staff-web |
-| `NEXT_PUBLIC_APP_URL` | ✅ | staff-web |
-| `EXPO_PUBLIC_API_URL` | ✅ | masjid-mobile |
-
----
-
-## 7. Monitoring & Maintenance
-
-- Check `ErrorLog` table for application errors
-- Monitor `AuditLog` for suspicious activity
-- Run `npx prisma studio` to inspect data
-- Set up periodic backups for PostgreSQL
-- Monitor Expo build status for mobile deployments
-
----
-
-## 8. Troubleshooting
-
-**"Select.Item must have a value prop that is not an empty string"**
-- Fixed in code. Verify all `<SelectItem value="">` are changed to `<SelectItem value="_none">`.
-
-**Attendance POST fails**
-- Ensure the user is logged in (session required but no specific role restriction)
-- Check that `studentId` and `classId` exist in the database
-
-**Student lookup "not found" in mobile app**
-- The API searches both `id` and `studentId` fields
-- Ensure the student exists in the database with the correct numeric ID
-
-**Build errors**
-- Clear `.next/` cache: `rm -rf .next && npm run build`
-- Prisma client not found: `npx prisma generate`
-- Expo web build: `npx expo install react-dom react-native-web @expo/metro-runtime`
+- Confirm `/api/health` returns 200 and migrations are applied.
+- Test admin, teacher, staff, member, and student access with separate accounts.
+- Verify guardian ownership of student records and private history endpoints.
+- Test mobile access over the deployed HTTPS URL, not localhost.
+- Configure a real email provider and test password reset delivery.
+- Use durable object storage for media on serverless hosting; the legacy local upload implementation is not durable on Vercel.
+- Complete browser, accessibility, Android, and iOS review and the unfinished feature checklist before calling this a completed production release.

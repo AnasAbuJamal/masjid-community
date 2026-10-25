@@ -9,7 +9,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const post = await prisma.blogPost.findUnique({
         where: { id },
         include: { author: { select: { firstName: true, lastName: true } } },
@@ -25,7 +29,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
     const { tags, categoryId, metaTitle, metaDescription, seoImage, scheduledFor, publishedAt, ...rest } = body;
 
@@ -50,7 +58,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id < 1) {
+        return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     await prisma.blogPost.delete({ where: { id } });
     await logAudit({ action: "delete_blog_post", userId: session.user.id, details: `Deleted blog post ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
