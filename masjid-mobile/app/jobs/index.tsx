@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
-  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from '../../components/common';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
-import { jobService, Job } from '../../services/api';
+import apiService, { Job } from '../../services/api-service';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
   full_time: 'Full-Time',
@@ -24,47 +24,30 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
 export default function JobsScreen() {
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  useEffect(() => {
-    jobService.getAll().then(setJobs);
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const loadJobs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try { setJobs(await apiService.jobs.getAll()); }
+    catch { setError('Unable to load jobs. Please check your connection and try again.'); }
+    finally { setLoading(false); }
   }, []);
-
-  const handleApply = (job: Job) => {
-    Alert.alert(
-      `Apply for "${job.title}"`,
-      `Position at ${job.company} in ${job.location}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Apply via Email',
-          onPress: () => {
-            if (job.contactEmail) {
-              Linking.openURL(
-                `mailto:${job.contactEmail}?subject=Application for ${job.title}`
-              );
-            } else {
-              Alert.alert('No contact info', 'Please visit the masjid office.');
-            }
-          },
-        },
-      ]
-    );
-  };
+  useFocusEffect(useCallback(() => { void loadJobs(); }, [loadJobs]));
 
   const formatSalary = (job: Job) => {
-    if (!job.salaryMin && !job.salaryMax) return null;
-    if (job.salaryMin && job.salaryMax) {
-      if (job.salaryMin < 1000) {
-        return `$${job.salaryMin}–$${job.salaryMax}/hr`;
-      }
-      return `$${(job.salaryMin / 1000).toFixed(0)}K–$${(job.salaryMax / 1000).toFixed(0)}K/yr`;
-    }
-    return null;
+    const amounts = [job.salaryMin, job.salaryMax].filter((value): value is number => value != null);
+    return amounts.length ? `$${amounts.map(value => value.toLocaleString()).join(' – $')}${job.salaryPeriod ? ` / ${job.salaryPeriod}` : ''}` : null;
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <FlatList
-        data={jobs}
+        data={error ? [] : jobs}
+        refreshing={loading}
+        onRefresh={loadJobs}
+        ListHeaderComponent={<Text accessibilityRole="header" style={[styles.jobTitle, { marginBottom: SPACING.md }]}>Community jobs</Text>}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         ListEmptyComponent={
@@ -74,10 +57,12 @@ export default function JobsScreen() {
               size={40}
               color={COLORS.textSecondary}
             />
-            <Text style={styles.emptyTitle}>No jobs posted yet</Text>
+            {loading && <ActivityIndicator accessibilityLabel="Loading jobs" />}
+            <Text style={styles.emptyTitle}>{loading ? 'Loading jobs…' : error ? 'Jobs unavailable' : 'No jobs posted yet'}</Text>
             <Text style={styles.emptySubtext}>
-              Check back soon for community job listings
+              {error || (!loading ? "Check back soon for community job listings" : "Please wait") }
             </Text>
+            {error && <TouchableOpacity accessibilityRole="button" onPress={loadJobs} style={styles.applyButton}><Text style={styles.applyText}>Try again</Text></TouchableOpacity>}
           </Card>
         }
         renderItem={({ item }) => {
@@ -143,10 +128,12 @@ export default function JobsScreen() {
 
               <TouchableOpacity
                 style={styles.applyButton}
-                onPress={() => handleApply(item)}
+                accessibilityRole="link"
+                accessibilityLabel={`View ${item.title}`}
+                onPress={() => router.push({ pathname: '/jobs/[id]', params: { id: item.id } })}
                 activeOpacity={0.8}
               >
-                <Text style={styles.applyText}>Apply Now</Text>
+                <Text style={styles.applyText}>View job</Text>
                 <MaterialCommunityIcons
                   name="arrow-right"
                   size={16}

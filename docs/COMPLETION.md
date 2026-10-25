@@ -50,3 +50,11 @@ No live deployment database was modified. Applying the migration, guardian/role 
 | Deployment | Rotate exposed historical credentials, connect a test database, apply/baseline migrations, configure email/Stripe/storage, run CI/browser tests, and verify native builds. |
 
 This checklist intentionally does not label sample-only screens or untested external integrations as finished. It is the remaining release scope, not a claim of production readiness.
+
+## Next implementation batch: jobs and deployment foundation
+
+Added Community navigation for jobs/events/applications/workers/news/projects, job detail navigation, correct salary-period display, loading/retry/unavailable states, and truthful submission feedback. Job submission now derives identity from the signed-in session, rejects expired jobs, validates input, and checks duplicate applications inside serializable transactions with conflict retries. Email failure no longer reports an already committed application as failed.
+
+Removed seed password logging and database push/demo seeding from root deployment builds. Added `npm run admin:create` for explicit administrator creation without demo records. This command has not been run against a live database.
+
+Eight focused job validation/API tests passed; staff and mobile type checks completed without diagnostics. Database concurrency integration tests, device/visual review, complete jobs staff CRUD/saved-job behavior, and live deployment checks are pending. See `FEATURE-AUDIT.md` and `../accomplish.md`.

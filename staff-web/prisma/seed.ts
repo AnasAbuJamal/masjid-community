@@ -256,7 +256,6 @@ async function main() {
 
     console.log("\n🎉 Database seeded successfully!");
     console.log(`\n📧 Admin login: ${adminEmail}`);
-    console.log(`🔑 Admin password: ${adminPassword}`);
 }
 
 main()

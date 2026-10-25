@@ -6,7 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  useWindowDimensions,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -26,7 +27,6 @@ interface Proposal {
 }
 
 export default function CommunityScreen() {
-  const { width } = useWindowDimensions();
   const router = useRouter();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabKey>('volunteers');
@@ -34,6 +34,7 @@ export default function CommunityScreen() {
   const [myOpportunities, setMyOpportunities] = useState<VolunteerOpportunity[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeTab === 'volunteers') {
@@ -47,10 +48,12 @@ export default function CommunityScreen() {
 
   const loadOpportunities = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await apiService.volunteers.getOpportunities();
       setOpportunities(data);
     } catch {
+      setError("Unable to load volunteer opportunities. Please try again.");
       setOpportunities([]);
     }
     setLoading(false);
@@ -58,10 +61,12 @@ export default function CommunityScreen() {
 
   const loadMyOpportunities = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await apiService.volunteers.getMyOpportunities();
       setMyOpportunities(data);
     } catch {
+      setError("Unable to load your volunteering. Please sign in and try again.");
       setMyOpportunities([]);
     }
     setLoading(false);
@@ -69,10 +74,12 @@ export default function CommunityScreen() {
 
   const loadProposals = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await apiService.proposals.getAll();
       setProposals(data);
     } catch {
+      setError("Unable to load proposals. Please try again.");
       setProposals([]);
     }
     setLoading(false);
@@ -111,7 +118,7 @@ export default function CommunityScreen() {
   };
 
   const handleProposalPress = (proposal: Proposal) => {
-    Alert.alert(proposal.title, proposal.description || 'No description');
+    router.push({ pathname: '/proposals/[id]', params: { id: proposal.id } });
   };
 
   const handleSubmitProposal = () => {
@@ -120,18 +127,39 @@ export default function CommunityScreen() {
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
     { key: 'volunteers', label: 'Volunteer', icon: 'hand-heart-outline' },
-    { key: 'myvolunteers', label: 'My Events', icon: 'calendar-check-outline' },
+    { key: 'myvolunteers', label: 'My Volunteering', icon: 'calendar-check-outline' },
     { key: 'proposals', label: 'Proposals', icon: 'lightbulb-outline' },
     { key: 'rentals', label: 'Rentals', icon: 'package-variant' },
   ];
 
   return (
     <ScreenWrapper contentPadding={false} bottomPadding={false}>
+      <View style={styles.headerSection}>
+        <Text accessibilityRole="header" style={styles.pageTitle}>Community</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: SPACING.sm, paddingVertical: SPACING.sm }}>
+          {([
+            ['Jobs', '/jobs', 'briefcase-outline'],
+            ['Events', '/events', 'calendar-outline'],
+            ['My applications', '/applications', 'file-document-outline'],
+            ['Workers', '/workers', 'account-group-outline'],
+            ['News', '/blog', 'newspaper'],
+            ['Projects', '/construction', 'hammer-wrench'],
+          ] as const).map(([label, path, icon]) => (
+            <TouchableOpacity key={path} accessibilityRole="link" accessibilityLabel={label}
+              onPress={() => router.push(path)} style={[styles.proposeButton, { minHeight: 44, marginTop: 0, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }]}>
+              <MaterialCommunityIcons name={icon} size={18} color={COLORS.white} />
+              <Text style={styles.proposeText}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
       {/* Tab Bar Section */}
       <View style={styles.tabBarSection}>
-        <View style={styles.tabBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
           {TABS.map((tab) => (
               <TouchableOpacity
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === tab.key }}
               key={tab.key}
               style={[styles.tab, activeTab === tab.key && styles.tabActive]}
               onPress={() => handleTabChange(tab.key)}
@@ -140,12 +168,23 @@ export default function CommunityScreen() {
               <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       {/* Content Section */}
       <View style={styles.contentSection}>
-        {activeTab === 'volunteers' ? (
+        {activeTab !== 'rentals' && loading ? (
+          <View style={styles.centeredContent}><ActivityIndicator accessibilityLabel="Loading community content" /><Text style={styles.metaText}>Loading…</Text></View>
+        ) : activeTab !== 'rentals' && error ? (
+          <View style={styles.centeredContent}>
+            <Text accessibilityRole="alert" style={styles.emptyText}>{error}</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.proposeButton} onPress={() => {
+              if (activeTab === 'volunteers') void loadOpportunities();
+              else if (activeTab === 'myvolunteers') void loadMyOpportunities();
+              else void loadProposals();
+            }}><Text style={styles.proposeText}>Try again</Text></TouchableOpacity>
+          </View>
+        ) : activeTab === 'volunteers' ? (
           <FlatList
             data={opportunities}
             keyExtractor={(item) => item.id}
@@ -163,8 +202,8 @@ export default function CommunityScreen() {
               </View>
             }
             renderItem={({ item }) => {
-              const spotsLeft = item.spotsTotal - item.spotsFilled;
-              const pct = Math.round((item.spotsFilled / item.spotsTotal) * 100);
+              const spotsLeft = Math.max(0, item.spotsTotal - item.spotsFilled);
+              const pct = item.spotsTotal > 0 ? Math.min(100, Math.round((item.spotsFilled / item.spotsTotal) * 100)) : 0;
               return (
                 <View style={styles.cardWrapper}>
                   <GlassCard>
@@ -316,7 +355,7 @@ const styles = StyleSheet.create({
 
   tabBarSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.md },
   tabBar: { flexDirection: 'row', backgroundColor: COLORS.surface, padding: SPACING.xs, gap: SPACING.xs, borderRadius: RADIUS.lg },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: RADIUS.md, gap: 6 },
+  tab: { minHeight: 44, paddingHorizontal: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: RADIUS.md, gap: 6 },
   tabActive: { backgroundColor: COLORS.primary },
   tabText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
   tabTextActive: { color: COLORS.white },

@@ -2,7 +2,7 @@
 
 ## Server configuration
 
-Deploy `staff-web` as the Next.js project. Copy the variable names from `staff-web/.env.example` into your hosting provider's environment settings.
+Set the Vercel project Root Directory to `staff-web` in project settings (not in `vercel.json`). Deploy it as the Next.js project. Builds must not run `db push` or demo seeds. Run reviewed migrations separately before promotion. Copy the variable names from `staff-web/.env.example` into your hosting provider's environment settings.
 
 | Variable | Purpose |
 | --- | --- |
@@ -31,6 +31,10 @@ npm start
 The initial migration creates the current schema. Use `prisma migrate dev` to create subsequent development migrations; deploy committed migrations with `npm run db:deploy`.
 
 The seed includes demonstration prayer times, school records, and content. Run it only against a development database. Production seeding is blocked unless `ALLOW_DEMO_SEED=true` is explicitly set. Create the first production administrator through a controlled provisioning process; there is no default production password.
+
+## First administrator (no demo data)
+
+After applying migrations, supply `ADMIN_EMAIL` and `ADMIN_PASSWORD` (12–72 characters) as secure environment variables to a trusted server session and run `npm run admin:create` from `staff-web`. This creates only an active administrator; it does not load sample records, reset existing passwords, or promote an existing account. Remove the temporary provisioning variables afterwards. Do not put the password in shell history, source control, or build logs. The command has not been run against a live database in this workspace.
 
 ## Existing database
 

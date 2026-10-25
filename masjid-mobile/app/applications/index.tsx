@@ -36,6 +36,7 @@ export default function MyApplicationsScreen() {
   const [volApps, setVolApps] = useState<VolunteerApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     loadApplications();
@@ -43,11 +44,13 @@ export default function MyApplicationsScreen() {
 
   const loadApplications = async () => {
     setLoading(true);
+    setError(false);
     try {
       const data = await apiService.applications.getMyApplications();
       setJobApps(data.jobs);
       setVolApps(data.volunteers);
     } catch {
+      setError(true);
       setJobApps([]);
       setVolApps([]);
     }
@@ -176,6 +179,12 @@ export default function MyApplicationsScreen() {
       {loading ? (
         <View style={{ padding: SPACING.md, gap: SPACING.sm }}>
           {[1, 2, 3].map(i => <Skeleton key={i} style={{ height: 88, borderRadius: RADIUS.lg }} />)}
+        </View>
+      ) : error ? (
+        <View style={{ padding: SPACING.md, gap: SPACING.md }}>
+          <Text accessibilityRole="alert" style={styles.pageSubtitle}>Unable to load your applications. Please sign in and try again.</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={loadApplications} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.pageTitle}>Try again</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="link" onPress={() => router.push('/(auth)/login')} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.pageTitle}>Sign in</Text></TouchableOpacity>
         </View>
       ) : activeTab === 'jobs' ? (
         <FlatList

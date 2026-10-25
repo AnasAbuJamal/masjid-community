@@ -22,6 +22,8 @@ export default function JobApplyScreen() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [coverLetter, setCoverLetter] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -52,22 +54,15 @@ export default function JobApplyScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (submitting || submitted || !validate()) return;
+    setSubmitError(null);
 
     setSubmitting(true);
     try {
       await apiService.applications.submitJobApplication(id!, { coverLetter: coverLetter.trim() });
-      Alert.alert(
-        'Application Submitted!',
-        'Your application has been sent. The employer will contact you soon.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      setSubmitted(true);
     } catch {
-      Alert.alert(
-        'Submitted!',
-        'Your application was submitted successfully.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      setSubmitError('Your application was not confirmed. Please sign in and try again. If you already applied, check My applications.');
     } finally {
       setSubmitting(false);
     }
@@ -155,6 +150,9 @@ export default function JobApplyScreen() {
               onChangeText={setCoverLetter}
               placeholder="Dear Hiring Manager,\n\nI am writing to express my interest in this position..."
               placeholderTextColor={COLORS.textLight}
+              accessibilityLabel="Cover letter"
+              maxLength={10000}
+              editable={!submitting && !submitted}
               multiline
               numberOfLines={8}
               textAlignVertical="top"
@@ -187,9 +185,11 @@ export default function JobApplyScreen() {
           </View>
 
           <View style={styles.buttonSection}>
+            {submitError && <Text accessibilityRole="alert" style={styles.errorText}>{submitError}</Text>}
+            {submitted && <Text accessibilityLiveRegion="polite" style={styles.sectionHint}>Application received. You can track it in My applications.</Text>}
             <Button
-              title={submitting ? 'Submitting...' : 'Submit Application'}
-              onPress={handleSubmit}
+              title={submitted ? 'View my applications' : submitting ? 'Submitting...' : 'Submit Application'}
+              onPress={submitted ? () => router.replace('/applications') : handleSubmit}
               loading={submitting}
               fullWidth
               size="lg"

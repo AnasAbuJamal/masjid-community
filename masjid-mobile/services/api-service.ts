@@ -58,6 +58,7 @@ export interface Job {
   employmentType: 'full_time' | 'part_time' | 'contract' | 'volunteer';
   salaryMin?: number;
   salaryMax?: number;
+  salaryPeriod?: 'hourly' | 'weekly' | 'monthly' | 'yearly';
   status: 'active' | 'closed';
   isUrgent?: boolean;
   contactEmail?: string;

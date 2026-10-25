@@ -11,7 +11,9 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
-  const [applying, setApplying] = useState(false);
+  const [applying] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -21,8 +23,11 @@ export default function JobDetailScreen() {
 
   const loadJob = async () => {
     if (!id) return;
-    const data = await apiService.jobs.getById(id);
-    setJob(data);
+    setLoading(true);
+    setError(false);
+    try { setJob(await apiService.jobs.getById(id)); }
+    catch { setError(true); }
+    finally { setLoading(false); }
   };
 
   const handleApply = () => {
@@ -40,7 +45,8 @@ export default function JobDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loading}>
-          <Text>Loading...</Text>
+          <Text>{loading ? 'Loading…' : error ? 'Unable to load this job.' : 'This job is no longer available.'}</Text>
+          {!loading && <TouchableOpacity accessibilityRole="button" onPress={error ? loadJob : () => router.replace('/jobs')} style={styles.applyButton}><Text style={styles.applyButtonText}>{error ? 'Try again' : 'Browse jobs'}</Text></TouchableOpacity>}
         </View>
       </SafeAreaView>
     );
@@ -95,7 +101,7 @@ export default function JobDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Salary Range</Text>
             <Text style={styles.salary}>
-              ${job.salaryMin.toLocaleString()} - ${job.salaryMax.toLocaleString()} /year
+              ${job.salaryMin.toLocaleString()} - ${job.salaryMax.toLocaleString()} {job.salaryPeriod ? `/ ${job.salaryPeriod}` : ""}
             </Text>
           </View>
         )}
