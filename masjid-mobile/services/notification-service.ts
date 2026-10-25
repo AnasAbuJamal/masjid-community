@@ -23,7 +23,7 @@ class NotificationService {
   private expoPushToken: string | null = null;
 
   async initialize(): Promise<string | null> {
-    if (!Device.isDevice) {
+    if (Platform.OS === 'web' || !Device.isDevice) {
       console.log('Push notifications require a physical device');
       return null;
     }
@@ -74,12 +74,13 @@ class NotificationService {
 
     try {
       const { data: token } = await Notifications.getExpoPushTokenAsync();
-      this.expoPushToken = token;
+
       
       if (apiService && apiService.notifications) {
         await apiService.notifications.registerDevice(token);
       }
       
+      this.expoPushToken = token;
       return token;
     } catch (error) {
       console.log('Error getting push token:', error);

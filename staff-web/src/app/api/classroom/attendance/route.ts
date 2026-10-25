@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (!["admin", "staff", "teacher"].includes(session.user.role)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { searchParams } = req.nextUrl;
     const classId = searchParams.get("classId");
@@ -83,6 +86,9 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!["admin", "staff", "teacher"].includes(session.user.role)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await req.json();

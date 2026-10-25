@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { api as apiClient } from './api-client';
 import { DEMO_MODE } from './api-config';
 
@@ -302,7 +303,13 @@ export const apiService = {
     },
 
     logout: async (): Promise<void> => {
-      await apiClient.clearToken();
+      try {
+        const token = await AsyncStorage.getItem('@masjid:push-token');
+        if (token) await api.instance.delete('/notifications/register', { data: { token } });
+        await AsyncStorage.removeItem('@masjid:push-token');
+      } finally {
+        await apiClient.clearToken();
+      }
     },
 
     me: async (): Promise<User> => {
@@ -576,6 +583,7 @@ export const apiService = {
   notifications: {
     registerDevice: async (token: string): Promise<void> => {
       await api.instance.post('/notifications/register', { token });
+      await AsyncStorage.setItem('@masjid:push-token', token);
     },
 
     getAll: async () => {

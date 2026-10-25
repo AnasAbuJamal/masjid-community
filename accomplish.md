@@ -319,3 +319,24 @@ Deployment prerequisite: apply `20261026000000_proposal_votes` via the reviewed 
 Remaining in these areas: physical-device push registration/delivery and token ownership; comprehensive visual/accessibility testing; proposal milestone JSON contracts; rate limits, large-list pagination, moderation/status transitions and database-backed concurrent vote tests. Existing pending-proposal visibility is retained and needs a product/moderation review. School, CRM and other release backlog items remain unfinished.
 
 Next session: read this checkpoint and current git/remote state first. Finish push-token ownership and school/CRM API/model inventory, then complete one end-to-end workflow at a time. Do not ask the user to reauthorize continuing the agreed backlog.
+
+## Checkpoint — family records and push registration ownership
+
+Implemented:
+- Replaced the parent landing page's invented children, grades, tuition balances, and broken quick links with real family attendance and teacher reports. Added working parent attendance and child-detail routes using one responsive, theme-aware component with loading/error/empty states.
+- Added `/api/parents/me/children`: scope comes from the session email, requires a verified account, includes only active linked students, returns bounded recent attendance/reports, and disables caching. Verification must be established through a trusted school/admin process; there is no self-verification shortcut.
+- Added authenticated, validated Expo token registration, account association, expiring records, and ownership-scoped removal. Native initialization waits for authentication and skips web. Logout attempts device removal before clearing credentials.
+- Added migration `20261027000000_push_token_ownership`; existing token rows retain null owners/expiry. Never use them for personalized delivery. No migration has run on a live database.
+- Blocked members/students from school-wide attendance GET/POST endpoints; parent reads use the dedicated family endpoint.
+
+Verification: staff/mobile TypeScript checks passed; 10 focused backend tests and 22 existing mobile authentication tests passed. Prisma generated successfully and its schema-only diff matches the ownership migration. No physical device or live database checks performed.
+
+Remaining and next priority:
+- Class currently stores only teacherName, not a trusted teacher-account relationship. Add assigned-teacher relations and scope all teacher/student/attendance endpoints before production. Some legacy endpoints still allow broad teacher reads. Attendance bulk writes also need transaction/validation/concurrency review.
+- Parent tuition payments, formal report cards, grades, resources and teacher messaging are NOT complete. They were previously fake or broken on the landing page; removing fabricated summaries is not completion of those features. Existing standalone screens remain in the backlog.
+- Both attendance/check-in standalone screens still simulate self-check-in. Define verifiable class sessions/check-in rules and persist records; do not treat this batch as completing attendance.
+- Push sending/receipt handling and native tests are unfinished. Future personalized delivery MUST filter by verified current owner and nonexpired registration. Handle offline logout, expired auth and registration/logout races before enabling sensitive push payloads. Unregistration is best effort during an offline logout; do not imply instant server revocation.
+- Confirm EAS project configuration, permission flow, token refresh, invalid-token cleanup and actual device delivery.
+- Apply both proposal-vote and push-ownership migrations in a reviewed environment before deploying this revision. Provision a real owner account, then verify complete deployed flows.
+
+Continue the authorized backlog without asking the user to reauthorize. Read the newest checkpoint and git state at the start of the next session.

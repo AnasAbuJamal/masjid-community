@@ -79,3 +79,7 @@ The checkout return pages are `/donate/success` and `/donate/cancel`. They do no
 ## Proposal voting migration prerequisite
 
 The proposal persistence batch adds `20261026000000_proposal_votes`. Apply committed migrations using `npm run db:deploy` in a configured, reviewed environment before promoting the matching app/API revision. This migration creates a vote table with unique `(proposalId, userId)` records and foreign keys; it does not populate sample content. Back up existing data first and verify deployed proposal listing, authenticated voting, repeated votes, comments, and internal-note privacy. This workspace has only checked the schema diff, not executed the migration against a live database.
+
+## Push token ownership migration
+
+Apply `20261027000000_push_token_ownership` before deploying the updated registration endpoint. Existing rows have no owner or expiry and must be excluded from personalized delivery until the installation registers while signed in. New registrations expire after 30 days and require authenticated renewal. Physical device delivery and offline logout recovery remain unverified. The family endpoint also requires a verified account linked to the student parent email; confirm that through the school administrator before testing.

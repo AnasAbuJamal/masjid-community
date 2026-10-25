@@ -18,8 +18,11 @@ function RootLayoutContent() {
   useEffect(() => {
     initialize();
     initSettings();
-    notificationService.initialize();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) void notificationService.initialize().catch(() => {});
+  }, [isAuthenticated, isLoading]);
 
   if (isLoading) {
     return (

@@ -31,6 +31,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  pushTokens PushToken[]
   proposalVotes ProposalVote[]
   blogPosts     BlogPost[]
   assignments   Assignment[]  @relation("AssignmentTeacher")
@@ -1003,6 +1004,10 @@ model StudentReport {
 }
 
 model PushToken {
+  userId Int?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime?
+  @@index([userId])
   id        Int      @id @default(autoincrement())
   token     String   @unique
   createdAt DateTime @default(now())
