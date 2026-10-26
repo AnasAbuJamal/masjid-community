@@ -76,15 +76,27 @@ class NotificationService {
       const { data: token } = await Notifications.getExpoPushTokenAsync();
       this.expoPushToken = token;
       
-      if (apiService && apiService.notifications) {
-        await apiService.notifications.registerDevice(token);
-      }
-      
+      // Token acquisition is still successful if the user has not logged in.
+      // Registration is retried after authentication, not silently dropped.
+      await this.syncRegistration().catch(() => undefined);
       return token;
-    } catch (error) {
-      console.log('Error getting push token:', error);
+    } catch {
       return null;
     }
+  }
+
+  async syncRegistration(): Promise<void> {
+    if (!this.expoPushToken) return;
+    await apiService.notifications.registerDevice(this.expoPushToken);
+  }
+
+  async revokeRegistration(): Promise<void> {
+    if (!this.expoPushToken) return;
+    const token = this.expoPushToken;
+    const api = (await import('./api-client')).default;
+    await api.instance.delete('/notifications/register', { data: { token } });
+    // A device can register for a different account after it is signed out.
+    this.expoPushToken = token;
   }
 
   async schedulePrayerNotifications(prayerTimes: {
