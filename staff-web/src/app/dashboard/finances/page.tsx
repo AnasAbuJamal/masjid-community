@@ -393,7 +393,7 @@ export default function FinancesPage() {
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                         <Tooltip
                           contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb" }}
-                          formatter={(value: number) => `${value.toLocaleString()}`}
+                          formatter={(value) => `${Number(value ?? 0).toLocaleString()}`}
                         />
                         <Bar dataKey="donations" name="Donations" fill="#6F4E37" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="expenses" name="Expenses" fill="#B33A3A" radius={[4, 4, 0, 0]} />
