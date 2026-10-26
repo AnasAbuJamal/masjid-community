@@ -6,12 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
-import { GlassCard, ScreenWrapper, FloatingIcon, TAB_BAR_HEIGHT } from '../../components/common';
+import apiService from '../../services/api-service';
+import { GlassCard, ScreenWrapper, TAB_BAR_HEIGHT } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
 interface MenuItem { icon: string; title: string; subtitle?: string; onPress: () => void; danger?: boolean; }
@@ -19,9 +19,30 @@ interface MenuSection { title: string; items: MenuItem[]; }
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
-  const [prayerNotif, setPrayerNotif] = useState(true);
-  const [communityNotif, setCommunityNotif] = useState(true);
+  const { user, logout, updateUser } = useAuthStore();
+  const [verifying, setVerifying] = useState(false);
+
+  const resendVerification = async () => {
+    if (verifying) return;
+    setVerifying(true);
+    try {
+      await apiService.auth.requestVerification();
+      Alert.alert('Email sent', 'Check your inbox for a link to verify your address.');
+    } catch {
+      Alert.alert('Unable to send email', 'The email service is unavailable. Please contact the masjid office.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+  const refreshVerification = async () => {
+    try {
+      const updated = await apiService.auth.me();
+      updateUser({ isVerified: updated.isVerified });
+      if (!updated.isVerified) Alert.alert('Still unverified', 'Use the link in your verification email first.');
+    } catch {
+      Alert.alert('Unable to check', 'Check your connection and try again.');
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -37,15 +58,9 @@ export default function ProfileScreen() {
       { icon: 'clipboard-text-outline', title: 'My Applications', subtitle: 'Jobs & volunteer apps', onPress: () => router.push('/applications' as any) },
       { icon: 'chart-bar', title: 'Finances', subtitle: 'Financial transparency', onPress: () => router.push('/finances' as any) },
     ]},
-    { title: 'Notifications', items: [
-      { icon: 'clock-alert-outline', title: 'Prayer Reminders', onPress: () => setPrayerNotif(!prayerNotif) },
-      { icon: 'account-group-outline', title: 'Community Updates', onPress: () => setCommunityNotif(!communityNotif) },
-    ]},
-    { title: 'App', items: [
-      { icon: 'cog-outline', title: 'Settings', onPress: () => Alert.alert('Settings', 'Coming soon') },
-      { icon: 'help-circle-outline', title: 'Help & Support', onPress: () => Alert.alert('Help', 'Coming soon') },
-      { icon: 'information-outline', title: 'About', subtitle: 'Version 1.0.0', onPress: () => Alert.alert('About', 'Masjid Al-Momineen Community App v1.0.0') },
-    ]},
+    { title: 'Preferences', items: [
+      { icon: 'cog-outline', title: 'Settings', subtitle: 'Appearance and application settings', onPress: () => router.push('/(tabs)/settings') },
+    ] },
   ];
 
   const initials = user ? `${user.firstName?.charAt(0) ?? ''}${user.lastName?.charAt(0) ?? ''}`.toUpperCase() : '??';
@@ -59,23 +74,30 @@ export default function ProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrap}><Text style={styles.avatarText}>{initials}</Text></View>
             <Text style={styles.userName}>{user?.firstName ?? 'Brother/Sister'} {user?.lastName ?? ''}</Text>
-            <Text style={styles.userEmail}>{user?.email ?? 'user@example.com'}</Text>
+            <Text style={styles.userEmail}>{user?.email ?? 'Not signed in'}</Text>
             <View style={styles.roleBadge}><Text style={styles.roleText}>{user?.role?.toUpperCase() ?? 'MEMBER'}</Text></View>
           </View>
         </View>
 
-        {/* Stats Section */}
-        <View style={styles.statsSection}>
-          <View style={styles.statsRow}>
-            {[{ label: 'Donations', value: '0', icon: 'heart' }, { label: 'Volunteer', value: '0', icon: 'hand-heart' }, { label: 'Proposals', value: '0', icon: 'lightbulb' }].map((stat) => (
-              <View key={stat.label} style={styles.statItem}>
-                <FloatingIcon icon={<MaterialCommunityIcons name={stat.icon as any} size={18} color={COLORS.primary} />} size="sm" color={COLORS.primary} />
-                <Text style={styles.statValue}>{stat.value}</Text>
-                <Text style={styles.statLabel}>{stat.label}</Text>
+        {user && !user.isVerified && (
+          <View style={styles.verification}>
+            <MaterialCommunityIcons name="email-alert-outline" size={22} color={COLORS.primary} />
+            <View style={styles.verifyText}>
+              <Text style={styles.verifyTitle}>Verify your email</Text>
+              <Text style={styles.verifyDescription}>
+                Confirm your address to view private family and enrollment records.
+              </Text>
+              <View style={styles.verifyActions}>
+                <TouchableOpacity accessibilityRole="button" onPress={resendVerification} disabled={verifying} style={styles.verifyButton}>
+                  <Text style={styles.verifyButtonText}>{verifying ? 'Sending…' : 'Resend email'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" onPress={refreshVerification} style={styles.verifyButton}>
+                  <Text style={styles.verifyButtonText}>Check status</Text>
+                </TouchableOpacity>
               </View>
-            ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Menu Sections - Column Layout */}
         {MENU_SECTIONS.map((section) => (
@@ -83,15 +105,11 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>{section.title}</Text>
             <GlassCard style={styles.menuCard} noPadding>
               {section.items.map((item, index) => {
-                const isNotifItem = item.title === 'Prayer Reminders' || item.title === 'Community Updates';
-                const toggleValue = item.title === 'Prayer Reminders' ? prayerNotif : communityNotif;
                 return (
-                  <TouchableOpacity key={item.title} style={[styles.menuItem, index < section.items.length - 1 && styles.menuItemBorder]} onPress={item.onPress} activeOpacity={isNotifItem ? 1 : 0.7}>
+                  <TouchableOpacity key={item.title} style={[styles.menuItem, index < section.items.length - 1 && styles.menuItemBorder]} onPress={item.onPress} activeOpacity={0.7}>
                     <View style={styles.menuIcon}><MaterialCommunityIcons name={item.icon as any} size={20} color={item.danger ? COLORS.error : COLORS.primary} /></View>
                     <View style={styles.menuContent}><Text style={[styles.menuTitle, item.danger && styles.menuTitleDanger]}>{item.title}</Text>{item.subtitle && <Text style={styles.menuSubtitle}>{item.subtitle}</Text>}</View>
-                    {isNotifItem ? (
-                      <Switch value={toggleValue} onValueChange={item.onPress} trackColor={{ false: COLORS.border, true: COLORS.primary + '80' }} thumbColor={toggleValue ? COLORS.primary : COLORS.textSecondary} />
-                    ) : <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.textSecondary} />}
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.textSecondary} />
                   </TouchableOpacity>
                 );
               })}
@@ -115,6 +133,13 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   scrollView: { flex: 1 },
+  verification: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.lg, padding: SPACING.md, backgroundColor: COLORS.surface, borderColor: COLORS.border, borderWidth: 1, borderRadius: RADIUS.lg },
+  verifyText: { flex: 1 },
+  verifyTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  verifyDescription: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  verifyActions: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.md },
+  verifyButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: SPACING.md, backgroundColor: COLORS.primaryFaded, borderRadius: RADIUS.md },
+  verifyButtonText: { color: COLORS.primary, fontWeight: '600', fontSize: 14 },
   scrollContent: { padding: SPACING.md, paddingBottom: TAB_BAR_HEIGHT + SPACING.lg },
 
   // Header Section
