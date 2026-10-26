@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const unreadOnly = searchParams.get("unreadOnly") === "true";
 
-    const where: Prisma.NotificationWhereInput = { userId: session.user.id };
+    const where: Prisma.NotificationWhereInput = { userId: Number(session.user.id) };
 
     if (unreadOnly) {
         where.isRead = false;
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
         }),
         prisma.notification.count({ where }),
         prisma.notification.count({
-            where: { userId: session.user.id, isRead: false },
+            where: { userId: Number(session.user.id), isRead: false },
         }),
     ]);
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     if (markAllRead) {
         await prisma.notification.updateMany({
-            where: { userId: session.user.id, isRead: false },
+            where: { userId: Number(session.user.id), isRead: false },
             data: { isRead: true },
         });
         return NextResponse.json({ success: true, message: "All notifications marked as read" });
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     const notification = await prisma.notification.update({
-        where: { id, userId: session.user.id },
+        where: { id: Number(id), userId: Number(session.user.id) },
         data: { isRead: true },
     });
 
@@ -82,13 +82,13 @@ export async function DELETE(req: NextRequest) {
 
     if (id) {
         await prisma.notification.delete({
-            where: { id, userId: session.user.id },
+            where: { id, userId: Number(session.user.id) },
         });
         return NextResponse.json({ success: true });
     }
 
     await prisma.notification.deleteMany({
-        where: { userId: session.user.id },
+        where: { userId: Number(session.user.id) },
     });
 
     return NextResponse.json({ success: true, message: "All notifications deleted" });
@@ -106,7 +106,7 @@ export async function createNotification(
 ) {
     return prisma.notification.create({
         data: {
-            userId,
+            userId: Number(userId),
             type: data.type as "info" | "success" | "warning" | "error" | "donation" | "volunteer" | "proposal" | "job" | "assignment" | "attendance" | "system",
             title: data.title,
             message: data.message,
