@@ -59,8 +59,8 @@ export default function ClassroomPage() {
 
   const openCreateClass = () => { setEditingClass(null); setClassForm({ name: "", teacherName: "", schedule: "" }); setClassDialog(true); };
   const openEditClass = (cls: ClassItem) => { setEditingClass(cls); setClassForm({ name: cls.name, teacherName: cls.teacherName, schedule: cls.schedule }); setClassDialog(true); };
-  const openCreateStudent = () => { setEditingStudent(null); setStudentForm({ firstName: "", lastName: "", classId: classes[0]?.id || "", parentName: "", parentEmail: "", parentPhone: "" }); setStudentDialog(true); };
-  const openEditStudent = (s: Student) => { setEditingStudent(s); setStudentForm({ firstName: s.firstName, lastName: s.lastName, classId: s.classId, parentName: s.parentName, parentEmail: s.parentEmail || "", parentPhone: s.parentPhone || "" }); setStudentDialog(true); };
+  const openCreateStudent = () => { setEditingStudent(null); setStudentForm({ firstName: "", lastName: "", classId: String(classes[0]?.id || ""), parentName: "", parentEmail: "", parentPhone: "" }); setStudentDialog(true); };
+  const openEditStudent = (s: Student) => { setEditingStudent(s); setStudentForm({ firstName: s.firstName, lastName: s.lastName, classId: String(s.classId), parentName: s.parentName, parentEmail: s.parentEmail || "", parentPhone: s.parentPhone || "" }); setStudentDialog(true); };
 
   const handleSaveClass = async () => {
     setSaving(true);
@@ -131,7 +131,7 @@ export default function ClassroomPage() {
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{cls.students?.length || 0} students</Badge>
                     <Button variant="ghost" size="sm" onClick={() => openEditClass(cls)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "class", id: cls.id })}><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "class", id: String(cls.id) })}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
                 <p className="text-sm text-gray-500 flex items-center gap-2"><Clock className="h-4 w-4" />{cls.schedule} • Teacher: {cls.teacherName}</p>
@@ -153,7 +153,7 @@ export default function ClassroomPage() {
                           <TableCell>
                             <div className="flex gap-1">
                               <Button variant="ghost" size="sm" onClick={() => openEditStudent(student)}><Pencil className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "student", id: student.id })}><Trash2 className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "student", id: String(student.id) })}><Trash2 className="h-4 w-4" /></Button>
                             </div>
                           </TableCell>
                         </TableRow>
