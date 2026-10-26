@@ -13,6 +13,18 @@ datasource db {
 //  USERS & AUTH
 // ──────────────────────────────────────
 
+// Store only a one-way hash of each short-lived email verification secret.
+model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model User {
   id            Int       @id @default(autoincrement())
   email         String    @unique
