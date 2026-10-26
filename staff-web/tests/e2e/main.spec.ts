@@ -790,3 +790,67 @@ test("masjid settings persist, public display reads them and unsupported switche
   expect(kiosk).not.toHaveProperty("require_2fa");
   expect(kiosk).not.toHaveProperty("maintenance_mode");
 });
+
+
+test("prayer endpoints report only the database-published daily schedule", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL fixture");
+  const result = await request.get("/api/prayers/today");
+  expect(result.status()).toBe(200);
+  const schedule = await result.json();
+  expect(schedule.fajr).toBe("05:12");
+  expect(schedule.maghrib).toBe("18:01");
+  expect(schedule.jummah1).toBe("");
+  expect(schedule.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+});
+
+test("notifications are privately paginated, and read receipts cannot cross account boundaries", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL fixture");
+  expect((await request.get("/api/notifications")).status()).toBe(401);
+
+  const [adminAuth, parentAuth] = await Promise.all([
+    request.post("/api/auth/login", { data: { email: adminEmail, password: adminPassword } }),
+    request.post("/api/auth/login", {
+      data: { email: "ci-parent@example.test", password: "ci-only-parent-password-not-for-production" },
+    }),
+  ]);
+  expect(adminAuth.status()).toBe(200);
+  expect(parentAuth.status()).toBe(200);
+  const adminHeaders = { Authorization: `Bearer ${(await adminAuth.json()).token}` };
+  const parentHeaders = { Authorization: `Bearer ${(await parentAuth.json()).token}` };
+  const [adminPage, parentPage] = await Promise.all([
+    request.get("/api/notifications", { headers: adminHeaders }),
+    request.get("/api/notifications", { headers: parentHeaders }),
+  ]);
+  expect(adminPage.status()).toBe(200);
+  expect(parentPage.status()).toBe(200);
+  const adminData = await adminPage.json();
+  const parentData = await parentPage.json();
+  const adminNotification = adminData.notifications.find(
+    (n: { title: string }) => n.title === "CI Admin Notification"
+  );
+  const parentNotification = parentData.notifications.find(
+    (n: { title: string }) => n.title === "CI Parent Notification"
+  );
+  expect(adminNotification).toBeDefined();
+  expect(parentNotification).toBeDefined();
+  expect(adminData.notifications.some((n: { id: string }) => n.id === parentNotification.id)).toBe(false);
+  expect(parentData.notifications.some((n: { id: string }) => n.id === adminNotification.id)).toBe(false);
+
+  const forbidden = await request.patch(`/api/notifications/${parentNotification.id}/read`, {
+    headers: adminHeaders,
+  });
+  expect(forbidden.status()).toBe(404);
+  const marked = await request.patch(`/api/notifications/${parentNotification.id}/read`, {
+    headers: parentHeaders,
+  });
+  expect(marked.status()).toBe(200);
+
+  const allRead = await request.post("/api/notifications", {
+    headers: adminHeaders, data: { markAllRead: true },
+  });
+  expect(allRead.status()).toBe(200);
+  const nowRead = await request.get("/api/notifications?unreadOnly=true", {
+    headers: adminHeaders,
+  });
+  expect((await nowRead.json()).notifications).toHaveLength(0);
+});
