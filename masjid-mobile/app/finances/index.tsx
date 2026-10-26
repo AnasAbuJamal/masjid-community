@@ -1,452 +1,300 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  Dimensions,
-  TouchableOpacity,
-  TextInput,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  RefreshControl, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, FloatingIcon, Skeleton } from '../../components/common';
+import api from '../../services/api-client';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
-import apiService, { FinancialSummary, FinancialRecord } from '../../services/api-service';
 
-interface Budget {
+interface Summary {
+  totalSpent: number;
+  bankBalance: number;
+  totalGoal: number;
+  totalRaised: number;
+  remainingNeeded: number;
+  lastUpdated: string;
+}
+interface RecordMonth {
+  id: number;
+  month: string;
+  year: number;
+  donations: number;
+  expenses: number;
+}
+interface BudgetLine {
   id: string;
   category: string;
   allocated: number;
   spent: number;
-  color: string;
+  color: string | null;
+  icon: string | null;
 }
-
-const EXPENSE_CATEGORIES = [
-  { name: 'Utilities', icon: 'lightning-bolt', color: '#B8860B' },
-  { name: 'Maintenance', icon: 'wrench', color: '#3B6FA0' },
-  { name: 'Salaries', icon: 'account-tie', color: '#6B4F8A' },
-  { name: 'Programs', icon: 'calendar', color: '#3D7A4A' },
-  { name: 'Equipment', icon: 'toolbox', color: '#A04040' },
-  { name: 'Other', icon: 'dots-horizontal', color: '#5A6B7A' },
-];
-
-const MOCK_BUDGETS: Budget[] = [
-  { id: '1', category: 'Utilities', allocated: 5000, spent: 4200, color: '#B8860B' },
-  { id: '2', category: 'Maintenance', allocated: 3000, spent: 2800, color: '#3B6FA0' },
-  { id: '3', category: 'Salaries', allocated: 15000, spent: 14500, color: '#6B4F8A' },
-  { id: '4', category: 'Programs', allocated: 8000, spent: 6500, color: '#3D7A4A' },
-  { id: '5', category: 'Equipment', allocated: 2000, spent: 1800, color: '#A04040' },
-];
-
-const MOCK_RECENT_EXPENSES = [
-  { id: '1', description: 'Electricity Bill', category: 'Utilities', amount: 1200, date: '2024-03-15' },
-  { id: '2', description: 'AC Repair', category: 'Maintenance', amount: 450, date: '2024-03-14' },
-  { id: '3', description: 'Youth Program Supplies', category: 'Programs', amount: 280, date: '2024-03-12' },
-  { id: '4', description: 'Cleaning Service', category: 'Maintenance', amount: 350, date: '2024-03-10' },
-];
+interface Report {
+  summary: Summary | null;
+  records: RecordMonth[];
+  budgets: BudgetLine[];
+  expenseCategories: { name: string; amount: number }[];
+  period: { year: number; month: number };
+}
+type Tab = 'overview' | 'budgets' | 'expenses';
+const money = (amount: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(amount);
+const label = (year: number, month: number) =>
+  new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
 export default function FinancesScreen() {
   const router = useRouter();
-  const { width } = Dimensions.get('window');
-  const [summary, setSummary] = useState<FinancialSummary | null>(null);
-  const [records, setRecords] = useState<FinancialRecord[]>([]);
+  const { width } = useWindowDimensions();
+  const [period, setPeriod] = useState(() => {
+    const date = new Date();
+    return { year: date.getFullYear(), month: date.getMonth() + 1 };
+  });
+  const [tab, setTab] = useState<Tab>('overview');
+  const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'budgets' | 'expenses'>('overview');
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [recentExpenses, setRecentExpenses] = useState<typeof MOCK_RECENT_EXPENSES>([]);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    setLoading(true);
+  const load = async () => {
     try {
-      const [summaryData, recordsData] = await Promise.all([
-        apiService.finances.getSummary(),
-        apiService.finances.getRecords(),
-      ]);
-      setSummary(summaryData);
-      setRecords(recordsData);
+      const response = await api.instance.get<Report>('/public/finances', { params: period });
+      setReport(response.data);
+      setError('');
     } catch {
-      setSummary(null);
-      setRecords([]);
+      setError('Published finances could not be retrieved. Check your connection and retry.');
+    } finally {
+      setLoading(false); setRefreshing(false);
     }
-    setBudgets(MOCK_BUDGETS);
-    setRecentExpenses(MOCK_RECENT_EXPENSES);
-    setLoading(false);
+  };
+  useEffect(() => {
+    setLoading(true);
+    void load();
+  }, [period.year, period.month]);
+  const refresh = () => { setRefreshing(true); void load(); };
+
+  const shiftPeriod = (direction: number) => {
+    const target = new Date(period.year, period.month - 1 + direction, 1);
+    if (target.getFullYear() < 2020 || target.getFullYear() > 2100) return;
+    setPeriod({ year: target.getFullYear(), month: target.getMonth() + 1 });
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
-
-  const getCategoryInfo = (category: string) => {
-    return EXPENSE_CATEGORIES.find(c => c.name === category) || EXPENSE_CATEGORIES[5];
-  };
-
-  const tabs = [
-    { key: 'overview', label: 'Overview', icon: 'view-grid' },
-    { key: 'budgets', label: 'Budgets', icon: 'chart-pie' },
-    { key: 'expenses', label: 'Expenses', icon: 'receipt' },
-  ];
-
-  const renderOverview = () => (
-    <>
-      {summary && (
-        <>
-          <View style={styles.heroCard}>
-            <View style={styles.heroGradient}>
-              <Text style={styles.heroLabel}>Total Raised</Text>
-              <Text style={styles.heroValue}>${summary.totalRaised.toLocaleString()}</Text>
-              <View style={styles.heroProgress}>
-                <View style={styles.heroProgressBar}>
-                  <View
-                    style={[
-                      styles.heroProgressFill,
-                      { width: `${Math.min(100, (summary.totalRaised / summary.totalGoal) * 100)}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.heroProgressText}>
-                  ${summary.totalGoal.toLocaleString()} goal
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <GlassCard style={styles.statCard}>
-              <FloatingIcon
-                icon={<MaterialCommunityIcons name="bank" size={20} color={COLORS.success} />}
-                size="sm"
-                color={COLORS.success}
-              />
-              <Text style={styles.statValue}>${summary.bankBalance.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Bank Balance</Text>
-            </GlassCard>
-            <GlassCard style={styles.statCard}>
-              <FloatingIcon
-                icon={<MaterialCommunityIcons name="cash-minus" size={20} color={COLORS.error} />}
-                size="sm"
-                color={COLORS.error}
-              />
-              <Text style={styles.statValue}>${summary.totalSpent.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Total Spent</Text>
-            </GlassCard>
-            <GlassCard style={styles.statCard}>
-              <FloatingIcon
-                icon={<MaterialCommunityIcons name="target" size={20} color={COLORS.warning} />}
-                size="sm"
-                color={COLORS.warning}
-              />
-              <Text style={[styles.statValue, { color: COLORS.warning }]}>
-                ${summary.remainingNeeded.toLocaleString()}
-              </Text>
-              <Text style={styles.statLabel}>Remaining</Text>
-            </GlassCard>
-          </View>
-        </>
-      )}
-
-      <View style={styles.recordsSection}>
-        <Text style={styles.sectionTitle}>Monthly Records</Text>
-        <GlassCard>
-          {records.length > 0 ? (
-            records.map((record, index) => {
-              const net = record.donations - record.expenses;
-              return (
-                <View
-                  key={record.id}
-                  style={[
-                    styles.recordRow,
-                    index < records.length - 1 && styles.recordRowBorder,
-                  ]}
-                >
-                  <View style={styles.recordMonth}>
-                    <Text style={styles.recordMonthText}>{record.month}</Text>
-                    <Text style={styles.recordYear}>{record.year}</Text>
-                  </View>
-                  <View style={styles.recordStats}>
-                    <View style={styles.recordStat}>
-                      <MaterialCommunityIcons name="arrow-down-bold" size={12} color={COLORS.success} />
-                      <Text style={[styles.recordStatValue, { color: COLORS.success }]}>
-                        ${record.donations.toLocaleString()}
-                      </Text>
-                    </View>
-                    <View style={styles.recordStat}>
-                      <MaterialCommunityIcons name="arrow-up-bold" size={12} color={COLORS.error} />
-                      <Text style={[styles.recordStatValue, { color: COLORS.error }]}>
-                        ${record.expenses.toLocaleString()}
-                      </Text>
-                    </View>
-                    <View style={styles.recordStat}>
-                      <MaterialCommunityIcons
-                        name={net >= 0 ? 'trending-up' : 'trending-down'}
-                        size={12}
-                        color={net >= 0 ? COLORS.success : COLORS.error}
-                      />
-                      <Text
-                        style={[
-                          styles.recordStatValue,
-                          { color: net >= 0 ? COLORS.success : COLORS.error },
-                        ]}
-                      >
-                        {net >= 0 ? '+' : ''}${net.toLocaleString()}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })
-          ) : (
-            <View style={styles.emptyRecords}>
-              <Text style={styles.emptyText}>No financial records available</Text>
-            </View>
-          )}
-        </GlassCard>
-      </View>
-    </>
-  );
-
-  const renderBudgets = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Budget vs Actual</Text>
-      {budgets.map((budget) => {
-        const percent = (budget.spent / budget.allocated) * 100;
-        const isOver = percent > 100;
-        const categoryInfo = getCategoryInfo(budget.category);
-        return (
-          <GlassCard key={budget.id} style={styles.budgetCard}>
-            <View style={styles.budgetHeader}>
-              <View style={styles.budgetCategory}>
-                <View style={[styles.categoryIcon, { backgroundColor: budget.color + '20' }]}>
-                  <MaterialCommunityIcons name={categoryInfo.icon as any} size={16} color={budget.color} />
-                </View>
-                <Text style={styles.budgetCategoryText}>{budget.category}</Text>
-              </View>
-              <Text style={[styles.budgetPercent, { color: isOver ? COLORS.error : COLORS.textSecondary }]}>
-                {percent.toFixed(0)}%
-              </Text>
-            </View>
-            <View style={styles.budgetBar}>
-              <View
-                style={[
-                  styles.budgetFill,
-                  { width: `${Math.min(100, percent)}%`, backgroundColor: isOver ? COLORS.error : budget.color },
-                ]}
-              />
-            </View>
-            <View style={styles.budgetFooter}>
-              <Text style={styles.budgetSpent}>${budget.spent.toLocaleString()} spent</Text>
-              <Text style={styles.budgetAllocated}>${budget.allocated.toLocaleString()} budget</Text>
-            </View>
-          </GlassCard>
-        );
-      })}
-
-      <View style={styles.budgetSummary}>
-        <GlassCard style={styles.budgetSummaryCard}>
-          <Text style={styles.budgetSummaryLabel}>Total Budget</Text>
-          <Text style={styles.budgetSummaryValue}>
-            ${budgets.reduce((sum, b) => sum + b.allocated, 0).toLocaleString()}
-          </Text>
-        </GlassCard>
-        <GlassCard style={styles.budgetSummaryCard}>
-          <Text style={styles.budgetSummaryLabel}>Total Spent</Text>
-          <Text style={[styles.budgetSummaryValue, { color: COLORS.error }]}>
-            ${budgets.reduce((sum, b) => sum + b.spent, 0).toLocaleString()}
-          </Text>
-        </GlassCard>
-      </View>
+  const summaryItem = (name: string, value: string) => (
+    <View style={[styles.metric, width >= 768 && styles.metricTablet]}>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{name}</Text>
     </View>
   );
 
-  const renderExpenses = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Recent Expenses</Text>
-      <GlassCard>
-        {recentExpenses.map((expense, index) => {
-          const categoryInfo = getCategoryInfo(expense.category);
-          return (
-            <View
-              key={expense.id}
-              style={[styles.expenseRow, index < recentExpenses.length - 1 && styles.expenseRowBorder]}
-            >
-              <View style={[styles.expenseIcon, { backgroundColor: categoryInfo.color + '20' }]}>
-                <MaterialCommunityIcons name={categoryInfo.icon as any} size={18} color={categoryInfo.color} />
-              </View>
-              <View style={styles.expenseInfo}>
-                <Text style={styles.expenseDescription}>{expense.description}</Text>
-                <Text style={styles.expenseCategory}>{expense.category} • {expense.date}</Text>
-              </View>
-              <Text style={styles.expenseAmount}>-${expense.amount}</Text>
-            </View>
-          );
-        })}
-      </GlassCard>
-
-      <TouchableOpacity style={styles.addExpenseButton}>
-        <MaterialCommunityIcons name="plus" size={20} color={COLORS.white} />
-        <Text style={styles.addExpenseText}>Add New Expense</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderSkeleton = () => (
-    <View style={{ padding: SPACING.md, gap: SPACING.md }}>
-      <Skeleton style={{ height: 160, borderRadius: RADIUS.xl }} />
-      <View style={styles.statsRow}>
-        <Skeleton style={{ height: 100, borderRadius: RADIUS.lg, flex: 1 }} />
-        <Skeleton style={{ height: 100, borderRadius: RADIUS.lg, flex: 1 }} />
-        <Skeleton style={{ height: 100, borderRadius: RADIUS.lg, flex: 1 }} />
-      </View>
-      <Skeleton style={{ height: 200, borderRadius: RADIUS.lg }} />
-    </View>
-  );
+  const summary = report?.summary;
+  const budgets = report?.budgets ?? [];
+  const expenses = report?.expenseCategories ?? [];
+  const budgetTotal = budgets.reduce((total, b) => total + b.allocated, 0);
+  const spentTotal = budgets.reduce((total, b) => total + b.spent, 0);
 
   return (
-    <ScreenWrapper contentPadding={false} bottomPadding={false}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity style={styles.back} accessibilityRole="button" accessibilityLabel="Go back"
+          onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Finances</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.heading}>
+          <Text style={styles.title}>Community Finances</Text>
+          <Text style={styles.subtitle}>Published financial transparency</Text>
+        </View>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />
-        }
-      >
+      <View style={styles.tabs}>
+        {([
+          ['overview', 'Overview'], ['budgets', 'Budgets'], ['expenses', 'Expenses'],
+        ] as const).map(([key, name]) => (
+          <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }}
+            onPress={() => setTab(key)}
+            style={[styles.tab, tab === key && styles.tabActive]}>
+            <Text style={[styles.tabLabel, tab === key && styles.tabLabelActive]}>{name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {tabs.map((tab) => (
-              <TouchableOpacity
-                key={tab.key}
-                style={[styles.tab, selectedTab === tab.key && styles.tabActive]}
-                onPress={() => setSelectedTab(tab.key as any)}
-              >
-                <MaterialCommunityIcons
-                  name={tab.icon as any}
-                  size={16}
-                  color={selectedTab === tab.key ? COLORS.primary : COLORS.textSecondary}
-                />
-                <Text style={[styles.tabText, selectedTab === tab.key && styles.tabTextActive]}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-        {loading ? (
-          renderSkeleton()
-        ) : !summary && selectedTab === 'overview' ? (
-          <View style={styles.emptyWrapper}>
-            <GlassCard>
-              <View style={styles.centeredContent}>
-                <FloatingIcon
-                  icon={<MaterialCommunityIcons name="chart-bar" size={32} color={COLORS.textSecondary} />}
-                  size="lg"
-                  color={COLORS.textSecondary}
-                />
-                <Text style={styles.emptyTitle}>No financial data</Text>
-                <Text style={styles.emptySubtext}>
-                  Financial information will be displayed here when available
-                </Text>
-              </View>
-            </GlassCard>
+      <ScrollView contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        {tab !== 'overview' && (
+          <View style={styles.period}>
+            <TouchableOpacity style={styles.periodArrow} accessibilityRole="button"
+              accessibilityLabel="Previous month" onPress={() => shiftPeriod(-1)}>
+              <MaterialCommunityIcons name="chevron-left" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <Text style={styles.periodLabel}>{label(period.year, period.month)}</Text>
+            <TouchableOpacity style={styles.periodArrow} accessibilityRole="button"
+              accessibilityLabel="Next month" onPress={() => shiftPeriod(1)}>
+              <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.text} />
+            </TouchableOpacity>
           </View>
-        ) : (
-          <>
-            {selectedTab === 'overview' && renderOverview()}
-            {selectedTab === 'budgets' && renderBudgets()}
-            {selectedTab === 'expenses' && renderExpenses()}
-          </>
         )}
+        {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
+          : error ? <View style={styles.empty}>
+            <Text style={styles.emptyText}>{error}</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.retry} onPress={refresh}>
+              <Text style={styles.retryText}>Try again</Text>
+            </TouchableOpacity>
+          </View> : report ? (
+            <>
+              {tab === 'overview' && (
+                <>
+                  <Text style={styles.sectionTitle}>Financial summary</Text>
+                  {summary ? (
+                    <>
+                      <View style={styles.metrics}>
+                        {summaryItem('Total raised', money(summary.totalRaised))}
+                        {summaryItem('Total spent', money(summary.totalSpent))}
+                        {summaryItem('Remaining goal', money(summary.remainingNeeded))}
+                        {summaryItem('Bank balance (reported)', money(summary.bankBalance))}
+                      </View>
+                      {summary.totalGoal > 0 && (
+                        <View style={styles.goal}>
+                          <Text style={styles.goalLabel}>Fundraising progress</Text>
+                          <View style={styles.progressTrack}>
+                            <View style={[styles.progressFill, {
+                              width: `${Math.max(0, Math.min(100, summary.totalRaised / summary.totalGoal * 100))}%`,
+                            }]} />
+                          </View>
+                          <Text style={styles.note}>{money(summary.totalRaised)} of {money(summary.totalGoal)}</Text>
+                        </View>
+                      )}
+                      <Text style={styles.note}>Last recorded update: {new Date(summary.lastUpdated).toLocaleDateString()}</Text>
+                    </>
+                  ) : <Text style={styles.emptyText}>No financial summary has been published.</Text>}
+
+                  <Text style={styles.sectionTitle}>Recorded monthly results</Text>
+                  {report.records.length === 0 ?
+                    <Text style={styles.emptyText}>No monthly financial records have been recorded.</Text>
+                    : report.records.map(month => (
+                      <View key={month.id} style={styles.card}>
+                        <Text style={styles.cardTitle}>{month.month} {month.year}</Text>
+                        <View style={styles.moneyRow}>
+                          <Text style={styles.secondary}>Donations</Text>
+                          <Text style={styles.moneyText}>{money(month.donations)}</Text>
+                        </View>
+                        <View style={styles.moneyRow}>
+                          <Text style={styles.secondary}>Expenses</Text>
+                          <Text style={styles.moneyText}>{money(month.expenses)}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  <Text style={styles.note}>The summary and monthly records are reported by masjid staff; they are not automatically audited bank statements.</Text>
+                </>
+              )}
+
+              {tab === 'budgets' && (
+                <>
+                  <Text style={styles.sectionTitle}>Published category allocations</Text>
+                  {budgets.length === 0 ? <Text style={styles.emptyText}>
+                    No budgets have been published for {label(period.year, period.month)}.
+                  </Text> : <>
+                    <View style={styles.metrics}>
+                      {summaryItem('Published allocations', money(budgetTotal))}
+                      {summaryItem('Recorded category spend', money(spentTotal))}
+                    </View>
+                    {budgets.map(budget => {
+                      const percent = budget.allocated > 0 ? budget.spent / budget.allocated * 100 : 0;
+                      return (
+                        <View key={budget.id} style={styles.card}>
+                          <View style={styles.moneyRow}>
+                            <Text style={styles.cardTitle}>{budget.category}</Text>
+                            <Text style={styles.secondary}>
+                              {budget.allocated > 0 ? `${percent.toFixed(0)}% used` : 'No allocation'}
+                            </Text>
+                          </View>
+                          <View style={styles.progressTrack}>
+                            <View style={[styles.progressFill, {
+                              width: `${Math.max(0, Math.min(100, percent))}%`,
+                              backgroundColor: percent > 100 ? COLORS.error : COLORS.primary,
+                            }]} />
+                          </View>
+                          <View style={styles.moneyRow}>
+                            <Text style={styles.secondary}>Spent {money(budget.spent)}</Text>
+                            <Text style={styles.secondary}>Budget {money(budget.allocated)}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </>}
+                </>
+              )}
+
+              {tab === 'expenses' && (
+                <>
+                  <Text style={styles.sectionTitle}>Published expense category totals</Text>
+                  {expenses.length === 0 ? <Text style={styles.emptyText}>
+                    No expense breakdown has been published for {label(period.year, period.month)}.
+                  </Text> : expenses.map(expense => (
+                    <View key={expense.name} style={styles.card}>
+                      <View style={styles.moneyRow}>
+                        <Text style={styles.cardTitle}>{expense.name}</Text>
+                        <Text style={styles.moneyText}>{money(expense.amount)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={styles.note}>Category totals include only published budget categories. Individual expense descriptions and private receipts are not publicly exposed.</Text>
+                </>
+              )}
+            </>
+          ) : null}
       </ScrollView>
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: 100 },
-  header: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  tabsContainer: { paddingHorizontal: SPACING.md, marginBottom: SPACING.md, marginTop: SPACING.lg },
-  tab: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, backgroundColor: COLORS.surface, marginRight: SPACING.sm, gap: 6 },
-  tabActive: { backgroundColor: COLORS.primary + '15' },
-  tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.primary },
-
-  heroCard: { marginHorizontal: SPACING.md, marginBottom: SPACING.sm, marginTop: SPACING.md, borderRadius: RADIUS.xl, overflow: 'hidden' },
-  heroGradient: { backgroundColor: COLORS.primary, padding: SPACING.lg, borderRadius: RADIUS.xl },
-  heroLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600', marginBottom: SPACING.xs },
-  heroValue: { color: COLORS.white, fontSize: 36, fontWeight: '800', marginBottom: SPACING.md },
-  heroProgress: { gap: SPACING.xs },
-  heroProgressBar: { height: 8, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: RADIUS.full, overflow: 'hidden' },
-  heroProgressFill: { height: '100%', backgroundColor: COLORS.white, borderRadius: RADIUS.full },
-  heroProgressText: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600' },
-  statsRow: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm, marginBottom: SPACING.md },
-  statCard: { flex: 1, alignItems: 'center', padding: SPACING.sm },
-  statValue: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: SPACING.xs },
-  statLabel: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600', marginTop: 2 },
-
-  recordsSection: { paddingHorizontal: SPACING.md },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: SPACING.sm, marginLeft: SPACING.xs },
-  recordRow: { paddingVertical: SPACING.md },
-  recordRowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  recordMonth: { marginBottom: SPACING.sm },
-  recordMonthText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  recordYear: { fontSize: 12, color: COLORS.textSecondary },
-  recordStats: { flexDirection: 'row', justifyContent: 'space-between' },
-  recordStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  recordStatValue: { fontSize: 13, fontWeight: '700' },
-
-  section: { paddingHorizontal: SPACING.md },
-  budgetCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  budgetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  budgetCategory: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  categoryIcon: { width: 32, height: 32, borderRadius: RADIUS.md, justifyContent: 'center', alignItems: 'center' },
-  budgetCategoryText: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  budgetPercent: { fontSize: 14, fontWeight: '700' },
-  budgetBar: { height: 8, backgroundColor: COLORS.background, borderRadius: RADIUS.full, overflow: 'hidden' },
-  budgetFill: { height: '100%', borderRadius: RADIUS.full },
-  budgetFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.xs },
-  budgetSpent: { fontSize: 12, color: COLORS.textSecondary },
-  budgetAllocated: { fontSize: 12, color: COLORS.textSecondary },
-
-  budgetSummary: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
-  budgetSummaryCard: { flex: 1, alignItems: 'center', padding: SPACING.md },
-  budgetSummaryLabel: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 4 },
-  budgetSummaryValue: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-
-  expenseRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm },
-  expenseRowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  expenseIcon: { width: 40, height: 40, borderRadius: RADIUS.md, justifyContent: 'center', alignItems: 'center' },
-  expenseInfo: { flex: 1, marginLeft: SPACING.sm },
-  expenseDescription: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  expenseCategory: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  expenseAmount: { fontSize: 15, fontWeight: '700', color: COLORS.error },
-
-  addExpenseButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, padding: SPACING.md, borderRadius: RADIUS.lg, marginTop: SPACING.md, gap: SPACING.sm },
-  addExpenseText: { color: COLORS.white, fontSize: 15, fontWeight: '600' },
-
-  emptyWrapper: { flex: 1, justifyContent: 'center', paddingTop: SPACING.xxl, paddingHorizontal: SPACING.md },
-  centeredContent: { alignItems: 'center', gap: SPACING.sm },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  emptySubtext: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
-  emptyRecords: { paddingVertical: SPACING.lg, alignItems: 'center' },
-  emptyText: { fontSize: 14, color: COLORS.textSecondary },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.sm,
+    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  heading: { flex: 1 },
+  title: { color: COLORS.text, fontSize: 20, fontWeight: '700' },
+  subtitle: { color: COLORS.textSecondary, fontSize: 13, marginTop: 3 },
+  tabs: { flexDirection: 'row', padding: SPACING.sm, backgroundColor: COLORS.surface,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SPACING.sm },
+  tab: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  tabActive: { backgroundColor: COLORS.primaryFaded },
+  tabLabel: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' },
+  tabLabelActive: { color: COLORS.primary },
+  content: { width: '100%', maxWidth: 860, alignSelf: 'center', padding: SPACING.md,
+    paddingBottom: SPACING.xxl },
+  period: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.md,
+    marginBottom: SPACING.lg },
+  periodArrow: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  periodLabel: { color: COLORS.text, fontWeight: '700', fontSize: 16, minWidth: 170, textAlign: 'center' },
+  loader: { marginTop: SPACING.xxl },
+  empty: { alignItems: 'center', paddingVertical: SPACING.xxl },
+  emptyText: { color: COLORS.textSecondary, textAlign: 'center', fontSize: 14,
+    lineHeight: 21, marginVertical: SPACING.lg },
+  retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: SPACING.md },
+  retryText: { color: COLORS.primary, fontWeight: '700' },
+  sectionTitle: { color: COLORS.text, fontWeight: '700', fontSize: 17,
+    marginTop: SPACING.md, marginBottom: SPACING.md },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
+  metric: { flexGrow: 1, flexBasis: '45%', minWidth: 130, padding: SPACING.md,
+    backgroundColor: COLORS.surface, borderColor: COLORS.border,
+    borderWidth: 1, borderRadius: RADIUS.lg },
+  metricTablet: { flexBasis: '23%' },
+  metricValue: { fontSize: 19, fontWeight: '700', color: COLORS.text },
+  metricLabel: { marginTop: SPACING.xs, color: COLORS.textSecondary, fontSize: 12 },
+  card: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, gap: SPACING.sm },
+  cardTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  secondary: { color: COLORS.textSecondary, fontSize: 12 },
+  moneyRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: SPACING.sm },
+  moneyText: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  goal: { padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.border },
+  goalLabel: { color: COLORS.text, fontWeight: '600', fontSize: 14, marginBottom: SPACING.sm },
+  progressTrack: { height: 10, backgroundColor: COLORS.background,
+    borderRadius: RADIUS.full, overflow: 'hidden', marginVertical: SPACING.xs },
+  progressFill: { height: 10, backgroundColor: COLORS.primary, borderRadius: RADIUS.full },
+  note: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 19,
+    marginTop: SPACING.md, marginBottom: SPACING.sm },
 });
