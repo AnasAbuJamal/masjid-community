@@ -69,8 +69,10 @@ export interface Donation {
   id: string;
   amount: number;
   category: 'sadaqah' | 'zakat' | 'fitra' | ' Ramadan' | 'building' | 'other';
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
   date: string;
+  receiptUrl?: string | null;
+  isRecurring?: boolean;
 }
 
 export interface Proposal {
@@ -418,7 +420,7 @@ export const apiService = {
     },
     getHistory: async (): Promise<Donation[]> => {
       try {
-        const response = await api.instance.get<Donation[]>('/donations');
+        const response = await api.instance.get<Donation[]>('/donations/mine');
         return response.data;
       } catch {
         return [];
