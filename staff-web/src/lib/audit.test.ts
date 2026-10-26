@@ -21,7 +21,7 @@ describe('audit', () => {
       vi.mocked(prisma.auditLog.create).mockResolvedValue({
         id: '1',
         action: 'test_action',
-        userId: 'user123',
+        userId: '123',
         email: 'test@example.com',
         details: 'Test details',
         ipAddress: '192.168.1.1',
@@ -33,7 +33,7 @@ describe('audit', () => {
 
       await logAudit({
         action: 'test_action',
-        userId: 'user123',
+        userId: '123',
         email: 'test@example.com',
         details: 'Test details',
         ipAddress: '192.168.1.1',
@@ -43,11 +43,13 @@ describe('audit', () => {
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: {
           action: 'test_action',
-          userId: 'user123',
+          userId: 123,
           email: 'test@example.com',
           details: 'Test details',
           ipAddress: '192.168.1.1',
           success: true,
+          entity: undefined,
+          entityId: undefined,
         },
       });
     });
@@ -76,6 +78,8 @@ describe('audit', () => {
           details: undefined,
           ipAddress: undefined,
           success: true,
+          entity: undefined,
+          entityId: undefined,
         },
       });
     });
