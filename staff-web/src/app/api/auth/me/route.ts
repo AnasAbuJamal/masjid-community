@@ -5,6 +5,6 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   return NextResponse.json({
     id: String(user.id), email: user.email, firstName: user.firstName,
-    lastName: user.lastName, role: user.role, phone: user.phone,
+    lastName: user.lastName, role: user.role, phone: user.phone, isVerified: user.isVerified,
   }, { headers: { "Cache-Control": "no-store" } });
 }
