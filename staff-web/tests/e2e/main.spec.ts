@@ -290,3 +290,41 @@ test("educational resources require staff publishing, validate links and hide dr
   expect(removed.status()).toBe(200);
   expect((await request.get(`/api/resources/${draft.id}`)).status()).toBe(404);
 });
+
+
+test("CRM analytics reflect database totals and enforce admin-only access", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated database fixture");
+  expect((await request.get("/api/mobile/admin/analytics")).status()).toBe(401);
+
+  const parentResponse = await request.post("/api/auth/login", {
+    data: { email: "ci-parent@example.test", password: "ci-only-parent-password-not-for-production" },
+  });
+  expect(parentResponse.status()).toBe(200);
+  const parent = await parentResponse.json();
+  expect((await request.get("/api/mobile/admin/analytics", {
+    headers: { Authorization: `Bearer ${parent.token}` },
+  })).status()).toBe(403);
+
+  const adminResponse = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(adminResponse.status()).toBe(200);
+  const admin = await adminResponse.json();
+  const result = await request.get("/api/mobile/admin/analytics", {
+    headers: { Authorization: `Bearer ${admin.token}` },
+  });
+  expect(result.status()).toBe(200);
+  const report = await result.json();
+  expect(report.months).toHaveLength(6);
+  for (const month of report.months) {
+    expect(Number.isFinite(month.donations)).toBe(true);
+    expect(Number.isFinite(month.expenses)).toBe(true);
+    expect(Number.isInteger(month.newMembers)).toBe(true);
+  }
+  expect(report.totals.activeMembers).toBeGreaterThanOrEqual(2);
+  expect(report.events).toEqual(expect.any(Array));
+  if (report.events.length > 0) {
+    expect(report.events[0]).toHaveProperty("confirmedRSVPs");
+    expect(report.events[0]).not.toHaveProperty("attended");
+  }
+});
