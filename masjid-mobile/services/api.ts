@@ -57,12 +57,9 @@ export interface VolunteerOpportunity {
 export const prayerService = {
   getToday: async (): Promise<PrayerTimes> => {
     try {
-      const res = await api.instance.get('/prayers', {
-        params: { limit: 1 },
-      });
-      const prayers = res.data.prayers;
-      if (prayers && prayers.length > 0) {
-        const p = prayers[0];
+      const res = await api.instance.get('/prayers/today');
+      const p = res.data;
+      if (p && p.fajr) {
         return {
           fajr: p.fajr,
           sunrise: p.sunrise,
@@ -92,10 +89,8 @@ export const prayerService = {
 
   getWeek: async (): Promise<PrayerTimes[]> => {
     try {
-      const res = await api.instance.get('/prayers', {
-        params: { limit: 7 },
-      });
-      return (res.data.prayers || []).map((p: any) => ({
+      const res = await api.instance.get('/prayers/week');
+      return (Array.isArray(res.data) ? res.data : []).map((p: any) => ({
         fajr: p.fajr,
         sunrise: p.sunrise,
         dhuhr: p.dhuhr,
@@ -118,15 +113,14 @@ export const prayerService = {
 export const announcementService = {
   getAll: async (): Promise<Announcement[]> => {
     try {
-      const res = await api.instance.get('/kiosk');
+      const res = await api.instance.get('/public/announcements');
       return (res.data.announcements || [])
-        .filter((a: any) => a.isActive)
         .map((a: any) => ({
-          id: a.id,
+          id: String(a.id),
           title: a.title,
           message: a.message,
           type: a.type,
-          date: a.startsAt ? new Date(a.startsAt).toLocaleDateString() : undefined,
+          date: a.startsAt ? new Date(a.startsAt).toLocaleDateString() : new Date(a.createdAt).toLocaleDateString(),
           isActive: a.isActive,
         }));
     } catch (error) {
@@ -147,9 +141,9 @@ export const announcementService = {
 export const jobService = {
   getAll: async (): Promise<Job[]> => {
     try {
-      const res = await api.instance.get('/jobs');
-      return (res.data.postings || []).map((j: any) => ({
-        id: j.id,
+      const res = await api.instance.get('/public/jobs');
+      return (res.data.jobs || []).map((j: any) => ({
+        id: String(j.id),
         title: j.title,
         company: j.company,
         description: j.description,
@@ -157,7 +151,7 @@ export const jobService = {
         employmentType: j.employmentType,
         salaryMin: j.salaryMin,
         salaryMax: j.salaryMax,
-        status: j.status,
+        status: j.status || 'active',
         isUrgent: j.isUrgent,
         contactEmail: j.contactEmail,
         postedAt: j.createdAt,
@@ -175,9 +169,9 @@ export const jobService = {
 export const communityService = {
   getVolunteerOpportunities: async (): Promise<VolunteerOpportunity[]> => {
     try {
-      const res = await api.instance.get('/volunteers');
+      const res = await api.instance.get('/public/volunteers');
       return (res.data.opportunities || []).map((v: any) => ({
-        id: v.id,
+        id: String(v.id),
         title: v.title,
         description: v.description,
         eventDate: v.eventDate,
@@ -193,7 +187,7 @@ export const communityService = {
 
   getProposals: async () => {
     try {
-      const res = await api.instance.get('/proposals');
+      const res = await api.instance.get('/public/proposals');
       return res.data.proposals || [];
     } catch (error) {
       console.error('[API] Failed to fetch proposals:', error);
@@ -208,8 +202,8 @@ export const communityService = {
 export const schoolService = {
   getStudents: async () => {
     try {
-      const res = await api.instance.get('/classroom/students');
-      return res.data.students || [];
+      const res = await api.instance.get('/school/students');
+      return Array.isArray(res.data) ? res.data : [];
     } catch (error) {
       console.error('[API] Failed to fetch students:', error);
       return [];
@@ -218,8 +212,8 @@ export const schoolService = {
 
   getAssignments: async () => {
     try {
-      const res = await api.instance.get('/assignments');
-      return res.data.assignments || [];
+      const res = await api.instance.get('/school/assignments');
+      return Array.isArray(res.data) ? res.data : [];
     } catch (error) {
       console.error('[API] Failed to fetch assignments:', error);
       return [];
