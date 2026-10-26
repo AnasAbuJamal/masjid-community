@@ -33,7 +33,7 @@ describe('audit', () => {
 
       await logAudit({
         action: 'test_action',
-        userId: 123,
+        userId: '123',
         email: 'test@example.com',
         details: 'Test details',
         ipAddress: '192.168.1.1',
