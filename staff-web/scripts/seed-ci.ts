@@ -127,6 +127,19 @@ async function main() {
       },
     });
   }
+  const localToday = new Date();
+  localToday.setHours(0, 0, 0, 0);
+  await prisma.prayerTime.upsert({
+    where: { date: localToday },
+    update: {},
+    create: {
+      date: localToday,
+      fajr: "05:12", sunrise: "06:39", dhuhr: "12:18",
+      asr: "15:27", maghrib: "18:01", isha: "19:29",
+      jummah1: "", jummah2: "",
+    },
+  });
+
   // Separate owners verify that notification reads cannot cross account boundaries.
   await prisma.notification.create({
     data: { userId: admin.id, type: "info", title: "CI Admin Notification",
