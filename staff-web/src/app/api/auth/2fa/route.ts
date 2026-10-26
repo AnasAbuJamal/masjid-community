@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
     try {
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: Number(session.user.id) },
             select: { twoFactorEnabled: true, email: true },
         });
 
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         }
 
         await prisma.user.update({
-            where: { id: session.user.id },
+            where: { id: Number(session.user.id) },
             data: {
                 twoFactorEnabled: true,
                 twoFactorSecret: secret,
@@ -97,7 +97,7 @@ export async function DELETE(req: NextRequest) {
         const { token } = await req.json();
 
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: Number(session.user.id) },
         });
 
         if (!user?.twoFactorSecret) {
@@ -115,7 +115,7 @@ export async function DELETE(req: NextRequest) {
         }
 
         await prisma.user.update({
-            where: { id: session.user.id },
+            where: { id: Number(session.user.id) },
             data: {
                 twoFactorEnabled: false,
                 twoFactorSecret: null,
