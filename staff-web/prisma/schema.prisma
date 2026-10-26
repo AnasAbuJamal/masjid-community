@@ -776,6 +776,34 @@ enum ProfileStatus {
 //  AUDIT LOGS
 // ──────────────────────────────────────
 
+enum CrmTaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+enum CrmTaskStatus {
+  pending
+  in_progress
+  completed
+}
+
+model CrmTask {
+  id Int @id @default(autoincrement())
+  title String
+  description String @default("")
+  assignedTo String?
+  dueDate DateTime?
+  priority CrmTaskPriority @default(medium)
+  status CrmTaskStatus @default(pending)
+  category String @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, dueDate])
+  @@index([category])
+}
+
 model AuditLog {
   id        Int       @id @default(autoincrement())
   action    String
