@@ -127,6 +127,16 @@ async function main() {
       },
     });
   }
+  // Separate owners verify that notification reads cannot cross account boundaries.
+  await prisma.notification.create({
+    data: { userId: admin.id, type: "info", title: "CI Admin Notification",
+      message: "Administrator-only test message", isRead: false },
+  });
+  await prisma.notification.create({
+    data: { userId: parent.id, type: "info", title: "CI Parent Notification",
+      message: "Private parent test message", isRead: false },
+  });
+
   // The administrator exists solely for authenticated test requests.
   if (admin.role !== "admin") throw new Error("CI administrator fixture was not created");
 
