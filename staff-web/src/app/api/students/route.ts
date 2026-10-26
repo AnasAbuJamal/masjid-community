@@ -1,3 +1,4 @@
+import { managesSchool, classScope, studentScope } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,6 +7,7 @@ import { logAudit, getClientIp } from "@/lib/audit";
 export async function GET(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!managesSchool(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { searchParams } = req.nextUrl;
     const status = searchParams.get("status");
@@ -30,9 +32,11 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!managesSchool(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     try {
         const body = await req.json();
+    delete body.teacherId; delete body.teacher; delete body.userId; delete body.user;
         const { id, action, notes } = body;
 
         if (!id || !action) {

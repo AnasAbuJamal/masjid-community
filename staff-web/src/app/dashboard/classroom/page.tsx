@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ClassroomPage() {
+  const { data: session } = useSession();
+  const canManageRoster = ["admin", "staff"].includes(session?.user.role || "");
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [classDialog, setClassDialog] = useState(false);
@@ -106,8 +109,8 @@ export default function ClassroomPage() {
           <p className="text-gray-500 mt-1">Manage Islamic school classes and students</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={openCreateStudent}><Plus className="h-4 w-4 mr-2" />Add Student</Button>
-          <Button className="mocha-gradient hover:opacity-90" onClick={openCreateClass}><Plus className="h-4 w-4 mr-2" />Add Class</Button>
+          {canManageRoster && <Button variant="outline" onClick={openCreateStudent}><Plus className="h-4 w-4 mr-2" />Add Student</Button>}
+          {canManageRoster && <Button className="mocha-gradient hover:opacity-90" onClick={openCreateClass}><Plus className="h-4 w-4 mr-2" />Add Class</Button>}
         </div>
       </div>
 
@@ -130,8 +133,8 @@ export default function ClassroomPage() {
                   <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5 text-purple-600" />{cls.name}</CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{cls.students?.length || 0} students</Badge>
-                    <Button variant="ghost" size="sm" onClick={() => openEditClass(cls)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "class", id: cls.id })}><Trash2 className="h-4 w-4" /></Button>
+                    {canManageRoster && <Button variant="ghost" size="sm" onClick={() => openEditClass(cls)}><Pencil className="h-4 w-4" /></Button>}
+                    {canManageRoster && <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "class", id: cls.id })}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
                 </div>
                 <p className="text-sm text-gray-500 flex items-center gap-2"><Clock className="h-4 w-4" />{cls.schedule} • Teacher: {cls.teacherName}</p>
@@ -152,8 +155,8 @@ export default function ClassroomPage() {
                           <TableCell>{student.totalPoints.toLocaleString()}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => openEditStudent(student)}><Pencil className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "student", id: student.id })}><Trash2 className="h-4 w-4" /></Button>
+                              {canManageRoster && <Button variant="ghost" size="sm" onClick={() => openEditStudent(student)}><Pencil className="h-4 w-4" /></Button>}
+                              {canManageRoster && <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "student", id: student.id })}><Trash2 className="h-4 w-4" /></Button>}
                             </div>
                           </TableCell>
                         </TableRow>

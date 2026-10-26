@@ -1,3 +1,4 @@
+import { studentScope } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -17,8 +18,8 @@ export async function GET(req: NextRequest) {
         let students;
 
         if (studentId) {
-            const student = await prisma.student.findUnique({
-                where: { id: Number(studentId), ...(["admin", "teacher"].includes(session.user.role) ? {} : { parentEmail: { equals: session.user.email, mode: "insensitive" as const } }) },
+            const student = await prisma.student.findFirst({
+                where: { AND: [{ id: Number(studentId) }, studentScope(session.user)] },
                 include: {
                     class: true,
                     assignments: {
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
             students = student ? [student] : [];
         } else {
             students = await prisma.student.findMany({
-                where: { parentEmail: { equals: ["admin", "teacher"].includes(session.user.role) ? parentEmail?.toLowerCase() : session.user.email, mode: "insensitive" } },
+                where: { AND: [studentScope(session.user), { parentEmail: { equals: parentEmail!, mode: "insensitive" } }] },
                 include: {
                     class: true,
                     assignments: {

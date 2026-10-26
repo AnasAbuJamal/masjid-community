@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (session.user.role !== "admin" && !session.user.isVerified) return NextResponse.json({ error: "Verified account required" }, { status: 403 });
     try {
         const { searchParams } = req.nextUrl;
         const email = session.user.role === "admin" ? searchParams.get("email") : session.user.email;

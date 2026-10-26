@@ -85,3 +85,13 @@ Remaining and next priority:
 - Apply both proposal-vote and push-ownership migrations in a reviewed environment before deploying this revision. Provision a real owner account, then verify complete deployed flows.
 
 Continue the authorized backlog without asking the user to reauthorize. Read the newest checkpoint and git state at the start of the next session.
+
+## Checkpoint — teacher, student and parent boundaries
+
+Added explicit teacher-to-class and student-to-account database relationships, shared school scope filters, verified-parent reads, scoped assignment/report/attendance and roster APIs, and an administrator-only School Access page. Removed teacher roster-management controls and added appropriate school navigation labels for mobile roles. Fixed mobile school student/homework service paths to implemented scoped APIs. Student number lookup is now explicit (`lookup=schoolId`) rather than ambiguously matching either internal or school ID.
+
+Permission matrix and setup are in `docs/SCHOOL-ROLES.md`. Parent access remains a verified family capability; no self-selected parent role grants extra authority. Reports now require sign-in. School managers are admin/staff; only admins manage account links. Teachers need an explicit assigned class, students need an account link, and verified member parents are filtered to their family email.
+
+Apply `20261028000000_school_account_links` before the new APIs are deployed, then use School Access to link real accounts. No name-based automatic backfill is performed. No live database changes have run. Schema-only Prisma diff matches the migration. Both TypeScript checks passed; 24 school scope/report/session/attendance/account-association tests passed.
+
+Remaining: full physical-device/visual and live role-isolation tests; association changes concurrent with writes; atomic/validated bulk attendance; real check-in; tuition, formal grades/report cards and dedicated teacher/student dashboards; remaining CRM and release checklist. Re-audit other dashboards/search/exports before claiming complete role coverage.

@@ -1,3 +1,4 @@
+import { studentScope } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -11,9 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
     if (!/^\d+$/.test(studentId) || !Number.isSafeInteger(numericId) || numericId < 1) return NextResponse.json({ error: "Invalid student ID" }, { status: 400 });
 
     const student = await prisma.student.findFirst({
-      where: { OR: [{ id: numericId }, { studentId: numericId }],
-        ...(["admin", "teacher"].includes(session.user.role) ? {} : { parentEmail: { equals: session.user.email, mode: "insensitive" as const } }),
-      },
+      where: { AND: [_req.nextUrl.searchParams.get("lookup") === "schoolId" ? { studentId: numericId } : { id: numericId }, studentScope(session.user)] },
       include: {
         class: { select: { id: true, name: true, teacherName: true, schedule: true } },
         attendances: {

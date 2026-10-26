@@ -83,3 +83,7 @@ The proposal persistence batch adds `20261026000000_proposal_votes`. Apply commi
 ## Push token ownership migration
 
 Apply `20261027000000_push_token_ownership` before deploying the updated registration endpoint. Existing rows have no owner or expiry and must be excluded from personalized delivery until the installation registers while signed in. New registrations expire after 30 days and require authenticated renewal. Physical device delivery and offline logout recovery remain unverified. The family endpoint also requires a verified account linked to the student parent email; confirm that through the school administrator before testing.
+
+## School account relationships
+
+Apply `20261028000000_school_account_links` before deploying scoped school APIs. Existing teacher names and student numbers do not establish account access. An administrator must open **School Access** to link teacher and student accounts after migration. Verify family identities and enrollment emails for parent access. See `docs/SCHOOL-ROLES.md` for the role matrix and cross-account checks.

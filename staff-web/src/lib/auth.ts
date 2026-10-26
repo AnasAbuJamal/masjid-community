@@ -178,9 +178,9 @@ export async function auth() {
     // Recheck current status and role so deactivated accounts lose access.
     const user = await prisma.user.findUnique({
         where: { id },
-        select: { id: true, role: true, email: true, firstName: true, lastName: true, isActive: true },
+        select: { id: true, role: true, email: true, firstName: true, lastName: true, isActive: true, isVerified: true },
     });
     if (!user?.isActive) return null;
-    return { user: { id: user.id, role: user.role, email: user.email,
+    return { user: { id: user.id, role: user.role, email: user.email, isVerified: user.isVerified,
         name: `${user.firstName} ${user.lastName}` }, expires };
 }

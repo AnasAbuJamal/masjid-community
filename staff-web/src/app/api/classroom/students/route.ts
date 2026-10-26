@@ -1,3 +1,4 @@
+import { managesSchool, classScope, studentScope } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    const where = classId ? { classId: parseInt(classId), isActive: true } : { isActive: true };
+    const where = { AND: [studentScope(session.user), { isActive: true, ...(classId ? { classId: Number(classId) } : {}) }] };
 
     const [students, total] = await Promise.all([
         prisma.student.findMany({
@@ -32,8 +33,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!managesSchool(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
+    delete body.teacherId; delete body.teacher; delete body.userId; delete body.user;
     if (body.classId !== undefined) body.classId = parseInt(String(body.classId));
     if (body.studentId !== undefined) body.studentId = parseInt(String(body.studentId));
     if (body.totalPoints !== undefined) body.totalPoints = parseInt(String(body.totalPoints));

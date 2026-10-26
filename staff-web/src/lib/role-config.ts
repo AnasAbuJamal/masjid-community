@@ -25,10 +25,11 @@ export const navItems: NavItem[] = [
     { title: "Blog / News", href: "/dashboard/blog", icon: "FileText", roles: ["admin", "teacher", "staff"], section: "Content" },
     { title: "Media Library", href: "/dashboard/media", icon: "HardDrive", roles: ["admin", "teacher"], section: "Content" },
     // School
-    { title: "Classroom", href: "/dashboard/classroom", icon: "GraduationCap", roles: ["admin", "teacher"], section: "School" },
+    { title: "School Access", href: "/dashboard/school-access", icon: "Users", roles: ["admin"], section: "School" },
+    { title: "Classroom", href: "/dashboard/classroom", icon: "GraduationCap", roles: ["admin", "teacher", "staff"], section: "School" },
     { title: "Student Applications", href: "/dashboard/applications", icon: "ClipboardCheck", roles: ["admin"], section: "School" },
-    { title: "Attendance", href: "/dashboard/attendance", icon: "Calendar", roles: ["admin", "teacher"], section: "School" },
-    { title: "Assignments", href: "/dashboard/assignments", icon: "ClipboardList", roles: ["admin", "teacher"], section: "School" },
+    { title: "Attendance", href: "/dashboard/attendance", icon: "Calendar", roles: ["admin", "teacher", "staff"], section: "School" },
+    { title: "Assignments", href: "/dashboard/assignments", icon: "ClipboardList", roles: ["admin", "teacher", "staff"], section: "School" },
     { title: "Gamification", href: "/dashboard/gamification", icon: "Trophy", roles: ["admin", "teacher", "student"], section: "School" },
     // Operations
     { title: "Construction", href: "/dashboard/construction", icon: "HardHat", roles: ["admin"], section: "Operations" },

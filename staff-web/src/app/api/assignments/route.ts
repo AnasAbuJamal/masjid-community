@@ -1,3 +1,4 @@
+import { studentScope, teachesSchool } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -13,9 +14,9 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "30");
 
-    const where: Record<string, unknown> = {};
-    if (studentId) where.studentId = studentId;
-    if (teacherId) where.teacherId = teacherId;
+    const where: Record<string, unknown> = { student: studentScope(session.user) };
+    if (studentId) where.studentId = Number(studentId);
+    if (teacherId) where.teacherId = Number(teacherId);
 
     const [assignments, total] = await Promise.all([
         prisma.assignment.findMany({
@@ -37,8 +38,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!teachesSchool(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
+    const allowedStudent = await prisma.student.findFirst({ where: { AND: [{ id: Number(body.studentId) }, studentScope(session.user)] }, select: { id: true } });
+    if (!allowedStudent) return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    body.studentId = allowedStudent.id;
+    delete body.student; delete body.teacher; delete body.id;
+    body.teacherId = session.user.id;
     body.date = new Date(body.date);
     if (!body.teacherId) body.teacherId = session.user.id;
 

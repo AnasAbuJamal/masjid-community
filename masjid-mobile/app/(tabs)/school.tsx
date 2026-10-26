@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlassCard, ScreenWrapper, FloatingIcon } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { useAuthStore } from '../../stores/authStore';
 import apiService, { Student, Assignment } from '../../services/api-service';
 
 const FEATURES = [
@@ -27,6 +28,8 @@ type TabKey = 'programs' | 'students' | 'assignments';
 
 export default function SchoolScreen() {
   const router = useRouter();
+  const user = useAuthStore(state => state.user);
+  const [loadError, setLoadError] = useState(false);
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<TabKey>('programs');
   const [studentId, setStudentId] = useState('');
@@ -44,10 +47,12 @@ export default function SchoolScreen() {
 
   const loadStudents = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await apiService.school.getStudents();
       setStudents(data);
     } catch {
+      setLoadError(true);
       setStudents([]);
     }
     setLoading(false);
@@ -55,10 +60,12 @@ export default function SchoolScreen() {
 
   const loadAssignments = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await apiService.school.getAssignments();
       setAssignments(data);
     } catch {
+      setLoadError(true);
       setAssignments([]);
     }
     setLoading(false);
@@ -77,7 +84,7 @@ export default function SchoolScreen() {
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
     { key: 'programs', label: 'Programs', icon: 'book-open-outline' },
-    { key: 'students', label: 'My Kids', icon: 'account-group-outline' },
+    { key: 'students', label: user?.role === 'teacher' ? 'My students' : user?.role === 'student' ? 'My record' : ['admin', 'staff'].includes(user?.role || '') ? 'Students' : 'My children', icon: 'account-group-outline' },
     { key: 'assignments', label: 'Homework', icon: 'pencil-outline' },
   ];
 
@@ -181,7 +188,7 @@ export default function SchoolScreen() {
             <Text style={styles.assignmentTitle}>{assignment.title}</Text>
             <View style={styles.dueDateRow}>
               <MaterialCommunityIcons name="calendar-outline" size={14} color={COLORS.textSecondary} />
-              <Text style={styles.dueDateText}>Due: {new Date(assignment.dueDate).toLocaleDateString()}</Text>
+              <Text style={styles.dueDateText}>Recorded: {new Date(assignment.dueDate).toLocaleDateString()}</Text>
             </View>
           </GlassCard>
         ))
@@ -210,6 +217,8 @@ export default function SchoolScreen() {
           </View>
         </View>
 
+        <Text style={{ padding: SPACING.md, color: COLORS.textSecondary }}>{user?.role === 'teacher' ? 'Your assigned classes and students' : user?.role === 'student' ? 'Your own school records' : ['admin', 'staff'].includes(user?.role || '') ? 'School administration' : 'Family records require a verified account linked by the school.'}</Text>
+        {loadError && <Text accessibilityRole="alert" style={{ padding: SPACING.md, color: COLORS.text }}>Unable to load records. Check your sign-in and account assignment, then select the tab again.</Text>}
         <View style={styles.tabBarSection}>
           <View style={styles.tabBar}>
             {TABS.map((tab) => (

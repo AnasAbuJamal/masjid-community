@@ -470,21 +470,13 @@ export const apiService = {
   // School
   school: {
     getStudents: async (): Promise<Student[]> => {
-      try {
-        const response = await api.instance.get<Student[]>('/school/students');
-        return response.data;
-      } catch {
-        return [];
-      }
+      const response = await api.instance.get<{ students: { id: number; firstName: string; lastName: string; class: { name: string }; attendanceRate: number }[] }>('/classroom/students');
+      return response.data.students.map(student => ({ id: String(student.id), name: `${student.firstName} ${student.lastName}`, grade: student.class.name, attendance: Math.round(student.attendanceRate * 100) }));
     },
 
     getAssignments: async (): Promise<Assignment[]> => {
-      try {
-        const response = await api.instance.get<Assignment[]>('/school/assignments');
-        return response.data;
-      } catch {
-        return [];
-      }
+      const response = await api.instance.get<{ assignments: { id: number; description: string; type: string; date: string; status: string }[] }>('/assignments');
+      return response.data.assignments.map(assignment => ({ id: String(assignment.id), title: assignment.description, subject: assignment.type === 'new_lesson' ? 'New lesson' : 'Review', dueDate: assignment.date, completed: assignment.status === 'completed' }));
     },
 
     getAttendance: async (studentId: string): Promise<{ date: string; present: boolean }[]> => {
@@ -520,7 +512,7 @@ export const apiService = {
     },
 
     lookupByStudentId: async (studentId: string): Promise<StudentDetail | null> => {
-      const response = await api.instance.get<StudentDetail>(`/public/students/${studentId}`);
+      const response = await api.instance.get<StudentDetail>(`/public/students/${studentId}?lookup=schoolId`);
       return response.data;
     },
 

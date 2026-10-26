@@ -1,3 +1,4 @@
+import { managesSchool, classScope, studentScope } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,6 +7,7 @@ import { logAudit, getClientIp } from "@/lib/audit";
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!managesSchool(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id: rawId } = await params;
     const id = Number(rawId);
@@ -13,6 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
     }
     const body = await req.json();
+    delete body.teacherId; delete body.teacher; delete body.userId; delete body.user;
 
     if (body.classId !== undefined) body.classId = parseInt(String(body.classId));
     if (body.studentId !== undefined) body.studentId = parseInt(String(body.studentId));
@@ -34,6 +37,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!managesSchool(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id: rawId } = await params;
     const id = Number(rawId);

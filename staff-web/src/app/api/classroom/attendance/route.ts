@@ -1,3 +1,4 @@
+import { classScope, studentScope } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    const where: Prisma.AttendanceWhereInput = {};
+    const where: Prisma.AttendanceWhereInput = { class: classScope(session.user) };
 
     if (classId) {
         where.classId = parseInt(classId);
@@ -68,8 +69,8 @@ export async function GET(req: NextRequest) {
             take: limit,
         }),
         prisma.attendance.count({ where }),
-        classId ? prisma.class.findUnique({ where: { id: parseInt(classId) }, include: { students: true } }) : null,
-        studentId ? prisma.student.findUnique({ where: { id: parseInt(studentId) } }) : null,
+        classId ? prisma.class.findFirst({ where: { AND: [{ id: Number(classId) }, classScope(session.user)] }, include: { students: true } }) : null,
+        studentId ? prisma.student.findFirst({ where: { AND: [{ id: Number(studentId) }, studentScope(session.user)] } }) : null,
     ]);
 
     return NextResponse.json({
@@ -92,6 +93,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    const targetClassId = Number(body.classId);
+    const targetIds = Array.isArray(body.records) ? body.records.map((row: BulkRecord) => Number(row.studentId)) : [Number(body.studentId)];
+    if (!Number.isSafeInteger(targetClassId) || targetClassId < 1 || !targetIds.length || targetIds.length > 500 || targetIds.some((id: number) => !Number.isSafeInteger(id) || id < 1)) return NextResponse.json({ error: "Invalid class or students" }, { status: 400 });
+    const allowedClass = await prisma.class.findFirst({ where: { AND: [{ id: targetClassId }, classScope(session.user)] }, select: { id: true } });
+    if (!allowedClass) return NextResponse.json({ error: "Class not found" }, { status: 404 });
+    const matching = await prisma.student.count({ where: { id: { in: targetIds }, classId: targetClassId, isActive: true } });
+    if (matching !== new Set(targetIds).size) return NextResponse.json({ error: "Students must belong to the selected class" }, { status: 400 });
 
     if (body.records && Array.isArray(body.records)) {
         // Bulk mark logic
