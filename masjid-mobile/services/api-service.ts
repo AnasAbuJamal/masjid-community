@@ -269,20 +269,11 @@ export const apiService = {
   // Auth
   auth: {
     login: async (email: string, password: string): Promise<AuthResponse> => {
-      console.log('[API] Calling login endpoint for:', email);
       try {
         const response = await api.instance.post<AuthResponse>('/auth/login', { email, password });
-        console.log('[API] Login response status:', response.status);
-        console.log('[API] Login response data:', response.data);
         await apiClient.setToken(response.data.token);
         return response.data;
       } catch (error: unknown) {
-        console.log('[API] Login request failed:', error);
-        if (error && typeof error === 'object' && 'response' in error) {
-          const axiosError = error as { response?: { status?: number; data?: unknown } };
-          console.log('[API] HTTP status:', axiosError.response?.status);
-          console.log('[API] Response data:', axiosError.response?.data);
-        }
         throw error;
       }
     },
