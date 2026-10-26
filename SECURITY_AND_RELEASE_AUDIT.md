@@ -1,44 +1,47 @@
-# Masjid Community — security, release and functionality audit
-Updated: 2026-10-26. This is a **partial code audit**, not a release certification.
+# Masjid Community — Release Audit and Verification Matrix
 
-## Repository inventory
-The default development tree contains 316 tracked files, including about 283 TypeScript/TSX files, across:
-- `staff-web`: Next.js dashboard/API, Prisma/PostgreSQL, NextAuth and Stripe.
-- `masjid-mobile`: Expo/React Native app and API client.
+**Last reviewed:** 2026-10-26. **Release status: NOT READY.** Draft PR #2 deliberately remains unmerged.
 
-The file tree was inventoried; **not every individual file/function was executed or manually reviewed**.
+## What has been done
+- Repository structure inventoried: 316 files in the initial development branch tree, approximately 283 TypeScript/TSX source files. **Not every function has been individually tested.**
+- Web staff routes and dashboard components: corrected dozens of numeric Prisma ID/type inconsistencies; added backend access checks for staff dashboard and scoped student records, notifications, and parent portal.
+- Auth: replaced unsigned mobile session tokens with authenticated, expiring tokens; added authenticated native profile endpoints and revalidation of cached sessions. Account email verification and outbound mail should be evaluated independently before release.
+- Mobile/service endpoints: prayer times, public announcements, jobs and applications, volunteering, proposals and votes, school classes, assignments, attendance, parent access, rental bookings, leaderboards, and public event listings/detail/RSVP are now partly wired to persisted endpoints.
+- Payments: removed fake donation success confirmation, fake fundraising totals, fake recurring subscriptions, and fabricated tax receipts from key mobile flows. Added Stripe Checkout, signed webhook path, per-account donation history and recurring-subscription management; payment owner and votes have **additive database migration scripts**.
+- Design system: responsive web dashboard and form controls, light/dark design tokens, focus and reduced-motion behavior, phone and tablet-centered mobile screen layouts, actionable 44px+ touch targets where modified, and a less cluttered layout.
+- CI: PostgreSQL 16 ephemeral test DB, guarded CI-only admin seed, Prisma validation, web/mobile tests and TypeScript checks, Next.js build, and Chromium Playwright browser checks configured for 390px phone, 820px iPad and 1440px desktop widths.
 
-## Changes on the `fix/security-functionality-apple-ui-20261026` branch
-- Removed checked-in environment files and hard-coded application secrets, removed permissive wildcard CORS configuration and stopped bypassing TypeScript build errors.
-- Replaced unsigned Base64 mobile login tokens with short-lived HMAC-SHA256 verified tokens that invalidate when passwords change, added mobile account endpoints and improved authentication input checks.
-- Restricted access to student data and notification mutations; corrected several Prisma id conversions and proposal required fields.
-- Replaced a fake 'donation received' mobile message with an actual Stripe-hosted checkout handoff; fixed validation and recurring Stripe price configuration.
-- Added persisted prayer/day/week/month and public detail endpoints for mobile; aligned mobile registration policy and cached-session verification.
-- Established coherent web light/dark semantic color tokens, responsive controls, keyboard focus/contrast/reduced-motion support and 44-point mobile buttons.
+## Verified vs. pending
 
-## CRITICAL: Compromised secrets / manual action required
-Credentials were committed to the public Git history. **Deleting files from the head commit does not revoke a credential or erase historical commits**.
-Immediately rotate the Neon/Postgres database credentials, NextAuth `AUTH_SECRET`, passwords for seeded administrator/teacher accounts, and any other real keys formerly present in environment files or configuration. Replace credentials in Vercel and other deployed services using the deployment secrets UI, **never commit replacements**. Review database access logs and outstanding tokens/sessions. Consider repository history rewriting only with coordinated security assistance; rotation comes first.
+| Area | Most recent evidence / limitations |
+| --- | --- |
+| Mobile unit tests | **81/81 passed** in an earlier complete run; latest feature edits require a fresh complete run. |
+| Staff unit tests | **33/33 passed** in an earlier complete run; latest edits require a fresh complete run. |
+| Prisma schema / TypeScript / Next.js build | Passed in previous green CI runs (e.g. run `40383357529`) prior to the newest changes. |
+| PostgreSQL integration | Local CI database creation succeeded; comprehensive CRUD, authorization, migrations, and real data behavior not yet certified. |
+| Chromium responsive/browser testing | **Not yet passed.** An earlier E2E run could not locate login inputs; server-readiness checks and logs were added for diagnosis. |
+| Real Stripe payments | **Not tested in Stripe test mode end-to-end.** Subscriptions, webhook retries/idempotency, refunds and customer receipts need a staging pass. |
+| iOS/iPadOS/Android | **Not built or manually tested on physical devices.** Browser viewport tests are not substitutes for native device validation. |
+| Email, notifications, offline state | Still require provider and integration tests in staging. |
 
-## Database and payment rollout
-- Set `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`, `NEXT_PUBLIC_APP_URL`, Stripe keys and webhook secret, email-provider settings, and any other runtime requirements in hosted environment configuration.
-- Run `npx prisma validate`, `npx prisma generate`, and review schema migration / `prisma db push` against a **staging** database before production. Take a backup first. A live database connection and end-to-end CRUD were **not** tested.
-- Configure Stripe's signed webhook, then test successful/failed one-time and recurring payment, invoice renewal, refunds, retries/idempotency and receipt/transaction history using Stripe's test mode. Do not use real payments until reconciled.
-- Do not deploy the seed script to production without strong `ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD` and `TEACHER_SEED_PASSWORD`.
+## Known unfinished features and critical work
 
-## Remaining functional risks / known incompleteness
-The mobile API client references routes not yet implemented or not aligned with current server contracts, including job applications, donation history/payment intent/campaigns, proposals voting, school data, rental booking history, gamification and application tracking. These screens require design/endpoint integration and tests; some features still use fallback/mock data.
-The mobile donation campaigns display hard-coded example fundraising totals; those figures **must not be presented as real financial data**.
-The existing mobile icon/splash PNGs are only 67 bytes apiece and require production-quality app artwork and real-device review. Apple App Store submission has not been performed.
-TypeScript, unit tests, release builds, accessibility/manual regression tests and live deployment **have not been executed in this workspace**. The newly added GitHub Actions workflow is intended to expose existing failures, not to certify them as passed.
-Remaining need: authenticate all private server routes, verify role permissions and rate limiting (including distributed rate limiting in serverless deployments), audit malformed inputs and file uploads, check all page navigation/CTA behavior, validate notification delivery and offline behavior, and complete iOS/Android build submissions.
+- **Security:** The public Git history contains previously committed credentials; deleting HEAD copies does not revoke them. Rotate all database passwords, NextAuth secrets, email and payment-provider credentials that were real, and affected seed-user passwords. Reconfigure secure environment variables and review logs. Do not commit replacements.
+- **Financial integrity:** Existing guest payments are not retroactively linked to user accounts (email alone is insufficient proof). Configure and verify Stripe receipt URLs. Test recurring cancellations and invoice renewals. Some accounting/parent fee/CRM screens still contain sample financial records; no false financial information may be shown in production.
+- **Remaining screen mocks:** Mobile admin users, CRM reports, tuition payments, school grades, resources and schedule, among others, still contain mock values. They need persisted backend data, authorization and tests. This PR does **not** certify those features complete.
+- **Database deployment:** Review and apply additive `Donation.userId` and `ProposalVote` migration scripts against a backed-up staging database, then production after approval. CI `prisma db push` is not production migration review.
+- **Build assets:** Existing Expo icons/splash files have placeholder-size image files and need real production PNGs and app-store build validation.
+- **Security hardening:** Audit every private route; use distributed rate limits (the in-memory map is not a durable serverless rate limiter); verify file uploads, outbound email, consent, role permissions, and risks around children’s information.
+- **Responsive design:** Complete visual regression tests at narrow phones, tablets/iPads, large desktops; include keyboard, VoiceOver, TalkBack, dynamic type, light/dark, and landscape orientation.
 
-## Recommended release gates
-1. Rotate compromised keys and confirm unauthorized access has been ruled out as far as logs permit.
-2. Pass both CI jobs: Prisma, unit tests, TypeScript and builds.
-3. Complete missing backend/mobile contracts and remove production mock fallbacks.
-4. Pass integration tests on a staging database and Stripe test-mode payments/webhooks.
-5. Test iOS and Android on devices (light/dark, Dynamic Type, VoiceOver/TalkBack, localization, offline/retry, keyboard).
-6. Review the draft pull request, then deploy to staging and production only after testing.
+## Required release gates
 
-No claim of a "100% functional application" can be made until these gates are completed.
+1. Rotate compromised credentials and confirm production secrets are configured privately.
+2. Obtain a **green fresh CI run** covering Prisma, staff/mobile unit tests, TypeScript and Next build.
+3. Pass Chromium Playwright tests for phone, tablet and desktop; compare rendered pages with actual design requirements.
+4. Replace/disable remaining production mocks and implement their real backend data and authorization.
+5. Pass Stripe sandbox payment/webhook/subscription and secure email-provider flows with staging DB.
+6. Validate iOS/iPadOS/Android native app builds, Expo assets, accessibility and notifications on physical devices.
+7. Review and merge draft PR only after all the above are satisfied.
+
+**Do not claim 100% functionality, flawless design or safe live deployment from unit tests and code review alone.**
