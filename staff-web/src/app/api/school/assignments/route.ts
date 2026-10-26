@@ -12,5 +12,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(assignments.map(a => ({
     id: String(a.id), title: a.type.replaceAll("_", " "), subject: a.description,
     dueDate: a.date.toISOString(), completed: a.status === "completed",
+    rating: a.rating === "none" ? null : a.rating,
   })), { headers: { "Cache-Control": "no-store" } });
 }
