@@ -127,19 +127,38 @@ function replaceTemplateVariables(template: string, data: Record<string, unknown
   });
 }
 
-function sendViaConsole(to: string | string[], subject: string, html: string): boolean {
-  const recipients = Array.isArray(to) ? to.join(", ") : to;
-  console.log("=== EMAIL ===");
-  console.log(`To: ${recipients}`);
-  console.log(`Subject: ${subject}`);
-  console.log(`Body: ${html}`);
-  console.log("=============");
-  return true;
+function isLocalEmailTest(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.CI !== "true";
+}
+
+async function sendViaResend(to: string | string[], subject: string, html: string): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  if (!key || !from) {
+    console.error("Email delivery is not configured: RESEND_API_KEY / EMAIL_FROM missing");
+    return false;
+  }
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: Array.isArray(to) ? to : [to], subject, html }),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      // Do not log provider error bodies: they may contain user addresses or keys.
+      console.error("Email delivery provider returned HTTP", response.status);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Email provider connection failed:", error instanceof Error ? error.name : "network failure");
+    return false;
+  }
 }
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   const { to, subject, html, text, template, data } = options;
-
   let emailHtml = html || "";
   let emailSubject = subject || "";
 
@@ -148,32 +167,21 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     emailSubject = data ? replaceTemplateVariables(templateData.subject, data) : templateData.subject;
     emailHtml = data ? replaceTemplateVariables(templateData.html, data) : templateData.html;
   }
-
   if (!emailHtml && text) {
-    emailHtml = `<pre>${text}</pre>`;
+    emailHtml = `<pre>${String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</pre>`;
   }
+  if (!emailSubject || !emailHtml) return false;
 
-  const provider = (process.env.EMAIL_PROVIDER || "console") as EmailProvider;
+  const provider = process.env.EMAIL_PROVIDER || "resend";
+  if (provider === "resend") return sendViaResend(to, emailSubject, emailHtml);
 
-  switch (provider) {
-    case "console":
-      return sendViaConsole(to, emailSubject, emailHtml);
-    
-    case "resend":
-      console.warn("Resend provider not configured - install resend package");
-      return sendViaConsole(to, emailSubject, emailHtml);
-    
-    case "sendgrid":
-      console.warn("SendGrid provider not configured - install @sendgrid/mail package");
-      return sendViaConsole(to, emailSubject, emailHtml);
-    
-    case "nodemailer":
-      console.warn("Nodemailer provider not configured - install nodemailer package");
-      return sendViaConsole(to, emailSubject, emailHtml);
-    
-    default:
-      return sendViaConsole(to, emailSubject, emailHtml);
+  if (provider === "console" && isLocalEmailTest()) {
+    // Do not output email bodies: they may contain password reset/verification tokens.
+    console.info("Development email would be delivered:", emailSubject);
+    return true;
   }
+  console.error("No supported production email delivery provider configured");
+  return false;
 }
 
 export async function getNotificationEmails(): Promise<string[]> {
