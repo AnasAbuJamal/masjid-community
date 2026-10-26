@@ -103,6 +103,24 @@ async function main() {
       },
     ],
   });
+  const rentalItem = await prisma.rentalItem.create({
+    data: { name: "CI Community Room", category: "room", isAvailable: true, priceHourly: 25 },
+  });
+  const rentalStart = new Date(Date.now() + 20 * 86400000);
+  const rentalEnd = new Date(rentalStart.getTime() + 2 * 60 * 60000);
+  for (const index of [1, 2]) {
+    await prisma.rentalBooking.create({
+      data: {
+        itemId: rentalItem.id,
+        renterName: `CI Renter ${index}`,
+        renterEmail: `ci-renter-${index}@example.test`,
+        renterPhone: "555-0100",
+        eventName: "Integration Test",
+        startDate: rentalStart, endDate: rentalEnd,
+        totalPrice: 50, status: "pending",
+      },
+    });
+  }
   // The administrator exists solely for authenticated test requests.
   if (admin.role !== "admin") throw new Error("CI administrator fixture was not created");
 
