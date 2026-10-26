@@ -7,8 +7,11 @@ async function main() {
     console.log("🌱 Seeding database...\n");
 
     // ── Admin User ──
-    const adminEmail = process.env.ADMIN_SEED_EMAIL || "admin@almomineen.org";
-    const adminPassword = process.env.ADMIN_SEED_PASSWORD || "AdminPass123!";
+    const adminEmail = process.env.ADMIN_SEED_EMAIL;
+    const adminPassword = process.env.ADMIN_SEED_PASSWORD;
+    if (!adminEmail || !adminPassword || adminPassword.length < 12) {
+        throw new Error("Set ADMIN_SEED_EMAIL and a strong ADMIN_SEED_PASSWORD (12+ characters) before seeding");
+    }
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
     const admin = await prisma.user.upsert({
@@ -27,12 +30,16 @@ async function main() {
     console.log(`✅ Admin user: ${admin.email}`);
 
     // ── Teacher User ──
+    const teacherPassword = process.env.TEACHER_SEED_PASSWORD;
+    if (!teacherPassword || teacherPassword.length < 12) {
+        throw new Error("Set a strong TEACHER_SEED_PASSWORD (12+ characters) before seeding");
+    }
     const teacher = await prisma.user.upsert({
         where: { email: "teacher@almomineen.org" },
         update: {},
         create: {
             email: "teacher@almomineen.org",
-            passwordHash: await bcrypt.hash("Teacher123!", 12),
+            passwordHash: await bcrypt.hash(teacherPassword, 12),
             firstName: "Ahmed",
             lastName: "Hassan",
             role: "teacher",
