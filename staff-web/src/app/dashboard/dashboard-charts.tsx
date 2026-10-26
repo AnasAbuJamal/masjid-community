@@ -20,7 +20,7 @@ interface DonationData {
   id: number;
   donorName: string | null;
   amount: number;
-  createdAt: string;
+  createdAt: string | Date;
   status: string;
 }
 
