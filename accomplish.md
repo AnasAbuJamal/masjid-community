@@ -398,3 +398,14 @@ Reports now reject invalid IDs, blank/oversized title/content, unsupported categ
 Verification: 37 focused assignment/report API tests passed (28 new assignment tests and 4 additional report validation cases); staff TypeScript passed. No live PostgreSQL concurrency checks, browser screenshots, native tests or deployed smoke tests ran. No new migration required; prior migrations/account links still required.
 
 Remaining: teacher mobile assignment/report forms; formal grades and submissions (current Assignment is a per-student lesson/progress record, not a class-wide points/due-date model); report read pagination/UI; assignment concurrent-editor version protection and duplicate-create idempotency; staff paging/request-race polish; full deployment/feature checklist. Unused `masjid-mobile/services/teacher-service.ts` still describes unsupported legacy teacher/grade endpoints and must be replaced or retired before new UI consumes it. Do not reuse its fictional class-wide assignment contract.
+
+
+## Checkpoint — report authorization transaction (remote implementation)
+
+The development execution environment was unavailable in this session. Continued through the GitHub connector against confirmed head 961b1d6d118c4b12704d5d80ff8a3c293e9484ff; its App readiness run 40353587596 had passed.
+
+Report creation now puts the active-student/class permission check and insert in the same serializable transaction, matching the intended consistency boundary for school writes. A serialization conflict returns 409 through the shared school-write error handler; creation is not automatically retried. Added tests for transaction isolation, scoped active student lookup, server-derived teacher identity, and conflict handling; existing denied-write tests use the transaction mock.
+
+No local tests, typecheck, browser review, device review, or database work ran for this change because the environment was unavailable. The existing PR workflow should validate this revision; check its exact commit before reporting success. Live concurrent reassignment scenarios still require integration tests. No migration was added. Mobile report/assignment forms and previous release backlog remain unfinished.
+
+On environment restoration, fetch the remote branch before editing: this change was created directly through GitHub and is not present in the prior local checkout. Do not overwrite remote work with the older local tree.

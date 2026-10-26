@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { schoolWriteError } from "@/lib/school-write-error";
 import { reportInput } from "@/lib/school-report-validation";
 import { schoolId } from "@/lib/assignment-validation";
 import { studentScope, teachesSchool } from "@/lib/school-access";
@@ -47,22 +49,22 @@ export async function POST(req: NextRequest) {
     const parsed = reportInput.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "Invalid report. Check the student, title, content and category." }, { status: 400 });
     const { studentId, title, content, category } = parsed.data;
-    const allowedStudent = await prisma.student.findFirst({ where: { AND: [{ id: studentId, isActive: true }, studentScope(session.user)] }, select: { id: true } });
-    if (!allowedStudent) return NextResponse.json({ error: "Student not found" }, { status: 404 });
-
-    const report = await prisma.studentReport.create({
-      data: {
-        studentId,
-        teacherId: session.user.id,
-        title,
-        content,
-        category: category || "general",
-      },
-    });
+    // Keep the authorization read and report insert in the same serializable
+    // transaction, including concurrent class/student assignment changes.
+    const report = await prisma.$transaction(async tx => {
+      const allowedStudent = await tx.student.findFirst({
+        where: { AND: [{ id: studentId, isActive: true }, studentScope(session.user)] },
+        select: { id: true },
+      });
+      if (!allowedStudent) return null;
+      return tx.studentReport.create({
+        data: { studentId: allowedStudent.id, teacherId: session.user.id, title, content, category },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (!report) return NextResponse.json({ error: "Student not found" }, { status: 404 });
 
     return NextResponse.json({ report }, { status: 201 });
   } catch (error) {
-    console.error("Error creating report:", error);
-    return NextResponse.json({ error: "Failed to create report" }, { status: 500 });
+    return schoolWriteError(error);
   }
 }
