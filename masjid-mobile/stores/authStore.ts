@@ -46,6 +46,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         const user = await apiService.auth.me();
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
         set({ user, isAuthenticated: true, isLoading: false });
+        // Associate this physical device with the newly verified account.
+        void import('../services/notification-service')
+          .then(module => module.notificationService.syncRegistration()).catch(() => undefined);
       } else {
         await api.clearToken();
         await AsyncStorage.removeItem(USER_STORAGE_KEY);
@@ -64,6 +67,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const user: User = response.user;
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
       set({ user, isAuthenticated: true });
+      void import('../services/notification-service')
+        .then(module => module.notificationService.syncRegistration()).catch(() => undefined);
       return true;
     } catch (error: unknown) {
       return false;
@@ -72,6 +77,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   logout: async () => {
     try {
+      // Revoke only this authenticated account's device registration before
+      // clearing its session, so another user will not get private pushes.
+      await import('../services/notification-service')
+        .then(module => module.notificationService.revokeRegistration()).catch(() => undefined);
       await apiService.auth.logout();
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
     } catch {
