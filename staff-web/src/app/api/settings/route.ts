@@ -1,63 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getApiIdentity } from "@/lib/api-identity";
 import { logAudit, getClientIp } from "@/lib/audit";
 
-// Allowed settings keys to prevent arbitrary key injection
-const ALLOWED_SETTINGS = [
-    'site_name', 'site_tagline', 'contact_email', 'contact_phone',
-    'address', 'kiosk_mode', 'kiosk_rotation_interval', 'kiosk_display_duration',
-    'theme', 'notification_email', 'notification_push',
-    'donation_goal', 'maintenance_mode', 'emergency_broadcast_title',
-    'emergency_broadcast_message', 'emergency_broadcast_expires',
-    'social_facebook', 'social_twitter', 'social_instagram',
-    'registration_enabled', 'require_email_verification',
-];
+const EDITABLE_SETTINGS = [
+  "site_name", "site_tagline", "contact_email", "contact_phone",
+  "address", "kiosk_rotation_interval",
+] as const;
+const editable = new Set<string>(EDITABLE_SETTINGS);
 
-export async function GET() {
-    const session = await auth();
-    if (!session || session.user.role !== "admin") {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+function validate(key: string, value: unknown): string | null {
+  if (!editable.has(key) || typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (key === "site_name" && (!trimmed || trimmed.length > 120)) return null;
+  if (key === "site_tagline" && trimmed.length > 250) return null;
+  if (key === "contact_email" && trimmed &&
+      (trimmed.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed))) return null;
+  if (key === "contact_phone" && trimmed.length > 80) return null;
+  if (key === "address" && trimmed.length > 400) return null;
+  if (key === "kiosk_rotation_interval" && (!/^\d+$/.test(trimmed) ||
+      Number(trimmed) < 5 || Number(trimmed) > 60)) return null;
+  return trimmed;
+}
 
-    const settings = await prisma.siteSetting.findMany({ orderBy: { key: "asc" } });
-    const settingsMap: Record<string, string> = {};
-    settings.forEach((s) => { settingsMap[s.key] = s.value; });
-
-    return NextResponse.json({ settings: settingsMap });
+export async function GET(req: NextRequest) {
+  const actor = await getApiIdentity(req);
+  if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (actor.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const settings = await prisma.siteSetting.findMany({
+    where: { key: { in: [...EDITABLE_SETTINGS] } },
+    orderBy: { key: "asc" },
+  });
+  return NextResponse.json({
+    settings: Object.fromEntries(settings.map(s => [s.key, s.value])),
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(req: NextRequest) {
-    const session = await auth();
-    if (!session || session.user.role !== "admin") {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  const actor = await getApiIdentity(req);
+  if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (actor.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const body = await req.json();
-    
-    const entries = Object.entries(body);
-    if (entries.length === 0) {
-        return NextResponse.json({ error: "No settings provided" }, { status: 400 });
-    }
-
-    const results = [];
-    for (const [key, value] of entries) {
-        if (!ALLOWED_SETTINGS.includes(key)) {
-            continue;
-        }
-
-        const stringValue = String(value);
-        if (stringValue.length > 1000) continue;
-
-        const setting = await prisma.siteSetting.upsert({
-            where: { key },
-            update: { value: stringValue },
-            create: { key, value: stringValue },
-        });
-        results.push(setting);
-    }
-
-    await logAudit({ action: "update_settings", userId: session.user.id, details: `Updated ${results.length} setting(s)`, ipAddress: getClientIp(req) });
-
-    return NextResponse.json({ success: true, count: results.length, settings: results });
+  const body: unknown = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return NextResponse.json({ error: "Invalid settings" }, { status: 400 });
+  const entries = Object.entries(body);
+  if (!entries.length || entries.length > EDITABLE_SETTINGS.length)
+    return NextResponse.json({ error: "No editable settings provided" }, { status: 400 });
+  const changes: { key: string; value: string }[] = [];
+  for (const [key, raw] of entries) {
+    const value = validate(key, raw);
+    if (value === null)
+      return NextResponse.json({ error: `Invalid or unsupported setting: ${key}` }, { status: 400 });
+    changes.push({ key, value });
+  }
+  await prisma.$transaction(changes.map(({ key, value }) =>
+    prisma.siteSetting.upsert({
+      where: { key }, update: { value }, create: { key, value },
+    })
+  ));
+  await logAudit({ action: "update_site_settings", userId: String(actor.id),
+    details: `Updated settings: ${changes.map(c => c.key).join(", ")}`,
+    ipAddress: getClientIp(req) });
+  return NextResponse.json({ success: true, count: changes.length }, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
