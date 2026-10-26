@@ -383,3 +383,101 @@ test("financial budgets remain private until published and use real posted expen
   const after = await request.get(endpoint);
   expect((await after.json()).budgets.some((r: { id: string }) => r.id === String(id))).toBe(false);
 });
+
+
+test("mobile admin job publishing and status changes require real permission", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  expect((await request.get("/api/mobile/admin/jobs")).status()).toBe(401);
+  const result = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  const admin = await result.json();
+  const headers = { Authorization: `Bearer ${admin.token}` };
+
+  const job = {
+    title: "CI Integration Test Position",
+    company: "Masjid Test Unit",
+    contactName: "Test Admin", contactEmail: "ci-jobs@example.test",
+    description: "A staging-only integration test vacancy",
+    location: "Test location", category: "Education", employmentType: "part_time",
+  };
+  const invalid = await request.post("/api/mobile/admin/jobs", {
+    headers, data: { ...job, employmentType: "any_type" },
+  });
+  expect(invalid.status()).toBe(400);
+
+  const created = await request.post("/api/mobile/admin/jobs", { headers, data: job });
+  expect(created.status()).toBe(201);
+  const { id } = await created.json();
+  const list = await request.get("/api/mobile/admin/jobs", { headers });
+  expect(list.status()).toBe(200);
+  expect((await list.json()).jobs.some((j: { id: string }) => j.id === id)).toBe(true);
+
+  const paused = await request.patch(`/api/mobile/admin/jobs/${id}`, {
+    headers, data: { status: "paused" },
+  });
+  expect(paused.status()).toBe(200);
+  const publiclyHidden = await request.get(`/api/public/jobs/${id}`);
+  expect(publiclyHidden.status()).toBe(404);
+
+  const restored = await request.patch(`/api/mobile/admin/jobs/${id}`, {
+    headers, data: { status: "active" },
+  });
+  expect(restored.status()).toBe(200);
+  expect((await request.get(`/api/public/jobs/${id}`)).status()).toBe(200);
+  await request.patch(`/api/mobile/admin/jobs/${id}`, { headers, data: { status: "closed" } });
+});
+
+test("volunteer reviews cannot fill more spots than the opportunity allows", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  expect((await request.get("/api/mobile/admin/volunteer-applications")).status()).toBe(401);
+  const result = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  const { token } = await result.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const queue = await request.get("/api/mobile/admin/volunteer-applications", {
+    headers, params: { q: "CI Volunteer" },
+  });
+  expect(queue.status()).toBe(200);
+  const applications = (await queue.json()).applications as { id: string }[];
+  expect(applications).toHaveLength(2);
+  const [first, second] = applications;
+  const approve = await request.patch(`/api/mobile/admin/volunteer-applications/${first.id}`, {
+    headers, data: { status: "approved" },
+  });
+  expect(approve.status()).toBe(200);
+  const duplicate = await request.patch(`/api/mobile/admin/volunteer-applications/${first.id}`, {
+    headers, data: { status: "approved" },
+  });
+  expect(duplicate.status()).toBe(200);
+  const excess = await request.patch(`/api/mobile/admin/volunteer-applications/${second.id}`, {
+    headers, data: { status: "approved" },
+  });
+  expect(excess.status()).toBe(409);
+
+  const reject = await request.patch(`/api/mobile/admin/volunteer-applications/${first.id}`, {
+    headers, data: { status: "rejected" },
+  });
+  expect(reject.status()).toBe(200);
+  const nowApprove = await request.patch(`/api/mobile/admin/volunteer-applications/${second.id}`, {
+    headers, data: { status: "approved" },
+  });
+  expect(nowApprove.status()).toBe(200);
+});
+
+test("admin audit logs are accessible only to administrators", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  expect((await request.get("/api/mobile/admin/audit-logs")).status()).toBe(401);
+  const adminResponse = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  const { token } = await adminResponse.json();
+  const result = await request.get("/api/mobile/admin/audit-logs", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(result.status()).toBe(200);
+  const data = await result.json();
+  expect(data.logs).toEqual(expect.any(Array));
+  expect(data.logs.every((log: { ipAddress?: string }) => log.ipAddress === undefined)).toBe(true);
+});
