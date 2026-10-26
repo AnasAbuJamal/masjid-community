@@ -59,7 +59,13 @@ export default function RegisterScreen() {
       });
       const user: User = response.user;
       await setUser(user);
-      router.replace('/(tabs)');
+      Alert.alert(
+        'Verify your email',
+        response.verificationEmailSent
+          ? 'We sent a verification link to your email. Confirm your address to access private family records.'
+          : 'Your account was created. Email verification is not currently available. Contact the masjid office for assistance.',
+        [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
+      );
     } catch (error: unknown) {
       let message = 'Unable to create account. Please try again.';
       if (error instanceof Error && error.message) {
