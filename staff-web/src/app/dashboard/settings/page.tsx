@@ -1,176 +1,119 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Settings as SettingsIcon, Save, Loader2, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/lib/theme";
+import { useEffect, useState } from "react";
+import { Settings as SettingsIcon, Save, RefreshCw, Info } from "lucide-react";
 
-interface SettingsGroup {
-  title: string;
-  icon: string;
-  settings: { key: string; label: string; type: "text" | "boolean" | "number"; }[];
-}
+type ConfigKey = "site_name" | "site_tagline" | "contact_email" | "contact_phone" |
+  "address" | "kiosk_rotation_interval";
+type Config = Record<ConfigKey, string>;
 
-const settingsGroups: SettingsGroup[] = [
-  {
-    title: "General",
-    icon: "🕌",
-    settings: [
-      { key: "mosque_name", label: "Mosque Name", type: "text" },
-      { key: "mosque_address", label: "Address", type: "text" },
-      { key: "mosque_phone", label: "Phone", type: "text" },
-      { key: "mosque_email", label: "Email", type: "text" },
-      { key: "timezone", label: "Timezone", type: "text" },
-    ],
-  },
-  {
-    title: "Kiosk Mode",
-    icon: "📺",
-    settings: [
-      { key: "kiosk_auto_refresh", label: "Auto Refresh Interval (seconds)", type: "number" },
-      { key: "kiosk_show_donations", label: "Show Donation QR Code", type: "boolean" },
-      { key: "kiosk_show_construction", label: "Show Construction Progress", type: "boolean" },
-      { key: "kiosk_scroll_speed", label: "Announcement Scroll Speed", type: "number" },
-    ],
-  },
-  {
-    title: "Notifications",
-    icon: "🔔",
-    settings: [
-      { key: "notify_new_donation", label: "Notify on New Donation", type: "boolean" },
-      { key: "notify_new_volunteer", label: "Notify on Volunteer Signup", type: "boolean" },
-      { key: "notify_new_proposal", label: "Notify on New Proposal", type: "boolean" },
-      { key: "notification_email", label: "Notification Email", type: "text" },
-    ],
-  },
-  {
-    title: "Security",
-    icon: "🔒",
-    settings: [
-      { key: "session_timeout", label: "Session Timeout (minutes)", type: "number" },
-      { key: "require_2fa", label: "Require Two-Factor Authentication", type: "boolean" },
-      { key: "max_login_attempts", label: "Max Login Attempts", type: "number" },
-      { key: "password_min_length", label: "Min Password Length", type: "number" },
-    ],
-  },
+const empty: Config = {
+  site_name: "Masjid Al-Momineen", site_tagline: "", contact_email: "",
+  contact_phone: "", address: "", kiosk_rotation_interval: "8",
+};
+
+const FIELDS: { key: ConfigKey; label: string; description: string;
+  maxLength: number; inputType?: string }[] = [
+  { key: "site_name", label: "Masjid name", description: "Shown on public kiosk displays", maxLength: 120 },
+  { key: "site_tagline", label: "Tagline", description: "A short community description", maxLength: 250 },
+  { key: "contact_email", label: "Public contact email", description: "Email shown to members", maxLength: 254, inputType: "email" },
+  { key: "contact_phone", label: "Public phone", description: "Phone number for the office", maxLength: 80, inputType: "tel" },
+  { key: "address", label: "Public location", description: "Office address; leave blank if not published", maxLength: 400 },
+  { key: "kiosk_rotation_interval", label: "Kiosk slide interval (seconds)",
+    description: "Between 5 and 60 seconds", maxLength: 2, inputType: "number" },
 ];
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [settings, setSettings] = useState<Config>(empty);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  const fetchData = async () => {
+  async function load() {
+    setLoading(true);
     try {
-      const res = await fetch("/api/settings");
-      const data = await res.json();
-      setSettings(data.settings || {});
-    } catch { /* empty */ } finally { setLoading(false); }
-  };
-  useEffect(() => { fetchData(); }, []);
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      if (!response.ok) throw new Error("Settings unavailable");
+      const data = await response.json() as { settings: Partial<Config> };
+      setSettings({ ...empty, ...data.settings });
+      setError("");
+    } catch {
+      setError("Unable to load saved settings. Check your administrator access and connection.");
+    } finally { setLoading(false); }
+  }
+  useEffect(() => { void load(); }, []);
 
-  const updateSetting = (key: string, value: string) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-    setSaved(false);
-  };
+  function change(key: ConfigKey, value: string) {
+    setSettings(old => ({ ...old, [key]: value }));
+    setNotice("");
+  }
 
-  const handleSave = async () => {
-    setSaving(true);
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true); setError(""); setNotice("");
     try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch("/api/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch { /* empty */ } finally { setSaving(false); }
-  };
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save settings");
+      setNotice("Public masjid settings saved.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save settings");
+    } finally { setSaving(false); }
+  }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
-
+  const inputStyle = "mt-2 block min-h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-base text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-4xl space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-500 mt-1">Configure site settings and preferences</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground sm:text-3xl">
+            <SettingsIcon size={27} /> Masjid Settings
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            These details are saved in the database and shared across public and TV displays.
+          </p>
         </div>
-        <Button className="mocha-gradient hover:opacity-90" onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          {saved ? "Saved!" : saving ? "Saving..." : "Save All"}
-        </Button>
-      </div>
+        <button type="button" onClick={() => void load()}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-4 font-medium text-foreground hover:bg-muted">
+          <RefreshCw size={17} /> Refresh
+        </button>
+      </header>
 
-      {/* Theme Toggle Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {theme === "dark" ? <Moon className="h-5 w-5 text-blue-400" /> : <Sun className="h-5 w-5 text-yellow-500" />}
-            Appearance
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">Theme Mode</p>
-              <p className="text-sm text-gray-500">Switch between light and dark color scheme</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Sun className="h-4 w-4 text-gray-400" />
-              <Switch
-                checked={theme === "dark"}
-                onCheckedChange={toggleTheme}
-              />
-              <Moon className="h-4 w-4 text-gray-400" />
-            </div>
+      {error && <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">{error}</div>}
+      {notice && <div role="status" className="rounded-xl border border-border bg-card p-4 text-foreground">{notice}</div>}
+
+      {loading ? <p role="status" className="py-12 text-center text-muted-foreground">Loading saved settings…</p>
+        : <form onSubmit={save} className="rounded-2xl border border-border bg-card p-4 sm:p-6">
+          <div className="grid gap-5 md:grid-cols-2">
+            {FIELDS.map(field => (
+              <label key={field.key} className="text-sm font-semibold text-foreground">
+                {field.label}
+                <input className={inputStyle} type={field.inputType || "text"}
+                  min={field.key === "kiosk_rotation_interval" ? 5 : undefined}
+                  max={field.key === "kiosk_rotation_interval" ? 60 : undefined}
+                  maxLength={field.maxLength}
+                  required={field.key === "site_name" || field.key === "kiosk_rotation_interval"}
+                  value={settings[field.key]}
+                  onChange={event => change(field.key, event.target.value)} />
+                <span className="mt-1 block text-xs font-normal text-muted-foreground">{field.description}</span>
+              </label>
+            ))}
           </div>
-        </CardContent>
-      </Card>
-
-      {settingsGroups.map((group) => (
-        <Card key={group.title}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span>{group.icon}</span>{group.title}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {group.settings.map((setting) => (
-                <div key={setting.key} className="flex items-center justify-between">
-                  <Label className="text-gray-700 font-medium">{setting.label}</Label>
-                  {setting.type === "boolean" ? (
-                    <Switch
-                      checked={settings[setting.key] === "true"}
-                      onCheckedChange={(checked) => updateSetting(setting.key, checked ? "true" : "false")}
-                    />
-                  ) : setting.type === "number" ? (
-                    <Input
-                      type="number"
-                      className="w-48"
-                      value={settings[setting.key] || ""}
-                      onChange={(e) => updateSetting(setting.key, e.target.value)}
-                    />
-                  ) : (
-                    <Input
-                      className="w-80"
-                      value={settings[setting.key] || ""}
-                      onChange={(e) => updateSetting(setting.key, e.target.value)}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+          <div className="mt-6 flex gap-2 rounded-xl bg-muted p-4 text-sm leading-relaxed text-muted-foreground">
+            <Info size={19} className="shrink-0" />
+            Changes to authentication rules, system maintenance, notification delivery and backups must be
+            configured and verified separately. This screen does not claim to control those infrastructure services.
+          </div>
+          <button type="submit" disabled={saving}
+            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-6 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50">
+            <Save size={17} /> {saving ? "Saving…" : "Save Settings"}
+          </button>
+        </form>}
     </div>
   );
 }
