@@ -538,3 +538,33 @@ test("announcements publish only after start time and respect visibility", async
   const after = await request.get("/api/public/announcements");
   expect((await after.json()).announcements.some((a: { id: number }) => String(a.id) === instantId)).toBe(true);
 });
+
+
+test("anonymous donors are never identified in the authenticated CRM donor ledger", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  expect((await request.get("/api/mobile/admin/donors")).status()).toBe(401);
+
+  const memberResponse = await request.post("/api/auth/login", {
+    data: { email: "ci-parent@example.test", password: "ci-only-parent-password-not-for-production" },
+  });
+  const member = await memberResponse.json();
+  expect((await request.get("/api/mobile/admin/donors", {
+    headers: { Authorization: `Bearer ${member.token}` },
+  })).status()).toBe(403);
+
+  const adminResponse = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  const admin = await adminResponse.json();
+  const result = await request.get("/api/mobile/admin/donors", {
+    headers: { Authorization: `Bearer ${admin.token}` },
+  });
+  expect(result.status()).toBe(200);
+  const data = await result.json();
+  expect(data.totals.amount).toBeGreaterThanOrEqual(21.25);
+  expect(data.totals.anonymousAmount).toBeGreaterThanOrEqual(8.75);
+  expect(data.donors.some((d: { email: string }) => d.email === "ci-named-donor@example.test")).toBe(true);
+  expect(data.donors.some((d: { email: string }) => d.email === "ci-secret-donor@example.test")).toBe(false);
+  const raw = JSON.stringify(data);
+  expect(raw).not.toContain("CI Private Donor");
+});
