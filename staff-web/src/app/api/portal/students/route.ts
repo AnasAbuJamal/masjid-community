@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { getMobileAuthUser } from "@/lib/mobile-auth";
+import { getApiIdentity, isStaff as hasStaffRole } from "@/lib/api-identity";
 
 export async function GET(req: NextRequest) {
-    const session = await auth();
-    const mobile = await getMobileAuthUser(req);
-    if (!session && !mobile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const isStaff = ["admin", "teacher", "staff"].includes(session?.user.role || mobile?.role || "");
-    const callerEmail = (session?.user.email || mobile?.email || "").toLowerCase();
+    const identity = await getApiIdentity(req);
+    if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const isStaff = hasStaffRole(identity.role);
+    if (!isStaff && !identity.isVerified) return NextResponse.json({ error: "Verify your email to access parent records" }, { status: 403 });
+    const callerEmail = identity.email;
     if (!isStaff && !callerEmail) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { searchParams } = req.nextUrl;
