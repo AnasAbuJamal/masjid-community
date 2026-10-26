@@ -41,6 +41,7 @@ export const navItems: NavItem[] = [
     { title: "Rental Bookings", href: "/dashboard/rentals/bookings", icon: "ClipboardList", roles: ["admin"], section: "Operations" },
     // Finance
     { title: "Finances", href: "/dashboard/finances", icon: "DollarSign", roles: ["admin"], section: "Finance" },
+    { title: "Monthly Budgets", href: "/dashboard/finance-budgets", icon: "DollarSign", roles: ["admin"], section: "Finance" },
     { title: "Donations", href: "/dashboard/donations", icon: "Heart", roles: ["admin", "member"], section: "Finance" },
     // Community
     { title: "Jobs Board", href: "/dashboard/jobs", icon: "Briefcase", roles: ["admin", "member"], section: "Community" },
