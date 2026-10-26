@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get("endDate");
 
     const where: Prisma.FinancialExpenseWhereInput = {};
-    if (categoryId) where.categoryId = categoryId;
+    if (categoryId) where.categoryId = Number(categoryId);
     if (startDate || endDate) {
         where.date = {};
         if (startDate) where.date.gte = new Date(startDate);
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const expense = await prisma.financialExpense.create({
         data: {
-            categoryId: body.categoryId,
+            categoryId: Number(body.categoryId),
             amount: body.amount,
             description: body.description,
             date: new Date(body.date),
