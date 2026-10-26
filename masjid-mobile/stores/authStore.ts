@@ -39,32 +39,32 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   initialize: async () => {
     try {
       const userStr = await AsyncStorage.getItem(USER_STORAGE_KEY);
-      if (userStr) {
-        const user: User = JSON.parse(userStr);
+      const token = await api.getToken();
+      if (userStr && token) {
+        // Never trust cached user data without checking the signed server session.
+        const user = await apiService.auth.me();
+        await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
         set({ user, isAuthenticated: true, isLoading: false });
       } else {
-        set({ isLoading: false });
+        await api.clearToken();
+        await AsyncStorage.removeItem(USER_STORAGE_KEY);
+        set({ user: null, isAuthenticated: false, isLoading: false });
       }
     } catch {
-      set({ isLoading: false });
+      await api.clearToken();
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
 
   login: async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('[Auth] Attempting login for:', email);
       const response = await apiService.auth.login(email, password);
-      console.log('[Auth] Login response:', response);
       const user: User = response.user;
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
       set({ user, isAuthenticated: true });
-      console.log('[Auth] Login successful, user set');
       return true;
     } catch (error: unknown) {
-      console.log('[Auth] Login failed with error:', error);
-      if (error instanceof Error) {
-        console.log('[Auth] Error message:', error.message);
-      }
       return false;
     }
   },
