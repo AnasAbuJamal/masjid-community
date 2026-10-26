@@ -1,302 +1,178 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper } from '../../../components/common';
+import api from '../../../services/api-client';
 import { COLORS, SPACING, RADIUS } from '../../../constants/theme';
 
-interface ReportCard {
+interface Assessment {
   id: string;
-  term: string;
-  year: number;
-  overallGrade: string;
-  gpa: number;
-  totalPoints: number;
-  maxPoints: number;
-  issuedDate: string;
-  classes: {
-    name: string;
-    grade: string;
-    percentage: number;
-    teacher: string;
-    letterGrade: string;
-  }[];
+  date: string;
+  type: string;
+  description: string;
+  rating: string;
+  status: string;
 }
-
+interface TeacherReport {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  date: string;
+}
 interface Child {
   id: string;
   name: string;
-  gradeLevel: string;
+  className: string;
+  instructor: string;
+  schedule: string;
+  assignments: Assessment[];
+  reports: TeacherReport[];
 }
+const format = (text: string) => text.replaceAll('_', ' ').replace(/\b\w/g, character => character.toUpperCase());
 
-const MOCK_CHILDREN: Child[] = [
-  { id: '1', name: 'Ahmed Ali', gradeLevel: '4th Grade' },
-  { id: '2', name: 'Fatima Ali', gradeLevel: '1st Grade' },
-];
-
-const MOCK_REPORT_CARDS: Record<string, ReportCard[]> = {
-  '1': [
-    {
-      id: '1',
-      term: 'Spring 2024',
-      year: 2024,
-      overallGrade: 'A',
-      gpa: 3.8,
-      totalPoints: 920,
-      maxPoints: 1000,
-      issuedDate: '2024-03-15',
-      classes: [
-        { name: 'Quran Recitation', grade: '95%', percentage: 95, teacher: 'Ustad Ahmad', letterGrade: 'A' },
-        { name: 'Arabic Language', grade: '88%', percentage: 88, teacher: 'Ustadah Sarah', letterGrade: 'B+' },
-        { name: 'Islamic Studies', grade: '92%', percentage: 92, teacher: 'Ustad Omar', letterGrade: 'A-' },
-        { name: 'Seerah & History', grade: '90%', percentage: 90, teacher: 'Ustad Omar', letterGrade: 'A-' },
-      ],
-    },
-    {
-      id: '2',
-      term: 'Fall 2023',
-      year: 2023,
-      overallGrade: 'A-',
-      gpa: 3.7,
-      totalPoints: 890,
-      maxPoints: 1000,
-      issuedDate: '2023-12-15',
-      classes: [
-        { name: 'Quran Recitation', grade: '93%', percentage: 93, teacher: 'Ustad Ahmad', letterGrade: 'A' },
-        { name: 'Arabic Language', grade: '85%', percentage: 85, teacher: 'Ustadah Sarah', letterGrade: 'B' },
-        { name: 'Islamic Studies', grade: '90%', percentage: 90, teacher: 'Ustad Omar', letterGrade: 'A-' },
-        { name: 'Seerah & History', grade: '88%', percentage: 88, teacher: 'Ustad Omar', letterGrade: 'B+' },
-      ],
-    },
-  ],
-  '2': [
-    {
-      id: '3',
-      term: 'Spring 2024',
-      year: 2024,
-      overallGrade: 'A',
-      gpa: 4.0,
-      totalPoints: 480,
-      maxPoints: 500,
-      issuedDate: '2024-03-15',
-      classes: [
-        { name: 'Quran Basics', grade: '96%', percentage: 96, teacher: 'Ustadah Fatima', letterGrade: 'A' },
-        { name: 'Arabic - Level 1', grade: '95%', percentage: 95, teacher: 'Ustadah Sarah', letterGrade: 'A' },
-        { name: 'Islamic Studies', grade: '98%', percentage: 98, teacher: 'Ustad Omar', letterGrade: 'A+' },
-      ],
-    },
-  ],
-};
-
-export default function ReportCardScreen() {
+export default function ParentReportScreen() {
+  const router = useRouter();
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
-  const [reportCards, setReportCards] = useState<ReportCard[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    setChildren(MOCK_CHILDREN);
-    if (MOCK_CHILDREN.length > 0) {
-      setSelectedChild(MOCK_CHILDREN[0]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedChild) {
-      setReportCards(MOCK_REPORT_CARDS[selectedChild.id] || []);
-    }
-  }, [selectedChild]);
-
-  const getGradeColor = (percentage: number) => {
-    if (percentage >= 90) return COLORS.success;
-    if (percentage >= 80) return COLORS.primary;
-    if (percentage >= 70) return COLORS.warning;
-    return COLORS.error;
+  const load = async () => {
+    try {
+      const response = await api.instance.get<{ students: Child[] }>('/school/progress');
+      setChildren(response.data.students);
+      setSelected(current => response.data.students.some(c => c.id === current)
+        ? current : response.data.students[0]?.id || null);
+      setError('');
+    } catch (failure: unknown) {
+      const code = (failure as { response?: { status?: number } })?.response?.status;
+      setError(code === 403
+        ? 'Verify your email in Profile to access family progress records.'
+        : 'School reports are unavailable. Check your connection and retry.');
+    } finally { setLoading(false); setRefreshing(false); }
   };
-
-  const getGradeLetter = (percentage: number) => {
-    if (percentage >= 97) return 'A+';
-    if (percentage >= 93) return 'A';
-    if (percentage >= 90) return 'A-';
-    if (percentage >= 87) return 'B+';
-    if (percentage >= 83) return 'B';
-    if (percentage >= 80) return 'B-';
-    if (percentage >= 77) return 'C+';
-    if (percentage >= 73) return 'C';
-    if (percentage >= 70) return 'C-';
-    if (percentage >= 67) return 'D+';
-    if (percentage >= 63) return 'D';
-    if (percentage >= 60) return 'D-';
-    return 'F';
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
+  useEffect(() => { void load(); }, []);
+  const refresh = () => { setRefreshing(true); void load(); };
+  const child = children.find(c => c.id === selected);
+  const completed = child?.assignments.filter(a => a.status === 'completed') || [];
 
   return (
-    <ScreenWrapper contentPadding={false}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Report Cards</Text>
-          <Text style={styles.subtitle}>View academic progress</Text>
-        </View>
-
-        <View style={styles.childSelector}>
-          <Text style={styles.selectorLabel}>Select Child</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {children.map(child => (
-              <TouchableOpacity
-                key={child.id}
-                style={[styles.childChip, selectedChild?.id === child.id && styles.childChipActive]}
-                onPress={() => setSelectedChild(child)}
-              >
-                <View style={[styles.childAvatar, selectedChild?.id === child.id && styles.childAvatarActive]}>
-                  <Text style={[styles.childAvatarText, selectedChild?.id === child.id && styles.childAvatarTextActive]}>
-                    {child.name.split(' ').map(n => n[0]).join('')}
-                  </Text>
-                </View>
-                <Text style={[styles.childName, selectedChild?.id === child.id && styles.childNameActive]}>
-                  {child.name}
-                </Text>
-                <Text style={styles.childGrade}>{child.gradeLevel}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {reportCards.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <GlassCard>
-              <View style={styles.centeredContent}>
-                <MaterialCommunityIcons name="file-document-outline" size={48} color={COLORS.textSecondary} />
-                <Text style={styles.emptyTitle}>No Report Cards</Text>
-                <Text style={styles.emptySubtext}>Report cards will appear here once issued</Text>
-              </View>
-            </GlassCard>
-          </View>
-        ) : (
-          reportCards.map(reportCard => (
-            <View key={reportCard.id} style={styles.section}>
-              <GlassCard style={styles.reportCard}>
-                <View style={styles.reportHeader}>
-                  <View>
-                    <Text style={styles.termText}>{reportCard.term} {reportCard.year}</Text>
-                    <Text style={styles.issuedText}>Issued: {formatDate(reportCard.issuedDate)}</Text>
-                  </View>
-                  <View style={styles.overallGrade}>
-                    <Text style={styles.overallGradeText}>{reportCard.overallGrade}</Text>
-                    <Text style={styles.gpaText}>GPA: {reportCard.gpa.toFixed(1)}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${(reportCard.totalPoints / reportCard.maxPoints) * 100}%` },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.progressText}>
-                    {reportCard.totalPoints}/{reportCard.maxPoints} points
-                  </Text>
-                </View>
-              </GlassCard>
-
-              <Text style={styles.classTitle}>Class Grades</Text>
-              {reportCard.classes.map((classItem, index) => (
-                <GlassCard key={index} style={styles.classCard}>
-                  <View style={styles.classHeader}>
-                    <View style={styles.classInfo}>
-                      <Text style={styles.className}>{classItem.name}</Text>
-                      <Text style={styles.classTeacher}>{classItem.teacher}</Text>
-                    </View>
-                    <View style={styles.classGrade}>
-                      <Text style={[styles.percentageText, { color: getGradeColor(classItem.percentage) }]}>
-                        {classItem.percentage}%
-                      </Text>
-                      <View style={[styles.letterBadge, { backgroundColor: getGradeColor(classItem.percentage) + '15' }]}>
-                        <Text style={[styles.letterText, { color: getGradeColor(classItem.percentage) }]}>
-                          {classItem.letterGrade}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                  <View style={styles.gradeBar}>
-                    <View
-                      style={[
-                        styles.gradeFill,
-                        { width: `${classItem.percentage}%`, backgroundColor: getGradeColor(classItem.percentage) },
-                      ]}
-                    />
-                  </View>
-                </GlassCard>
-              ))}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.back} accessibilityRole="button" accessibilityLabel="Go back"
+          onPress={() => router.back()}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.title}>Student Reports</Text>
+        <View style={styles.back} />
+      </View>
+      {loading ? <ActivityIndicator style={styles.loading} size="large" color={COLORS.primary} /> : (
+        <ScrollView contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+          {error ? <View style={styles.empty}>
+            <Text style={styles.secondary}>{error}</Text>
+            <TouchableOpacity onPress={refresh} accessibilityRole="button" style={styles.retry}>
+              <Text style={styles.retryText}>Try again</Text>
+            </TouchableOpacity>
+          </View> : children.length === 0 ? (
+            <View style={styles.empty}>
+              <MaterialCommunityIcons name="file-document-outline" size={44} color={COLORS.textSecondary} />
+              <Text style={styles.secondary}>No students are associated with this verified parent account.</Text>
             </View>
-          ))
-        )}
+          ) : <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.childTabs}>
+              {children.map(c => (
+                <TouchableOpacity key={c.id} accessibilityRole="tab"
+                  accessibilityState={{ selected: selected === c.id }} onPress={() => setSelected(c.id)}
+                  style={[styles.childTab, selected === c.id && styles.selectedTab]}>
+                  <Text style={[styles.childName, selected === c.id && styles.selectedName]}>{c.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {child && <>
+              <View style={styles.summary}>
+                <Text style={styles.studentName}>{child.name}</Text>
+                <Text style={styles.secondary}>{child.className}</Text>
+                <Text style={styles.secondary}>Teacher: {child.instructor}</Text>
+                <Text style={styles.secondary}>{child.schedule}</Text>
+                <Text style={styles.completed}>{completed.length} completed assessments in the recent record</Text>
+              </View>
 
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
-    </ScreenWrapper>
+              <Text style={styles.sectionTitle}>Teacher reports</Text>
+              {child.reports.length === 0 ?
+                <Text style={styles.emptyText}>No written reports have been published for this student.</Text>
+                : child.reports.map(report => (
+                  <View key={`report${report.id}`} style={styles.card}>
+                    <Text style={styles.cardTitle}>{report.title}</Text>
+                    <Text style={styles.secondary}>{report.content}</Text>
+                    <Text style={styles.date}>{format(report.category)} · {new Date(report.date).toLocaleDateString()}</Text>
+                  </View>
+                ))}
+
+              <Text style={styles.sectionTitle}>Recent assessments</Text>
+              {child.assignments.length === 0 ?
+                <Text style={styles.emptyText}>No assessments have been recorded yet.</Text>
+                : child.assignments.map(item => (
+                  <View key={`assignment${item.id}`} style={styles.card}>
+                    <View style={styles.row}>
+                      <Text style={styles.cardTitle}>{format(item.type)}</Text>
+                      <Text style={styles.rating}>{item.rating === 'none'
+                        ? format(item.status) : format(item.rating)}</Text>
+                    </View>
+                    <Text style={styles.secondary}>{item.description}</Text>
+                    <Text style={styles.date}>{new Date(item.date).toLocaleDateString()}</Text>
+                  </View>
+                ))}
+              <Text style={styles.note}>The school currently records descriptive assessments and instructor reports. No GPA, official letter grade, or issued report-card certificate is stored for these students.</Text>
+            </>}
+          </>}
+        </ScrollView>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: SPACING.md, paddingTop: SPACING.lg },
-  welcomeText: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
-  childSelector: { padding: SPACING.md },
-  selectorLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: SPACING.sm },
-  childChip: { alignItems: 'center', marginRight: SPACING.md, padding: SPACING.sm, borderRadius: RADIUS.md },
-  childChipActive: { backgroundColor: COLORS.primary + '10' },
-  childAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
-  childAvatarActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  childAvatarText: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary },
-  childAvatarTextActive: { color: COLORS.white },
-  childName: { fontSize: 13, fontWeight: '600', color: COLORS.text, marginTop: SPACING.xs },
-  childNameActive: { color: COLORS.primary },
-  childGrade: { fontSize: 11, color: COLORS.textSecondary },
-
-  emptyContainer: { padding: SPACING.md },
-  centeredContent: { alignItems: 'center', gap: SPACING.sm, padding: SPACING.lg },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  emptySubtext: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
-
-  section: { padding: SPACING.md, paddingTop: 0 },
-  reportCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  reportHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  termText: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  issuedText: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  overallGrade: { alignItems: 'flex-end' },
-  overallGradeText: { fontSize: 32, fontWeight: '800', color: COLORS.success },
-  gpaText: { fontSize: 13, color: COLORS.textSecondary },
-
-  progressContainer: { marginTop: SPACING.md },
-  progressBar: { height: 8, backgroundColor: COLORS.background, borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 4, backgroundColor: COLORS.success },
-  progressText: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4, textAlign: 'right' },
-
-  classTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm, marginTop: SPACING.sm },
-  classCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  classHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  classInfo: { flex: 1 },
-  className: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  classTeacher: { fontSize: 12, color: COLORS.textSecondary },
-  classGrade: { alignItems: 'flex-end' },
-  percentageText: { fontSize: 16, fontWeight: '700' },
-  letterBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full, marginTop: 2 },
-  letterText: { fontSize: 12, fontWeight: '600' },
-  gradeBar: { height: 4, backgroundColor: COLORS.background, borderRadius: 2, marginTop: SPACING.sm, overflow: 'hidden' },
-  gradeFill: { height: '100%', borderRadius: 2 },
-
-  bottomSpacer: { height: 100 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: SPACING.sm, borderColor: COLORS.border, borderBottomWidth: 1,
+    backgroundColor: COLORS.surface },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
+  loading: { flex: 1 },
+  content: { padding: SPACING.md, maxWidth: 840, width: '100%', alignSelf: 'center',
+    paddingBottom: SPACING.xxl },
+  childTabs: { gap: SPACING.sm, paddingVertical: SPACING.sm, marginBottom: SPACING.md },
+  childTab: { minHeight: 44, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.surface, justifyContent: 'center', borderColor: COLORS.border,
+    borderWidth: 1 },
+  selectedTab: { backgroundColor: COLORS.primaryFaded, borderColor: COLORS.primary },
+  childName: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
+  selectedName: { color: COLORS.primary },
+  summary: { borderRadius: RADIUS.lg, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.border, padding: SPACING.md,
+    marginBottom: SPACING.lg, gap: SPACING.xs },
+  studentName: { color: COLORS.text, fontSize: 22, fontWeight: '700' },
+  completed: { color: COLORS.primary, fontWeight: '600', fontSize: 13, marginTop: SPACING.sm },
+  sectionTitle: { color: COLORS.text, fontSize: 17, fontWeight: '700',
+    marginTop: SPACING.lg, marginBottom: SPACING.md },
+  emptyText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20,
+    marginVertical: SPACING.md },
+  card: { padding: SPACING.md, backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg, borderColor: COLORS.border, borderWidth: 1,
+    marginBottom: SPACING.sm, gap: SPACING.xs },
+  cardTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 },
+  secondary: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 21 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    justifyContent: 'space-between' },
+  rating: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
+  date: { color: COLORS.textSecondary, fontSize: 12, marginTop: SPACING.xs },
+  empty: { alignItems: 'center', gap: SPACING.md, padding: SPACING.xxl },
+  retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: SPACING.md },
+  retryText: { color: COLORS.primary, fontWeight: '700' },
+  note: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 20, marginTop: SPACING.lg },
 });
