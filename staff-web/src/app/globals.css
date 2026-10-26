@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -24,112 +25,89 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
-  --font-sans: "Inter", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), "Segoe UI", sans-serif;
 }
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 215 25% 10%;
+    color-scheme: light;
+    --background: 240 14% 97%;
+    --foreground: 240 6% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 10%;
+    --card-foreground: 240 6% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 10%;
-    --primary: 215 75% 50%;
+    --popover-foreground: 240 6% 10%;
+    --primary: 211 100% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 100%;
-    --secondary-foreground: 215 25% 10%;
-    --muted: 0 0% 98%;
-    --muted-foreground: 215 15% 40%;
-    --accent: 0 0% 98%;
-    --accent-foreground: 215 25% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 240 6% 94%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 6% 95%;
+    --muted-foreground: 240 4% 40%;
+    --accent: 211 100% 95%;
+    --accent-foreground: 211 100% 34%;
+    --destructive: 4 86% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 10% 90%;
-    --input: 220 10% 90%;
-    --ring: 215 75% 50%;
-    --radius: 0.5rem;
+    --border: 240 6% 88%;
+    --input: 240 6% 86%;
+    --ring: 211 100% 50%;
+    --radius: 0.875rem;
   }
-}
-
-@layer base {
-  * {
-    @apply border-border;
+  .dark {
+    color-scheme: dark;
+    --background: 240 5% 8%;
+    --foreground: 0 0% 96%;
+    --card: 240 5% 13%;
+    --card-foreground: 0 0% 96%;
+    --popover: 240 5% 13%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 211 100% 62%;
+    --primary-foreground: 240 5% 7%;
+    --secondary: 240 4% 21%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 240 4% 18%;
+    --muted-foreground: 240 5% 70%;
+    --accent: 211 50% 21%;
+    --accent-foreground: 211 100% 83%;
+    --destructive: 4 91% 67%;
+    --destructive-foreground: 240 5% 7%;
+    --border: 240 4% 29%;
+    --input: 240 4% 29%;
+    --ring: 211 100% 62%;
   }
+  *, *::before, *::after { @apply border-border; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   body {
-    @apply antialiased font-sans;
-    background-color: #ffffff !important;
-    color: #111827 !important;
+    margin: 0;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  button, input, select, textarea { font: inherit; }
+  button:not(:disabled), a { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 3px solid hsl(var(--ring)); outline-offset: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 8px; }
 
-/* Clean scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Card - Clean CRM style */
-.card-clean {
-  @apply bg-white rounded-xl border border-gray-200;
-}
-
-/* Text utilities */
-.text-muted {
-  @apply text-gray-500;
-}
-
-/* Table row hover */
-.table-row-hover {
-  @apply transition-colors duration-150;
-}
-
-.table-row-hover:hover {
-  @apply bg-gray-50;
-}
-
-/* Section spacing */
-.section-spacing {
-  @apply space-y-6;
-}
-
-/* Status badges */
-.badge-default {
-  @apply bg-gray-100 text-gray-700;
-}
-
-.badge-success {
-  @apply bg-green-100 text-green-700;
-}
-
-.badge-warning {
-  @apply bg-amber-100 text-amber-700;
-}
-
-.badge-error {
-  @apply bg-red-100 text-red-700;
-}
-
-.badge-info {
-  @apply bg-blue-100 text-blue-700;
-}
-
-/* Mocha gradient button / active state */
-.mocha-gradient {
-  background: linear-gradient(135deg, #6f4e37 0%, #a0765c 100%);
-  color: white;
-}
+.card-clean { @apply rounded-2xl border border-border bg-card text-card-foreground shadow-sm; }
+.text-muted { @apply text-muted-foreground; }
+.table-row-hover { @apply transition-colors duration-150; }
+.table-row-hover:hover { @apply bg-muted; }
+.section-spacing { @apply space-y-6; }
+.badge-default { @apply bg-secondary text-secondary-foreground; }
+.badge-success { @apply bg-green-100 text-green-800; }
+.badge-warning { @apply bg-amber-100 text-amber-900; }
+.badge-error { @apply bg-red-100 text-red-800; }
+.badge-info { @apply bg-blue-100 text-blue-800; }
+.mocha-gradient { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
