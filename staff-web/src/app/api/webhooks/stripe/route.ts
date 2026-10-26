@@ -52,8 +52,20 @@ export async function POST(req: NextRequest) {
               },
             });
             if (updated.count === 0) {
-              console.error("School invoice checkout did not match expected payment");
-              return NextResponse.json({ error: "Payment reconciliation requires review" }, { status: 409 });
+              // Stripe retries completed events. A previously recorded matching payment
+              // is already successful and must not cause indefinite webhook retries.
+              const alreadyRecorded = await prisma.schoolInvoice.findFirst({
+                where: {
+                  id: invoiceId, stripeSessionId: session.id,
+                  stripePaymentId: session.payment_intent, status: "paid",
+                  amountCents: session.amount_total ?? -1,
+                },
+                select: { id: true },
+              });
+              if (!alreadyRecorded) {
+                console.error("School invoice checkout did not match expected payment");
+                return NextResponse.json({ error: "Payment reconciliation requires review" }, { status: 409 });
+              }
             }
           }
           break;
