@@ -1,337 +1,343 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  TextInput,
-  Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Modal, Alert, RefreshControl, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper } from '../../components/common';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenWrapper } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { useAuthStore } from '../../stores/authStore';
+import api from '../../services/api-client';
 
+type Category = 'general' | 'follow_up';
+type Priority = 'low' | 'medium' | 'high' | 'urgent';
+type Status = 'pending' | 'in_progress' | 'completed';
+type Tab = 'tasks' | 'followups' | 'approvals';
 interface Task {
-  id: string;
-  title: string;
-  description: string;
-  assignedTo: string;
-  dueDate: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'pending' | 'in_progress' | 'completed';
-  category: string;
+  id: string; title: string; description: string; assignedTo: string | null;
+  dueDate: string | null; category: Category; priority: Priority;
+  status: Status; createdAt: string;
 }
-
-interface FollowUp {
-  id: string;
-  title: string;
-  relatedType: string;
-  dueDate: string;
-  completed: boolean;
+interface ResponseData {
+  tasks: Task[];
+  total: number;
+  page: number;
+  hasMore: boolean;
+  pending: { volunteer: number; jobs: number; rentals: number };
 }
-
-interface ApprovalRequest {
-  id: string;
-  type: string;
-  title: string;
-  requester: string;
-  amount?: number;
-  status: 'pending' | 'approved' | 'rejected';
-  date: string;
-}
-
-const MOCK_TASKS: Task[] = [
-  { id: '1', title: 'Prepare Ramadan Iftar Menu', description: 'Plan and order food for 100 people', assignedTo: 'Fatima Zaidi', dueDate: '2026-03-25', priority: 'high', status: 'in_progress', category: 'Events' },
-  { id: '2', title: 'Fix AC in Youth Center', description: 'AC unit not cooling properly', assignedTo: 'Omar Hussain', dueDate: '2026-03-26', priority: 'urgent', status: 'pending', category: 'Maintenance' },
-  { id: '3', title: 'Send Newsletter', description: 'March newsletter to all members', assignedTo: 'Ahmad Khan', dueDate: '2026-03-28', priority: 'medium', status: 'pending', category: 'Communications' },
-  { id: '4', title: 'Order Cleaning Supplies', description: 'Reorder toilet paper and soap', assignedTo: 'Omar Hussain', dueDate: '2026-03-30', priority: 'low', status: 'completed', category: 'Maintenance' },
-];
-
-const MOCK_FOLLOWUPS: FollowUp[] = [
-  { id: '1', title: 'Follow up on Pledge Payment', relatedType: 'Donation', dueDate: '2026-03-28', completed: false },
-  { id: '2', title: 'Confirm Speaker for Jumuah', relatedType: 'Event', dueDate: '2026-03-27', completed: false },
-  { id: '3', title: 'Review Volunteer Hours', relatedType: 'Volunteer', dueDate: '2026-03-29', completed: true },
-];
-
-const MOCK_APPROVALS: ApprovalRequest[] = [
-  { id: '1', type: 'Expense', title: 'New Sound System - $2,500', requester: 'Omar Hussain', amount: 2500, status: 'pending', date: '2026-03-25' },
-  { id: '2', type: 'Booking', title: 'Community Hall - Wedding', requester: 'Ahmed Ali', status: 'pending', date: '2026-03-26' },
-  { id: '3', type: 'Content', title: 'Blog Post - Ramadan Guide', requester: 'Sarah Ahmed', status: 'pending', date: '2026-03-27' },
-];
-
-const PRIORITY_COLORS: Record<string, string> = {
-  low: COLORS.textSecondary,
-  medium: COLORS.primary,
-  high: COLORS.warning,
-  urgent: COLORS.error,
+const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent'];
+const INITIAL = {
+  title: '', description: '', assignedTo: '',
+  dueDate: '', priority: 'medium' as Priority,
 };
 
 export default function TasksCrmScreen() {
   const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'tasks' | 'followups' | 'approvals'>('tasks');
+  const role = useAuthStore(state => state.user?.role);
+  const [tab, setTab] = useState<Tab>('tasks');
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
-  const [showNewTask, setShowNewTask] = useState(false);
-  const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium' });
+  const [pending, setPending] = useState<ResponseData['pending']>({ volunteer: 0, jobs: 0, rentals: 0 });
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [moreLoading, setMoreLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState(INITIAL);
+  const [error, setError] = useState('');
 
+  const category = tab === 'followups' ? 'follow_up' : 'general';
+  const fetchPage = async (number: number, append = false) => {
+    const response = await api.instance.get<ResponseData>('/mobile/admin/crm/tasks', {
+      params: { page: number, category: tab === 'approvals' ? undefined : category },
+    });
+    setTasks(old => append
+      ? [...old, ...response.data.tasks.filter(t => !old.some(previous => previous.id === t.id))]
+      : response.data.tasks);
+    setPending(response.data.pending); setPage(response.data.page);
+    setHasMore(response.data.hasMore); setError('');
+  };
   useEffect(() => {
-    loadData();
-  }, []);
+    if (role !== 'admin') { setLoading(false); return; }
+    let active = true;
+    setLoading(true);
+    const read = async () => {
+      try {
+        const response = await api.instance.get<ResponseData>('/mobile/admin/crm/tasks', {
+          params: { category: tab === 'approvals' ? undefined : category, page: 1 },
+        });
+        if (!active) return;
+        setTasks(response.data.tasks); setPending(response.data.pending);
+        setHasMore(response.data.hasMore); setPage(1); setError('');
+      } catch {
+        if (active) setError('Unable to load the workflow queue.');
+      } finally { if (active) setLoading(false); }
+    };
+    void read();
+    return () => { active = false; };
+  }, [role, tab]);
 
-  const loadData = () => {
-    setTasks(MOCK_TASKS);
-    setFollowUps(MOCK_FOLLOWUPS);
-    setApprovals(MOCK_APPROVALS);
-  };
-
-  const onRefresh = async () => {
+  const refresh = async () => {
     setRefreshing(true);
-    loadData();
-    setRefreshing(false);
+    try { await fetchPage(1); }
+    catch { setError('Unable to refresh workflows.'); }
+    finally { setRefreshing(false); }
   };
-
-  const handleCompleteTask = (taskId: string) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: 'completed' as const } : t));
+  const more = async () => {
+    if (!hasMore || moreLoading || loading) return;
+    setMoreLoading(true);
+    try { await fetchPage(page + 1, true); }
+    catch { setError('Unable to load more workflows.'); }
+    finally { setMoreLoading(false); }
   };
-
-  const handleCompleteFollowUp = (id: string) => {
-    setFollowUps(followUps.map(f => f.id === id ? { ...f, completed: true } : f));
+  const createTask = async () => {
+    const dateInput = form.dueDate.trim();
+    const when = dateInput ? new Date(`${dateInput}T12:00:00`) : null;
+    if (!form.title.trim() || (dateInput && (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput) || !Number.isFinite(when?.getTime())))) {
+      Alert.alert('Invalid details', 'Enter a task title and an optional due date as YYYY-MM-DD.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.instance.post('/mobile/admin/crm/tasks', {
+        title: form.title.trim(), description: form.description.trim(),
+        assignedTo: form.assignedTo.trim(),
+        dueDate: when?.toISOString() || null,
+        priority: form.priority, category,
+      });
+      setShowCreate(false); setForm(INITIAL);
+      await fetchPage(1);
+    } catch (failure: unknown) {
+      const details = (failure as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      Alert.alert('Unable to create task', details || 'Could not save this workflow.');
+    } finally { setSaving(false); }
   };
-
-  const handleApproval = (id: string, action: 'approved' | 'rejected') => {
-    setApprovals(approvals.map(a => a.id === id ? { ...a, status: action as any } : a));
-    Alert.alert(action === 'approved' ? 'Approved' : 'Rejected', `Request has been ${action}`);
+  const changeStatus = async (item: Task, status: Status) => {
+    setSaving(true);
+    try {
+      await api.instance.patch(`/mobile/admin/crm/tasks/${encodeURIComponent(item.id)}`, { status });
+      await fetchPage(1);
+    } catch {
+      Alert.alert('Unable to update', 'The task status could not be saved.');
+    } finally { setSaving(false); }
   };
-
-  const renderTasksTab = () => (
-    <View>
-      {tasks.map(task => (
-        <GlassCard key={task.id} style={styles.taskCard}>
-          <View style={styles.taskHeader}>
-            <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[task.priority] }]} />
-            <View style={styles.taskInfo}>
-              <Text style={styles.taskTitle}>{task.title}</Text>
-              <Text style={styles.taskDesc} numberOfLines={1}>{task.description}</Text>
-              <View style={styles.taskMeta}>
-                <Text style={styles.taskAssignee}>{task.assignedTo}</Text>
-                <Text style={styles.taskDate}>Due: {task.dueDate}</Text>
-              </View>
-            </View>
-            <View style={[styles.statusBadge, { 
-              backgroundColor: task.status === 'completed' ? COLORS.success + '15' : task.status === 'in_progress' ? COLORS.primary + '15' : COLORS.warning + '15' 
-            }]}>
-              <Text style={[styles.statusText, { color: task.status === 'completed' ? COLORS.success : task.status === 'in_progress' ? COLORS.primary : COLORS.warning }]}>
-                {task.status === 'in_progress' ? 'In Progress' : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.taskActions}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => task.status !== 'completed' && handleCompleteTask(task.id)}
-            >
-              <MaterialCommunityIcons 
-                name={task.status === 'completed' ? 'check-circle' : 'checkbox-blank-circle-outline'} 
-                size={18} 
-                color={task.status === 'completed' ? COLORS.success : COLORS.primary} 
-              />
-              <Text style={[styles.actionText, { color: task.status === 'completed' ? COLORS.success : COLORS.primary }]}>
-                {task.status === 'completed' ? 'Completed' : 'Mark Complete'}
-              </Text>
-            </TouchableOpacity>
-            <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{task.category}</Text>
-            </View>
-          </View>
-        </GlassCard>
-      ))}
-    </View>
-  );
-
-  const renderFollowUpsTab = () => (
-    <View>
-      {followUps.map(followUp => (
-        <GlassCard key={followUp.id} style={styles.followUpCard}>
-          <TouchableOpacity 
-            style={styles.followUpRow}
-            onPress={() => !followUp.completed && handleCompleteFollowUp(followUp.id)}
-          >
-            <MaterialCommunityIcons 
-              name={followUp.completed ? 'check-circle' : 'checkbox-blank-circle-outline'} 
-              size={22} 
-              color={followUp.completed ? COLORS.success : COLORS.primary} 
-            />
-            <View style={styles.followUpInfo}>
-              <Text style={[styles.followUpTitle, followUp.completed && styles.completedText]}>{followUp.title}</Text>
-              <View style={styles.followUpMeta}>
-                <Text style={styles.followUpType}>{followUp.relatedType}</Text>
-                <Text style={styles.followUpDate}>Due: {followUp.dueDate}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </GlassCard>
-      ))}
-    </View>
-  );
-
-  const renderApprovalsTab = () => (
-    <View>
-      {approvals.filter(a => a.status === 'pending').map(approval => (
-        <GlassCard key={approval.id} style={styles.approvalCard}>
-          <View style={styles.approvalHeader}>
-            <View style={styles.approvalTypeBadge}>
-              <Text style={styles.approvalTypeText}>{approval.type}</Text>
-            </View>
-            <Text style={styles.approvalDate}>{approval.date}</Text>
-          </View>
-          <Text style={styles.approvalTitle}>{approval.title}</Text>
-          <Text style={styles.approvalRequester}>Requested by: {approval.requester}</Text>
-          {approval.amount && (
-            <Text style={styles.approvalAmount}>${approval.amount.toLocaleString()}</Text>
-          )}
-          <View style={styles.approvalActions}>
-            <TouchableOpacity 
-              style={[styles.approvalButton, styles.approveButton]}
-              onPress={() => handleApproval(approval.id, 'approved')}
-            >
-              <MaterialCommunityIcons name="check" size={18} color={COLORS.white} />
-              <Text style={styles.approvalButtonText}>Approve</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.approvalButton, styles.rejectButton]}
-              onPress={() => handleApproval(approval.id, 'rejected')}
-            >
-              <MaterialCommunityIcons name="close" size={18} color={COLORS.white} />
-              <Text style={styles.approvalButtonText}>Reject</Text>
-            </TouchableOpacity>
-          </View>
-        </GlassCard>
-      ))}
-      {approvals.filter(a => a.status !== 'pending').length > 0 && (
-        <>
-          <Text style={styles.sectionSubtitle}>History</Text>
-          {approvals.filter(a => a.status !== 'pending').map(approval => (
-            <GlassCard key={approval.id} style={styles.historyCard}>
-              <View style={styles.historyRow}>
-                <MaterialCommunityIcons 
-                  name={approval.status === 'approved' ? 'check-circle' : 'close-circle'} 
-                  size={18} 
-                  color={approval.status === 'approved' ? COLORS.success : COLORS.error} 
-                />
-                <Text style={styles.historyTitle}>{approval.title}</Text>
-                <Text style={[styles.historyStatus, { color: approval.status === 'approved' ? COLORS.success : COLORS.error }]}>
-                  {approval.status.charAt(0).toUpperCase() + approval.status.slice(1)}
-                </Text>
-              </View>
-            </GlassCard>
-          ))}
-        </>
-      )}
-    </View>
-  );
+  const deleteTask = (item: Task) => {
+    Alert.alert('Delete task?', `Permanently remove "${item.title}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        setSaving(true);
+        try {
+          await api.instance.delete(`/mobile/admin/crm/tasks/${encodeURIComponent(item.id)}`);
+          await fetchPage(1);
+        } catch { Alert.alert('Unable to delete', 'Task could not be removed.'); }
+        finally { setSaving(false); }
+      } },
+    ]);
+  };
 
   return (
     <ScreenWrapper contentPadding={false}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-      >
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Tasks & Workflows</Text>
-          <Text style={styles.subtitle}>Manage tasks, follow-ups & approvals</Text>
+      <View style={styles.header}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back"
+          style={styles.back} onPress={() => router.back()}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Tasks & Workflows</Text>
+          <Text style={styles.subtitle}>Saved assignments and actual review queues</Text>
         </View>
+        {role === 'admin' && tab !== 'approvals' ? (
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add task"
+            onPress={() => setShowCreate(true)} style={styles.back}>
+            <MaterialCommunityIcons name="plus" size={25} color={COLORS.primary} />
+          </TouchableOpacity>
+        ) : <View style={styles.back} />}
+      </View>
+      {role !== 'admin' ? <View style={styles.empty}><Text style={styles.muted}>Administrator access is required.</Text></View>
+        : <>
+          <View style={styles.tabs}>
+            {([
+              ['tasks', 'Tasks'], ['followups', 'Follow-ups'], ['approvals', 'Approvals'],
+            ] as const).map(([key, label]) => (
+              <TouchableOpacity accessibilityRole="tab" key={key}
+                accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)}
+                style={[styles.tab, tab === key && styles.activeTab]}>
+                <Text style={[styles.tabText, tab === key && styles.activeTabText]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {loading ? <ActivityIndicator color={COLORS.primary} style={styles.loader} /> : (
+            <ScrollView contentContainerStyle={styles.content}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+              {error ? <View style={styles.empty}>
+                <Text style={styles.muted}>{error}</Text>
+                <TouchableOpacity onPress={refresh} accessibilityRole="button" style={styles.action}>
+                  <Text style={styles.actionText}>Retry</Text>
+                </TouchableOpacity>
+              </View> : tab === 'approvals' ? <>
+                {([
+                  ['Volunteer applications', pending.volunteer, '/admin/volunteers'],
+                  ['Job applications', pending.jobs, '/admin/jobs'],
+                  ['Rental requests', pending.rentals, '/crm/facilities'],
+                ] as const).map(([label, count, route]) => (
+                  <TouchableOpacity accessibilityRole="button" key={route}
+                    style={styles.card} onPress={() => router.push(route)}>
+                    <View style={styles.row}>
+                      <Text style={styles.itemTitle}>{label}</Text>
+                      <Text style={styles.value}>{count}</Text>
+                      <MaterialCommunityIcons name="chevron-right" size={23} color={COLORS.primary} />
+                    </View>
+                    <Text style={styles.muted}>Open the corresponding management screen to review requests.</Text>
+                  </TouchableOpacity>
+                ))}
+              </> : tasks.length === 0 ? (
+                <View style={styles.empty}>
+                  <MaterialCommunityIcons name="clipboard-check-outline" size={44} color={COLORS.textSecondary} />
+                  <Text style={styles.muted}>No {tab === 'tasks' ? 'tasks' : 'follow-ups'} have been assigned yet.</Text>
+                </View>
+              ) : tasks.map(item => (
+                <View key={item.id} style={styles.card}>
+                  <View style={styles.row}>
+                    <Text style={styles.itemTitle}>{item.title}</Text>
+                    <Text style={styles.status}>{item.status.replaceAll('_', ' ')}</Text>
+                  </View>
+                  {item.description && <Text style={styles.muted}>{item.description}</Text>}
+                  {item.assignedTo && <Text style={styles.muted}>Assigned to {item.assignedTo}</Text>}
+                  {item.dueDate && <Text style={styles.muted}>Due {new Date(item.dueDate).toLocaleDateString()}</Text>}
+                  <Text style={styles.priority}>Priority: {item.priority}</Text>
+                  <View style={styles.actions}>
+                    {item.status !== 'completed' && (
+                      <TouchableOpacity style={styles.action} accessibilityRole="button" disabled={saving}
+                        onPress={() => { void changeStatus(item, 'completed'); }}>
+                        <Text style={styles.actionText}>Complete</Text>
+                      </TouchableOpacity>
+                    )}
+                    {item.status === 'pending' && (
+                      <TouchableOpacity style={styles.action} accessibilityRole="button" disabled={saving}
+                        onPress={() => { void changeStatus(item, 'in_progress'); }}>
+                        <Text style={styles.actionText}>Start</Text>
+                      </TouchableOpacity>
+                    )}
+                    {item.status === 'completed' && (
+                      <TouchableOpacity style={styles.action} accessibilityRole="button" disabled={saving}
+                        onPress={() => { void changeStatus(item, 'pending'); }}>
+                        <Text style={styles.actionText}>Reopen</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.action} accessibilityRole="button" disabled={saving}
+                      onPress={() => deleteTask(item)}>
+                      <Text style={[styles.actionText, { color: COLORS.error }]}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              {tab !== 'approvals' && hasMore && !error && (
+                <TouchableOpacity accessibilityRole="button" style={styles.more}
+                  disabled={moreLoading} onPress={() => { void more(); }}>
+                  <Text style={styles.actionText}>{moreLoading ? 'Loading…' : 'Load more'}</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          )}
+        </>
+      }
 
-        <View style={styles.tabs}>
-          {(['tasks', 'followups', 'approvals'] as const).map(tab => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, selectedTab === tab && styles.tabActive]}
-              onPress={() => setSelectedTab(tab)}
-            >
-              <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>
-                {tab === 'followups' ? 'Follow-ups' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-              {tab === 'tasks' && <View style={styles.tabBadge}><Text style={styles.tabBadgeText}>{tasks.filter(t => t.status !== 'completed').length}</Text></View>}
-              {tab === 'followups' && <View style={styles.tabBadge}><Text style={styles.tabBadgeText}>{followUps.filter(f => !f.completed).length}</Text></View>}
-              {tab === 'approvals' && <View style={styles.tabBadge}><Text style={styles.tabBadgeText}>{approvals.filter(a => a.status === 'pending').length}</Text></View>}
+      <Modal visible={showCreate} animationType="slide" onRequestClose={() => setShowCreate(false)}>
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.back} accessibilityRole="button" accessibilityLabel="Close task form"
+              onPress={() => setShowCreate(false)}>
+              <MaterialCommunityIcons name="close" size={24} color={COLORS.text} />
             </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.content}>
-          {selectedTab === 'tasks' && renderTasksTab()}
-          {selectedTab === 'followups' && renderFollowUpsTab()}
-          {selectedTab === 'approvals' && renderApprovalsTab()}
-        </View>
-      </ScrollView>
+            <Text style={styles.title}>{tab === 'followups' ? 'New Follow-up' : 'New Task'}</Text>
+            <View style={styles.back} />
+          </View>
+          <KeyboardAvoidingView style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView contentContainerStyle={styles.form}>
+              {([
+                ['title', 'Task title'], ['assignedTo', 'Assigned to'],
+                ['dueDate', 'Due date (YYYY-MM-DD)'],
+              ] as const).map(([key, label]) => (
+                <View key={key} style={styles.field}>
+                  <Text style={styles.label}>{label}</Text>
+                  <TextInput style={styles.input} value={form[key]}
+                    onChangeText={value => setForm(v => ({ ...v, [key]: value }))}
+                    placeholder={label} placeholderTextColor={COLORS.textSecondary} />
+                </View>
+              ))}
+              <Text style={styles.label}>Description</Text>
+              <TextInput style={[styles.input, { minHeight: 120 }]} multiline
+                textAlignVertical="top" value={form.description}
+                onChangeText={value => setForm(v => ({ ...v, description: value }))}
+                placeholder="Details and next steps" placeholderTextColor={COLORS.textSecondary} />
+              <Text style={styles.label}>Priority</Text>
+              <View style={styles.actions}>
+                {PRIORITIES.map(priority => (
+                  <TouchableOpacity key={priority} accessibilityRole="radio"
+                    accessibilityState={{ checked: form.priority === priority }}
+                    style={[styles.action, form.priority === priority && styles.selected]}
+                    onPress={() => setForm(v => ({ ...v, priority }))}>
+                    <Text style={styles.actionText}>{priority}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity accessibilityRole="button" disabled={saving}
+                style={styles.submit} onPress={() => { void createTask(); }}>
+                <Text style={styles.submitText}>{saving ? 'Saving…' : 'Create Task'}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: SPACING.md, paddingTop: SPACING.lg },
-  welcomeText: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
-  tabs: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm, marginBottom: SPACING.md },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: SPACING.sm, backgroundColor: COLORS.surface, borderRadius: RADIUS.md },
-  tabActive: { backgroundColor: COLORS.primary },
-  tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.white },
-  tabBadge: { backgroundColor: COLORS.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full },
-  tabBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.white },
-
-  content: { paddingHorizontal: SPACING.md, paddingBottom: 100 },
-
-  taskCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  taskHeader: { flexDirection: 'row', alignItems: 'flex-start' },
-  priorityDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5, marginRight: SPACING.sm },
-  taskInfo: { flex: 1 },
-  taskTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  taskDesc: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  taskMeta: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
-  taskAssignee: { fontSize: 12, color: COLORS.primary },
-  taskDate: { fontSize: 12, color: COLORS.textSecondary },
-  statusBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full },
-  statusText: { fontSize: 11, fontWeight: '700' },
-
-  taskActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: SPACING.sm, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border },
-  actionButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  actionText: { fontSize: 13, fontWeight: '600' },
-  categoryBadge: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full },
-  categoryText: { fontSize: 11, color: COLORS.textSecondary },
-
-  followUpCard: { marginBottom: SPACING.sm },
-  followUpRow: { flexDirection: 'row', alignItems: 'center' },
-  followUpInfo: { flex: 1, marginLeft: SPACING.sm },
-  followUpTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  completedText: { textDecorationLine: 'line-through', color: COLORS.textSecondary },
-  followUpMeta: { flexDirection: 'row', gap: SPACING.sm, marginTop: 2 },
-  followUpType: { fontSize: 12, color: COLORS.primary },
-  followUpDate: { fontSize: 12, color: COLORS.textSecondary },
-
-  approvalCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  approvalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  approvalTypeBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full },
-  approvalTypeText: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
-  approvalDate: { fontSize: 12, color: COLORS.textSecondary },
-  approvalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: SPACING.xs },
-  approvalRequester: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  approvalAmount: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginTop: SPACING.xs },
-  approvalActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
-  approvalButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: SPACING.sm, borderRadius: RADIUS.md },
-  approveButton: { backgroundColor: COLORS.success },
-  rejectButton: { backgroundColor: COLORS.error },
-  approvalButtonText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
-
-  sectionSubtitle: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary, marginTop: SPACING.md, marginBottom: SPACING.sm },
-  historyCard: { marginBottom: SPACING.xs, padding: SPACING.sm },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  historyTitle: { flex: 1, fontSize: 13, color: COLORS.text },
-  historyStatus: { fontSize: 12, fontWeight: '600' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.surface, padding: SPACING.sm,
+    borderBottomWidth: 1, borderColor: COLORS.border },
+  back: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { color: COLORS.text, fontSize: 20, fontWeight: '700' },
+  subtitle: { color: COLORS.textSecondary, fontSize: 12, marginTop: 3 },
+  tabs: { flexDirection: 'row', gap: SPACING.sm, padding: SPACING.sm },
+  tab: { flex: 1, minHeight: 44, borderRadius: RADIUS.md,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surface },
+  activeTab: { backgroundColor: COLORS.primaryFaded },
+  tabText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+  activeTabText: { color: COLORS.primary },
+  loader: { flex: 1 },
+  content: { maxWidth: 860, width: '100%', alignSelf: 'center',
+    padding: SPACING.md, paddingBottom: SPACING.xxl },
+  empty: { padding: SPACING.xxl, alignItems: 'center', gap: SPACING.md },
+  muted: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20 },
+  card: { padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1,
+    borderColor: COLORS.border, backgroundColor: COLORS.surface,
+    marginBottom: SPACING.sm, gap: SPACING.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  itemTitle: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  value: { color: COLORS.primary, fontSize: 18, fontWeight: '700' },
+  status: { fontSize: 12, color: COLORS.primary, fontWeight: '700', textTransform: 'capitalize' },
+  priority: { color: COLORS.textSecondary, fontSize: 12, textTransform: 'capitalize' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  action: { minHeight: 44, borderRadius: RADIUS.md, backgroundColor: COLORS.primaryFaded,
+    justifyContent: 'center', paddingHorizontal: SPACING.md },
+  actionText: { color: COLORS.primary, fontWeight: '600', fontSize: 13, textTransform: 'capitalize' },
+  selected: { borderWidth: 1, borderColor: COLORS.primary },
+  more: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  modal: { flex: 1, backgroundColor: COLORS.background },
+  form: { width: '100%', maxWidth: 800, alignSelf: 'center',
+    padding: SPACING.md, paddingBottom: SPACING.xxl, gap: SPACING.md },
+  field: { gap: 5 },
+  label: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  input: { minHeight: 48, padding: SPACING.md,
+    borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.surface, color: COLORS.text, fontSize: 16 },
+  submit: { backgroundColor: COLORS.primary, minHeight: 52,
+    borderRadius: RADIUS.lg, justifyContent: 'center', alignItems: 'center' },
+  submitText: { color: COLORS.white, fontWeight: '700', fontSize: 16 },
 });
