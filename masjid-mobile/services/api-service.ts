@@ -360,19 +360,19 @@ export const apiService = {
   jobs: {
     getAll: async (): Promise<Job[]> => {
       try {
-        const response = await api.instance.get<Job[]>('/jobs');
-        return response.data;
+        const response = await api.instance.get<{ jobs: Job[] }>('/public/jobs');
+        return (response.data.jobs || []).map(j => ({ ...j, id: String(j.id), status: 'active' as const }));
       } catch {
-        return getMockJobs();
+        return [];
       }
     },
 
     getById: async (id: string): Promise<Job | null> => {
       try {
-        const response = await api.instance.get<Job>(`/jobs/${id}`);
+        const response = await api.instance.get<Job>(`/public/jobs/${encodeURIComponent(id)}`);
         return response.data;
       } catch {
-        return getMockJobs().find(j => j.id === id) || null;
+        return null;
       }
     },
 
