@@ -4,7 +4,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   if (!/^\d+$/.test(id)) return NextResponse.json({ error: "Invalid announcement ID" }, { status: 400 });
   const announcement = await prisma.kioskAnnouncement.findFirst({
-    where: { id: Number(id), isActive: true, OR: [
+    where: { id: Number(id), isActive: true, startsAt: { lte: new Date() }, OR: [
       { expiresAt: null }, { expiresAt: { gte: new Date() } },
     ] },
     select: { id: true, title: true, message: true, type: true, createdAt: true },
