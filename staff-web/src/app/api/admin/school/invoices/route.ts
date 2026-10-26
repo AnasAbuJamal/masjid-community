@@ -43,9 +43,16 @@ export async function GET(req: NextRequest) {
   const admin = await getApiIdentity(req);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (admin.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const invoices = await prisma.schoolInvoice.findMany({
-    take: 100, orderBy: { createdAt: "desc" },
-    include: { student: { select: { firstName: true, lastName: true, studentId: true } } },
-  });
-  return NextResponse.json({ invoices }, { headers: { "Cache-Control": "no-store" } });
+  const [invoices, students] = await Promise.all([
+    prisma.schoolInvoice.findMany({
+      take: 100, orderBy: { createdAt: "desc" },
+      include: { student: { select: { firstName: true, lastName: true, studentId: true } } },
+    }),
+    prisma.student.findMany({
+      where: { isActive: true }, take: 500,
+      select: { id: true, firstName: true, lastName: true, studentId: true },
+      orderBy: { firstName: "asc" },
+    }),
+  ]);
+  return NextResponse.json({ invoices, students }, { headers: { "Cache-Control": "no-store" } });
 }
