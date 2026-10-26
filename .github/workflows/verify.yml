@@ -31,7 +31,9 @@ jobs:
       - run: npx prisma validate
       - run: npm run test:run
       - run: npx tsc --noEmit
+        if: always()
       - run: npm run build
+        if: always()
 
   mobile:
     name: Mobile — tests and TypeScript
@@ -49,3 +51,4 @@ jobs:
       - run: npm ci
       - run: npm run test:run
       - run: npx tsc --noEmit
+        if: always()
