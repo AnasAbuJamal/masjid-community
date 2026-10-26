@@ -5,7 +5,8 @@ const adminPassword = process.env.ADMIN_PASSWORD;
 const hasFixture = Boolean(adminEmail && adminPassword);
 
 async function login(page: Page) {
-  await page.goto("/");
+  const pageResponse = await page.goto("/");
+      expect(pageResponse?.status(), "Login page must respond successfully").toBe(200);
   await page.locator('input[type="email"]').fill(adminEmail!);
   await page.locator('input[type="password"]').fill(adminPassword!);
   await page.locator('button[type="submit"]').click();
@@ -20,7 +21,8 @@ test.describe("Responsive access — phone, iPad and desktop", () => {
   ]) {
     test(`${device.name}: login controls fit viewport without horizontal scrolling`, async ({ page }) => {
       await page.setViewportSize({ width: device.width, height: device.height });
-      await page.goto("/");
+      const pageResponse = await page.goto("/");
+    expect(pageResponse?.status(), "Login page must respond successfully").toBe(200);
       await expect(page.locator('input[type="email"]')).toBeVisible();
       await expect(page.locator('input[type="password"]')).toBeVisible();
       await expect(page.locator('button[type="submit"]')).toBeVisible();
@@ -44,7 +46,8 @@ test.describe("Responsive access — phone, iPad and desktop", () => {
 });
 
 test("invalid credentials show an authentication error", async ({ page }) => {
-  await page.goto("/");
+  const pageResponse = await page.goto("/");
+      expect(pageResponse?.status(), "Login page must respond successfully").toBe(200);
   await page.locator('input[type="email"]').fill("invalid@example.test");
   await page.locator('input[type="password"]').fill("not-the-right-password");
   await page.locator('button[type="submit"]').click();
