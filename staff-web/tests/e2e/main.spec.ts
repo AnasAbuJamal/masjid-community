@@ -481,3 +481,60 @@ test("admin audit logs are accessible only to administrators", async ({ request 
   expect(data.logs).toEqual(expect.any(Array));
   expect(data.logs.every((log: { ipAddress?: string }) => log.ipAddress === undefined)).toBe(true);
 });
+
+
+test("announcements publish only after start time and respect visibility", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated integration database");
+  expect((await request.get("/api/mobile/admin/announcements")).status()).toBe(401);
+
+  const login = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(login.status()).toBe(200);
+  const { token } = await login.json();
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const future = new Date(Date.now() + 86400000).toISOString();
+  const text = "CI Future Announcement";
+  const scheduled = await request.post("/api/mobile/admin/announcements", {
+    headers, data: {
+      title: text, message: "Scheduled CI-only text",
+      type: "general", priority: 0, startsAt: future,
+    },
+  });
+  expect(scheduled.status()).toBe(201);
+  const { id, status } = await scheduled.json();
+  expect(status).toBe("scheduled");
+
+  const publicResult = await request.get("/api/public/announcements");
+  expect(publicResult.status()).toBe(200);
+  expect((await publicResult.json()).announcements.some((a: { id: number }) => String(a.id) === id)).toBe(false);
+
+  const visible = await request.get("/api/mobile/admin/announcements", { headers });
+  expect(visible.status()).toBe(200);
+  expect((await visible.json()).announcements.some((a: { id: string }) => a.id === id)).toBe(true);
+
+  const hidden = await request.patch(`/api/mobile/admin/announcements/${id}`, {
+    headers, data: { isActive: false },
+  });
+  expect(hidden.status()).toBe(200);
+
+  const invalid = await request.post("/api/mobile/admin/announcements", {
+    headers, data: {
+      title: "Invalid", message: "bad category", type: "unknown",
+      priority: 0,
+    },
+  });
+  expect(invalid.status()).toBe(400);
+
+  const published = await request.post("/api/mobile/admin/announcements", {
+    headers, data: {
+      title: "CI Immediate Announcement", message: "Visible in integration tests",
+      type: "event", priority: 1,
+    },
+  });
+  expect(published.status()).toBe(201);
+  const instantId = (await published.json()).id;
+  const after = await request.get("/api/public/announcements");
+  expect((await after.json()).announcements.some((a: { id: number }) => String(a.id) === instantId)).toBe(true);
+});
