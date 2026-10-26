@@ -20,13 +20,18 @@ export async function GET() {
     },
   });
 
+  const counts = proposals.length ? await prisma.proposalVote.groupBy({
+    by: ['proposalId'], where: { proposalId: { in: proposals.map(p => p.id) } }, _count: { _all: true },
+  }) : [];
+  const voteCounts = new Map(counts.map(c => [c.proposalId, c._count._all]));
+
   const mapped = proposals.map((p) => ({
     id: String(p.id),
     title: p.title,
     description: p.description || p.summary,
     author: p.submitterName || "Anonymous",
     status: p.status,
-    votes: 0,
+    votes: voteCounts.get(p.id) || 0,
     createdAt: p.createdAt.toISOString(),
   }));
 
