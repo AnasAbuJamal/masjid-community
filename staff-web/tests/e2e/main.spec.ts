@@ -328,3 +328,58 @@ test("CRM analytics reflect database totals and enforce admin-only access", asyn
     expect(report.events[0]).not.toHaveProperty("attended");
   }
 });
+
+
+test("financial budgets remain private until published and use real posted expenses", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  expect((await request.get("/api/admin/finances/budgets")).status()).toBe(401);
+
+  const response = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(response.status()).toBe(200);
+  const { token } = await response.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const adminList = await request.get("/api/admin/finances/budgets", { headers });
+  expect(adminList.status()).toBe(200);
+  const categories = (await adminList.json()).categories as { id: number; name: string }[];
+  const category = categories.find(c => c.name === "CI Utilities");
+  expect(category).toBeDefined();
+
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const draft = {
+    categoryId: category!.id, year, month, allocated: 200,
+    isPublished: false,
+  };
+  const invalid = await request.post("/api/admin/finances/budgets", {
+    headers, data: { ...draft, allocated: -1 },
+  });
+  expect(invalid.status()).toBe(400);
+
+  const created = await request.post("/api/admin/finances/budgets", { headers, data: draft });
+  expect(created.status()).toBe(200);
+  const id = (await created.json()).id;
+
+  const endpoint = `/api/public/finances?year=${year}&month=${month}`;
+  const privateReport = await request.get(endpoint);
+  expect(privateReport.status()).toBe(200);
+  expect((await privateReport.json()).budgets.some((r: { id: string }) => r.id === String(id))).toBe(false);
+
+  const publish = await request.post("/api/admin/finances/budgets", {
+    headers, data: { ...draft, isPublished: true },
+  });
+  expect(publish.status()).toBe(200);
+  const report = await request.get(endpoint);
+  expect(report.status()).toBe(200);
+  const budget = (await report.json()).budgets.find((r: { id: string }) => r.id === String(id));
+  expect(budget).toBeDefined();
+  expect(budget.allocated).toBe(200);
+  expect(budget.spent).toBeGreaterThanOrEqual(34.25);
+
+  const deleted = await request.delete(`/api/admin/finances/budgets/${id}`, { headers });
+  expect(deleted.status()).toBe(200);
+  const after = await request.get(endpoint);
+  expect((await after.json()).budgets.some((r: { id: string }) => r.id === String(id))).toBe(false);
+});
