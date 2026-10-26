@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     const where: Prisma.BlogPostWhereInput = {};
     if (status) where.status = status as "draft" | "published" | "archived";
-    if (categoryId) where.categoryId = categoryId;
+    if (categoryId) where.categoryId = Number(categoryId);
     if (tag) where.tags = { has: tag };
 
     const [posts, total] = await Promise.all([
@@ -51,9 +51,9 @@ export async function POST(req: NextRequest) {
         data: {
             ...rest,
             slug: slugify(body.title),
-            authorId: session.user.id,
+            authorId: Number(session.user.id),
             tags: tags || [],
-            categoryId: categoryId || null,
+            categoryId: categoryId ? Number(categoryId) : null,
             metaTitle: metaTitle || null,
             metaDescription: metaDescription || null,
             seoImage: seoImage || null,
