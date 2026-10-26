@@ -1,4 +1,6 @@
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { DonationChart, DonationBarChart, RecentDonations, StatCard, QuickActions, ActivityFeed } from "./dashboard-charts";
 
@@ -69,6 +71,10 @@ async function getStats() {
 }
 
 export default async function DashboardPage() {
+  const session = await auth();
+  if (!session || !["admin", "teacher", "staff"].includes(session.user.role)) {
+    redirect("/");
+  }
   const stats = await getStats();
 
   return (
