@@ -188,3 +188,51 @@ test("public schedule returns persisted classes instead of example courses", asy
   const data = await response.json();
   expect(data.classes.some((c: { name: string }) => c.name === "CI Test Quran Class")).toBe(true);
 });
+
+
+test("school invoices are issued only by admins and can be voided before payment", async ({ request }) => {
+  test.skip(!hasFixture, "Requires ephemeral integration database");
+
+  expect((await request.get("/api/admin/school/invoices")).status()).toBe(401);
+  const login = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(login.status()).toBe(200);
+  const { token } = await login.json();
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const index = await request.get("/api/admin/school/invoices", { headers });
+  expect(index.status()).toBe(200);
+  const students = (await index.json()).students as { id: number; studentId: number }[];
+  const student = students.find(s => s.studentId === 991017);
+  expect(student).toBeDefined();
+
+  const invalid = await request.post("/api/admin/school/invoices", {
+    headers, data: { studentId: student!.id, amountCents: -300, description: "Test", dueDate: "2026-12-10" },
+  });
+  expect(invalid.status()).toBe(400);
+
+  const created = await request.post("/api/admin/school/invoices", {
+    headers, data: {
+      studentId: student!.id, amountCents: 2500,
+      description: "CI Test School Materials", dueDate: "2026-12-10",
+    },
+  });
+  expect(created.status()).toBe(201);
+  const invoice = await created.json();
+  expect(invoice.amountCents).toBe(2500);
+  expect(invoice.status).toBe("pending");
+
+  const visible = await request.get("/api/school/invoices", { headers });
+  expect(visible.status()).toBe(200);
+  expect((await visible.json()).invoices.some((i: { id: string }) => i.id === invoice.id)).toBe(true);
+
+  const voided = await request.patch(`/api/admin/school/invoices/${invoice.id}`, {
+    headers, data: { action: "void" },
+  });
+  expect(voided.status()).toBe(200);
+  const doubleVoid = await request.patch(`/api/admin/school/invoices/${invoice.id}`, {
+    headers, data: { action: "void" },
+  });
+  expect(doubleVoid.status()).toBe(409);
+});
