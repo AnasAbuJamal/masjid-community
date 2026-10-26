@@ -39,17 +39,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
-      <div className="w-full max-w-md">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-5">
+      <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-900 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-[22px] bg-gradient-to-br from-sky-700 to-sky-400 shadow-lg shadow-sky-200 mb-4">
             <span className="text-2xl">🕌</span>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Masjid Al-Momineen</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Masjid Al-Momineen</h1>
           <p className="text-sm text-gray-500 mt-1">Staff Portal</p>
         </div>
 
-        <Card className="bg-white rounded-xl border border-gray-200">
+        <Card className="rounded-[28px] border border-white/90 p-1 shadow-xl shadow-sky-100/60">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl">Sign in</CardTitle>
             <CardDescription>Enter your credentials to access the portal</CardDescription>
@@ -73,7 +73,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="pl-10"
+                    className="glass-input h-12 rounded-xl border-sky-100 bg-white/75 pl-10"
                   />
                 </div>
               </div>
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-gray-900 hover:bg-gray-800 text-white"
+                className="h-12 w-full rounded-2xl"
                 disabled={loading}
               >
                 {loading ? (

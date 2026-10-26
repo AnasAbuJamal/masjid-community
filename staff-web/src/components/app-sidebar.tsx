@@ -36,9 +36,9 @@ export default function AppSidebar() {
     const sections = [...new Set(filteredItems.map((item) => item.section))];
 
     const sidebarContent = (
-        <div className="flex flex-col h-full bg-white border-r border-gray-200">
+        <div className="glass-navigation flex h-full flex-col border-r">
             <div className={cn("flex items-center gap-3 p-4 border-b border-gray-200", collapsed && "justify-center px-2")}>
-                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-gray-900 flex-shrink-0">
+                <div className="flex items-center justify-center w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-700 to-sky-400 shadow-md shadow-sky-200 flex-shrink-0">
                     <span className="text-lg">🕌</span>
                 </div>
                 {!collapsed && (
@@ -70,10 +70,10 @@ export default function AppSidebar() {
                                                 href={item.href}
                                                 onClick={() => setMobileOpen(false)}
                                                 className={cn(
-                                                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                                                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500",
                                                     isActive
-                                                        ? "bg-gray-100 text-gray-900"
-                                                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                                                        ? "bg-sky-100/90 text-sky-900 shadow-sm ring-1 ring-sky-200/70"
+                                                        : "text-slate-600 hover:bg-white/80 hover:text-sky-800",
                                                     collapsed && "justify-center px-2"
                                                 )}
                                                 title={collapsed ? item.title : undefined}
@@ -134,8 +134,10 @@ export default function AppSidebar() {
     return (
         <>
             <button
+                type="button"
+                aria-label="Open navigation"
                 onClick={() => setMobileOpen(true)}
-                className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white text-gray-900 shadow-sm border border-gray-200"
+                className="glass-secondary lg:hidden fixed top-4 left-4 z-50 rounded-xl p-2 shadow-sm"
             >
                 <Menu className="h-5 w-5" />
             </button>
@@ -148,7 +150,7 @@ export default function AppSidebar() {
                 "lg:hidden fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200",
                 mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 p-1.5 rounded-lg bg-gray-100 text-gray-500">
+                <button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 rounded-lg bg-sky-100 p-1.5 text-sky-700">
                     <X className="h-4 w-4" />
                 </button>
                 {sidebarContent}
@@ -159,6 +161,8 @@ export default function AppSidebar() {
                 collapsed ? "w-16" : "w-56"
             )}>
                 <button
+                    type="button"
+                    aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                     onClick={() => setCollapsed(!collapsed)}
                     className="absolute -right-3 top-6 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-white text-gray-400 hover:text-gray-600 shadow-sm border border-gray-200"
                 >
