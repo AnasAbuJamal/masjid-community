@@ -3,20 +3,20 @@ import { Dimensions, Platform } from 'react-native';
 const { width, height } = Dimensions.get('window');
 
 export const COLORS = {
-  primary: '#4A90D9',
-  primaryLight: '#7BB3E8',
-  primaryDark: '#2E6BB5',
-  primaryFaded: 'rgba(74, 144, 217, 0.15)',
+  primary: '#0066CC',
+  primaryLight: '#4D9EFF',
+  primaryDark: '#004C99',
+  primaryFaded: 'rgba(0, 102, 204, 0.12)',
   
-  secondary: '#6DD5ED',
+  secondary: '#DCEEFF',
   secondaryLight: '#A8E6FF',
   secondaryDark: '#3FC5E8',
   
-  accent: '#00D9FF',
+  accent: '#007AFF',
   accentLight: '#7DF9FF',
   accentGlow: 'rgba(0, 217, 255, 0.3)',
   
-  background: '#F8FAFC',
+  background: '#F5F5F7',
   backgroundGradientStart: '#FFFFFF',
   backgroundGradientEnd: '#E8F4FD',
   
@@ -24,12 +24,12 @@ export const COLORS = {
   surfaceGlass: 'rgba(255, 255, 255, 0.65)',
   surfaceGlassLight: 'rgba(255, 255, 255, 0.45)',
   
-  text: '#1E3A5F',
-  textSecondary: '#6B7C8F',
-  textLight: '#9CA8B8',
+  text: '#1D1D1F',
+  textSecondary: '#636366',
+  textLight: '#767680',
   textWhite: '#FFFFFF',
   
-  border: 'rgba(74, 144, 217, 0.2)',
+  border: 'rgba(0, 102, 204, 0.16)',
   borderLight: 'rgba(255, 255, 255, 0.5)',
   
   error: '#FF6B6B',
@@ -46,7 +46,7 @@ export const COLORS = {
   glassBorder: 'rgba(255, 255, 255, 0.6)',
   glassShine: 'rgba(255, 255, 255, 0.8)',
   
-  shadowColor: '#1E3A5F',
+  shadowColor: '#1D1D1F',
   shadowBlue: 'rgba(74, 144, 217, 0.25)',
 };
 
@@ -121,8 +121,8 @@ export const DIMENSIONS = {
 };
 
 export const GRADIENTS = {
-  primary: ['#4A90D9', '#7BB3E8'],
-  accent: ['#00D9FF', '#7DF9FF'],
+  primary: ['#0066CC', '#4D9EFF'],
+  accent: ['#007AFF', '#7DF9FF'],
   glass: ['rgba(255,255,255,0.8)', 'rgba(255,255,255,0.6)'],
   background: ['#FFFFFF', '#E8F4FD', '#D6EEFF'],
 };
