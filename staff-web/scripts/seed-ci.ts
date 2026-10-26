@@ -36,9 +36,15 @@ async function main() {
       firstName: "Test", lastName: "Parent", role: "member", isVerified: false, isActive: true,
     },
   });
+  const linkedTeacher = await prisma.user.upsert({
+    where: { email: "ci-linked-teacher@example.test" },
+    update: { role: "teacher", isActive: true, passwordHash: await bcrypt.hash("ci-only-linked-teacher-password", 12) },
+    create: { email: "ci-linked-teacher@example.test", firstName: "Test", lastName: "Instructor", role: "teacher", isActive: true, isVerified: true, passwordHash: await bcrypt.hash("ci-only-linked-teacher-password", 12) },
+  });
+  await prisma.class.create({ data: { name: "CI Unassigned Same-Name Class", teacherName: "Test Instructor", schedule: "Sunday", dayOfWeek: ["Sunday"] } });
   const testClass = await prisma.class.create({
     data: {
-      name: "CI Test Quran Class", teacherName: "Test Instructor",
+      name: "CI Test Quran Class", teacherName: "Test Instructor", teacherId: linkedTeacher.id,
       schedule: "Saturday 10:00 AM", dayOfWeek: ["Saturday"],
     },
   });

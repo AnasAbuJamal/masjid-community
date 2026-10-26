@@ -729,3 +729,22 @@ test("teachers' attendance endpoint writes genuine class records and rejects inv
   });
   expect(unauthorizedMark.status()).toBe(403);
 });
+
+
+test("teacher account links cannot be replaced by display-name matching", async ({ request }) => {
+  const login = await request.post("/api/auth/login", { data: { email: "ci-linked-teacher@example.test", password: "ci-only-linked-teacher-password" } });
+  expect(login.status()).toBe(200);
+  const { token } = await login.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const before = await request.get("/api/school/teacher/overview", { headers });
+  expect(before.status()).toBe(200);
+  const initial = await before.json();
+  expect(initial.classes.some((c: { name: string }) => c.name === "CI Test Quran Class")).toBe(true);
+  expect(initial.classes.some((c: { name: string }) => c.name === "CI Unassigned Same-Name Class")).toBe(false);
+  const rename = await request.patch("/api/auth/profile", { headers, data: { firstName: "Changed", lastName: "Display Name" } });
+  expect(rename.status()).toBe(200);
+  const after = await request.get("/api/school/teacher/overview", { headers });
+  expect(after.status()).toBe(200);
+  const updated = await after.json();
+  expect(updated.classes.map((c: { id: string }) => c.id)).toEqual(initial.classes.map((c: { id: string }) => c.id));
+});

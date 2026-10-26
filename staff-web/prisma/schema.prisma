@@ -43,6 +43,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  teachingClasses Class[] @relation("AssignedClassTeacher")
   blogPosts     BlogPost[]
   assignments   Assignment[]  @relation("AssignmentTeacher")
   auditLogs     AuditLog[]
@@ -178,6 +179,9 @@ model EducationalResource {
 }
 
 model Class {
+  teacherId Int?
+  teacher User? @relation("AssignedClassTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  @@index([teacherId])
   id Int @id @default(autoincrement())
   name         String
   teacherName  String

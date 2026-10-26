@@ -8,10 +8,9 @@ export async function GET(req: NextRequest) {
   if (!["admin", "teacher"].includes(user.role))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const fullName = `${user.firstName} ${user.lastName}`.trim();
   const classes = await prisma.class.findMany({
     where: user.role === "admin" ? {} : {
-      teacherName: { equals: fullName, mode: "insensitive" },
+      teacherId: user.id,
     },
     include: { students: {
       where: { isActive: true }, orderBy: { firstName: "asc" },

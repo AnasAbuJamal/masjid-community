@@ -59,3 +59,9 @@ A confirmed green workflow before the newest changes was **[run 40398499899](htt
 8. **Historical donor linking:** Existing guest donations cannot safely be assigned to accounts from email strings alone. Preserve privacy until verified ownership/reconciliation is implemented.
 
 **Do not merge or deploy this draft PR as 100% complete until these outstanding tasks and a fresh full CI run are resolved.**
+
+## Latest continuation: teacher account assignment
+
+Resumed from PR #2 head abe4bf3 (not PR #1). Run 40412704771 passed for that starting revision. Replaced editable display-name authorization in the teaching overview/attendance endpoints with explicit administrator-managed Class.teacherId relations. Classroom UI now supports account linking; existing classes are intentionally unassigned until an administrator links them. Apply migration `20261026230000_teacher_account_assignment` in reviewed staging before deploying these queries. No live migration or credential operations ran.
+
+Legacy class/student roster writes are now admin-only and teacher roster reads use assigned account IDs. Flat assignment inputs exclude nested relation writes. **Further legacy school endpoint authorization review is still required**; this fix does not establish complete role isolation across the application. Continue from `accomplish.md` in this branch.

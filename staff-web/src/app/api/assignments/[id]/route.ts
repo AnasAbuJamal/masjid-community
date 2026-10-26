@@ -9,6 +9,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid assignment" }, { status: 400 });
+    for (const key of Object.keys(body)) if (!["studentId", "teacherId", "date", "type", "location", "description", "status", "rating"].includes(key)) delete body[key];
     if (body.date) body.date = new Date(body.date);
 
     const assignment = await prisma.assignment.update({ where: { id: Number(id) }, data: body });

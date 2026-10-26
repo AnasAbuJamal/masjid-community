@@ -24,10 +24,9 @@ export async function POST(req: NextRequest) {
       date.getTime() > now.getTime() || date.getTime() < now.getTime() - 7 * 86400000)
     return NextResponse.json({ error: "Attendance must be marked within seven days" }, { status: 400 });
 
-  const fullName = `${user.firstName} ${user.lastName}`.trim();
   const schoolClass = await prisma.class.findFirst({
     where: { id: body.classId, ...(user.role === "admin" ? {} : {
-      teacherName: { equals: fullName, mode: "insensitive" as const },
+      teacherId: user.id,
     }) },
     select: { id: true },
   });

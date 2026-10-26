@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ interface Student {
 }
 interface ClassItem {
   id: number; name: string; teacherName: string; schedule: string;
+  teacherId?: number | null;
   students: Student[];
 }
 
@@ -35,13 +37,18 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ClassroomPage() {
+  const { data: session } = useSession();
+  const canManage = session?.user?.role === "admin";
+  const [teachers, setTeachers] = useState<{ id: number; firstName: string; lastName: string; email: string }[]>([]);
+  const [error, setError] = useState("");
+  useEffect(() => { if (canManage) fetch("/api/classroom/teachers").then(async res => { if (!res.ok) throw new Error(); const data = await res.json(); setTeachers(data.teachers); }).catch(() => setError("Unable to load teacher accounts. Refresh before changing account links.")); }, [canManage]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [classDialog, setClassDialog] = useState(false);
   const [studentDialog, setStudentDialog] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [classForm, setClassForm] = useState({ name: "", teacherName: "", schedule: "" });
+  const [classForm, setClassForm] = useState({ name: "", teacherName: "", schedule: "", teacherId: "" });
   const [studentForm, setStudentForm] = useState({ firstName: "", lastName: "", classId: "", parentName: "", parentEmail: "", parentPhone: "" });
   const [saving, setSaving] = useState(false);
   const [deleteItem, setDeleteItem] = useState<{ type: "class" | "student"; id: string } | null>(null);
@@ -57,21 +64,21 @@ export default function ClassroomPage() {
 
   const totalStudents = classes.reduce((acc, cls) => acc + (cls.students?.length || 0), 0);
 
-  const openCreateClass = () => { setEditingClass(null); setClassForm({ name: "", teacherName: "", schedule: "" }); setClassDialog(true); };
-  const openEditClass = (cls: ClassItem) => { setEditingClass(cls); setClassForm({ name: cls.name, teacherName: cls.teacherName, schedule: cls.schedule }); setClassDialog(true); };
+  const openCreateClass = () => { setEditingClass(null); setClassForm({ name: "", teacherName: "", schedule: "", teacherId: "" }); setClassDialog(true); };
+  const openEditClass = (cls: ClassItem) => { setEditingClass(cls); setClassForm({ name: cls.name, teacherName: cls.teacherName, schedule: cls.schedule, teacherId: cls.teacherId ? String(cls.teacherId) : "" }); setClassDialog(true); };
   const openCreateStudent = () => { setEditingStudent(null); setStudentForm({ firstName: "", lastName: "", classId: String(classes[0]?.id || ""), parentName: "", parentEmail: "", parentPhone: "" }); setStudentDialog(true); };
   const openEditStudent = (s: Student) => { setEditingStudent(s); setStudentForm({ firstName: s.firstName, lastName: s.lastName, classId: String(s.classId), parentName: s.parentName, parentEmail: s.parentEmail || "", parentPhone: s.parentPhone || "" }); setStudentDialog(true); };
 
   const handleSaveClass = async () => {
     setSaving(true);
     try {
-      if (editingClass) {
-        await fetch(`/api/classroom/classes/${editingClass.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(classForm) });
-      } else {
-        await fetch("/api/classroom/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(classForm) });
-      }
-      setClassDialog(false); fetchData();
-    } catch (e) { console.error("Error saving class:", e); } finally { setSaving(false); }
+      const response = await fetch(editingClass ? `/api/classroom/classes/${editingClass.id}` : "/api/classroom/classes", {
+        method: editingClass ? "PUT" : "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...classForm, teacherId: classForm.teacherId ? Number(classForm.teacherId) : null }),
+      });
+      if (!response.ok) { const body = await response.json(); throw new Error(body.error || "Class was not saved"); }
+      setClassDialog(false); setError(""); fetchData();
+    } catch (e) { setError(e instanceof Error ? e.message : "Class was not saved"); } finally { setSaving(false); }
   };
 
   const handleSaveStudent = async () => {
@@ -100,14 +107,15 @@ export default function ClassroomPage() {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="text-red-700">{error}</p>}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Classroom</h1>
           <p className="text-gray-500 mt-1">Manage Islamic school classes and students</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={openCreateStudent}><Plus className="h-4 w-4 mr-2" />Add Student</Button>
-          <Button className="mocha-gradient hover:opacity-90" onClick={openCreateClass}><Plus className="h-4 w-4 mr-2" />Add Class</Button>
+          <Button disabled={!canManage} variant="outline" onClick={openCreateStudent}><Plus className="h-4 w-4 mr-2" />Add Student</Button>
+          <Button disabled={!canManage} className="mocha-gradient hover:opacity-90" onClick={openCreateClass}><Plus className="h-4 w-4 mr-2" />Add Class</Button>
         </div>
       </div>
 
@@ -130,8 +138,8 @@ export default function ClassroomPage() {
                   <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5 text-purple-600" />{cls.name}</CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{cls.students?.length || 0} students</Badge>
-                    <Button variant="ghost" size="sm" onClick={() => openEditClass(cls)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "class", id: String(cls.id) })}><Trash2 className="h-4 w-4" /></Button>
+                    <Button disabled={!canManage} variant="ghost" size="sm" onClick={() => openEditClass(cls)}><Pencil className="h-4 w-4" /></Button>
+                    <Button disabled={!canManage} variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "class", id: String(cls.id) })}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
                 <p className="text-sm text-gray-500 flex items-center gap-2"><Clock className="h-4 w-4" />{cls.schedule} • Teacher: {cls.teacherName}</p>
@@ -152,8 +160,8 @@ export default function ClassroomPage() {
                           <TableCell>{student.totalPoints.toLocaleString()}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => openEditStudent(student)}><Pencil className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "student", id: String(student.id) })}><Trash2 className="h-4 w-4" /></Button>
+                              <Button disabled={!canManage} variant="ghost" size="sm" onClick={() => openEditStudent(student)}><Pencil className="h-4 w-4" /></Button>
+                              <Button disabled={!canManage} variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteItem({ type: "student", id: String(student.id) })}><Trash2 className="h-4 w-4" /></Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -173,7 +181,9 @@ export default function ClassroomPage() {
           <DialogHeader><DialogTitle>{editingClass ? "Edit Class" : "Add Class"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Class Name</Label><Input value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="e.g., Quran Level 1" /></div>
-            <div><Label>Teacher Name</Label><Input value={classForm.teacherName} onChange={(e) => setClassForm({ ...classForm, teacherName: e.target.value })} /></div>
+            <div className="space-y-2"><Label htmlFor="teacher-account">Teacher account</Label><select id="teacher-account" className="w-full rounded border p-3" value={classForm.teacherId} onChange={e => setClassForm({ ...classForm, teacherId: e.target.value })}><option value="">Unassigned (no teacher access)</option>{teachers.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} — {teacher.email}</option>)}</select><p className="text-sm">Only this linked account can access the class as a teacher. Display names do not grant access.</p></div>
+            {error && <p role="alert" className="text-red-700">{error}</p>}
+            <div><Label>Teacher display name</Label><Input value={classForm.teacherName} onChange={(e) => setClassForm({ ...classForm, teacherName: e.target.value })} /></div>
             <div><Label>Schedule</Label><Input value={classForm.schedule} onChange={(e) => setClassForm({ ...classForm, schedule: e.target.value })} placeholder="e.g., Sat & Sun 10-12 AM" /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setClassDialog(false)}>Cancel</Button><Button className="mocha-gradient hover:opacity-90" onClick={handleSaveClass} disabled={saving}>{saving ? "Saving..." : editingClass ? "Update" : "Create"}</Button></DialogFooter>
