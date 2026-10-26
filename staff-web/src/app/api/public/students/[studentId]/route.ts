@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getMobileAuthUser } from "@/lib/mobile-auth";
-import { auth } from "@/lib/auth";
+import { getApiIdentity, isStaff } from "@/lib/api-identity";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ studentId: string }> }) {
-  const session = await auth();
-  const mobile = await getMobileAuthUser(req);
-  if (!session && !mobile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getApiIdentity(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isStaff(user.role) && !user.isVerified) return NextResponse.json({ error: "Verify your email to access student records" }, { status: 403 });
   const { studentId: input } = await params;
   if (!/^\d+$/.test(input)) return NextResponse.json({ error: "Invalid student ID" }, { status: 400 });
   const studentId = Number(input);
@@ -24,10 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ stud
       },
     });
     if (!student) return NextResponse.json({ error: "Student not found" }, { status: 404 });
-    const role = session?.user.role || mobile?.role;
-    const email = (mobile?.email || session?.user.email || "").toLowerCase();
-    if (!["admin", "teacher", "staff"].includes(role || "") &&
-        (!email || student.parentEmail?.toLowerCase() !== email))
+    if (!isStaff(user.role) && student.parentEmail?.toLowerCase() !== user.email)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const reports = await prisma.studentReport.findMany({
       where: { studentId: student.id }, orderBy: { createdAt: "desc" }, take: 20,
