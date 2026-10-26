@@ -26,7 +26,7 @@ interface DonationData {
 
 export function DonationChart({ data }: { data: MonthlyData[] }) {
   return (
-    <Card className="col-span-2 border-0 shadow-sm">
+    <Card className="col-span-1 lg:col-span-2 border-0 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Revenue Overview</CardTitle>
       </CardHeader>
