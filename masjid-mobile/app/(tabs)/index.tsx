@@ -209,7 +209,7 @@ export default function HomeScreen() {
         {/* Announcements */}
         {announcements.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Announcements</Text><TouchableOpacity onPress={() => router.push('/announcements/1')}><Text style={styles.viewAll}>View all →</Text></TouchableOpacity></View>
+            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Announcements</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="View all notifications" onPress={() => router.push('/notifications')}><Text style={styles.viewAll}>View all →</Text></TouchableOpacity></View>
             {announcements.slice(0, 2).map((item) => (
               <TouchableOpacity key={item.id} onPress={() => router.push(`/announcements/${item.id}`)} activeOpacity={0.7} style={styles.announcementWrapper}>
                 <GlassCard>

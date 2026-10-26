@@ -85,7 +85,7 @@ export function GlassButton({
         style={[fullWidth && styles.fullWidth, style]}
       >
         <LinearGradient
-          colors={['#4A90D9', '#7BB3E8']}
+          colors={[COLORS.primary, COLORS.primaryLight]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
@@ -110,7 +110,7 @@ export function GlassButton({
         style={[fullWidth && styles.fullWidth, style]}
       >
         <LinearGradient
-          colors={['rgba(0, 217, 255, 0.2)', 'rgba(109, 213, 237, 0.15)']}
+          colors={['rgba(255, 255, 255, 0.94)', 'rgba(200, 233, 255, 0.76)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
@@ -168,8 +168,8 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: RADIUS.lg,
   },
   secondary: {
-    backgroundColor: 'rgba(0, 217, 255, 0.1)',
-    borderColor: 'rgba(0, 217, 255, 0.3)',
+    backgroundColor: 'rgba(200, 233, 255, 0.32)',
+    borderColor: 'rgba(115, 190, 245, 0.45)',
   },
   content: {
     flexDirection: 'row',

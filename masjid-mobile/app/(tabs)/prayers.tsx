@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useRouter } from 'expo-router';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -43,8 +43,7 @@ function addMinutes(time: string, mins: number): string {
 }
 
 export default function PrayersScreen() {
-  const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = async () => { setRefreshing(true); setTimeout(() => setRefreshing(false), 1000); };
+  const router = useRouter();
 
   const p: PrayerTimes = { fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30', jummah1: '13:00', jummah2: '14:00' };
   const nextKey = getNextPrayerKey(p);
@@ -52,7 +51,7 @@ export default function PrayersScreen() {
   return (
     <ScreenWrapper contentPadding={false} bottomPadding={false}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}>
+>
 
         {/* Column Layout: Jummah Card Section */}
         <View style={styles.cardSection}>
@@ -103,9 +102,23 @@ export default function PrayersScreen() {
           })}
         </View>
 
+        {/* Navigate to existing screens with accessible, functional actions. */}
+        <View style={styles.actionRow}>
+          <GlassCard style={styles.actionCard} onPress={() => router.push('/prayers/qibla')}>
+            <MaterialCommunityIcons name="compass-outline" size={24} color={COLORS.primary} />
+            <Text style={styles.actionLabel}>Qibla direction</Text>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.primary} />
+          </GlassCard>
+          <GlassCard style={styles.actionCard} onPress={() => router.push('/prayers/calendar')}>
+            <MaterialCommunityIcons name="calendar-month-outline" size={24} color={COLORS.primary} />
+            <Text style={styles.actionLabel}>Prayer calendar</Text>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.primary} />
+          </GlassCard>
+        </View>
+
         {/* Note */}
         <View style={styles.noteSection}>
-          <Text style={styles.note}>* Iqamah times are approximate. Please arrive early.</Text>
+          <Text style={styles.note}>* The displayed prayer times are examples. Please confirm the mosque’s current schedule.</Text>
         </View>
 
         <View style={styles.bottomSpacer} />
@@ -146,6 +159,10 @@ const styles = StyleSheet.create({
   nextBadgeText: { fontSize: 8, fontWeight: '800', color: COLORS.white, letterSpacing: 0.5 },
   timeCell: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   noIqamah: { color: COLORS.textSecondary, fontWeight: '400' },
+
+  actionRow: { paddingHorizontal: SPACING.md, gap: SPACING.sm, marginTop: SPACING.lg },
+  actionCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(115,190,245,0.45)' },
+  actionLabel: { flex: 1, fontWeight: '700', fontSize: 14, color: COLORS.text },
 
   // Note Section
   noteSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg },
