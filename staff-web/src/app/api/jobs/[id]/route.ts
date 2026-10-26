@@ -13,7 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json();
     if (body.expiresAt) body.expiresAt = new Date(body.expiresAt);
 
-    const posting = await prisma.jobPosting.update({ where: { id }, data: body });
+    const posting = await prisma.jobPosting.update({ where: { id: Number(id) }, data: body });
     await logAudit({ action: "update_job", userId: session.user.id, details: `Updated job posting ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(posting);
 }
@@ -25,7 +25,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.jobPosting.delete({ where: { id } });
+    await prisma.jobPosting.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_job", userId: session.user.id, details: `Deleted job posting ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }
