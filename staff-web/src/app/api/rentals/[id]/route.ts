@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     try {
         const item = await prisma.rentalItem.findUnique({
-            where: { id },
+            where: { id: Number(id) },
             include: {
                 bookings: {
                     orderBy: { createdAt: "desc" },
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     try {
         const body = await req.json();
         const item = await prisma.rentalItem.update({
-            where: { id },
+            where: { id: Number(id) },
             data: {
                 ...(body.name && { name: body.name }),
                 ...(body.description !== undefined && { description: body.description }),
@@ -68,7 +68,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     try {
-        await prisma.rentalItem.delete({ where: { id } });
+        await prisma.rentalItem.delete({ where: { id: Number(id) } });
 
         await logAudit({
             action: "delete_rental_item",
