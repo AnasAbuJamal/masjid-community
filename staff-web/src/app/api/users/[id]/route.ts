@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     
     const user = await prisma.user.update({
-        where: { id },
+        where: { id: Number(id) },
         data: allowedFields,
         select: {
             id: true, email: true, firstName: true, lastName: true,
@@ -64,7 +64,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
     }
 
-    await prisma.user.update({ where: { id }, data: { isActive: false } });
+    await prisma.user.update({ where: { id: Number(id) }, data: { isActive: false } });
     await logAudit({ action: "delete_user", userId: session.user.id, details: `Deactivated user ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }
