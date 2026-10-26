@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
           stripePaymentId: session.payment_intent as string,
           amount: session.amount_total || 0,
           currency: session.currency || "usd",
-          status: "completed" as const,
+          status: session.payment_status === "paid" ? ("completed" as const) : ("pending" as const),
           donorName: session.customer_details?.name || null,
           donorEmail: session.customer_details?.email || null,
           isAnonymous: session.metadata?.isAnonymous === "true",
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
           stripeSubId: session.subscription as string || null,
           receiptUrl: session.customer_details?.email ? 
             `https://dashboard.stripe.com/payments/${session.payment_intent}` : null,
-          metadata: session.metadata || null,
+          metadata: session.metadata ? { ...session.metadata } : undefined,
         };
 
         await prisma.donation.upsert({
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
           create: donationData,
         });
 
-        console.log(`Donation completed: ${session.id}`);
+        console.log(`Donation checkout recorded: ${session.id}`);
         break;
       }
 
@@ -72,8 +72,10 @@ export async function POST(req: NextRequest) {
 
           const subscriptionDetails = invoice.lines?.data[0];
           
-          await prisma.donation.create({
-            data: {
+          await prisma.donation.upsert({
+            where: { stripeSessionId: `sub_${invoice.id}` },
+            update: { status: "completed" },
+            create: {
               stripeSessionId: `sub_${invoice.id}`,
               stripePaymentId: invoice.payment_intent as string,
               amount: subscriptionDetails?.amount || 0,
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
       case "checkout.session.expired": {
         const session = event.data.object as Stripe.Checkout.Session;
         
-        await prisma.donation.update({
+        await prisma.donation.updateMany({
           where: { stripeSessionId: session.id },
           data: { status: "failed" as const },
         });
