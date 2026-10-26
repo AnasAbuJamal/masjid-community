@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -68,7 +68,6 @@ const CAMPAIGNS: Campaign[] = [
     goal: 0,
     icon: 'star-crescent',
     color: COLORS.accent,
-    endDate: '2024-04-10',
 
   },
 ];
@@ -82,6 +81,20 @@ const PRESET_AMOUNTS = [10, 25, 50, 100, 250, 500];
 export default function DonateScreen() {
   const router = useRouter();
   const [selectedCampaign, setSelectedCampaign] = useState('general');
+  const [campaigns, setCampaigns] = useState<Campaign[]>(CAMPAIGNS);
+  const [totalsLoaded, setTotalsLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    apiService.donations.getCampaigns().then((response) => {
+      if (!active) return;
+      setCampaigns(current => current.map(c => {
+        const live = response.campaigns?.find((item: { id: string }) => item.id === c.id);
+        return live && Number.isFinite(live.raised) ? { ...c, raised: live.raised, description: live.description || c.description } : c;
+      }));
+      setTotalsLoaded(true);
+    }).catch(() => setTotalsLoaded(false));
+    return () => { active = false; };
+  }, []);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [donorName, setDonorName] = useState('');
@@ -91,7 +104,7 @@ export default function DonateScreen() {
   const [recurringFrequency, setRecurringFrequency] = useState<'weekly' | 'monthly'>('monthly');
   const [recurringDonations, setRecurringDonations] = useState<RecurringDonation[]>(MOCK_RECURRING);
 
-  const campaign = CAMPAIGNS.find((c) => c.id === selectedCampaign)!;
+  const campaign = campaigns.find((c) => c.id === selectedCampaign) || campaigns[0];
   const donationAmount = selectedAmount ?? (parseFloat(customAmount) || null);
   const pct = campaign.goal > 0 ? Math.round((campaign.raised / campaign.goal) * 100) : 0;
   const remaining = campaign.goal - campaign.raised;
@@ -144,7 +157,7 @@ export default function DonateScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Campaign selection */}
           <Text style={styles.sectionLabel}>Select Campaign</Text>
-          {CAMPAIGNS.map((c) => {
+          {campaigns.map((c) => {
             const cp = c.goal > 0 ? Math.round((c.raised / c.goal) * 100) : 0;
             const isSelected = selectedCampaign === c.id;
             const remainingAmount = c.goal - c.raised;
@@ -161,7 +174,7 @@ export default function DonateScreen() {
                 <View style={styles.campaignInfo}>
                   <Text style={styles.campaignName}>{c.name}</Text>
                   <Text style={styles.campaignDesc}>{c.description}</Text>
-                  <Text style={styles.progressLabel}>Verified fundraising totals are not currently available.</Text>
+                  <Text style={styles.progressLabel}>{totalsLoaded ? `Raised to date: ${formatCurrency(c.raised)}` : 'Campaign total temporarily unavailable'}</Text>
                 </View>
                 {isSelected && (
                   <MaterialCommunityIcons name="check-circle" size={20} color={c.color} />
