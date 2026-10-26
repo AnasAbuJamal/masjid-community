@@ -89,6 +89,20 @@ async function main() {
       },
     });
   }
+  await prisma.donation.createMany({
+    data: [
+      {
+        stripeSessionId: "ci_donation_named_001", amount: 1250,
+        status: "completed", donorName: "CI Verified Donor",
+        donorEmail: "ci-named-donor@example.test", isAnonymous: false,
+      },
+      {
+        stripeSessionId: "ci_donation_anonymous_001", amount: 875,
+        status: "completed", donorName: "CI Private Donor",
+        donorEmail: "ci-secret-donor@example.test", isAnonymous: true,
+      },
+    ],
+  });
   // The administrator exists solely for authenticated test requests.
   if (admin.role !== "admin") throw new Error("CI administrator fixture was not created");
 
