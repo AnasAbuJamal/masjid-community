@@ -312,7 +312,7 @@ export const apiService = {
         const response = await api.instance.get<PrayerTimes>('/prayers/today');
         return response.data;
       } catch {
-        return getMockPrayerTimes();
+        return { fajr: '--:--', sunrise: '--:--', dhuhr: '--:--', asr: '--:--', maghrib: '--:--', isha: '--:--', jummah1: '', jummah2: '', date: new Date().toISOString().slice(0, 10) };
       }
     },
 
@@ -321,7 +321,7 @@ export const apiService = {
         const response = await api.instance.get<PrayerTimes[]>('/prayers/week');
         return response.data;
       } catch {
-        return getMockWeekPrayers();
+        return [];
       }
     },
 
@@ -342,7 +342,7 @@ export const apiService = {
         const response = await api.instance.get<{ announcements: Announcement[] }>('/public/announcements');
         return response.data.announcements || [];
       } catch {
-        return getMockAnnouncements();
+        return [];
       }
     },
 
@@ -351,7 +351,7 @@ export const apiService = {
         const response = await api.instance.get<Announcement>(`/announcements/${id}`);
         return response.data;
       } catch {
-        return getMockAnnouncements().find(a => a.id === id) || null;
+        return null;
       }
     },
   },
@@ -388,7 +388,7 @@ export const apiService = {
         const response = await api.instance.get<{ opportunities: VolunteerOpportunity[] }>('/public/volunteers');
         return response.data.opportunities || [];
       } catch {
-        return getMockVolunteers();
+        return [];
       }
     },
 
@@ -609,7 +609,7 @@ export const apiService = {
         const response = await api.instance.get<{ posts: BlogPost[] }>('/public/blog');
         return response.data.posts || [];
       } catch {
-        return getMockBlogPosts();
+        return [];
       }
     },
 
@@ -618,7 +618,7 @@ export const apiService = {
         const response = await api.instance.get<{ post: BlogPost }>(`/public/blog?slug=${slug}`);
         return response.data.post;
       } catch {
-        return getMockBlogPosts().find(p => p.slug === slug) || null;
+        return null;
       }
     },
   },
@@ -630,7 +630,7 @@ export const apiService = {
         const response = await api.instance.get<{ projects: ConstructionProject[] }>('/public/construction');
         return response.data.projects || [];
       } catch {
-        return getMockConstructionProjects();
+        return [];
       }
     },
   },
@@ -642,7 +642,7 @@ export const apiService = {
         const response = await api.instance.get<{ students: GamificationStudent[] }>('/public/gamification');
         return response.data.students || [];
       } catch {
-        return getMockLeaderboard();
+        return [];
       }
     },
   },
@@ -652,9 +652,9 @@ export const apiService = {
     getSummary: async (): Promise<FinancialSummary> => {
       try {
         const response = await api.instance.get<{ summary: FinancialSummary }>('/public/finances');
-        return response.data.summary || getMockFinancialSummary();
+        return response.data.summary || { totalSpent: 0, bankBalance: 0, totalGoal: 0, totalRaised: 0, remainingNeeded: 0 };
       } catch {
-        return getMockFinancialSummary();
+        return { totalSpent: 0, bankBalance: 0, totalGoal: 0, totalRaised: 0, remainingNeeded: 0 };
       }
     },
 
@@ -663,7 +663,7 @@ export const apiService = {
         const response = await api.instance.get<{ records: FinancialRecord[] }>('/public/finances');
         return response.data.records || [];
       } catch {
-        return getMockFinancialRecords();
+        return [];
       }
     },
   },
@@ -675,7 +675,7 @@ export const apiService = {
         const response = await api.instance.get<{ workers: WorkerProfile[] }>('/public/workers');
         return response.data.workers || [];
       } catch {
-        return getMockWorkers();
+        return [];
       }
     },
 
@@ -684,7 +684,7 @@ export const apiService = {
         const response = await api.instance.get<WorkerProfile>(`/public/workers/${id}`);
         return response.data;
       } catch {
-        return getMockWorkers().find(w => w.id === id) || null;
+        return null;
       }
     },
   },
@@ -696,7 +696,7 @@ export const apiService = {
         const response = await api.instance.get<MyApplications>('/applications/mine');
         return response.data;
       } catch {
-        return getMockMyApplications();
+        return { jobs: [], volunteers: [] };
       }
     },
 
