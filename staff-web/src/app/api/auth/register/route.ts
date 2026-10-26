@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { createMobileToken } from "@/lib/mobile-auth";
+import { sendEmailVerification } from "@/lib/email-verification";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -22,9 +23,11 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.create({ data: {
       email, passwordHash: await bcrypt.hash(password, 12), firstName, lastName, role: "member", isActive: true,
     } });
+    const verificationEmailSent = await sendEmailVerification(user).catch(() => false);
     return NextResponse.json({
+      verificationEmailSent,
       user: { id: String(user.id), email: user.email, firstName: user.firstName,
-        lastName: user.lastName, role: user.role, phone: user.phone },
+        lastName: user.lastName, role: user.role, phone: user.phone, isVerified: user.isVerified },
       token: createMobileToken(user),
     }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
