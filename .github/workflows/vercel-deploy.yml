@@ -43,16 +43,25 @@ jobs:
           cache: npm
           cache-dependency-path: staff-web/package-lock.json
       - name: Verify Vercel project connection
+        id: vercel_config
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          TARGET: ${{ inputs.target || 'preview' }}
         run: |
           if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "::error::Configure VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID as GitHub environment secrets."
-            exit 1
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Vercel project secrets are not configured; no deployment was made."
+            echo "Deployment blocked: configure VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID for this GitHub environment." >> "$GITHUB_STEP_SUMMARY"
+            # Production must fail closed. Preview branches should not show
+            # a broken deployment check when GitHub secrets are not installed.
+            if [ "$TARGET" = "production" ]; then exit 1; fi
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Build and validate web application
+        if: steps.vercel_config.outputs.enabled == 'true'
         working-directory: staff-web
         env:
           # Static Prisma validation only; Vercel has its own encrypted DATABASE_URL.
@@ -62,6 +71,7 @@ jobs:
           npx prisma validate
           npx tsc --noEmit
       - name: Deploy reviewed web revision
+        if: steps.vercel_config.outputs.enabled == 'true'
         working-directory: staff-web
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -79,6 +89,7 @@ jobs:
           echo "DEPLOYMENT_URL=$DEPLOYMENT_URL" >> "$GITHUB_ENV"
           echo "Deployment: $DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Verify deployed database health
+        if: steps.vercel_config.outputs.enabled == 'true'
         env:
           URL: ${{ env.DEPLOYMENT_URL }}
           TARGET: ${{ inputs.target || 'preview' }}
