@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const internal = searchParams.get("internal");
 
     const where: Prisma.ProposalCommentWhereInput = {};
-    if (proposalId) where.proposalId = proposalId;
+    if (proposalId) where.proposalId = Number(proposalId);
     if (internal !== null) where.isInternal = internal === "true";
 
     const comments = await prisma.proposalComment.findMany({
