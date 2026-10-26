@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
-import { Plus, Clock, Calendar, Pencil, Trash2 } from "lucide-react";
+import { Plus, Clock, Calendar, Pencil, Trash2, RefreshCcw, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface PrayerTime {
   id: string;
@@ -39,26 +39,37 @@ export default function PrayerTimesPage() {
   const [form, setForm] = useState(emptyPrayer);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const fetchData = async () => {
+    setError("");
     try {
-      const res = await fetch("/api/prayers");
-      const data = await res.json();
-      setPrayers(data.prayers || []);
-    } catch { /* empty */ } finally { setLoading(false); }
+      const response = await fetch("/api/prayers?limit=100", { cache: "no-store" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Unable to load prayer times.");
+      setPrayers(Array.isArray(result.prayers) ? result.prayers : []);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load prayer times.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { void fetchData(); }, []);
 
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
   const todayPrayer = prayers.find((p) => p.date?.split("T")[0] === today);
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyPrayer);
+    setForm({ ...emptyPrayer, date: today });
+    setFormError("");
     setDialogOpen(true);
   };
-
   const openEdit = (p: PrayerTime) => {
     setEditing(p);
     setForm({
@@ -67,62 +78,86 @@ export default function PrayerTimesPage() {
       asr: p.asr, maghrib: p.maghrib, isha: p.isha,
       jummah1: p.jummah1 || "", jummah2: p.jummah2 || "",
     });
+    setFormError("");
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
+    if (saving) return;
+    const timePattern = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+    const required = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"] as const;
+    if (!form.date || required.some((key) => !timePattern.test(form[key])) ||
+       [form.jummah1, form.jummah2].some((time) => time && !timePattern.test(time))) {
+      setFormError("Choose a date and enter valid times for each daily prayer.");
+      return;
+    }
+    if (form.jummah2 && !form.jummah1) {
+      setFormError("Enter Jummah 1 before Jummah 2.");
+      return;
+    }
     setSaving(true);
+    setFormError("");
     try {
-      if (editing) {
-        await fetch(`/api/prayers/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-      } else {
-        await fetch("/api/prayers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-      }
+      const response = await fetch(editing ? "/api/prayers/" + editing.id : "/api/prayers", {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not save prayer times.");
       setDialogOpen(false);
-      fetchData();
-    } catch { /* empty */ } finally { setSaving(false); }
+      setNotice(editing ? "Prayer times updated." : "Prayer times saved.");
+      await fetchData();
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : "Could not save prayer times.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || deleting) return;
+    setDeleting(true);
+    setError("");
     try {
-      await fetch(`/api/prayers/${deleteId}`, { method: "DELETE" });
+      const response = await fetch("/api/prayers/" + deleteId, { method: "DELETE" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not delete prayer times.");
       setDeleteId(null);
-      fetchData();
-    } catch { /* empty */ }
+      setNotice("Prayer times deleted.");
+      await fetchData();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not delete prayer times.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const updateForm = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-4 border-mocha-600 border-t-transparent" /></div>;
+  if (loading) return <div role="status" className="flex h-64 items-center justify-center text-sky-800">Loading prayer times…</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-mocha-900">Prayer Times</h1>
-          <p className="text-mocha-600 mt-1">Manage daily prayer times for the mosque</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Prayer Times</h1>
+          <p className="mt-1 text-slate-600">Manage the mosque Salah schedule.</p>
         </div>
-        <Button className="mocha-gradient hover:opacity-90" onClick={openCreate}>
+        <div className="flex items-center gap-2"><Button variant="outline" type="button" aria-label="Refresh prayer times" onClick={() => void fetchData()}><RefreshCcw className="mr-2 h-4 w-4" /> Refresh</Button><Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
           Add Prayer Times
-        </Button>
+        </Button></div>
       </div>
 
+      {error && <div role="alert" className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="h-4 w-4" />{error}</div>}
+      {notice && <div role="status" className="flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800"><CheckCircle2 className="h-4 w-4" />{notice}</div>}
       {/* Today's Prayer Times */}
       {todayPrayer && (
-        <Card className="border-gray-200">
-          <CardHeader className="bg-gradient-to-r from-cream-100 to-cream-50">
-            <CardTitle className="flex items-center gap-2 text-mocha-900">
-              <Calendar className="h-5 w-5 text-mocha-600" />
+        <Card className="overflow-hidden border-sky-200/80">
+          <CardHeader className="bg-gradient-to-r from-sky-100 to-white">
+            <CardTitle className="flex items-center gap-2 text-sky-950">
+              <Calendar className="h-5 w-5 text-sky-700" />
               Today's Prayer Times
             </CardTitle>
           </CardHeader>
@@ -137,9 +172,9 @@ export default function PrayerTimesPage() {
                 { name: "Isha", time: todayPrayer.isha },
                 { name: "Jummah", time: todayPrayer.jummah1 || "N/A" },
               ].map((prayer) => (
-                <div key={prayer.name} className="text-center p-4 rounded-xl bg-cream-50 border border-mocha-900/5">
-                  <p className="text-sm font-medium text-mocha-600">{prayer.name}</p>
-                  <p className="text-2xl font-serif font-bold text-mocha-900 mt-1">{prayer.time}</p>
+                <div key={prayer.name} className="rounded-2xl border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 text-center">
+                  <p className="text-sm font-medium text-sky-700">{prayer.name}</p>
+                  <p className="text-2xl font-serif font-bold text-sky-950 mt-1">{prayer.time}</p>
                 </div>
               ))}
             </div>
@@ -156,7 +191,7 @@ export default function PrayerTimesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div className="overflow-x-auto"><Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -199,10 +234,10 @@ export default function PrayerTimesPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(prayer)}>
+                        <Button type="button" aria-label={"Edit prayer times for " + prayer.date.split("T")[0]} variant="ghost" size="sm" onClick={() => openEdit(prayer)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => setDeleteId(prayer.id)}>
+                        <Button type="button" aria-label={"Delete prayer times for " + prayer.date.split("T")[0]} variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setDeleteId(prayer.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -211,26 +246,27 @@ export default function PrayerTimesPage() {
                 ))
               )}
             </TableBody>
-          </Table>
+          </Table></div>
         </CardContent>
       </Card>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!saving) setDialogOpen(open); }}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto border-sky-100 bg-white/95 backdrop-blur-xl">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Prayer Times" : "Add Prayer Times"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {formError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
             <div>
               <Label>Date</Label>
-              <Input type="date" value={form.date} onChange={(e) => updateForm("date", e.target.value)} />
+              <Input aria-label="Prayer schedule date" type="date" required value={form.date} onChange={(e) => updateForm("date", e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               {["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"].map((field) => (
                 <div key={field}>
                   <Label className="capitalize">{field}</Label>
-                  <Input type="time" value={(form as Record<string, string>)[field]} onChange={(e) => updateForm(field, e.target.value)} />
+                  <Input aria-label={field + " prayer time"} required type="time" value={(form as Record<string, string>)[field]} onChange={(e) => updateForm(field, e.target.value)} />
                 </div>
               ))}
             </div>
@@ -246,8 +282,8 @@ export default function PrayerTimesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button className="mocha-gradient hover:opacity-90" onClick={handleSave} disabled={saving}>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={() => void handleSave()} disabled={saving}>
               {saving ? "Saving..." : editing ? "Update" : "Create"}
             </Button>
           </DialogFooter>
@@ -255,15 +291,15 @@ export default function PrayerTimesPage() {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={!!deleteId} onOpenChange={(open) => { if (!open && !deleting) setDeleteId(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Prayer Time?</DialogTitle>
           </DialogHeader>
           <p className="text-gray-500">This action cannot be undone.</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+            <Button type="button" variant="outline" disabled={deleting} onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button type="button" variant="destructive" disabled={deleting} onClick={() => void handleDelete()}>{deleting ? "Deleting…" : "Delete"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
