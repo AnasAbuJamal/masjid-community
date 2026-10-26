@@ -13,6 +13,7 @@ export interface User {
   role: 'admin' | 'staff' | 'member' | 'student';
   phone?: string;
   avatar?: string;
+  isVerified?: boolean;
 }
 
 interface AuthState {
