@@ -748,3 +748,45 @@ test("teacher account links cannot be replaced by display-name matching", async 
   const updated = await after.json();
   expect(updated.classes.map((c: { id: string }) => c.id)).toEqual(initial.classes.map((c: { id: string }) => c.id));
 });
+
+
+test("masjid settings persist, public display reads them and unsupported switches are rejected", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  expect((await request.get("/api/settings")).status()).toBe(401);
+  const auth = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(auth.status()).toBe(200);
+  const { token } = await auth.json();
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const invalid = await request.post("/api/settings", {
+    headers, data: { kiosk_rotation_interval: "2" },
+  });
+  expect(invalid.status()).toBe(400);
+  const fake = await request.post("/api/settings", {
+    headers, data: { require_2fa: "true" },
+  });
+  expect(fake.status()).toBe(400);
+
+  const values = {
+    site_name: "CI Test Masjid Display",
+    site_tagline: "Community integration fixture",
+    contact_email: "ci-office@example.test",
+    contact_phone: "+1 555-0100", address: "Test address only",
+    kiosk_rotation_interval: "12",
+  };
+  const saved = await request.post("/api/settings", { headers, data: values });
+  expect(saved.status()).toBe(200);
+  const persisted = await request.get("/api/settings", { headers });
+  expect(persisted.status()).toBe(200);
+  expect((await persisted.json()).settings).toMatchObject(values);
+
+  const publicSettings = await request.get("/api/public/site-settings");
+  expect(publicSettings.status()).toBe(200);
+  const kiosk = await publicSettings.json();
+  expect(kiosk.siteName).toBe(values.site_name);
+  expect(kiosk.kioskRotationSeconds).toBe(12);
+  expect(kiosk).not.toHaveProperty("require_2fa");
+  expect(kiosk).not.toHaveProperty("maintenance_mode");
+});
