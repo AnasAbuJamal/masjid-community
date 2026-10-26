@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "New passwords do not match" }, { status: 400 });
         }
 
-        if (newPassword.length < 8) {
-            return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+        if (newPassword.length < 12) {
+            return NextResponse.json({ error: "Password must be at least 12 characters" }, { status: 400 });
         }
 
         const user = await prisma.user.findUnique({
