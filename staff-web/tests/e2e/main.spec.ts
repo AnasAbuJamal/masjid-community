@@ -109,3 +109,82 @@ test("payment and student input are validated", async ({ request }) => {
   const badPayment = await request.post("/api/donations/checkout", { data: { amount: -50 } });
   expect(badPayment.status()).toBe(400);
 });
+
+
+test("unverified parents cannot see a student's private data until confirming the email", async ({ request }) => {
+  test.skip(!hasFixture, "Only run with an isolated test database");
+  const parentEmail = "ci-parent@example.test";
+  const login = await request.post("/api/auth/login", {
+    data: { email: parentEmail, password: "ci-only-parent-password-not-for-production" },
+  });
+  expect(login.status()).toBe(200);
+  const credentials = await login.json();
+  expect(credentials.user.isVerified).toBe(false);
+  const headers = { Authorization: `Bearer ${credentials.token}` };
+
+  for (const url of [
+    "/api/school/students", "/api/school/progress", "/api/school/assignments",
+    "/api/public/students/991017", "/api/portal/students?studentId=991017",
+  ]) {
+    const response = await request.get(url, { headers });
+    expect(response.status(), url).toBe(403);
+  }
+
+  // Opening the link (GET) does not silently verify accounts in email scanners.
+  const token = "a".repeat(64);
+  const review = await request.get(`/api/auth/verification/confirm?token=${token}`);
+  expect(review.status()).toBe(200);
+  expect(await review.text()).toContain("Confirm my email");
+  const confirmation = await request.post("/api/auth/verification/confirm", {
+    form: { token },
+  });
+  expect(confirmation.status()).toBe(200);
+  expect(await confirmation.text()).toContain("Email verified");
+
+  const nowAuthorized = await request.get("/api/school/students", { headers });
+  expect(nowAuthorized.status()).toBe(200);
+  const students = await nowAuthorized.json();
+  expect(students).toHaveLength(1);
+  expect(students[0].name).toBe("Test Student");
+
+  const progress = await request.get("/api/school/progress", { headers });
+  expect(progress.status()).toBe(200);
+  expect((await progress.json()).students[0].instructor).toBe("Test Instructor");
+
+  const details = await request.get("/api/public/students/991017", { headers });
+  expect(details.status()).toBe(200);
+  expect((await details.json()).firstName).toBe("Test");
+
+  const replay = await request.post("/api/auth/verification/confirm", { form: { token } });
+  expect(await replay.text()).toContain("Link expired");
+});
+
+test("mobile user administration is available only to admins and refuses self-deactivation", async ({ request }) => {
+  test.skip(!hasFixture, "Only run with an isolated test admin");
+  const login = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(login.status()).toBe(200);
+  const { token, user } = await login.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const list = await request.get("/api/mobile/admin/users", { headers });
+  expect(list.status()).toBe(200);
+  const data = await list.json();
+  expect(data.total).toBeGreaterThanOrEqual(2);
+  expect(data.users.every((u: { passwordHash?: string }) => !u.passwordHash)).toBe(true);
+
+  const selfDeactivate = await request.patch(`/api/mobile/admin/users/${user.id}`, {
+    headers, data: { isActive: false },
+  });
+  expect(selfDeactivate.status()).toBe(403);
+
+  const unauthorized = await request.get("/api/mobile/admin/users");
+  expect(unauthorized.status()).toBe(401);
+});
+
+test("public schedule returns persisted classes instead of example courses", async ({ request }) => {
+  const response = await request.get("/api/public/classes");
+  expect(response.status()).toBe(200);
+  const data = await response.json();
+  expect(data.classes.some((c: { name: string }) => c.name === "CI Test Quran Class")).toBe(true);
+});
