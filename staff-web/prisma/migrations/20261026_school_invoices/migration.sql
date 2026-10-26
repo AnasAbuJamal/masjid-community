@@ -1,5 +1,5 @@
 DO $$ BEGIN
-  CREATE TYPE "SchoolInvoiceStatus" AS ENUM ('pending', 'paid', 'void');
+  CREATE TYPE "SchoolInvoiceStatus" AS ENUM ('pending', 'paid', 'refunded', 'void');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS "SchoolInvoice" (
   "dueDate" TIMESTAMP(3) NOT NULL,
   "status" "SchoolInvoiceStatus" NOT NULL DEFAULT 'pending',
   "stripeSessionId" TEXT,
+  "stripePaymentId" TEXT,
   "paidAt" TIMESTAMP(3),
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS "SchoolInvoice" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "SchoolInvoice_stripeSessionId_key"
   ON "SchoolInvoice"("stripeSessionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "SchoolInvoice_stripePaymentId_key" ON "SchoolInvoice"("stripePaymentId");
 CREATE INDEX IF NOT EXISTS "SchoolInvoice_studentId_status_idx"
   ON "SchoolInvoice"("studentId", "status");
 CREATE INDEX IF NOT EXISTS "SchoolInvoice_dueDate_idx"
