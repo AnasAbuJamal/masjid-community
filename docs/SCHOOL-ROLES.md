@@ -41,3 +41,7 @@ Use a date-only `YYYY-MM-DD` value; storage uses UTC midnight to represent that 
 `GET /api/students/me/attendance?page=1` is student-only and derives the active enrollment from the authenticated account's `userId` link. It accepts no student/account selector. Responses contain only the student's name, class, date/status history and aggregate status counts, with 30 records per page and no-store caching. Read queries use a consistent database snapshot. Notes, parent contacts, and staff identifiers are excluded.
 
 Mobile students open **View my attendance** from School; member parents open **View family attendance** through the existing verified-family endpoint. The legacy check-in URL now opens the real history screen and clearly explains that teachers/staff record attendance. This does not implement self-check-in: session verification and its school policy are still pending.
+
+### Mobile teacher marking
+
+School → Teaching classes and attendance opens database-backed assigned classes for teachers (all classes for admin/staff). Open Roster and attendance, select a calendar date, choose statuses and Save attendance. Only explicitly edited students are submitted; unmarked students are not automatically marked absent/present. A lost save response prompts review of refreshed records. Students and parents cannot use this marking workflow; the server's role, class and roster checks remain authoritative. Class management/account linking still belongs to staff/admin according to the matrix above.

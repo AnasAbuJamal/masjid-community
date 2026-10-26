@@ -1,194 +1,54 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, FloatingIcon } from '../../../components/common';
-import { COLORS, SPACING, RADIUS } from '../../../constants/theme';
-
-interface TeacherClass {
-  id: string;
-  name: string;
-  level: string;
-  schedule: string;
-  enrolledCount: number;
-  maxCapacity: number;
-  upcomingAssignment: number;
-  pendingGrades: number;
-}
-
-const MOCK_CLASSES: TeacherClass[] = [
-  { id: '1', name: 'Quran Recitation - Beginner', level: 'Beginner', schedule: 'Sat & Sun, 9:00 AM', enrolledCount: 12, maxCapacity: 15, upcomingAssignment: 1, pendingGrades: 5 },
-  { id: '2', name: 'Quran Tajweed', level: 'Intermediate', schedule: 'Sat & Sun, 10:30 AM', enrolledCount: 8, maxCapacity: 12, upcomingAssignment: 0, pendingGrades: 0 },
-  { id: '3', name: 'Arabic Language - Level 1', level: 'Beginner', schedule: 'Sat, 1:00 PM', enrolledCount: 10, maxCapacity: 15, upcomingAssignment: 2, pendingGrades: 8 },
-];
-
-const QUICK_ACTIONS = [
-  { id: 'attendance', icon: 'clipboard-check', label: 'Take Attendance', color: COLORS.primary, route: '/school/teacher/attendance' },
-  { id: 'grades', icon: 'grade', label: 'Enter Grades', color: COLORS.success, route: '/school/teacher/grades' },
-  { id: 'assignments', icon: 'clipboard-text', label: 'Assignments', color: COLORS.secondary, route: '/school/teacher/assignments' },
-  { id: 'students', icon: 'account-group', label: 'Students', color: COLORS.warning, route: '/school/teacher/students' },
-];
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useAuthStore } from '../../../stores/authStore';
+import { useTheme } from '../../../constants/theme-provider';
+import { getTeachingClasses } from '../../../services/teaching-service';
 
 export default function TeacherDashboardScreen() {
   const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
-  const [classes, setClasses] = useState<TeacherClass[]>([]);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = () => {
-    setClasses(MOCK_CLASSES);
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    loadData();
-    setRefreshing(false);
-  };
-
-  const totalStudents = classes.reduce((sum, c) => sum + c.enrolledCount, 0);
-  const totalPendingGrades = classes.reduce((sum, c) => sum + c.pendingGrades, 0);
-  const upcomingAssignments = classes.reduce((sum, c) => sum + c.upcomingAssignment, 0);
-
-  return (
-    <ScreenWrapper contentPadding={false}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-      >
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Teacher Portal</Text>
-          <Text style={styles.subtitle}>Manage your classes and students</Text>
-        </View>
-
-        <View style={styles.statsRow}>
-          <GlassCard style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: COLORS.primary + '15' }]}>
-              <MaterialCommunityIcons name="account-group" size={20} color={COLORS.primary} />
-            </View>
-            <Text style={styles.statNumber}>{totalStudents}</Text>
-            <Text style={styles.statLabel}>Students</Text>
-          </GlassCard>
-          <GlassCard style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: COLORS.success + '15' }]}>
-              <MaterialCommunityIcons name="clipboard-check" size={20} color={COLORS.success} />
-            </View>
-            <Text style={styles.statNumber}>{totalPendingGrades}</Text>
-            <Text style={styles.statLabel}>Pending Grades</Text>
-          </GlassCard>
-          <GlassCard style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: COLORS.secondary + '15' }]}>
-              <MaterialCommunityIcons name="clipboard-text" size={20} color={COLORS.secondary} />
-            </View>
-            <Text style={styles.statNumber}>{upcomingAssignments}</Text>
-            <Text style={styles.statLabel}>Assignments</Text>
-          </GlassCard>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionsGrid}>
-            {QUICK_ACTIONS.map((action) => (
-              <TouchableOpacity
-                key={action.id}
-                style={styles.actionCard}
-                onPress={() => router.push(action.route as any)}
-                activeOpacity={0.7}
-              >
-                <GlassCard style={styles.actionCardInner}>
-                  <FloatingIcon
-                    icon={<MaterialCommunityIcons name={action.icon as any} size={24} color={action.color} />}
-                    size="md"
-                    color={action.color}
-                    glow
-                  />
-                  <Text style={styles.actionLabel}>{action.label}</Text>
-                </GlassCard>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Classes</Text>
-          {classes.map((classItem) => (
-            <TouchableOpacity
-              key={classItem.id}
-              onPress={() => router.push({ pathname: '/school/teacher/class/[id]', params: { id: classItem.id } } as any)}
-              activeOpacity={0.7}
-            >
-              <GlassCard style={styles.classCard}>
-                <View style={styles.classHeader}>
-                  <Text style={styles.className}>{classItem.name}</Text>
-                  <View style={styles.classBadges}>
-                    {classItem.pendingGrades > 0 && (
-                      <View style={styles.badge}>
-                        <MaterialCommunityIcons name="alert" size={12} color={COLORS.error} />
-                        <Text style={styles.badgeText}>{classItem.pendingGrades}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <Text style={styles.classMeta}>{classItem.level} • {classItem.schedule}</Text>
-                <View style={styles.classFooter}>
-                  <View style={styles.classStat}>
-                    <MaterialCommunityIcons name="account-multiple" size={14} color={COLORS.textSecondary} />
-                    <Text style={styles.classStatText}>{classItem.enrolledCount}/{classItem.maxCapacity} students</Text>
-                  </View>
-                  <View style={styles.classStat}>
-                    <MaterialCommunityIcons name="clipboard-text" size={14} color={COLORS.textSecondary} />
-                    <Text style={styles.classStatText}>{classItem.upcomingAssignment} upcoming</Text>
-                  </View>
-                </View>
-              </GlassCard>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
-    </ScreenWrapper>
-  );
+  const { colors } = useTheme();
+  const { user, isLoading: authLoading } = useAuthStore();
+  const allowed = !!user && ['admin', 'staff', 'teacher'].includes(user.role);
+  const [page, setPage] = useState(1);
+  const [result, setResult] = useState<{ owner: string; data: Awaited<ReturnType<typeof getTeachingClasses>> } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const version = useRef(0);
+  const load = useCallback(async () => {
+    if (!user || !allowed) return;
+    const current = ++version.current;
+    setLoading(true); setError(false); setResult(null);
+    try { const data = await getTeachingClasses(page); if (current === version.current) setResult({ owner: user.id, data }); }
+    catch { if (current === version.current) setError(true); }
+    finally { if (current === version.current) setLoading(false); }
+  }, [user?.id, allowed, page]);
+  useFocusEffect(useCallback(() => { if (!authLoading) void load(); return () => { version.current++; }; }, [load, authLoading]));
+  const data = result?.owner === user?.id && result?.data.page === page ? result.data : null;
+  const button = (label: string, onPress: () => void, disabled = false) => <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { borderColor: colors.border, opacity: disabled ? 0.5 : 1 }]}><Text style={{ color: colors.primary }}>{label}</Text></TouchableOpacity>;
+  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}><ScrollView contentContainerStyle={styles.page} refreshControl={allowed ? <RefreshControl refreshing={loading} onRefresh={load} /> : undefined}>
+    {button('Back to school', () => router.canGoBack() ? router.back() : router.replace('/(tabs)/school'))}
+    <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{user?.role === 'teacher' ? 'My teaching classes' : 'School classes'}</Text>
+    {authLoading ? <ActivityIndicator color={colors.primary} /> : !allowed ? <Text style={[styles.body, { color: colors.text }]}>Sign in with an assigned teacher or school staff account to manage classes.</Text> : <>
+      <Text style={[styles.body, { color: colors.textSecondary }]}>Open a class to review its active roster and record attendance. Account assignments are managed by the school administrator.</Text>
+      {loading ? <ActivityIndicator accessibilityLabel="Loading classes" color={colors.primary} /> : error ? <View style={styles.section}><Text accessibilityRole="alert" style={[styles.body, { color: colors.text }]}>Unable to load classes.</Text>{button('Try again', load)}</View> : <>
+        {data?.classes.length === 0 && <Text style={[styles.body, { color: colors.textSecondary }]}>{page === 1 ? 'No classes assigned. Ask the school administrator to check your class links.' : 'No classes on this page.'}</Text>}
+        {data?.classes.map(cls => <View key={cls.id} style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>{cls.name}</Text>
+          <Text style={[styles.body, { color: colors.textSecondary }]}>{cls.schedule || 'Schedule not set'}</Text>
+          <Text style={[styles.body, { color: colors.textSecondary }]}>{cls.students.length} active students</Text>
+          {button('Roster and attendance', () => router.push({ pathname: '/school/teacher/attendance', params: { classId: String(cls.id) } }))}
+        </View>)}
+        {(page > 1 || (data?.totalPages ?? 0) > 1) && <View style={styles.row}>{button('Previous', () => setPage(p => p - 1), page === 1)}<Text style={{ color: colors.text }}>Page {page}</Text>{button('Next', () => setPage(p => p + 1), page >= (data?.totalPages ?? 0))}</View>}
+      </>}
+    </>}
+  </ScrollView></SafeAreaView>;
 }
-
 const styles = StyleSheet.create({
-  header: { padding: SPACING.md, paddingTop: SPACING.lg },
-  welcomeText: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
-  statsRow: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm },
-  statCard: { flex: 1, alignItems: 'center', padding: SPACING.md },
-  statIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.xs },
-  statNumber: { fontSize: 22, fontWeight: '700', color: COLORS.text },
-  statLabel: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'center' },
-
-  section: { padding: SPACING.md },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
-
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  actionCard: { width: '48%' },
-  actionCardInner: { alignItems: 'center', padding: SPACING.md },
-  actionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text, marginTop: SPACING.xs },
-
-  classCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  classHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  className: { fontSize: 15, fontWeight: '700', color: COLORS.text, flex: 1 },
-  classBadges: { flexDirection: 'row', gap: SPACING.xs },
-  badge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.error + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full, gap: 2 },
-  badgeText: { fontSize: 11, fontWeight: '600', color: COLORS.error },
-  classMeta: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
-  classFooter: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm },
-  classStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  classStatText: { fontSize: 12, color: COLORS.textSecondary },
-
-  bottomSpacer: { height: 100 },
+  page: { padding: 16, paddingBottom: 100, gap: 16, maxWidth: 760, width: '100%', alignSelf: 'center' },
+  title: { fontSize: 26, fontWeight: '700' }, heading: { fontSize: 18, fontWeight: '600' }, body: { fontSize: 16, lineHeight: 24 },
+  section: { gap: 12 }, card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 12 },
+  button: { minHeight: 48, padding: 12, justifyContent: 'center', borderWidth: 1, borderRadius: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
 });

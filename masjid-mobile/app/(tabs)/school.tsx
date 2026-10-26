@@ -218,6 +218,7 @@ export default function SchoolScreen() {
         </View>
 
         <Text style={{ padding: SPACING.md, color: COLORS.textSecondary }}>{user?.role === 'teacher' ? 'Your assigned classes and students' : user?.role === 'student' ? 'Your own school records' : ['admin', 'staff'].includes(user?.role || '') ? 'School administration' : 'Family records require a verified account linked by the school.'}</Text>
+        {user && ['teacher', 'staff', 'admin'].includes(user.role) && <TouchableOpacity accessibilityRole="button" onPress={() => router.push('/school/teacher')} style={{ minHeight: 48, justifyContent: 'center', paddingHorizontal: SPACING.md, marginBottom: SPACING.sm }}><Text style={{ color: COLORS.primary, fontSize: 16, fontWeight: '600' }}>Teaching classes and attendance</Text></TouchableOpacity>}
         {(user?.role === 'student' || user?.role === 'member') && <TouchableOpacity accessibilityRole="button" onPress={() => router.push(user.role === 'student' ? '/school/attendance' : '/school/parent/attendance')} style={{ minHeight: 48, justifyContent: 'center', paddingHorizontal: SPACING.md, marginBottom: SPACING.sm }}>
           <Text style={{ color: COLORS.primary, fontSize: 16, fontWeight: '600' }}>{user.role === 'student' ? 'View my attendance' : 'View family attendance'}</Text>
         </TouchableOpacity>}

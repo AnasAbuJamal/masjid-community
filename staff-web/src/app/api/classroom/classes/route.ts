@@ -9,8 +9,13 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = req.nextUrl;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const rawPage = searchParams.get("page") || "1";
+    const rawLimit = searchParams.get("limit") || "20";
+    if (!/^[1-9]\d*$/.test(rawPage) || !/^[1-9]\d*$/.test(rawLimit) || Number(rawPage) > 10000 || Number(rawLimit) > 100) {
+        return NextResponse.json({ error: "Invalid class pagination" }, { status: 400 });
+    }
+    const page = Number(rawPage);
+    const limit = Number(rawLimit);
 
     const [classes, total] = await Promise.all([
         prisma.class.findMany({
@@ -23,7 +28,7 @@ export async function GET(req: NextRequest) {
         prisma.class.count({ where: classScope(session.user) }),
     ]);
 
-    return NextResponse.json({ classes, total, page, totalPages: Math.ceil(total / limit) });
+    return NextResponse.json({ classes, total, page, totalPages: Math.ceil(total / limit) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: NextRequest) {

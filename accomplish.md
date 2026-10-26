@@ -374,3 +374,15 @@ Both staff and mobile TypeScript checks passed; 21 attendance/family access test
 Remaining: actual self-check-in with verifiable sessions; teacher dashboard/mobile marking; school-timezone and historical date normalization; larger role/feature audit and all remaining release checklist work. Build inspection also found missing native notification icon and a placeholder EAS projectId; these still require proper native setup. Web favicon now references the existing app icon instead of a missing file.
 
 Web build verification: Expo static web export completed successfully for all 79 routes. Rechecked after fixing the favicon reference. This confirms bundling/static export, not authenticated browser flows or native readiness.
+
+## Checkpoint — teacher mobile roster and attendance
+
+Replaced the fabricated teacher dashboard (invented classes, grade counts and broken action links) with paginated database classes scoped by the existing teacher/account rules. Added a School-tab teaching entry point and a real `/school/teacher/attendance` route for teacher/admin/staff accounts. Teachers see assigned classes only; staff/admin retain their existing school-wide access.
+
+The form loads a selected calendar day's roster and recorded statuses, excludes inactive students, keeps unmarked students unmarked, submits only explicitly selected students, and uses the existing atomic attendance API. Includes explicit Mark all present, unsaved labels, discard, loading/errors, accessible labeled controls and wrapping theme-aware layout. Date changes/in-page back navigation are blocked while edits remain; duplicate save taps are guarded. Ambiguous network saves trigger a server reload before another attempt. Rosters beyond 500 active students are blocked from mobile bulk editing rather than silently truncated. No fabricated grades/assignment counts remain on the teacher landing page; those teacher workflows are still unfinished.
+
+Class-list pagination is now bounded and validated, and roster responses specify no-store. Both TypeScript checks passed; 33 focused class/attendance tests passed, including 9 new class access/pagination tests. No live database/device/visual tests have run. Prior migration and account assignment setup remain required; this batch adds no migration.
+
+Next work: complete teacher assignment/report CRUD validation and UI, formal grade model/workflow, improve general navigation-away handling for unsaved drafts and concurrent-editor conflicts, minimize roster payloads, and continue the full release audit. Browser/system-back and app suspension need device-level testing; there is no offline draft persistence. Current full app remains not release-ready.
+
+Expo web export passed for 80 routes, including the new teacher attendance route. This is a build check, not a live browser/device validation. Pending date text must be loaded before marking, so edits cannot accidentally target the previously loaded date.
