@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getApiIdentity, isStaff } from "@/lib/api-identity";
+import { getApiIdentity } from "@/lib/api-identity";
 
 export async function GET(req: NextRequest) {
   const user = await getApiIdentity(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isStaff(user.role) && !user.isVerified)
+  if (user.role !== "admin" && !user.isVerified)
     return NextResponse.json({ error: "Verify your email to access family billing" }, { status: 403 });
 
   const invoices = await prisma.schoolInvoice.findMany({
-    where: isStaff(user.role) ? {} : { student: { parentEmail: user.email } },
+    where: user.role === "admin" ? {} : { student: { parentEmail: user.email } },
     select: {
       id: true, studentId: true, description: true, amountCents: true, currency: true,
       dueDate: true, status: true, paidAt: true, createdAt: true,
