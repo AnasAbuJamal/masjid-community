@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const slug = name ? name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") : undefined;
 
     const category = await prisma.category.update({
-        where: { id },
+        where: { id: Number(id) },
         data: {
             ...(name && { name }),
             ...(slug && { slug }),
@@ -35,7 +35,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.category.delete({ where: { id } });
+    await prisma.category.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_blog_category", userId: session.user.id, details: `Deleted blog category ${id}`, ipAddress: "" });
     return NextResponse.json({ success: true });
 }
