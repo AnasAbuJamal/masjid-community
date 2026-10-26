@@ -122,6 +122,7 @@ export default function ProposalsScreen() {
 
   const renderHeader = () => (
     <View>
+      {!!requestError && <Text accessibilityRole="alert" style={{ color: COLORS.error, padding: SPACING.md }}>{requestError}</Text>}
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.newButton, showForm && styles.newButtonCancel]}
