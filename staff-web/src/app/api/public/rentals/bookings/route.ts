@@ -4,6 +4,7 @@ import { getApiIdentity, isStaff } from "@/lib/api-identity";
 export async function GET(req: NextRequest) {
   const user = await getApiIdentity(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isStaff(user.role) && !user.isVerified) return NextResponse.json({ error: "Verify your email to access these records" }, { status: 403 });
   const bookings = await prisma.rentalBooking.findMany({
     where: isStaff(user.role) ? {} : { renterEmail: user.email },
     include: { item: { select: { name: true, category: true } } },
