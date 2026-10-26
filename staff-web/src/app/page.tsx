@@ -26,8 +26,8 @@ export default function LoginPage() {
         redirect: false,
       });
 
-      if (result?.error) {
-        setError(result.error || "Invalid email or password");
+      if (!result?.ok || result?.error) {
+        setError("Invalid email or password");
       } else {
         window.location.href = "/dashboard";
       }
@@ -39,17 +39,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-900 mb-4">
             <span className="text-2xl">🕌</span>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Masjid Al-Momineen</h1>
-          <p className="text-sm text-gray-500 mt-1">Staff Portal</p>
+          <h1 className="text-2xl font-semibold text-foreground">Masjid Al-Momineen</h1>
+          <p className="text-sm text-muted-foreground mt-1">Staff Portal</p>
         </div>
 
-        <Card className="bg-white rounded-xl border border-gray-200">
+        <Card className="bg-card rounded-2xl border border-border shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl">Sign in</CardTitle>
             <CardDescription>Enter your credentials to access the portal</CardDescription>
@@ -57,7 +57,7 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+                <div role="alert" aria-live="assertive" className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200">
                   {error}
                 </div>
               )}
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-gray-900 hover:bg-gray-800 text-white"
+                className="w-full min-h-11 bg-primary hover:opacity-90 text-primary-foreground"
                 disabled={loading}
               >
                 {loading ? (
