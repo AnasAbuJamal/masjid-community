@@ -1,9 +1,13 @@
 name: Verify web and mobile
 on:
   push:
-    branches: [development, "fix/**"]
+    branches: [development]
   pull_request:
     branches: [development]
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
