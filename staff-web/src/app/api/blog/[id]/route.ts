@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const post = await prisma.blogPost.findUnique({
-        where: { id },
+        where: { id: Number(id) },
         include: { author: { select: { firstName: true, lastName: true } } },
     });
 
@@ -32,14 +32,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const data: Prisma.BlogPostUpdateInput = { ...rest };
     if (body.title) data.slug = slugify(body.title);
     if (tags !== undefined) data.tags = tags;
-    if (categoryId !== undefined) data.category = categoryId ? { connect: { id: categoryId } } : { disconnect: true };
+    if (categoryId !== undefined) data.category = categoryId ? { connect: { id: Number(categoryId) } } : { disconnect: true };
     if (metaTitle !== undefined) data.metaTitle = metaTitle || null;
     if (metaDescription !== undefined) data.metaDescription = metaDescription || null;
     if (seoImage !== undefined) data.seoImage = seoImage || null;
     if (scheduledFor !== undefined) data.scheduledFor = scheduledFor ? new Date(scheduledFor) : null;
     if (publishedAt !== undefined) data.publishedAt = publishedAt ? new Date(publishedAt) : null;
 
-    const post = await prisma.blogPost.update({ where: { id }, data });
+    const post = await prisma.blogPost.update({ where: { id: Number(id) }, data });
     await logAudit({ action: "update_blog_post", userId: session.user.id, details: `Updated blog post ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(post);
 }
@@ -51,7 +51,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.blogPost.delete({ where: { id } });
+    await prisma.blogPost.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_blog_post", userId: session.user.id, details: `Deleted blog post ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }
