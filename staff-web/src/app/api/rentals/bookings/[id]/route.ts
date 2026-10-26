@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
 
         const booking = await prisma.rentalBooking.update({
-            where: { id },
+            where: { id: Number(id) },
             data: {
                 status: newStatus,
                 adminNotes: adminNotes || null,
