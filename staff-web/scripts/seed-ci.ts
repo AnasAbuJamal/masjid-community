@@ -71,6 +71,24 @@ async function main() {
       date: new Date(),
     },
   });
+  const opportunity = await prisma.volunteerOpportunity.create({
+    data: {
+      title: "CI Community Cleanup",
+      description: "Isolated volunteer fixture",
+      eventDate: new Date(Date.now() + 35 * 86400000),
+      spotsTotal: 1, spotsFilled: 0, status: "open",
+    },
+  });
+  for (const index of [1, 2]) {
+    await prisma.volunteerApplication.create({
+      data: {
+        opportunityId: opportunity.id,
+        userName: `CI Volunteer ${index}`,
+        userEmail: `ci-volunteer-${index}@example.test`,
+        status: "pending",
+      },
+    });
+  }
   // The administrator exists solely for authenticated test requests.
   if (admin.role !== "admin") throw new Error("CI administrator fixture was not created");
 
