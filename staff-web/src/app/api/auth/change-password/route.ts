@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         if (!isCurrentValid) {
             await logAudit({
                 action: "password_change_failed",
-                userId: userId,
+                userId: String(userId),
                 details: "Invalid current password",
                 ipAddress: getClientIp(req),
                 success: false,
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
         await logAudit({
             action: "password_changed",
-            userId: userId,
+            userId: String(userId),
             details: "Password successfully changed",
             ipAddress: getClientIp(req),
             success: true,
