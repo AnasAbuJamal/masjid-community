@@ -1,355 +1,220 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  RefreshControl, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, FloatingIcon } from '../../components/common';
+import { ScreenWrapper } from '../../components/common';
+import api from '../../services/api-client';
+import { useAuthStore } from '../../stores/authStore';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
-interface FinancialData {
+interface MonthlyReport {
   month: string;
   donations: number;
   expenses: number;
-}
-
-interface AttendanceData {
-  eventName: string;
-  registered: number;
-  attended: number;
-  rate: number;
-}
-
-interface GrowthData {
-  month: string;
   newMembers: number;
-  activeMembers: number;
 }
-
-const MOCK_FINANCIAL: FinancialData[] = [
-  { month: 'Oct', donations: 45000, expenses: 28000 },
-  { month: 'Nov', donations: 52000, expenses: 31000 },
-  { month: 'Dec', donations: 78000, expenses: 45000 },
-  { month: 'Jan', donations: 38000, expenses: 29000 },
-  { month: 'Feb', donations: 42000, expenses: 26000 },
-  { month: 'Mar', donations: 55000, expenses: 32000 },
-];
-
-const MOCK_ATTENDANCE: AttendanceData[] = [
-  { eventName: 'Friday Prayer (Avg)', registered: 350, attended: 320, rate: 91 },
-  { eventName: 'Ramadan Iftar', registered: 150, attended: 142, rate: 95 },
-  { eventName: 'Youth Program', registered: 45, attended: 38, rate: 84 },
-  { eventName: "Women's Circle", registered: 28, attended: 25, rate: 89 },
-  { eventName: 'Islamic School', registered: 85, attended: 78, rate: 92 },
-];
-
-const MOCK_GROWTH: GrowthData[] = [
-  { month: 'Oct', newMembers: 12, activeMembers: 245 },
-  { month: 'Nov', newMembers: 18, activeMembers: 260 },
-  { month: 'Dec', newMembers: 25, activeMembers: 280 },
-  { month: 'Jan', newMembers: 15, activeMembers: 290 },
-  { month: 'Feb', newMembers: 10, activeMembers: 298 },
-  { month: 'Mar', newMembers: 22, activeMembers: 315 },
-];
+interface EventReport {
+  id: string;
+  title: string;
+  date: string;
+  confirmedRSVPs: number;
+  capacity: number | null;
+}
+interface Report {
+  months: MonthlyReport[];
+  totals: {
+    donations: number; expenses: number; net: number;
+    activeMembers: number; activeStudents: number;
+    approvedVolunteerApplications: number; pendingJobApplications: number;
+    pendingVolunteerApplications: number; pendingRentalBookings: number;
+  };
+  events: EventReport[];
+}
+type ViewName = 'financial' | 'events' | 'growth';
+const money = (value: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+const monthLabel = (value: string) =>
+  new Date(`${value}-15T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
 
 export default function ReportsCrmScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const role = useAuthStore(state => state.user?.role);
+  const [data, setData] = useState<Report | null>(null);
+  const [active, setActive] = useState<ViewName>('financial');
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedReport, setSelectedReport] = useState<'financial' | 'attendance' | 'growth'>('financial');
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = () => {
-    // Load mock data
+  const load = async () => {
+    try {
+      const response = await api.instance.get<Report>('/mobile/admin/analytics');
+      setData(response.data);
+      setError('');
+    } catch {
+      setError('Reports are unavailable. Check your permission and connection.');
+    } finally { setLoading(false); setRefreshing(false); }
   };
+  useEffect(() => { if (role === 'admin') void load(); else setLoading(false); }, [role]);
+  const refresh = () => { setRefreshing(true); void load(); };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    loadData();
-    setRefreshing(false);
-  };
-
-  const totalDonations = MOCK_FINANCIAL.reduce((sum, m) => sum + m.donations, 0);
-  const totalExpenses = MOCK_FINANCIAL.reduce((sum, m) => sum + m.expenses, 0);
-  const netIncome = totalDonations - totalExpenses;
-  const avgAttendance = Math.round(MOCK_ATTENDANCE.reduce((sum, e) => sum + e.rate, 0) / MOCK_ATTENDANCE.length);
-  const totalNewMembers = MOCK_GROWTH.reduce((sum, m) => sum + m.newMembers, 0);
-  const currentMembers = MOCK_GROWTH[MOCK_GROWTH.length - 1].activeMembers;
-
-  const getMaxValue = (data: FinancialData[]) => Math.max(...data.map(d => Math.max(d.donations, d.expenses)));
-
-  const renderFinancialReport = () => (
-    <View>
-      <View style={styles.statsRow}>
-        <GlassCard style={styles.statCard}>
-          <FloatingIcon icon={<MaterialCommunityIcons name="arrow-down-bold" size={20} color={COLORS.success} />} size="sm" color={COLORS.success} />
-          <Text style={styles.statValue}>${(totalDonations / 1000).toFixed(0)}K</Text>
-          <Text style={styles.statLabel}>Total Revenue</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <FloatingIcon icon={<MaterialCommunityIcons name="arrow-up-bold" size={20} color={COLORS.error} />} size="sm" color={COLORS.error} />
-          <Text style={styles.statValue}>${(totalExpenses / 1000).toFixed(0)}K</Text>
-          <Text style={styles.statLabel}>Total Expenses</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <FloatingIcon icon={<MaterialCommunityIcons name={netIncome >= 0 ? 'trending-up' : 'trending-down'} size={20} color={netIncome >= 0 ? COLORS.success : COLORS.error} />} size="sm" color={netIncome >= 0 ? COLORS.success : COLORS.error} />
-          <Text style={[styles.statValue, { color: netIncome >= 0 ? COLORS.success : COLORS.error }]}>${(netIncome / 1000).toFixed(0)}K</Text>
-          <Text style={styles.statLabel}>Net Income</Text>
-        </GlassCard>
-      </View>
-
-      <GlassCard style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Revenue vs Expenses</Text>
-        <View style={styles.chartContainer}>
-          {MOCK_FINANCIAL.map((item, index) => {
-            const max = getMaxValue(MOCK_FINANCIAL);
-            const donationHeight = (item.donations / max) * 120;
-            const expenseHeight = (item.expenses / max) * 120;
-            return (
-              <View key={item.month} style={styles.barGroup}>
-                <View style={styles.bars}>
-                  <View style={[styles.bar, styles.donationBar, { height: donationHeight }]} />
-                  <View style={[styles.bar, styles.expenseBar, { height: expenseHeight }]} />
-                </View>
-                <Text style={styles.barLabel}>{item.month}</Text>
-              </View>
-            );
-          })}
-        </View>
-        <View style={styles.chartLegend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
-            <Text style={styles.legendText}>Donations</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.error }]} />
-            <Text style={styles.legendText}>Expenses</Text>
-          </View>
-        </View>
-      </GlassCard>
-
-      <Text style={styles.sectionTitle}>Monthly Breakdown</Text>
-      {MOCK_FINANCIAL.map(item => (
-        <GlassCard key={item.month} style={styles.breakdownCard}>
-          <View style={styles.breakdownHeader}>
-            <Text style={styles.breakdownMonth}>{item.month}</Text>
-            <View style={styles.breakdownNet}>
-              <Text style={[styles.breakdownNetValue, { color: item.donations - item.expenses >= 0 ? COLORS.success : COLORS.error }]}>
-                {item.donations - item.expenses >= 0 ? '+' : ''}${(item.donations - item.expenses).toLocaleString()}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.breakdownRow}>
-            <View style={styles.breakdownItem}>
-              <MaterialCommunityIcons name="arrow-down" size={14} color={COLORS.success} />
-              <Text style={styles.breakdownLabel}>Donations:</Text>
-              <Text style={styles.breakdownValue}>${item.donations.toLocaleString()}</Text>
-            </View>
-            <View style={styles.breakdownItem}>
-              <MaterialCommunityIcons name="arrow-up" size={14} color={COLORS.error} />
-              <Text style={styles.breakdownLabel}>Expenses:</Text>
-              <Text style={styles.breakdownValue}>${item.expenses.toLocaleString()}</Text>
-            </View>
-          </View>
-        </GlassCard>
-      ))}
-    </View>
-  );
-
-  const renderAttendanceReport = () => (
-    <View>
-      <View style={styles.statsRow}>
-        <GlassCard style={styles.statCard}>
-          <FloatingIcon icon={<MaterialCommunityIcons name="account-group" size={20} color={COLORS.primary} />} size="sm" color={COLORS.primary} />
-          <Text style={styles.statValue}>{MOCK_ATTENDANCE.reduce((sum, e) => sum + e.attended, 0)}</Text>
-          <Text style={styles.statLabel}>Total Attended</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <FloatingIcon icon={<MaterialCommunityIcons name="percent" size={20} color={COLORS.success} />} size="sm" color={COLORS.success} />
-          <Text style={styles.statValue}>{avgAttendance}%</Text>
-          <Text style={styles.statLabel}>Avg Attendance</Text>
-        </GlassCard>
-      </View>
-
-      <Text style={styles.sectionTitle}>Event Attendance</Text>
-      {MOCK_ATTENDANCE.map(item => (
-        <GlassCard key={item.eventName} style={styles.attendanceCard}>
-          <View style={styles.attendanceHeader}>
-            <Text style={styles.attendanceName}>{item.eventName}</Text>
-            <Text style={[styles.attendanceRate, { color: item.rate >= 90 ? COLORS.success : item.rate >= 80 ? COLORS.primary : COLORS.error }]}>
-              {item.rate}%
-            </Text>
-          </View>
-          <View style={styles.attendanceProgress}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${item.rate}%`, backgroundColor: item.rate >= 90 ? COLORS.success : item.rate >= 80 ? COLORS.primary : COLORS.error }]} />
-            </View>
-          </View>
-          <View style={styles.attendanceStats}>
-            <Text style={styles.attendanceStat}>Registered: {item.registered}</Text>
-            <Text style={styles.attendanceStat}>Attended: {item.attended}</Text>
-          </View>
-        </GlassCard>
-      ))}
-    </View>
-  );
-
-  const renderGrowthReport = () => (
-    <View>
-      <View style={styles.statsRow}>
-        <GlassCard style={styles.statCard}>
-          <FloatingIcon icon={<MaterialCommunityIcons name="account-plus" size={20} color={COLORS.success} />} size="sm" color={COLORS.success} />
-          <Text style={styles.statValue}>+{totalNewMembers}</Text>
-          <Text style={styles.statLabel}>New Members</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <FloatingIcon icon={<MaterialCommunityIcons name="account-multiple" size={20} color={COLORS.primary} />} size="sm" color={COLORS.primary} />
-          <Text style={styles.statValue}>{currentMembers}</Text>
-          <Text style={styles.statLabel}>Active Members</Text>
-        </GlassCard>
-      </View>
-
-      <GlassCard style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Member Growth</Text>
-        <View style={styles.chartContainer}>
-          {MOCK_GROWTH.map((item, index) => {
-            const max = Math.max(...MOCK_GROWTH.map(d => d.activeMembers));
-            const height = (item.activeMembers / max) * 120;
-            return (
-              <View key={item.month} style={styles.barGroup}>
-                <View style={[styles.singleBar, { height }]} />
-                <Text style={styles.barLabel}>{item.month}</Text>
-              </View>
-            );
-          })}
-        </View>
-      </GlassCard>
-
-      <Text style={styles.sectionTitle}>Monthly New Members</Text>
-      {MOCK_GROWTH.map(item => (
-        <GlassCard key={item.month} style={styles.growthCard}>
-          <View style={styles.growthHeader}>
-            <Text style={styles.growthMonth}>{item.month}</Text>
-            <Text style={styles.growthNew}>+{item.newMembers} new</Text>
-          </View>
-          <View style={styles.growthStats}>
-            <Text style={styles.growthActive}>{item.activeMembers} active members</Text>
-          </View>
-        </GlassCard>
-      ))}
+  const stat = (name: string, value: string, caption?: string) => (
+    <View style={[styles.statCard, width >= 760 && styles.statCardWide]}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{name}</Text>
+      {caption ? <Text style={styles.statCaption}>{caption}</Text> : null}
     </View>
   );
 
   return (
     <ScreenWrapper contentPadding={false}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-      >
+      <ScrollView contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
         <View style={styles.header}>
-          <Text style={styles.welcomeText}>Reports & Analytics</Text>
-          <Text style={styles.subtitle}>Financial, attendance & growth</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back"
+            style={styles.back} onPress={() => router.back()}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Reports & Analytics</Text>
+            <Text style={styles.subtitle}>Verified database totals · Most recent six months</Text>
+          </View>
         </View>
 
-        <View style={styles.tabs}>
-          {[
-            { key: 'financial', label: 'Financial', icon: 'chart-line' },
-            { key: 'attendance', label: 'Attendance', icon: 'calendar-check' },
-            { key: 'growth', label: 'Growth', icon: 'account-multiple' },
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, selectedReport === tab.key && styles.tabActive]}
-              onPress={() => setSelectedReport(tab.key as any)}
-            >
-              <MaterialCommunityIcons 
-                name={tab.icon as any} 
-                size={16} 
-                color={selectedReport === tab.key ? COLORS.white : COLORS.textSecondary} 
-              />
-              <Text style={[styles.tabText, selectedReport === tab.key && styles.tabTextActive]}>
-                {tab.label}
-              </Text>
+        {role !== 'admin' ? (
+          <Text style={styles.empty}>Administrator access is required.</Text>
+        ) : loading ? <ActivityIndicator color={COLORS.primary} size="large" style={styles.loader} />
+          : error ? <View style={styles.emptyBox}>
+            <Text style={styles.empty}>{error}</Text>
+            <TouchableOpacity style={styles.retry} accessibilityRole="button" onPress={refresh}>
+              <Text style={styles.retryText}>Try again</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View> : data ? (
+            <>
+              <View style={styles.tabs}>
+                {([
+                  ['financial', 'Finances'], ['events', 'Event RSVPs'], ['growth', 'Membership'],
+                ] as const).map(([key, label]) => (
+                  <TouchableOpacity key={key} accessibilityRole="tab"
+                    accessibilityState={{ selected: active === key }}
+                    onPress={() => setActive(key)}
+                    style={[styles.tab, active === key && styles.selectedTab]}>
+                    <Text style={[styles.tabText, active === key && styles.selectedTabText]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-        <View style={styles.content}>
-          {selectedReport === 'financial' && renderFinancialReport()}
-          {selectedReport === 'attendance' && renderAttendanceReport()}
-          {selectedReport === 'growth' && renderGrowthReport()}
-        </View>
+              {active === 'financial' && <>
+                <View style={styles.stats}>
+                  {stat('Confirmed donations', money(data.totals.donations), 'Payments confirmed in this period')}
+                  {stat('Recorded expenses', money(data.totals.expenses))}
+                  {stat('Difference', money(data.totals.net), 'Not an audited profit or bank balance')}
+                </View>
+                <Text style={styles.sectionTitle}>Donations and expenses</Text>
+                {data.months.map(month => {
+                  const max = Math.max(1, ...data.months.flatMap(m => [m.donations, m.expenses]));
+                  return (
+                    <View key={month.month} style={styles.monthCard}>
+                      <Text style={styles.monthTitle}>{monthLabel(month.month)}</Text>
+                      <View style={styles.barLine}>
+                        <View style={[styles.bar, { width: `${Math.round(month.donations / max * 100)}%`, backgroundColor: COLORS.success }]} />
+                      </View>
+                      <Text style={styles.barLabel}>Donations {money(month.donations)}</Text>
+                      <View style={styles.barLine}>
+                        <View style={[styles.bar, { width: `${Math.round(month.expenses / max * 100)}%`, backgroundColor: COLORS.warning }]} />
+                      </View>
+                      <Text style={styles.barLabel}>Expenses {money(month.expenses)}</Text>
+                    </View>
+                  );
+                })}
+                <Text style={styles.note}>Donations exclude pending, refunded and failed payments. Expenses are recorded operational costs; figures are not audited financial statements.</Text>
+              </>}
+
+              {active === 'events' && <>
+                <Text style={styles.sectionTitle}>Confirmed event registrations</Text>
+                {data.events.length === 0 ? <Text style={styles.empty}>No public event registrations in this period.</Text>
+                  : data.events.map(event => (
+                    <View style={styles.eventCard} key={event.id}>
+                      <Text style={styles.eventName}>{event.title}</Text>
+                      <Text style={styles.eventMeta}>{new Date(event.date).toLocaleDateString()}</Text>
+                      <Text style={styles.eventCount}>{event.confirmedRSVPs} confirmed RSVPs
+                        {event.capacity ? ` · Capacity ${event.capacity}` : ''}</Text>
+                    </View>
+                  ))}
+                <Text style={styles.note}>Registrations do not establish actual attendance. Event check-in data is not recorded by this report.</Text>
+              </>}
+
+              {active === 'growth' && <>
+                <View style={styles.stats}>
+                  {stat('Active accounts', data.totals.activeMembers.toLocaleString())}
+                  {stat('Enrolled students', data.totals.activeStudents.toLocaleString())}
+                  {stat('Approved volunteers', data.totals.approvedVolunteerApplications.toLocaleString(), 'Approved applications')}
+                  {stat('Job applications pending', data.totals.pendingJobApplications.toLocaleString())}
+                  {stat('Volunteer applications pending', data.totals.pendingVolunteerApplications.toLocaleString())}
+                  {stat('Rental requests pending', data.totals.pendingRentalBookings.toLocaleString())}
+                </View>
+                <Text style={styles.sectionTitle}>New member accounts</Text>
+                {data.months.map(month => (
+                  <View key={month.month} style={styles.growthRow}>
+                    <Text style={styles.growthMonth}>{monthLabel(month.month)}</Text>
+                    <Text style={styles.growthCount}>{month.newMembers.toLocaleString()}</Text>
+                  </View>
+                ))}
+                <Text style={styles.note}>Member growth counts newly created accounts, not unique attendees.</Text>
+              </>}
+            </>
+          ) : null}
       </ScrollView>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: SPACING.md, paddingTop: SPACING.lg },
-  welcomeText: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
-  tabs: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm, marginBottom: SPACING.md },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: SPACING.sm, backgroundColor: COLORS.surface, borderRadius: RADIUS.md },
-  tabActive: { backgroundColor: COLORS.primary },
-  tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.white },
-
-  content: { paddingHorizontal: SPACING.md, paddingBottom: 100 },
-
-  statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
-  statCard: { flex: 1, alignItems: 'center', padding: SPACING.md },
-  statValue: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginTop: SPACING.xs },
-  statLabel: { fontSize: 11, color: COLORS.textSecondary },
-
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm, marginTop: SPACING.sm },
-
-  chartCard: { marginBottom: SPACING.md, padding: SPACING.md },
-  chartTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.md },
-  chartContainer: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 150 },
-  barGroup: { alignItems: 'center' },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 130 },
-  bar: { width: 16, borderRadius: 4 },
-  donationBar: { backgroundColor: COLORS.success },
-  expenseBar: { backgroundColor: COLORS.error },
-  singleBar: { width: 24, backgroundColor: COLORS.primary, borderRadius: 4 },
-  barLabel: { fontSize: 11, color: COLORS.textSecondary, marginTop: SPACING.xs },
-  chartLegend: { flexDirection: 'row', justifyContent: 'center', gap: SPACING.lg, marginTop: SPACING.md },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: 12, color: COLORS.textSecondary },
-
-  breakdownCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  breakdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  breakdownMonth: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  breakdownNet: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full },
-  breakdownNetValue: { fontSize: 14, fontWeight: '700' },
-  breakdownRow: { flexDirection: 'row', marginTop: SPACING.sm, gap: SPACING.md },
-  breakdownItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  breakdownLabel: { fontSize: 12, color: COLORS.textSecondary },
-  breakdownValue: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-
-  attendanceCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  attendanceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  attendanceName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  attendanceRate: { fontSize: 20, fontWeight: '700' },
-  attendanceProgress: { marginTop: SPACING.sm },
-  progressBar: { height: 8, backgroundColor: COLORS.background, borderRadius: RADIUS.full, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: RADIUS.full },
-  attendanceStats: { flexDirection: 'row', marginTop: SPACING.xs, gap: SPACING.md },
-  attendanceStat: { fontSize: 12, color: COLORS.textSecondary },
-
-  growthCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  growthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  growthMonth: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  growthNew: { fontSize: 14, fontWeight: '700', color: COLORS.success },
-  growthStats: { marginTop: SPACING.xs },
-  growthActive: { fontSize: 13, color: COLORS.textSecondary },
+  content: { maxWidth: 900, alignSelf: 'center', width: '100%',
+    paddingHorizontal: SPACING.md, paddingBottom: SPACING.xxl },
+  header: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingVertical: SPACING.md },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { color: COLORS.text, fontSize: 22, fontWeight: '700' },
+  subtitle: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4, lineHeight: 18 },
+  tabs: { flexDirection: 'row', gap: SPACING.xs, marginBottom: SPACING.lg },
+  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center',
+    padding: SPACING.xs, borderRadius: RADIUS.md, backgroundColor: COLORS.surface },
+  selectedTab: { backgroundColor: COLORS.primaryFaded },
+  tabText: { fontSize: 12, textAlign: 'center', color: COLORS.textSecondary, fontWeight: '600' },
+  selectedTabText: { color: COLORS.primary },
+  loader: { marginTop: SPACING.xxl },
+  emptyBox: { alignItems: 'center', padding: SPACING.xl },
+  empty: { textAlign: 'center', color: COLORS.textSecondary, fontSize: 14,
+    lineHeight: 22, marginVertical: SPACING.lg },
+  retry: { minHeight: 44, justifyContent: 'center', padding: SPACING.md },
+  retryText: { color: COLORS.primary, fontWeight: '600' },
+  stats: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: SPACING.lg },
+  statCard: { flexGrow: 1, flexBasis: '45%', minWidth: 135, padding: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.lg, backgroundColor: COLORS.surface },
+  statCardWide: { flexBasis: '29%' },
+  statValue: { color: COLORS.text, fontSize: 22, fontWeight: '700' },
+  statLabel: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
+  statCaption: { color: COLORS.textSecondary, fontSize: 11, lineHeight: 17, marginTop: 3 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.md },
+  monthCard: { padding: SPACING.md, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm, backgroundColor: COLORS.surface },
+  monthTitle: { color: COLORS.text, fontSize: 14, fontWeight: '700', marginBottom: SPACING.sm },
+  barLine: { backgroundColor: COLORS.background, borderRadius: RADIUS.sm,
+    height: 12, overflow: 'hidden' },
+  bar: { height: 12, minWidth: 0, borderRadius: RADIUS.sm },
+  barLabel: { color: COLORS.textSecondary, fontSize: 12, marginTop: 5, marginBottom: SPACING.sm },
+  note: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 20, marginTop: SPACING.lg },
+  eventCard: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm },
+  eventName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  eventMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 3 },
+  eventCount: { color: COLORS.primary, fontSize: 13, marginTop: SPACING.sm, fontWeight: '600' },
+  growthRow: { minHeight: 48, borderBottomColor: COLORS.border, borderBottomWidth: 1,
+    alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  growthMonth: { color: COLORS.text, fontSize: 14 },
+  growthCount: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
 });
