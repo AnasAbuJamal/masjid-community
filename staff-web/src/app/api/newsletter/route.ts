@@ -105,7 +105,7 @@ export async function DELETE(req: NextRequest) {
     const email = searchParams.get("email");
 
     if (id) {
-        await prisma.newsletterSubscription.delete({ where: { id } });
+        await prisma.newsletterSubscription.delete({ where: { id: Number(id) } });
         return NextResponse.json({ success: true });
     }
 
