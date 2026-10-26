@@ -25,6 +25,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!application) return null;
       const desired = data.status as "approved" | "rejected";
       if (application.status === desired) return application;
+      // Claim this exact transition first, so two reviewers cannot double-count one applicant.
+      const transition = await tx.volunteerApplication.updateMany({
+        where: { id: application.id, status: application.status },
+        data: { status: desired },
+      });
+      if (transition.count !== 1) throw new NoCapacityError("Application changed. Refresh and retry.");
 
       if (desired === "approved" && application.status !== "approved") {
         // Conditional database update prevents assigning more volunteers than capacity.
@@ -43,9 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           data: { spotsFilled: { decrement: 1 } },
         });
       }
-      return tx.volunteerApplication.update({
-        where: { id: application.id }, data: { status: desired },
-      });
+      return { ...application, status: desired };
     });
     if (!result) return NextResponse.json({ error: "Application not found" }, { status: 404 });
     await logAudit({
