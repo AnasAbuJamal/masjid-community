@@ -1,3 +1,4 @@
+import { schoolWriteError } from "@/lib/school-write-error";
 import { studentScope, teachesSchool } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -17,7 +18,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await prisma.studentReport.delete({ where: { id, student: studentScope(session.user) } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting report:", error);
-    return NextResponse.json({ error: "Failed to delete report" }, { status: 500 });
+    return schoolWriteError(error);
   }
 }

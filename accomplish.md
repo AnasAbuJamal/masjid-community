@@ -386,3 +386,15 @@ Class-list pagination is now bounded and validated, and roster responses specify
 Next work: complete teacher assignment/report CRUD validation and UI, formal grade model/workflow, improve general navigation-away handling for unsaved drafts and concurrent-editor conflicts, minimize roster payloads, and continue the full release audit. Browser/system-back and app suspension need device-level testing; there is no offline draft persistence. Current full app remains not release-ready.
 
 Expo web export passed for 80 routes, including the new teacher attendance route. This is a build check, not a live browser/device validation. Pending date text must be loaded before marking, so edits cannot accidentally target the previously loaded date.
+
+## Checkpoint — assignment input safety and staff feedback
+
+Assignments now use strict create/update contracts: valid date-only calendar days, positive IDs, known type/location/status/rating values, trimmed bounded descriptions, and no client-supplied ownership or system fields. Creates connect only an active student within the actor's school scope and derive the teacher from the session inside a serializable transaction. Updates cannot reassign students/teachers. Scope failures return 404 and serialization conflicts return 409. Read filters/pagination are bounded, deterministic and no-store.
+
+Staff assignment forms now check HTTP success before closing, keep failed saves/deletes reviewable, show errors/retry, normalize student IDs for Select controls, and add assignment and student-selector pagination. Counts/filters are explicitly described as current-page values. Editing displays the fixed student identity; date display preserves calendar days, and edit/delete buttons have accessible names.
+
+Reports now reject invalid IDs, blank/oversized title/content, unsupported categories and unexpected ownership fields. Creation requires an active scoped student. Per-student report reads are bounded to the latest 50 and responses disable caching. Out-of-scope/missing report deletions return 404. Report creation still has a separate authorization read/write and needs transactional reassignment-race handling; this batch does not claim that race is solved.
+
+Verification: 37 focused assignment/report API tests passed (28 new assignment tests and 4 additional report validation cases); staff TypeScript passed. No live PostgreSQL concurrency checks, browser screenshots, native tests or deployed smoke tests ran. No new migration required; prior migrations/account links still required.
+
+Remaining: teacher mobile assignment/report forms; formal grades and submissions (current Assignment is a per-student lesson/progress record, not a class-wide points/due-date model); report read pagination/UI; assignment concurrent-editor version protection and duplicate-create idempotency; staff paging/request-race polish; full deployment/feature checklist. Unused `masjid-mobile/services/teacher-service.ts` still describes unsupported legacy teacher/grade endpoints and must be replaced or retired before new UI consumes it. Do not reuse its fictional class-wide assignment contract.

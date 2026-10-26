@@ -45,3 +45,9 @@ Mobile students open **View my attendance** from School; member parents open **V
 ### Mobile teacher marking
 
 School → Teaching classes and attendance opens database-backed assigned classes for teachers (all classes for admin/staff). Open Roster and attendance, select a calendar date, choose statuses and Save attendance. Only explicitly edited students are submitted; unmarked students are not automatically marked absent/present. A lost save response prompts review of refreshed records. Students and parents cannot use this marking workflow; the server's role, class and roster checks remain authoritative. Class management/account linking still belongs to staff/admin according to the matrix above.
+
+### Assignments and reports
+
+Only teachers/staff/admin can create or modify assignment progress and reports; students/verified family accounts read only within their existing scope. Assignment student/teacher associations cannot be changed through edits. The creation teacher comes from the session, and new assignments require an active authorized student. Input accepts only documented fields and enumerated statuses/ratings. Dates are calendar days (`YYYY-MM-DD`), stored at UTC midnight.
+
+The current assignment model is an individual student's lesson/review and qualitative rating. It has no points, submissions, class-wide assignment or due-date fields. Formal grades require a separate implemented model/workflow. Reports accept general, academic, behavioral or daily categories; filtered reads return at most the latest 50 until pagination is completed.
