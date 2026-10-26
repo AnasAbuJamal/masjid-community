@@ -70,7 +70,16 @@ jobs:
             if curl --silent --fail http://localhost:3000/ > /dev/null; then break; fi
             sleep 1
           done
+          if ! curl --silent --fail http://localhost:3000/ > /dev/null; then
+            echo "Server failed readiness check"
+            cat /tmp/masjid-web-ci.log
+            exit 1
+          fi
           npx playwright test --reporter=line
+      - name: Show server diagnostics on failure
+        if: failure()
+        run: |
+          if test -f /tmp/masjid-web-ci.log; then tail -200 /tmp/masjid-web-ci.log; fi
 
   mobile:
     name: Mobile — tests and TypeScript
