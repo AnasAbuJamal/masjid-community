@@ -1,0 +1,51 @@
+name: Verify web and mobile
+on:
+  push:
+    branches: [development, "fix/**"]
+  pull_request:
+    branches: [development]
+
+permissions:
+  contents: read
+
+jobs:
+  staff:
+    name: Staff web — tests, types, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: staff-web
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+      AUTH_SECRET: ci-test-secret-not-for-production-0123456789
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: https://example.org
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: staff-web/package-lock.json
+      - run: npm ci
+      - run: npx prisma validate
+      - run: npm run test:run
+      - run: npx tsc --noEmit
+      - run: npm run build
+
+  mobile:
+    name: Mobile — tests and TypeScript
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: masjid-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: masjid-mobile/package-lock.json
+      - run: npm ci
+      - run: npm run test:run
+      - run: npx tsc --noEmit
