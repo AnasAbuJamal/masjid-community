@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getMobileAuthUser } from "@/lib/mobile-auth";
-import { auth } from "@/lib/auth";
+import { getApiIdentity } from "@/lib/api-identity";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -36,12 +35,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  const mobile = await getMobileAuthUser(req);
-  if (!session && !mobile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getApiIdentity(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user.isVerified && user.role !== "admin") return NextResponse.json({ error: "Verify your email to access family records" }, { status: 403 });
   try {
-    const admin = session?.user.role === "admin" || mobile?.role === "admin";
-    const requesterEmail = mobile?.email || session?.user.email;
+    const admin = user.role === "admin";
+    const requesterEmail = user.email;
     if (!admin && !requesterEmail) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const applications = await prisma.studentApplication.findMany({
       where: admin ? {} : { parentEmail: requesterEmail!.toLowerCase() },
