@@ -62,4 +62,18 @@ describe('report permissions', () => {
   expect(m.transaction).toHaveBeenCalledTimes(1);
  });
 
+ it('paginates scoped history and exposes whether another page exists', async () => {
+  m.auth.mockResolvedValue({ user: { id: 7, role: 'student' } });
+  m.findMany.mockResolvedValue([{ id: 3 }, { id: 2 }, { id: 1 }]);
+  const response = await GET(new NextRequest('https://example.com?studentId=9&page=2&limit=2'));
+  expect(m.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { student: { userId: 7 }, studentId: 9 }, skip: 2, take: 3, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }));
+  expect(await response.json()).toEqual({ reports: [{ id: 3 }, { id: 2 }], page: 2, hasMore: true });
+  expect(response.headers.get('Cache-Control')).toBe('no-store');
+ });
+ it.each(['?page=-1', '?limit=51', '?studentId=abc', '?page=10001'])('rejects invalid history filters %s', async query => {
+  m.auth.mockResolvedValue({ user: { id: 7, role: 'teacher' } });
+  expect((await GET(new NextRequest(`https://example.com${query}`))).status).toBe(400);
+  expect(m.findMany).not.toHaveBeenCalled();
+ });
+
 });

@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { schoolWriteError } from "@/lib/school-write-error";
-import { reportInput } from "@/lib/school-report-validation";
-import { schoolId } from "@/lib/assignment-validation";
+import { reportInput, reportQuery } from "@/lib/school-report-validation";
 import { studentScope, teachesSchool } from "@/lib/school-access";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -11,27 +10,17 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const { searchParams } = req.nextUrl;
-    const studentId = searchParams.get("studentId");
-
-    if (studentId && !schoolId.safeParse(studentId).success) return NextResponse.json({ error: "Invalid student ID" }, { status: 400 });
-    if (studentId) {
-      const reports = await prisma.studentReport.findMany({
-        where: { studentId: Number(studentId), student: studentScope(session.user) },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        include: { teacher: { select: { firstName: true, lastName: true } } },
-      });
-      return NextResponse.json({ reports }, { headers: { "Cache-Control": "no-store" } });
-    }
-
-    const reports = await prisma.studentReport.findMany({
-      where: { student: studentScope(session.user) },
-      orderBy: { createdAt: "desc" },
-      take: 50,
+    const parsed = reportQuery.safeParse(Object.fromEntries(req.nextUrl.searchParams));
+    if (!parsed.success) return NextResponse.json({ error: "Invalid report filters" }, { status: 400 });
+    const { studentId, page, limit } = parsed.data;
+    const rows = await prisma.studentReport.findMany({
+      where: { student: studentScope(session.user), ...(studentId ? { studentId } : {}) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * limit,
+      take: limit + 1,
       include: { student: { select: { firstName: true, lastName: true, studentId: true } }, teacher: { select: { firstName: true, lastName: true } } },
     });
-    return NextResponse.json({ reports }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ reports: rows.slice(0, limit), page, hasMore: rows.length > limit }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Error fetching reports:", error);
     return NextResponse.json({ error: "Failed to fetch reports" }, { status: 500 });

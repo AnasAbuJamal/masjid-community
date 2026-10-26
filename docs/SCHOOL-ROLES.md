@@ -55,3 +55,9 @@ The current assignment model is an individual student's lesson/review and qualit
 ### Mobile teacher reports
 
 Open Teaching classes → Student reports, select a student, review recent history, then publish a report. The roster request always intersects the requested class with the account's scope. Report creation uses the server's active-student and class permission checks; changing a URL cannot grant access. Published reports are visible through the existing student/family read endpoints, so the form explains that audience before submission. A response lost after saving requires reviewing refreshed history before another submission. Mobile report editing/deletion and history beyond the latest 50 are not implemented yet.
+
+### Report corrections and history
+
+Teachers/staff/admin can update title, content and category through the scoped report API. The original student and author remain fixed. Updates include the original updatedAt value: if another editor already saved, or the report is no longer in scope, the operation returns 409 and the user must reload. Successful changes log the acting account and report ID. This does not retain prior report text as version history.
+
+Mobile teacher report history now has 20-record pages with newer/older navigation. Edit report opens the existing content in the form. Server GET retains reports and adds page/hasMore; page/limit are bounded. Parent/student summary views remain bounded and do not yet offer this full-history navigation.

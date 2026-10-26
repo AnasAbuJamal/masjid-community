@@ -421,3 +421,15 @@ Student roster reads now validate bounded page/limit/class filters, use a determ
 Remaining: report edit/delete UI and complete history pagination; system-back/app suspension and unsaved draft behavior; create idempotency and genuine network-loss testing; teacher mobile assignments and formal grades; minimal roster payloads and all remaining deployment/UI release checks. The parent endpoint already reads these saved reports, but a real teacher-to-parent live-account smoke test is still required.
 
 Expo static web export passed for 81 routes, including `/school/teacher/reports`. This confirms build compatibility, not authenticated visual or real-device behavior.
+
+## Checkpoint — report corrections and paginated history
+
+Added a teacher/staff/admin report update endpoint with strict title/content/category validation, immutable student/author associations, and an atomic comparison against the report's original updatedAt. A stale or inaccessible report returns 409 instead of silently overwriting a newer revision. Successful edits record the actor/report in the audit log while preserving the original author. Audit logging remains best-effort; this is not full revision history.
+
+Report GET now supports validated page/limit filters, deterministic date/id ordering, and a hasMore flag while preserving the reports response field for existing clients. Mobile teacher reports request 20 records per page, expose newer/older controls, edit existing reports in the form, scroll to the editor, and keep drafts on errors. Stale/uncertain edits require reviewing refreshed history and discarding the old draft before loading the current version. Legacy reports with null teacher associations display School staff instead of crashing.
+
+Verification: 26 report API tests passed (10 update tests and 5 added history tests); staff/mobile TypeScript checks passed. No schema migration required. No live concurrency, physical-device or visual verification ran.
+
+Remaining: report deletion UI, parent/student full-history navigation (their existing summary endpoints are still bounded), full revision history, server-side create idempotency, browser/system-back draft handling and real-device/network-loss tests. Teacher mobile assignments, formal grade/submission models and full deployment readiness remain open.
+
+Expo static web export passed for all 81 routes after the editing/history changes. Authenticated visual testing and live editing conflicts remain unverified.
