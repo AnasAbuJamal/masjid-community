@@ -153,6 +153,30 @@ model SchoolInvoice {
   @@index([dueDate])
 }
 
+// Curated public school materials. Only approved staff may publish links.
+model EducationalResource {
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String   @default("")
+  type         String
+  category     String
+  url          String
+  tags         String[] @default([])
+  gradeLevels  String[] @default([])
+  thumbnailUrl String?
+  duration     Int?
+  fileSize     Int?
+  createdBy    String?
+  viewCount    Int      @default(0)
+  isFeatured   Boolean  @default(false)
+  isPublished  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished, category])
+  @@index([createdAt])
+}
+
 model Class {
   id Int @id @default(autoincrement())
   name         String
