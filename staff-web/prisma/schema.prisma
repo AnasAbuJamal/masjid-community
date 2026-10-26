@@ -598,6 +598,22 @@ model ExpenseCategory {
   createdAt   DateTime @default(now())
 
   expenses    FinancialExpense[]
+  budgets FinancialBudget[]
+}
+
+model FinancialBudget {
+  id Int @id @default(autoincrement())
+  categoryId Int
+  category ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  year Int
+  month Int
+  allocated Float
+  isPublished Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([categoryId, year, month])
+  @@index([year, month, isPublished])
 }
 
 model FinancialExpense {
