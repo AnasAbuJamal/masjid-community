@@ -127,6 +127,30 @@ enum PostStatus {
 //  SCHOOL: CLASSES, STUDENTS, ASSIGNMENTS
 // ──────────────────────────────────────
 
+enum SchoolInvoiceStatus {
+  pending
+  paid
+  void
+}
+
+model SchoolInvoice {
+  id              Int                 @id @default(autoincrement())
+  studentId       Int
+  student         Student             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  description     String
+  amountCents     Int
+  currency        String              @default("usd")
+  dueDate         DateTime
+  status          SchoolInvoiceStatus @default(pending)
+  stripeSessionId String?             @unique
+  paidAt          DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([studentId, status])
+  @@index([dueDate])
+}
+
 model Class {
   id Int @id @default(autoincrement())
   name         String
@@ -164,6 +188,8 @@ model Student {
   reports          StudentReport[]
 
   @@index([firstName, lastName])
+  invoices      SchoolInvoice[]
+
 }
 
 enum ApplicationStatus {
