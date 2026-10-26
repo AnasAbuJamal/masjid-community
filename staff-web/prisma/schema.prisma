@@ -49,6 +49,7 @@ model User {
   auditLogs     AuditLog[]
   notifications Notification[]
   reports       StudentReport[] @relation("ReportTeacher")
+  pushTokens    PushToken[]
 }
 
 enum UserRole {
@@ -1127,5 +1128,9 @@ model StudentReport {
 model PushToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
