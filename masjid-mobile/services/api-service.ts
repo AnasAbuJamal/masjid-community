@@ -402,6 +402,20 @@ export const apiService = {
 
   // Donations
   donations: {
+    createCheckout: async (data: {
+      amount: number;
+      campaign: string;
+      isAnonymous: boolean;
+      isRecurring: boolean;
+      recurringFrequency?: 'weekly' | 'monthly';
+      donorName?: string;
+    }): Promise<{ sessionId: string; url: string }> => {
+      const response = await api.instance.post<{ sessionId: string; url: string }>('/donations/checkout', data);
+      if (!response.data.url || !response.data.url.startsWith('https://checkout.stripe.com/')) {
+        throw new Error('Secure checkout is unavailable');
+      }
+      return response.data;
+    },
     getHistory: async (): Promise<Donation[]> => {
       try {
         const response = await api.instance.get<Donation[]>('/donations');
