@@ -58,6 +58,19 @@ async function main() {
       expiresAt: new Date(Date.now() + 15 * 60 * 1000),
     },
   });
+  const expenseCategory = await prisma.expenseCategory.upsert({
+    where: { name: "CI Utilities" },
+    update: { isActive: true },
+    create: { name: "CI Utilities", isActive: true },
+  });
+  await prisma.financialExpense.create({
+    data: {
+      categoryId: expenseCategory.id,
+      amount: 34.25,
+      description: "CI only electricity fixture",
+      date: new Date(),
+    },
+  });
   // The administrator exists solely for authenticated test requests.
   if (admin.role !== "admin") throw new Error("CI administrator fixture was not created");
 
