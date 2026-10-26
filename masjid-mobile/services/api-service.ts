@@ -404,6 +404,16 @@ export const apiService = {
 
   // Donations
   donations: {
+    getRecurring: async (): Promise<{
+      donations: { id: string; category: string; amount: number; frequency: 'weekly' | 'monthly';
+        nextDate: string; active: boolean; status: string }[];
+    }> => {
+      const response = await api.instance.get('/donations/recurring');
+      return response.data;
+    },
+    cancelRecurring: async (subscriptionId: string): Promise<void> => {
+      await api.instance.patch('/donations/recurring', { subscriptionId, action: 'cancel' });
+    },
     createCheckout: async (data: {
       amount: number;
       campaign: string;
