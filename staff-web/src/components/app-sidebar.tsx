@@ -161,6 +161,7 @@ export default function AppSidebar() {
             )}>
                 <button
                     onClick={() => setCollapsed(!collapsed)}
+                    aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
                     className="absolute -right-3 top-6 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-white text-gray-400 hover:text-gray-600 shadow-sm border border-gray-200"
                 >
                     <ChevronRight className={cn("h-3 w-3 transition-transform", collapsed ? "" : "rotate-180")} />
