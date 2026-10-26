@@ -236,3 +236,57 @@ test("school invoices are issued only by admins and can be voided before payment
   });
   expect(doubleVoid.status()).toBe(409);
 });
+
+
+test("educational resources require staff publishing, validate links and hide drafts", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  const authResult = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(authResult.status()).toBe(200);
+  const { token } = await authResult.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const resource = {
+    title: "Verified CI Educational Resource",
+    description: "A record created by the integration tests",
+    category: "Education",
+    type: "link",
+    url: "https://www.example.org/education",
+    tags: ["testing"], gradeLevels: ["all"],
+    createdBy: "CI", isFeatured: false, isPublished: false,
+  };
+  const invalid = await request.post("/api/admin/resources", {
+    headers, data: { ...resource, url: "javascript:alert(1)" },
+  });
+  expect(invalid.status()).toBe(400);
+
+  const unauthorized = await request.post("/api/admin/resources", { data: resource });
+  expect(unauthorized.status()).toBe(401);
+
+  const created = await request.post("/api/admin/resources", { headers, data: resource });
+  expect(created.status()).toBe(201);
+  const draft = await created.json();
+  expect(draft.isPublished).toBe(false);
+
+  const beforePublishing = await request.get("/api/resources?search=Verified%20CI");
+  expect(beforePublishing.status()).toBe(200);
+  expect((await beforePublishing.json()).resources.some((r: { id: string }) => r.id === draft.id)).toBe(false);
+
+  const saved = await request.put(`/api/admin/resources/${draft.id}`, {
+    headers, data: { ...resource, isPublished: true },
+  });
+  expect(saved.status()).toBe(200);
+  expect((await saved.json()).isPublished).toBe(true);
+
+  const listed = await request.get("/api/resources?search=Verified%20CI");
+  expect(listed.status()).toBe(200);
+  expect((await listed.json()).resources.some((r: { id: string }) => r.id === draft.id)).toBe(true);
+  const detail = await request.get(`/api/resources/${draft.id}`);
+  expect(detail.status()).toBe(200);
+  const view = await request.post(`/api/resources/${draft.id}/view`);
+  expect(view.status()).toBe(200);
+
+  const removed = await request.delete(`/api/admin/resources/${draft.id}`, { headers });
+  expect(removed.status()).toBe(200);
+  expect((await request.get(`/api/resources/${draft.id}`)).status()).toBe(404);
+});
