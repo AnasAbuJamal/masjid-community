@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName, recurringFrequency } = body;
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 1 || amount > 100000 ||
-        Math.round(amount * 100) !== amount * 100) {
+        Math.abs(Math.round(amount * 100) - amount * 100) > 0.000001) {
       return NextResponse.json({ error: "Donation amount must be between $1 and $100,000 (up to two decimals)" }, { status: 400 });
     }
     if (donorEmail && (typeof donorEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail)))
