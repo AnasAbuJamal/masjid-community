@@ -82,7 +82,7 @@ export async function DELETE(req: NextRequest) {
 
     if (id) {
         await prisma.notification.delete({
-            where: { id, userId: Number(session.user.id) },
+            where: { id: Number(id), userId: Number(session.user.id) },
         });
         return NextResponse.json({ success: true });
     }
@@ -111,7 +111,7 @@ export async function createNotification(
             title: data.title,
             message: data.message,
             link: data.link || undefined,
-            metadata: data.metadata as Prisma.InputJsonValue | null | undefined,
+            metadata: data.metadata ? (data.metadata as Prisma.InputJsonValue) : undefined,
         },
     });
 }
