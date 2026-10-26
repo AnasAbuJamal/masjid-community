@@ -30,6 +30,8 @@ export default function KioskScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isTV = mode === 'tv';
   const [prayers, setPrayers] = useState<Prayer | null>(null);
+  const [siteName, setSiteName] = useState("Masjid Al-Momineen");
+  const [rotationSeconds, setRotationSeconds] = useState(8);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [index, setIndex] = useState(0);
   const [now, setNow] = useState(new Date());
@@ -41,9 +43,15 @@ export default function KioskScreen() {
     const results = await Promise.allSettled([
       api.instance.get<Prayer>('/prayers/today'),
       api.instance.get<{ announcements: Announcement[] }>('/public/announcements'),
+      api.instance.get<{ siteName: string; kioskRotationSeconds: number }>('/public/site-settings'),
     ]);
     const prayerResult = results[0];
     const announcementResult = results[1];
+    const settingsResult = results[2];
+    if (settingsResult.status === 'fulfilled') {
+      setSiteName(settingsResult.value.data.siteName);
+      setRotationSeconds(settingsResult.value.data.kioskRotationSeconds);
+    }
     if (prayerResult.status === 'fulfilled') {
       setPrayers(prayerResult.value.data);
     } else {
@@ -73,9 +81,9 @@ export default function KioskScreen() {
     if (!isTV || announcements.length < 2) return;
     const timer = setInterval(() => {
       setIndex(old => (old + 1) % announcements.length);
-    }, 8000);
+    }, rotationSeconds * 1000);
     return () => clearInterval(timer);
-  }, [isTV, announcements.length]);
+  }, [isTV, announcements.length, rotationSeconds]);
 
   const dateString = now.toLocaleDateString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -102,7 +110,7 @@ export default function KioskScreen() {
         }} tintColor={COLORS.primary} />}>
         <View style={styles.heading}>
           <MaterialCommunityIcons name="mosque" color={isTV ? COLORS.white : COLORS.primary} size={34} />
-          <Text style={[styles.title, isTV && styles.tvText]}>Masjid Al-Momineen</Text>
+          <Text style={[styles.title, isTV && styles.tvText]}>{siteName}</Text>
           <Text style={[styles.date, isTV && styles.tvSecondary]}>{dateString}</Text>
           <Text style={[styles.time, isTV && styles.tvText]}>{timeString}</Text>
         </View>
@@ -169,7 +177,7 @@ export default function KioskScreen() {
           </View>
         ))}
         <Text style={[styles.note, isTV && styles.tvSecondary]}>
-          Refreshed from official masjid records approximately every two minutes.
+          Updated from published masjid records approximately every two minutes.
         </Text>
       </ScrollView>
     </SafeAreaView>
