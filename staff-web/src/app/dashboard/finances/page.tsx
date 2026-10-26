@@ -248,7 +248,7 @@ export default function FinancesPage() {
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
           </TabsList>
           {activeTab === "expenses" && (
-            <Button onClick={() => { setExpenseForm({ categoryId: expenseCategories[0]?.id || "", amount: 0, description: "", date: new Date().toISOString().split("T")[0] }); setExpenseDialog(true); }}>
+            <Button onClick={() => { setExpenseForm({ categoryId: String(expenseCategories[0]?.id || ""), amount: 0, description: "", date: new Date().toISOString().split("T")[0] }); setExpenseDialog(true); }}>
               <Plus className="h-4 w-4 mr-2" />Add Expense
             </Button>
           )}
@@ -273,7 +273,7 @@ export default function FinancesPage() {
                         </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" onClick={() => openEditRecord(record)}><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(record.id)}><Trash2 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(String(record.id))}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       </div>
                     </div>
@@ -393,7 +393,7 @@ export default function FinancesPage() {
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                         <Tooltip
                           contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb" }}
-                          formatter={(value: number) => [`$${value.toLocaleString()}`, undefined]}
+                          formatter={(value: number) => `${value.toLocaleString()}`}
                         />
                         <Bar dataKey="donations" name="Donations" fill="#6F4E37" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="expenses" name="Expenses" fill="#B33A3A" radius={[4, 4, 0, 0]} />
@@ -490,7 +490,7 @@ export default function FinancesPage() {
                 <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                 <SelectContent>
                   {expenseCategories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
