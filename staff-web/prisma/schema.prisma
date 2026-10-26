@@ -331,6 +331,16 @@ model VolunteerApplication {
 //  COMMUNITY PROJECT PROPOSALS (Enhanced)
 // ──────────────────────────────────────
 
+model ProposalVote {
+  id         Int      @id @default(autoincrement())
+  proposalId Int
+  userId     Int
+  createdAt  DateTime @default(now())
+
+  @@unique([proposalId, userId])
+  @@index([userId])
+}
+
 model ProjectProposal {
   id Int @id @default(autoincrement())
   title             String
