@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ import {
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, History, FileText, Plus, Search } from "lucide-react";
 
 interface Student {
+  isActive?: boolean;
   id: number;
   firstName: string;
   lastName: string;
@@ -62,13 +63,17 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
 
 type ViewTab = "daily" | "history" | "reports";
 
+const calendarDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 export default function AttendancePage() {
   const { toast } = useToast();
   const [activeView, setActiveView] = useState<ViewTab>("daily");
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [students, setStudents] = useState<Student[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(calendarDate(new Date()));
+  const attendanceRequest = useRef(0);
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -79,9 +84,9 @@ export default function AttendancePage() {
   // History
   const [historyRecords, setHistoryRecords] = useState<AttendanceRecord[]>([]);
   const [historyFrom, setHistoryFrom] = useState<string>(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0];
+    const d = new Date(); d.setDate(d.getDate() - 30); return calendarDate(d);
   });
-  const [historyTo, setHistoryTo] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [historyTo, setHistoryTo] = useState<string>(calendarDate(new Date()));
   const [historyStudentId, setHistoryStudentId] = useState<string>("");
 
   // Reports
@@ -93,19 +98,25 @@ export default function AttendancePage() {
     try {
       const res = await fetch("/api/classroom/classes?includeStudents=true");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to load classes");
       setClasses(data.classes || []);
+      if (!data.classes?.length) setLoading(false);
       if (data.classes?.length > 0 && !selectedClass) {
         setSelectedClass(String(data.classes[0].id));
       }
-    } catch (error) { console.error("Error fetching classes:", error); }
+    } catch (error) { setLoading(false); setAttendanceError(error instanceof Error ? error.message : "Unable to load classes"); }
   };
 
   const fetchAttendance = async () => {
     if (!selectedClass || !selectedDate) return;
+    const requestId = ++attendanceRequest.current;
+    setAttendanceError(null);
     setLoading(true);
     try {
-      const res = await fetch(`/api/classroom/attendance?classId=${selectedClass}&date=${selectedDate}`);
+      const res = await fetch(`/api/classroom/attendance?classId=${selectedClass}&date=${selectedDate}&limit=500`);
       const data = await res.json();
+      if (requestId !== attendanceRequest.current) return;
+      if (!res.ok) throw new Error(data.error || "Unable to load attendance");
       setRecords(data.records || []);
       const attendanceMap: Record<string, string> = {};
       data.records?.forEach((r: AttendanceRecord) => { attendanceMap[r.student.id] = r.status; });
@@ -113,7 +124,12 @@ export default function AttendancePage() {
       const counts = { present: 0, absent: 0, late: 0, excused: 0, total: data.records?.length || 0 };
       data.records?.forEach((r: AttendanceRecord) => { if (counts[r.status as keyof typeof counts] !== undefined) counts[r.status as keyof typeof counts]++; });
       setStats(counts);
-    } catch (error) { console.error("Error fetching attendance:", error); } finally { setLoading(false); }
+    } catch (error) {
+      if (requestId !== attendanceRequest.current) return;
+      setRecords([]); setBulkAttendance({});
+      setStats({ present: 0, absent: 0, late: 0, excused: 0, total: 0 });
+      setAttendanceError(error instanceof Error ? error.message : "Unable to load attendance");
+    } finally { if (requestId === attendanceRequest.current) setLoading(false); }
   };
 
   const fetchHistory = async () => {
@@ -153,14 +169,14 @@ export default function AttendancePage() {
 
   useEffect(() => {
     const currentClass = classes.find((c) => String(c.id) === selectedClass);
-    setStudents(currentClass?.students || []);
+    setStudents((currentClass?.students || []).filter(s => s.isActive !== false));
   }, [selectedClass, classes]);
 
   const handleBulkMark = async () => {
-    if (!selectedClass || !selectedDate) return;
+    if (!selectedClass || !selectedDate || attendanceError || loading || students.some(s => !bulkAttendance[s.id])) return;
     setBulkLoading(true);
     try {
-      const records = students.map((s) => ({ studentId: s.id, status: bulkAttendance[s.id] || "present" }));
+      const records = students.map((s) => ({ studentId: s.id, status: bulkAttendance[s.id] }));
       const res = await fetch("/api/classroom/attendance", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ classId: selectedClass, date: selectedDate, records }),
@@ -183,21 +199,23 @@ export default function AttendancePage() {
 
   const changeDate = (days: number) => {
     const date = new Date(selectedDate);
-    date.setDate(date.getDate() + days);
+    if (!Number.isFinite(date.getTime())) return;
+    date.setUTCDate(date.getUTCDate() + days);
     setSelectedDate(date.toISOString().split("T")[0]);
   };
 
   const handleCreateReport = async () => {
     if (!newReport.studentId || !newReport.title || !newReport.content) return;
     try {
-      await fetch("/api/student-reports", {
+      const response = await fetch("/api/student-reports", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newReport),
       });
+      if (!response.ok) { const error = await response.json(); throw new Error(error.error || "Report was not saved"); }
       setShowReportDialog(false);
       setNewReport({ studentId: "", title: "", content: "", category: "general" });
       fetchReports();
-    } catch (error) { console.error("Error creating report:", error); }
+    } catch (error) { toast({ title: "Report was not saved", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" }); }
   };
 
   const tabs = [
@@ -220,7 +238,7 @@ export default function AttendancePage() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-              <Button onClick={() => setShowBulkModal(true)} disabled={!selectedClass}>
+              <Button onClick={() => setShowBulkModal(true)} disabled={!selectedClass || loading || !!attendanceError || students.length === 0}>
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Bulk Mark
               </Button>
@@ -305,9 +323,9 @@ export default function AttendancePage() {
             <div>
               <Label>Date</Label>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" aria-label="Previous day" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
                 <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-40" />
-                <Button variant="outline" size="icon" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" aria-label="Next day" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
               </div>
             </div>
           </div>
@@ -322,6 +340,8 @@ export default function AttendancePage() {
             <CardContent>
               {loading ? (
                 <div className="flex items-center justify-center py-12"><RefreshCw className="h-8 w-8 animate-spin text-mocha-600" /></div>
+              ) : attendanceError ? (
+                <div role="alert" className="py-8 text-center space-y-3"><p>{attendanceError}</p><Button variant="outline" onClick={() => selectedClass ? fetchAttendance() : fetchClasses()}>Retry attendance</Button></div>
               ) : students.length === 0 ? (
                 <div className="text-center py-12 text-gray-500"><Calendar className="h-12 w-12 mx-auto text-gray-300 mb-4" /><p>No students in this class</p></div>
               ) : (
@@ -343,7 +363,7 @@ export default function AttendancePage() {
                           <TableCell>
                             <div className="flex gap-1">
                               {(["present", "absent", "late", "excused"] as const).map((s) => (
-                                <Button key={s} variant={status === s ? "default" : "outline"} size="sm" onClick={() => handleIndividualMark(String(student.id), s)} className="h-8 px-2">{s.charAt(0).toUpperCase()}</Button>
+                                <Button key={s} variant={status === s ? "default" : "outline"} size="sm" aria-label={`Mark ${student.firstName} ${student.lastName} ${s}`} onClick={() => handleIndividualMark(String(student.id), s)} className="h-8 px-2">{s.charAt(0).toUpperCase()}</Button>
                               ))}
                             </div>
                           </TableCell>
@@ -539,8 +559,8 @@ export default function AttendancePage() {
                   <p className="font-medium">{student.firstName} {student.lastName}</p>
                   <p className="text-sm text-gray-500">ID: {student.studentId}</p>
                 </div>
-                <Select value={bulkAttendance[student.id] || "present"} onValueChange={(v) => setBulkAttendance({ ...bulkAttendance, [student.id]: v })}>
-                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <Select value={bulkAttendance[student.id] || ""} onValueChange={(v) => setBulkAttendance({ ...bulkAttendance, [student.id]: v })}>
+                  <SelectTrigger className="w-32" aria-label={`Attendance for ${student.firstName} ${student.lastName}`}><SelectValue placeholder="Select status" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="present">Present</SelectItem>
                     <SelectItem value="absent">Absent</SelectItem>
@@ -553,7 +573,7 @@ export default function AttendancePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBulkModal(false)}>Cancel</Button>
-            <Button onClick={handleBulkMark} disabled={bulkLoading}>{bulkLoading ? "Saving..." : "Save Attendance"}</Button>
+            <Button onClick={handleBulkMark} disabled={bulkLoading || loading || !!attendanceError || students.length === 0 || students.some(s => !bulkAttendance[s.id])}>{bulkLoading ? "Saving..." : "Save Attendance"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -350,3 +350,15 @@ Permission matrix and setup are in `docs/SCHOOL-ROLES.md`. Parent access remains
 Apply `20261028000000_school_account_links` before the new APIs are deployed, then use School Access to link real accounts. No name-based automatic backfill is performed. No live database changes have run. Schema-only Prisma diff matches the migration. Both TypeScript checks passed; 24 school scope/report/session/attendance/account-association tests passed.
 
 Remaining: full physical-device/visual and live role-isolation tests; association changes concurrent with writes; atomic/validated bulk attendance; real check-in; tuition, formal grades/report cards and dedicated teacher/student dashboards; remaining CRM and release checklist. Re-audit other dashboards/search/exports before claiming complete role coverage.
+
+## Checkpoint — reliable staff attendance saves
+
+Replaced destructive delete/recreate bulk marking with upserts inside a serializable transaction. Class authorization, active roster validation, writes and recalculated attendance rates now run together. Individual corrections also refresh rates. A transferred student's existing attendance in another class cannot be overwritten through the new class. Serialization failures retry up to three attempts, then return a visible conflict.
+
+Attendance requires explicit valid statuses, positive integer IDs, unique student rows, bounded notes/batches and real YYYY-MM-DD calendar dates. Dates use UTC midnight as a calendar-day storage convention, independent of the server timezone. Read filters/ranges/pagination are validated and bounded. No schema migration is added in this batch.
+
+Staff UI requires an explicit choice per unmarked student, supports intentional Mark All actions, filters inactive students, requests up to 500 daily records, and shows load errors with retry instead of silently displaying an empty feed. Icon actions/selects have clearer accessible labels. Report creation now checks HTTP success before clearing the form. Device-local date defaults avoid UTC shifting today's selection.
+
+Verification: staff TypeScript passed; 41 focused attendance/school-role/report/account-link tests passed, including 21 new attendance tests. These are unit/mocked API checks, NOT live PostgreSQL rollback/concurrency or browser/device verification. No live migration or deployment smoke checks ran.
+
+Remaining attendance work: PostgreSQL integration tests and visual/mobile checks; history pagination/full summaries; explicit school timezone setting; review/backfill any historical non-UTC-midnight records before adopting the calendar-day convention in an existing production dataset; attendance policy for late/excused (existing rate formula counts only present); multi-session/day model if required (current schema permits one record per student/day); genuine mobile check-in; comprehensive stale-form/concurrent-editor UX. Previous migration and role-link setup prerequisites still apply. Full application release checklist remains open.

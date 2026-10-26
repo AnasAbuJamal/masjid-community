@@ -5,11 +5,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { logAudit, getClientIp } from "@/lib/audit";
 
-interface BulkRecord {
-    studentId: string;
-    status?: string;
-    notes?: string;
-}
+import { attendanceInput, attendanceQuery, utcDay, nextDay } from "@/lib/attendance-validation";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -20,42 +16,17 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { searchParams } = req.nextUrl;
-    const classId = searchParams.get("classId");
-    const studentId = searchParams.get("studentId");
-    const date = searchParams.get("date");
-    const dateFrom = searchParams.get("dateFrom");
-    const dateTo = searchParams.get("dateTo");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
-
+    const parsed = attendanceQuery.safeParse(Object.fromEntries(req.nextUrl.searchParams));
+    if (!parsed.success) return NextResponse.json({ error: "Invalid attendance filters" }, { status: 400 });
+    const { classId, studentId, date, dateFrom, dateTo, page, limit } = parsed.data;
     const where: Prisma.AttendanceWhereInput = { class: classScope(session.user) };
-
-    if (classId) {
-        where.classId = parseInt(classId);
-    }
-
-    if (studentId) {
-        where.studentId = parseInt(studentId);
-    }
-
-    if (date) {
-        const targetDate = new Date(date);
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        where.date = { gte: startOfDay, lte: endOfDay };
-    } else if (dateFrom || dateTo) {
-        const dateFilter: Prisma.DateTimeFilter = {};
-        if (dateFrom) dateFilter.gte = new Date(dateFrom);
-        if (dateTo) {
-            const endOfDay = new Date(dateTo);
-            endOfDay.setHours(23, 59, 59, 999);
-            dateFilter.lte = endOfDay;
-        }
-        where.date = dateFilter;
-    }
+    if (classId) where.classId = classId;
+    if (studentId) where.studentId = studentId;
+    if (date) where.date = { gte: utcDay(date), lt: nextDay(date) };
+    else if (dateFrom || dateTo) where.date = {
+        ...(dateFrom ? { gte: utcDay(dateFrom) } : {}),
+        ...(dateTo ? { lt: nextDay(dateTo) } : {}),
+    };
 
     const [records, total, classRecords, studentRecords] = await Promise.all([
         prisma.attendance.findMany({
@@ -92,136 +63,64 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await req.json();
-    const targetClassId = Number(body.classId);
-    const targetIds = Array.isArray(body.records) ? body.records.map((row: BulkRecord) => Number(row.studentId)) : [Number(body.studentId)];
-    if (!Number.isSafeInteger(targetClassId) || targetClassId < 1 || !targetIds.length || targetIds.length > 500 || targetIds.some((id: number) => !Number.isSafeInteger(id) || id < 1)) return NextResponse.json({ error: "Invalid class or students" }, { status: 400 });
-    const allowedClass = await prisma.class.findFirst({ where: { AND: [{ id: targetClassId }, classScope(session.user)] }, select: { id: true } });
-    if (!allowedClass) return NextResponse.json({ error: "Class not found" }, { status: 404 });
-    const matching = await prisma.student.count({ where: { id: { in: targetIds }, classId: targetClassId, isActive: true } });
-    if (matching !== new Set(targetIds).size) return NextResponse.json({ error: "Students must belong to the selected class" }, { status: 400 });
+    const parsed = attendanceInput.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: "Invalid attendance. Supply a valid date, unique students, and a status for each student." }, { status: 400 });
+    const body = parsed.data;
+    const rows = "records" in body ? body.records : [body];
+    const targetIds = rows.map(row => row.studentId);
+    const date = utcDay(body.date);
 
-    if (body.records && Array.isArray(body.records)) {
-        // Bulk mark logic
-        const { classId, date, records } = body;
-        if (!classId || !date) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    // Authorization, writes and derived rates share one serializable transaction.
+    // A failed batch leaves all previous records intact. Retry serialization conflicts only.
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const records = await prisma.$transaction(async tx => {
+                const allowedClass = await tx.class.findFirst({
+                    where: { AND: [{ id: body.classId }, classScope(session.user)] }, select: { id: true },
+                });
+                if (!allowedClass) throw new AttendanceError(404, "Class not found");
+                const matching = await tx.student.count({ where: { id: { in: targetIds }, classId: body.classId, isActive: true } });
+                if (matching !== targetIds.length) throw new AttendanceError(400, "Students must belong to the selected class");
+                // The schema allows one record per student/day. A transfer must not let a
+                // teacher overwrite attendance previously recorded in someone else's class.
+                const conflict = await tx.attendance.findFirst({ where: {
+                    studentId: { in: targetIds }, date, classId: { not: body.classId },
+                }, select: { id: true } });
+                if (conflict) throw new AttendanceError(409, "A student already has attendance in another class on this day");
+                const saved = [];
+                for (const row of rows) {
+                    saved.push(await tx.attendance.upsert({
+                        where: { studentId_date: { studentId: row.studentId, date } },
+                        create: { studentId: row.studentId, classId: body.classId, date, status: row.status, notes: row.notes, markedBy: session.user.id },
+                        update: { status: row.status, notes: row.notes, markedBy: session.user.id },
+                    }));
+                    await updateStudentAttendanceRate(tx, row.studentId);
+                }
+                return saved;
+            }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
+            await logAudit({ action: "mark_attendance", entity: "attendance", userId: session.user.id,
+                details: `Saved ${records.length} records for class ${body.classId} on ${body.date}`,
+                ipAddress: getClientIp(req), success: true });
+            return NextResponse.json("records" in body ? { count: records.length, records } : records[0]);
+        } catch (error) {
+            if (error instanceof AttendanceError) return NextResponse.json({ error: error.message }, { status: error.status });
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+                if (attempt < 2) continue;
+                return NextResponse.json({ error: "Attendance changed during this save. Reload and try again." }, { status: 409 });
+            }
+            console.error("Attendance save failed", error);
+            return NextResponse.json({ error: "Attendance was not saved. Please try again." }, { status: 500 });
         }
-
-        const attendanceDate = new Date(date);
-        attendanceDate.setHours(0, 0, 0, 0);
-
-        const parsedClassId = parseInt(classId);
-        const results = [];
-        const studentIds = records.map((r: BulkRecord) => parseInt(r.studentId));
-
-        await prisma.attendance.deleteMany({
-            where: {
-                classId: parsedClassId,
-                date: attendanceDate,
-                studentId: { in: studentIds },
-            },
-        });
-
-        const markedByInt = session.user.id;
-
-        for (const record of records) {
-            const parsedStudentId = parseInt(record.studentId);
-            const created = await prisma.attendance.create({
-                data: {
-                    studentId: parsedStudentId,
-                    classId: parsedClassId,
-                    date: attendanceDate,
-                    status: record.status || "present",
-                    notes: record.notes,
-                    markedBy: markedByInt,
-                },
-            });
-            results.push(created);
-            await updateStudentAttendanceRate(parsedStudentId);
-        }
-
-        await logAudit({
-            action: "bulk_mark_attendance",
-            entity: "attendance",
-            userId: session.user.id,
-            details: `Bulk marked attendance for ${records.length} students in class ${classId} on ${date}`,
-            ipAddress: getClientIp(req),
-            success: true,
-        });
-
-        return NextResponse.json({ count: results.length, records: results }, { status: 201 });
-    } else {
-        // Individual mark logic
-        const { studentId, classId, date, status, notes } = body;
-
-        if (!studentId || !classId || !date || !status) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-        }
-
-        const attendanceDate = new Date(date);
-        attendanceDate.setHours(0, 0, 0, 0);
-
-        const parsedStudentId = parseInt(studentId);
-        const parsedClassId = parseInt(classId);
-
-        const existing = await prisma.attendance.findFirst({
-            where: {
-                studentId: parsedStudentId,
-                date: attendanceDate,
-            },
-        });
-
-        const markedByInt = session.user.id;
-
-        if (existing) {
-            const updated = await prisma.attendance.update({
-                where: { id: existing.id },
-                data: { status, notes, markedBy: markedByInt },
-            });
-
-            await logAudit({
-                action: "update_attendance",
-                entity: "attendance",
-                entityId: String(updated.id),
-                userId: session.user.id,
-                details: `Updated attendance for student ${studentId} on ${date} to ${status}`,
-                ipAddress: getClientIp(req),
-                success: true,
-            });
-
-            return NextResponse.json(updated);
-        }
-
-        const record = await prisma.attendance.create({
-            data: {
-                studentId: parsedStudentId,
-                classId: parsedClassId,
-                date: attendanceDate,
-                status,
-                notes,
-                markedBy: markedByInt,
-            },
-        });
-
-        await updateStudentAttendanceRate(parsedStudentId);
-
-        await logAudit({
-            action: "mark_attendance",
-            entity: "attendance",
-            entityId: String(record.id),
-            userId: session.user.id,
-            details: `Marked attendance for student ${studentId} on ${date} as ${status}`,
-            ipAddress: getClientIp(req),
-            success: true,
-        });
-
-        return NextResponse.json(record, { status: 201 });
     }
+    return NextResponse.json({ error: "Please retry the save" }, { status: 409 });
 }
 
-async function updateStudentAttendanceRate(studentId: number) {
-    const records = await prisma.attendance.findMany({
+class AttendanceError extends Error {
+    constructor(readonly status: number, message: string) { super(message); }
+}
+
+async function updateStudentAttendanceRate(tx: Prisma.TransactionClient, studentId: number) {
+    const records = await tx.attendance.findMany({
         where: { studentId },
         orderBy: { date: "desc" },
         take: 30,
@@ -239,7 +138,7 @@ async function updateStudentAttendanceRate(studentId: number) {
     else if (rate >= 0.6) attendanceStatus = "needs_improvement";
     else attendanceStatus = "poor";
 
-    await prisma.student.update({
+    await tx.student.update({
         where: { id: Number(studentId) },
         data: { attendanceRate: rate, attendanceStatus },
     });

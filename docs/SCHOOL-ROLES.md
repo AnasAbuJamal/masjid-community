@@ -29,3 +29,9 @@ Shared `school-access.ts` filters are used for classroom roster reads, assignmen
 ## Remaining release checks
 
 These are code changes, not proof of complete school readiness. No live migration or assignment setup has run. Validate the scoped endpoints against a real database, including concurrent reassignment and writes. Improve validation, pagination, error responses and atomic bulk attendance writes. Complete the dedicated teacher/student mobile dashboards, real check-in sessions, tuition, grades and formal report cards. Review all school-related dashboards, exports/search and future routes for the same scope rules. Verify parent identity and enrollment administration procedures operationally; email must never be self-verified by an untrusted caller.
+
+### Attendance save rules
+
+Teachers can mark only active students currently in their assigned class; managers retain school-wide access. The server validates the entire batch before writing and saves it in one serializable transaction with its derived rates. Duplicate students, unsupported statuses, malformed IDs/dates and oversized batches are rejected. A record already owned by a different class on the same student/day returns a conflict, including after a class transfer. Students and parents cannot mark attendance.
+
+Use a date-only `YYYY-MM-DD` value; storage uses UTC midnight to represent that calendar day. Existing production dates need review before rollout if previously written using server-local midnight. The current schema supports one attendance record per student/day, not separate sessions. Late and excused still count as non-present in the existing rate formula; agree on school policy before release.
