@@ -2,27 +2,29 @@
 node_modules/
 */node_modules/
 
-# Build
+# Build outputs
 .expo/
+.next/
 dist/
 build/
+coverage/
+*.tsbuildinfo
 
-# Logs
+# Logs and editor files
 *.log
-npm-debug.log*
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# OS
 .DS_Store
 Thumbs.db
 nul
+
+# Local and production credentials: example templates are the only exception
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+*.pem
