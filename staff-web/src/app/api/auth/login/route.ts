@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       data: { failedLoginAttempts: 0, lockoutUntil: null, lastLoginAt: new Date() } });
     return NextResponse.json({
       user: { id: String(user.id), email: user.email, firstName: user.firstName,
-        lastName: user.lastName, role: user.role, phone: user.phone },
+        lastName: user.lastName, role: user.role, phone: user.phone, isVerified: user.isVerified },
       token: createMobileToken(user),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
