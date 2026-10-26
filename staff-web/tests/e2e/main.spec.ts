@@ -854,3 +854,49 @@ test("notifications are privately paginated, and read receipts cannot cross acco
   });
   expect((await nowRead.json()).notifications).toHaveLength(0);
 });
+
+
+test("device push registration is private, transfer-safe and revocable", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL fixture");
+  const token = "ExponentPushToken[ciIntegrationToken12345678901]";
+  const path = "/api/notifications/register";
+  expect((await request.post(path, { data: { token } })).status()).toBe(401);
+
+  const [adminAuth, parentAuth] = await Promise.all([
+    request.post("/api/auth/login", {
+      data: { email: adminEmail, password: adminPassword },
+    }),
+    request.post("/api/auth/login", {
+      data: { email: "ci-parent@example.test",
+        password: "ci-only-parent-password-not-for-production" },
+    }),
+  ]);
+  expect(adminAuth.status()).toBe(200);
+  expect(parentAuth.status()).toBe(200);
+  const admin = { Authorization: `Bearer ${(await adminAuth.json()).token}` };
+  const parent = { Authorization: `Bearer ${(await parentAuth.json()).token}` };
+  const invalid = await request.post(path, {
+    headers: admin, data: { token: "https://evil.example" },
+  });
+  expect(invalid.status()).toBe(400);
+
+  expect((await request.post(path, { headers: admin, data: { token } })).status()).toBe(200);
+  const crossAccount = await request.delete(path, { headers: parent, data: { token } });
+  expect(crossAccount.status()).toBe(200);
+  expect((await crossAccount.json()).removed).toBe(0);
+  expect((await request.post(path, { headers: parent, data: { token } })).status()).toBe(200);
+  const formerOwner = await request.delete(path, { headers: admin, data: { token } });
+  expect(formerOwner.status()).toBe(200);
+  expect((await formerOwner.json()).removed).toBe(0);
+  const currentOwner = await request.delete(path, { headers: parent, data: { token } });
+  expect(currentOwner.status()).toBe(200);
+  expect((await currentOwner.json()).removed).toBe(1);
+});
+
+test("deployment health reflects database readiness without leaking its credentials", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.status()).toBe(200);
+  const info = await response.json();
+  expect(info).toEqual({ status: "ok", database: "reachable" });
+  expect(JSON.stringify(info)).not.toContain("postgresql://");
+});
