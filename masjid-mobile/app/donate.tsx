@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -84,6 +85,7 @@ export default function DonateScreen() {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [donorName, setDonorName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState<'weekly' | 'monthly'>('monthly');
@@ -96,17 +98,29 @@ export default function DonateScreen() {
 
   const totalRecurring = recurringDonations.filter(r => r.active).reduce((sum, r) => sum + r.amount, 0);
 
-  const handleDonate = () => {
-    if (!donationAmount || donationAmount <= 0) {
-      Alert.alert('Amount Required', 'Please select or enter a donation amount.');
+  const handleDonate = async () => {
+    if (submitting) return;
+    if (!donationAmount || !Number.isFinite(donationAmount) || donationAmount < 1 || donationAmount > 100000) {
+      Alert.alert('Invalid Amount', 'Please choose an amount between $1 and $100,000.');
       return;
     }
-    const donorDisplay = isAnonymous ? 'Anonymous' : (donorName || 'Anonymous');
-    Alert.alert(
-      'Jazakallah Khayran!',
-      `Your donation of $${donationAmount} to the ${campaign.name} ${isAnonymous ? '(anonymous)' : ''} has been received. May Allah bless you abundantly.`,
-      [{ text: 'Ameen!', onPress: () => router.back() }]
-    );
+    setSubmitting(true);
+    try {
+      const { url } = await apiService.donations.createCheckout({
+        amount: donationAmount,
+        campaign: selectedCampaign,
+        isAnonymous,
+        isRecurring,
+        recurringFrequency,
+        donorName: donorName.trim() || undefined,
+      });
+      await Linking.openURL(url);
+      // Only the verified Stripe webhook may mark a donation as completed.
+    } catch {
+      Alert.alert('Checkout Unavailable', 'We could not start secure payment. No donation was charged. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const formatCurrency = (n: number) =>
