@@ -243,7 +243,7 @@ interface NotificationItem {
   type: string;
   title: string;
   message: string;
-  createdAt: string;
+  createdAt: string | Date;
   isRead: boolean;
 }
 
