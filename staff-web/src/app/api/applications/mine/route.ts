@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getApiIdentity } from "@/lib/api-identity";
+import { getApiIdentity, isStaff } from "@/lib/api-identity";
 export async function GET(req: NextRequest) {
   const user = await getApiIdentity(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isStaff(user.role) && !user.isVerified) return NextResponse.json({ error: "Verify your email to access these records" }, { status: 403 });
   const [jobs, volunteers] = await Promise.all([
     prisma.jobApplication.findMany({
       where: { applicantEmail: user.email },
