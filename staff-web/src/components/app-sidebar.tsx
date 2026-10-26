@@ -135,6 +135,7 @@ export default function AppSidebar() {
         <>
             <button
                 onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation"
                 className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white text-gray-900 shadow-sm border border-gray-200"
             >
                 <Menu className="h-5 w-5" />
@@ -148,7 +149,7 @@ export default function AppSidebar() {
                 "lg:hidden fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200",
                 mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 p-1.5 rounded-lg bg-gray-100 text-gray-500">
+                <button onClick={() => setMobileOpen(false)} aria-label="Close navigation" className="absolute top-4 right-4 p-1.5 rounded-lg bg-gray-100 text-gray-500">
                     <X className="h-4 w-4" />
                 </button>
                 {sidebarContent}
