@@ -568,3 +568,40 @@ test("anonymous donors are never identified in the authenticated CRM donor ledge
   const raw = JSON.stringify(data);
   expect(raw).not.toContain("CI Private Donor");
 });
+
+
+test("facility administrators cannot approve overlapping reservations", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL database");
+  expect((await request.get("/api/mobile/admin/facilities")).status()).toBe(401);
+  const login = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(login.status()).toBe(200);
+  const { token } = await login.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const response = await request.get("/api/mobile/admin/facilities", { headers });
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  const items = body.facilities as { id: string; name: string }[];
+  expect(items.some(item => item.name === "CI Community Room")).toBe(true);
+  const bookings = (body.bookings as { id: string; renterName: string }[])
+    .filter(b => b.renterName.startsWith("CI Renter"));
+  expect(bookings).toHaveLength(2);
+
+  const approved = await request.patch(`/api/mobile/admin/facilities/bookings/${bookings[0].id}`, {
+    headers, data: { status: "approved" },
+  });
+  expect(approved.status()).toBe(200);
+  const conflict = await request.patch(`/api/mobile/admin/facilities/bookings/${bookings[1].id}`, {
+    headers, data: { status: "approved" },
+  });
+  expect(conflict.status()).toBe(409);
+  const firstRejected = await request.patch(`/api/mobile/admin/facilities/bookings/${bookings[0].id}`, {
+    headers, data: { status: "rejected" },
+  });
+  expect(firstRejected.status()).toBe(200);
+  const next = await request.patch(`/api/mobile/admin/facilities/bookings/${bookings[1].id}`, {
+    headers, data: { status: "approved" },
+  });
+  expect(next.status()).toBe(200);
+});
