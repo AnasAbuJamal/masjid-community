@@ -81,7 +81,7 @@ export const authOptions: NextAuthOptions = {
                     await logAudit({
                         action: "login_failed",
                         email: email.toLowerCase(),
-                        userId: user.id,
+                        userId: String(user.id),
                         details: `Invalid password. ${MAX_LOGIN_ATTEMPTS - attempts} attempts remaining.`,
                         ipAddress: Array.isArray(ipAddress) ? ipAddress[0] : ipAddress,
                         success: false,
@@ -111,14 +111,14 @@ export const authOptions: NextAuthOptions = {
                 await logAudit({
                     action: "login",
                     email: user.email,
-                    userId: user.id,
+                    userId: String(user.id),
                     details: "Successful login",
                     ipAddress: Array.isArray(ipAddress) ? ipAddress[0] : ipAddress,
                     success: true,
                 });
 
                 return {
-                    id: user.id,
+                    id: String(user.id),
                     email: user.email,
                     name: `${user.firstName} ${user.lastName}`,
                     role: user.role,
