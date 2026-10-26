@@ -5,11 +5,10 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Card } from '../../components/common';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { jobService, Job } from '../../services/api';
@@ -23,31 +22,14 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
 
 export default function JobsScreen() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     jobService.getAll().then(setJobs);
   }, []);
 
   const handleApply = (job: Job) => {
-    Alert.alert(
-      `Apply for "${job.title}"`,
-      `Position at ${job.company} in ${job.location}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Apply via Email',
-          onPress: () => {
-            if (job.contactEmail) {
-              Linking.openURL(
-                `mailto:${job.contactEmail}?subject=Application for ${job.title}`
-              );
-            } else {
-              Alert.alert('No contact info', 'Please visit the masjid office.');
-            }
-          },
-        },
-      ]
-    );
+    router.push({ pathname: '/jobs/[id]', params: { id: job.id } });
   };
 
   const formatSalary = (job: Job) => {
