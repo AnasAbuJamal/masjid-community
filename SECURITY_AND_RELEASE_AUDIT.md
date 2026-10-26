@@ -1,49 +1,61 @@
 # Masjid Community — Release Audit and Verification Matrix
 
-**Last reviewed:** 2026-10-26. **Release status: NOT READY.** Draft PR #2 deliberately remains unmerged.
+**Updated:** 2026-10-26. **Release status: NOT READY.** Draft pull request [#2](https://github.com/AnasAbuJamal/masjid-community/pull/2) is intentionally unmerged.
 
-## What has been done
-- Repository structure inventoried: 316 files in the initial development branch tree, approximately 283 TypeScript/TSX source files. **Not every function has been individually tested.**
-- Web staff routes and dashboard components: corrected dozens of numeric Prisma ID/type inconsistencies; added backend access checks for staff dashboard and scoped student records, notifications, and parent portal.
-- Auth: replaced unsigned mobile session tokens with authenticated, expiring tokens; added authenticated native profile endpoints and revalidation of cached sessions. Added one-time hashed email verification with verified-parent access enforcement and an explicit Resend provider. Production delivery and link redemption still need end-to-end testing.
-- Mobile/service endpoints: prayer times, public announcements, jobs and applications, volunteering, proposals and votes, school classes, class schedules, instructor-assessed progress, assignments, attendance, verified parent access, rental bookings, leaderboards, and public event listings/detail/RSVP are now partly wired to persisted endpoints.
-- Payments: removed fake donation success confirmation, fake fundraising totals, fake recurring subscriptions, and fabricated tax receipts from key mobile flows. Added Stripe Checkout, signed webhook path, per-account donation history and recurring-subscription management; donation ownership, proposal votes, email verification and school invoice billing have **additive database migration scripts**.
-- Administration: replaced the fake native user list with role-restricted searchable pagination and audited account status/role updates; built a web school-billing dashboard for invoicing, invoice review and safe void actions.
-- School billing: removed fabricated parent tuition invoices and built real parent-scoped invoice read/checkout flows, with amount-bound Stripe webhook confirmation, retry idempotency and refund status.
-- Design system: responsive web dashboard and form controls, light/dark design tokens, focus and reduced-motion behavior, phone and tablet-centered mobile screen layouts, actionable 44px+ touch targets where modified, and a less cluttered layout.
-- CI: PostgreSQL 16 ephemeral test DB, guarded CI-only admin seed, Prisma validation, web/mobile tests and TypeScript checks, Next.js build, and Chromium Playwright browser checks configured for 390px phone, 820px iPad and 1440px desktop widths.
+## Repository and build verification
 
-## Verified vs. pending
+The initial `development` branch included 316 tracked files across the Next.js staff backend/dashboard and Expo React Native app. That tree was inventoried. **Not every function in every source file has been individually executed**, and green CI is not a guarantee of flawless production behavior.
 
-| Area | Most recent evidence / limitations |
-| --- | --- |
-| Mobile unit tests | **81/81 passed** in an earlier complete run; latest feature edits require a fresh complete run. |
-| Staff unit tests | **33/33 passed** in an earlier complete run; latest edits require a fresh complete run. |
-| Prisma schema / TypeScript / Next.js build | Passed in previous green CI runs (e.g. run `40383357529`) prior to the newest changes. |
-| PostgreSQL integration | Local CI database creation succeeded; comprehensive CRUD, authorization, migrations, and real data behavior not yet certified. |
-| Chromium responsive/browser testing | **Not yet passed.** The browser harness now starts the server and previously exposed a Next.js route collision and mobile navigation/login failure paths; corrections were committed. Fresh E2E tests, including parent verification and invoice creation, remain pending. |
-| Real Stripe payments | **Not tested in Stripe test mode end-to-end.** Subscriptions, webhook retries/idempotency, refunds and customer receipts need a staging pass. |
-| iOS/iPadOS/Android | **Not built or manually tested on physical devices.** Browser viewport tests are not substitutes for native device validation. |
-| Email, notifications, offline state | Resend delivery requires production sender/API configuration and testing; push notifications and offline behavior remain unverified. |
+GitHub Actions verifies:
+- An isolated PostgreSQL 16 service with `npx prisma validate`, `prisma db push` and strictly guarded CI-only fixtures.
+- Staff-web unit tests, TypeScript compilation and the Next.js production build.
+- Expo mobile unit tests and TypeScript compilation.
+- Chromium Playwright tests of login and responsive navigation at phone (390px), iPad (820px) and desktop (1440px) widths.
+- Integration tests for bearer sessions, verified-parent isolation, administrative users, school invoices, resource publishing, monthly financial budget visibility, CRM reports, volunteer capacity, job moderation, donor anonymity, announcement scheduling and facility collision prevention.
 
-## Known unfinished features and critical work
+A confirmed green workflow before the newest changes was **[run 40398499899](https://github.com/AnasAbuJamal/masjid-community/actions/runs/40398499899)**. **The newest commits require a fresh completed green run**; do not count cancelled intermediate runs as passing.
 
-- **Security:** The public Git history contains previously committed credentials; deleting HEAD copies does not revoke them. Rotate all database passwords, NextAuth secrets, email and payment-provider credentials that were real, and affected seed-user passwords. Reconfigure secure environment variables and review logs. Do not commit replacements.
-- **Financial integrity:** Existing guest payments are not retroactively linked to user accounts (email alone is insufficient proof). Configure and verify Stripe receipt URLs. Test recurring cancellations and invoice renewals. Some accounting/CRM screens still contain sample financial records; these must be replaced or disabled before production. School parent invoices are now database-backed but have not passed Stripe test-mode payment verification.
-- **Remaining screen mocks:** Mobile admin job/volunteer/audit screens, CRM analytics and workflows, finances budgets/expenses, school resources and some other routes still contain mock values or incomplete actions. Native user management, tuition invoices, school progress and class schedules have been converted to database-backed workflows but require fresh CI and device testing. This PR does **not** certify all features complete.
-- **Database deployment:** Review and apply additive `Donation.userId`, `ProposalVote`, `EmailVerificationToken`, and `SchoolInvoice` migration scripts against a backed-up staging database, then production after approval. CI `prisma db push` is not production migration review.
-- **Build assets:** Existing Expo icons/splash files have placeholder-size image files and need real production PNGs and app-store build validation.
-- **Security hardening:** Audit every private route; use distributed rate limits (the in-memory map is not a durable serverless rate limiter); verify file uploads, outbound email, consent, role permissions, and risks around children’s information.
-- **Responsive design:** Complete visual regression tests at narrow phones, tablets/iPads, large desktops; include keyboard, VoiceOver, TalkBack, dynamic type, light/dark, and landscape orientation.
+## Features implemented or significantly repaired in this PR
 
-## Required release gates
+### Security and authentication
+- Removed checked-in active environment files and insecure hard-coded runtime secrets. Hardened CORS and build checks.
+- Replaced unsigned mobile bearer tokens with signed, expiring sessions validated by the server. Restored mobile register/login/me/profile/password APIs and runtime role checks.
+- Added expiring, hashed, one-time email verification. Parent-only student, attendance, progress, enrollment, rental and application access requires verified email ownership rather than relying on an unverified claimed address.
+- Added audited administrator operations, strict input validation, more appropriate no-store responses and failure handling across new endpoints.
 
-1. Rotate compromised credentials and confirm production secrets are configured privately.
-2. Obtain a **green fresh CI run** covering Prisma, staff/mobile unit tests, TypeScript and Next build.
-3. Pass Chromium Playwright tests for phone, tablet and desktop; compare rendered pages with actual design requirements.
-4. Replace/disable remaining production mocks and implement their real backend data and authorization.
-5. Pass Stripe sandbox payment/webhook/subscription and secure email-provider flows with staging DB.
-6. Validate iOS/iPadOS/Android native app builds, Expo assets, accessibility and notifications on physical devices.
-7. Review and merge draft PR only after all the above are satisfied.
+### School and parent experience
+- Database-backed class catalog, class details, instructor-entered assessments, weekly schedules, assignments and parent/student information.
+- Replaced fictitious tuition charges with `SchoolInvoice`, parent-scoped billing, Stripe Checkout and amount-bound signed webhook reconciliation.
+- Responsive administrator billing dashboard for issuing, viewing and safely voiding invoices.
+- Curated `EducationalResource` model, staff/teacher publishing dashboard, public resource search/filter/pagination, safe HTTPS links and tracked views; drafts are not publicly accessible.
 
-**Do not claim 100% functionality, flawless design or safe live deployment from unit tests and code review alone.**
+### Donations and financial transparency
+- Stripe-hosted donations and verified webhook updates, recurring subscription state/cancellation, private donation history and actual account records instead of fabricated receipts.
+- Published `FinancialBudget` categories with administrator create/edit/delete workflow. Community mobile finances now shows actual recorded summary and expense category aggregations with budget draft privacy.
+- Admin-only CRM aggregation of verified payment totals and donor history, with anonymous donor names and emails excluded.
+- Admin-only CRM financial/member trends. Reports clearly label event RSVPs as registrations, not attendance or check-ins.
+
+### Community and administration
+- Real job listings, job detail and applications; administrative mobile job publishing and status moderation.
+- Volunteer applications with transactional approval, bounded capacity and duplicate-action protection.
+- Real mobile admin users, status/role management, audit history, announcement publishing/scheduling and hide/show controls.
+- Real CRM facilities and rental booking moderation with time-overlap checks.
+- Proposal voting and persisted counts, public events and RSVPs, prayer times, public community announcements and other mobile API connections.
+
+### Design and product polish
+- Semantic light/dark web styles, focus treatment, reduced-motion support, navigation semantics and responsive layouts.
+- Phone/tablet-centered React Native content where edited, generally 44pt+ tap targets, accessible UI labels, honest loading/empty/error states.
+- Removed unused shared mock API generators and simulated content from numerous public, school, accounting and admin flows.
+
+## Remaining work and release blockers
+
+1. **CRITICAL — exposed historical secrets:** Repository history previously contained credentials. Rotate production/staging database passwords, authentication secrets, administrator/teacher seed passwords, and any exposed real email/Stripe keys. HEAD file deletion does **not** invalidate secrets or erase Git history. Review production environment settings and access logs.
+2. **Production data and migrations:** Audit migrations in `staff-web/prisma/migrations`, back up the real database, run through them against staging, check all existing data relationships, and then apply through an approved production migration procedure. CI `prisma db push` does not verify production migration compatibility.
+3. **Real payment systems:** Run Stripe sandbox one-time/recurring checkout, signed events, refunds, retries, customer receipts, duplicate webhook delivery and failed payments using a real staging payment configuration. Do not enable real billing until verified.
+4. **Provider integrations:** Configure authenticated Resend sender, test actual registration verification and password-reset delivery, verify push notifications and email notification preferences. Ensure production secrets are never committed.
+5. **Remaining unfinished screens:** CRM volunteer shifts/teams, CRM task workflows, some approval screens, and portions of community member administration still contain placeholder data, missing persisted models or incomplete actions. Some school resources may require class-specific assignment/authorization. Audit all unfinished routes before release.
+6. **Native device QA:** No physical iOS/iPadOS/Android release build or full VoiceOver/TalkBack, dynamic-type, keyboard, orientation, offline, push permission, and App Store package audit has been performed. Browser width tests are not native tests. Expo production icons/splash images require review.
+7. **Scale and reliability:** In-memory request throttles are not distributed across serverless workers. Add durable rate limiting, telemetry, backups, retention/deletion policies and security review for children's information, uploads, payouts, and other privileged API actions.
+8. **Historical donor linking:** Existing guest donations cannot safely be assigned to accounts from email strings alone. Preserve privacy until verified ownership/reconciliation is implemented.
+
+**Do not merge or deploy this draft PR as 100% complete until these outstanding tasks and a fresh full CI run are resolved.**
