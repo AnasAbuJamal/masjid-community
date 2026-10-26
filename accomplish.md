@@ -409,3 +409,15 @@ Report creation now puts the active-student/class permission check and insert in
 No local tests, typecheck, browser review, device review, or database work ran for this change because the environment was unavailable. The existing PR workflow should validate this revision; check its exact commit before reporting success. Live concurrent reassignment scenarios still require integration tests. No migration was added. Mobile report/assignment forms and previous release backlog remain unfinished.
 
 On environment restoration, fetch the remote branch before editing: this change was created directly through GitHub and is not present in the prior local checkout. Do not overwrite remote work with the older local tree.
+
+## Checkpoint — mobile teacher reports
+
+Synced the remote report transaction commit d9eb0da654fb6057bfdab4be949dbfb024303c0b before editing; the local base tree matched GitHub. Its GitHub readiness run 40355658540 had passed all checks.
+
+Added School → Teaching classes → Student reports. Teacher/admin/staff users can choose an active student from a paginated, scoped class roster, read the latest 50 reports, and publish a categorized report using the existing validated transactional API. The form explicitly states that students and verified linked family accounts can read reports. It includes theme-aware wrapping layout, accessible labels, character limits, error/retry/empty states and duplicate-tap protection. An uncertain network result reloads history and blocks another submission until history is reviewed; this reduces accidental duplicates but is not server-side idempotency. In-page student changes require discarding/saving the draft. Account/class changes remount the form to prevent old account data being reused.
+
+Student roster reads now validate bounded page/limit/class filters, use a deterministic tie-breaker for pagination and return no-store. 22 focused roster/report/family tests passed (8 new roster access/pagination tests); staff and mobile TypeScript checks passed. No live database or physical-device/visual review ran. Prior account linking and migrations remain prerequisites; no new migration in this batch.
+
+Remaining: report edit/delete UI and complete history pagination; system-back/app suspension and unsaved draft behavior; create idempotency and genuine network-loss testing; teacher mobile assignments and formal grades; minimal roster payloads and all remaining deployment/UI release checks. The parent endpoint already reads these saved reports, but a real teacher-to-parent live-account smoke test is still required.
+
+Expo static web export passed for 81 routes, including `/school/teacher/reports`. This confirms build compatibility, not authenticated visual or real-device behavior.

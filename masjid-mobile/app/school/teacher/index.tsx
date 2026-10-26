@@ -38,6 +38,7 @@ export default function TeacherDashboardScreen() {
           <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>{cls.name}</Text>
           <Text style={[styles.body, { color: colors.textSecondary }]}>{cls.schedule || 'Schedule not set'}</Text>
           <Text style={[styles.body, { color: colors.textSecondary }]}>{cls.students.length} active students</Text>
+          {button('Student reports', () => router.push({ pathname: '/school/teacher/reports', params: { classId: String(cls.id) } }))}
           {button('Roster and attendance', () => router.push({ pathname: '/school/teacher/attendance', params: { classId: String(cls.id) } }))}
         </View>)}
         {(page > 1 || (data?.totalPages ?? 0) > 1) && <View style={styles.row}>{button('Previous', () => setPage(p => p - 1), page === 1)}<Text style={{ color: colors.text }}>Page {page}</Text>{button('Next', () => setPage(p => p + 1), page >= (data?.totalPages ?? 0))}</View>}

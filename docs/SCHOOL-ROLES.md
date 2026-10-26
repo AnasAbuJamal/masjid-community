@@ -51,3 +51,7 @@ School → Teaching classes and attendance opens database-backed assigned classe
 Only teachers/staff/admin can create or modify assignment progress and reports; students/verified family accounts read only within their existing scope. Assignment student/teacher associations cannot be changed through edits. The creation teacher comes from the session, and new assignments require an active authorized student. Input accepts only documented fields and enumerated statuses/ratings. Dates are calendar days (`YYYY-MM-DD`), stored at UTC midnight.
 
 The current assignment model is an individual student's lesson/review and qualitative rating. It has no points, submissions, class-wide assignment or due-date fields. Formal grades require a separate implemented model/workflow. Reports accept general, academic, behavioral or daily categories; filtered reads return at most the latest 50 until pagination is completed.
+
+### Mobile teacher reports
+
+Open Teaching classes → Student reports, select a student, review recent history, then publish a report. The roster request always intersects the requested class with the account's scope. Report creation uses the server's active-student and class permission checks; changing a URL cannot grant access. Published reports are visible through the existing student/family read endpoints, so the form explains that audience before submission. A response lost after saving requires reviewing refreshed history before another submission. Mobile report editing/deletion and history beyond the latest 50 are not implemented yet.

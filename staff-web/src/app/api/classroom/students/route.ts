@@ -11,8 +11,14 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = req.nextUrl;
     const classId = searchParams.get("classId");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const rawPage = searchParams.get("page") ?? "1";
+    const rawLimit = searchParams.get("limit") ?? "50";
+    const validId = (value: string) => /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value));
+    if (!validId(rawPage) || !validId(rawLimit) || Number(rawPage) > 10000 || Number(rawLimit) > 100 || (classId !== null && !validId(classId))) {
+        return NextResponse.json({ error: "Invalid student filters" }, { status: 400 });
+    }
+    const page = Number(rawPage);
+    const limit = Number(rawLimit);
 
     const where = { AND: [studentScope(session.user), { isActive: true, ...(classId ? { classId: Number(classId) } : {}) }] };
 
@@ -20,14 +26,14 @@ export async function GET(req: NextRequest) {
         prisma.student.findMany({
             where,
             include: { class: { select: { name: true } } },
-            orderBy: { firstName: "asc" },
+            orderBy: [{ firstName: "asc" }, { id: "asc" }],
             skip: (page - 1) * limit,
             take: limit,
         }),
         prisma.student.count({ where }),
     ]);
 
-    return NextResponse.json({ students, total, page, totalPages: Math.ceil(total / limit) });
+    return NextResponse.json({ students, total, page, totalPages: Math.ceil(total / limit) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: NextRequest) {
