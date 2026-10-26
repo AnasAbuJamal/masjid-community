@@ -10,11 +10,13 @@ export interface User {
   phone?: string;
   avatar?: string;
   createdAt?: string;
+  isVerified?: boolean;
 }
 
 export interface AuthResponse {
   user: User;
   token: string;
+  verificationEmailSent?: boolean;
 }
 
 export interface PrayerTimes {
@@ -288,6 +290,10 @@ export const apiService = {
 
     logout: async (): Promise<void> => {
       await apiClient.clearToken();
+    },
+
+    requestVerification: async (): Promise<void> => {
+      await api.instance.post("/auth/verification/request");
     },
 
     me: async (): Promise<User> => {
