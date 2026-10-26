@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import Stripe from "stripe";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -8,94 +9,66 @@ function getStripe() {
   return new Stripe(key, { apiVersion: "2026-01-28.clover" });
 }
 
+const campaignNames: Record<string, string> = {
+  construction: "Masjid Construction Fund",
+  ramadan: "Ramadan Fund",
+  education: "Education Fund",
+  zakat: "Zakat",
+  sadaqah: "Sadaqah",
+  general: "General Donation",
+};
+
 export async function POST(req: NextRequest) {
+  if (!rateLimit(`donate:${getClientIp(req)}`, 20, 60 * 60000).success)
+    return NextResponse.json({ error: "Please try again later" }, { status: 429 });
   try {
     const body = await req.json();
-    const { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName, successUrl, cancelUrl } = body;
-
-    if (!amount || amount < 100) {
-      return NextResponse.json({ error: "Minimum donation is $1.00" }, { status: 400 });
+    const { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName, recurringFrequency } = body;
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 1 || amount > 100000 ||
+        Math.round(amount * 100) !== amount * 100) {
+      return NextResponse.json({ error: "Donation amount must be between $1 and $100,000 (up to two decimals)" }, { status: 400 });
     }
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: campaign === "construction" ? "Masjid Construction Fund" :
-                     campaign === "ramadan" ? "Ramadan Fund" :
-                     campaign === "education" ? "Education Fund" :
-                     campaign === "zakat" ? "Zakat" :
-                     campaign === "sadaqah" ? "Sadaqah" : "General Donation",
-              description: `Donation to Al-Momineen - ${campaign || "General Fund"}`,
-            },
-            unit_amount: Math.round(amount * 100),
-          },
-          quantity: 1,
-        },
-      ],
+    if (donorEmail && (typeof donorEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail)))
+      return NextResponse.json({ error: "Invalid donor email" }, { status: 400 });
+    const chosenCampaign = typeof campaign === "string" && campaign in campaignNames ? campaign : "general";
+    const frequency = recurringFrequency === "weekly" ? "week" : "month";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl || !/^https:\/\//.test(appUrl)) {
+      return NextResponse.json({ error: "Payment system is not configured" }, { status: 503 });
+    }
+    const cents = Math.round(amount * 100);
+    const params: Stripe.Checkout.SessionCreateParams = {
       mode: isRecurring ? "subscription" : "payment",
-      success_url: successUrl || `${appUrl}/donate/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${appUrl}/donate/cancel`,
-      metadata: {
-        campaign: campaign || "general",
-        isAnonymous: isAnonymous ? "true" : "false",
-      },
-    };
-
-    if (isRecurring) {
-      sessionParams.subscription_data = {
-        metadata: {
-          campaign: campaign || "general",
-          isAnonymous: isAnonymous ? "true" : "false",
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          product_data: { name: campaignNames[chosenCampaign],
+            description: `Donation to Al-Momineen — ${campaignNames[chosenCampaign]}` },
+          unit_amount: cents,
+          ...(isRecurring ? { recurring: { interval: frequency } } : {}),
         },
-      };
-    }
-
-    if (!isAnonymous && donorEmail) {
-      sessionParams.customer_email = donorEmail;
-    }
-
-    if (!isAnonymous && donorName) {
-      sessionParams.customer = {
-        name: donorName,
-        email: donorEmail,
-      } as unknown as string;
-    }
-
-    const session = await getStripe().checkout.sessions.create(sessionParams);
-
-    await prisma.donation.create({
-      data: {
-        stripeSessionId: session.id,
-        amount: Math.round(amount * 100),
-        currency: "usd",
-        status: "pending",
-        donorName: isAnonymous ? null : donorName,
-        donorEmail: isAnonymous ? null : donorEmail,
-        isAnonymous: isAnonymous || false,
-        campaign: campaign || "general",
-        isRecurring: isRecurring || false,
-      },
-    });
-
-    return NextResponse.json({ 
-      sessionId: session.id, 
-      url: session.url 
+        quantity: 1,
+      }],
+      success_url: `${appUrl}/?donation=success`,
+      cancel_url: `${appUrl}/?donation=cancelled`,
+      metadata: { campaign: chosenCampaign, isAnonymous: isAnonymous ? "true" : "false" },
+      ...(isRecurring ? { subscription_data: { metadata: { campaign: chosenCampaign,
+        isAnonymous: isAnonymous ? "true" : "false" } } } : {}),
+    };
+    if (!isAnonymous && donorEmail) params.customer_email = donorEmail.trim().toLowerCase();
+    const session = await getStripe().checkout.sessions.create(params);
+    await prisma.donation.create({ data: {
+      stripeSessionId: session.id, amount: cents, currency: "usd", status: "pending",
+      donorName: isAnonymous ? null : (typeof donorName === "string" ? donorName.slice(0, 100) : null),
+      donorEmail: isAnonymous ? null : (donorEmail || null), isAnonymous: !!isAnonymous,
+      campaign: chosenCampaign, isRecurring: !!isRecurring,
+    } });
+    return NextResponse.json({ sessionId: session.id, url: session.url }, {
+      headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
     console.error("Stripe checkout error:", error);
-    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });
+    return NextResponse.json({ error: "Unable to start secure checkout" }, { status: 500 });
   }
-}
-
-export async function GET() {
-  return NextResponse.json({ 
-    message: "Create donation checkout session",
-    usage: "POST with { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName }"
-  });
 }
