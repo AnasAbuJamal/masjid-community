@@ -27,6 +27,7 @@ export const navItems: NavItem[] = [
     // School
     { title: "Classroom", href: "/dashboard/classroom", icon: "GraduationCap", roles: ["admin", "teacher"], section: "School" },
     { title: "Student Applications", href: "/dashboard/applications", icon: "ClipboardCheck", roles: ["admin"], section: "School" },
+    { title: "School Billing", href: "/dashboard/school-billing", icon: "FileText", roles: ["admin"], section: "School" },
     { title: "Attendance", href: "/dashboard/attendance", icon: "Calendar", roles: ["admin", "teacher"], section: "School" },
     { title: "Assignments", href: "/dashboard/assignments", icon: "ClipboardList", roles: ["admin", "teacher"], section: "School" },
     { title: "Gamification", href: "/dashboard/gamification", icon: "Trophy", roles: ["admin", "teacher", "student"], section: "School" },
