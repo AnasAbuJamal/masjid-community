@@ -1,340 +1,153 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import api from '../../services/api-client';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  time: string;
-  location: string;
-  imageUrl?: string;
-  organizer: string;
-  category: string;
-  attendees: number;
-  isRegistered: boolean;
+interface CommunityEvent {
+  id: string; title: string; description: string; location: string; date: string;
+  endDate: string | null; category: string; attendees: number; capacity: number | null;
+  isRegistered: boolean; status: string;
 }
-
-const MOCK_EVENT: Event = {
-  id: '1',
-  title: 'Ramadan Iftar Program',
-  description: 'Join us for a blessed iftar experience. We will be serving iftar meals to the community. All are welcome to attend and participate in this spiritual gathering.\n\nHighlights:\n- Complete iftar meal\n- Quran recitation\n- Spiritual reflection\n- Community bonding',
-  date: '2026-03-15',
-  time: '6:30 PM',
-  location: 'Masjid Al-Momineen Main Hall',
-  organizer: 'Masjid Committee',
-  category: 'religious',
-  attendees: 85,
-  isRegistered: false,
-};
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [event, setEvent] = useState<Event | null>(null);
+  const [event, setEvent] = useState<CommunityEvent | null>(null);
+  const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    setEvent(MOCK_EVENT);
-  }, [id]);
-
-  const handleRegister = () => {
-    if (!event) return;
-    
-    Alert.alert(
-      'Register for Event',
-      `Would you like to register for "${event.title}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Register',
-          onPress: () => {
-            setRegistering(true);
-            setTimeout(() => {
-              setEvent(prev => prev ? { ...prev, isRegistered: true, attendees: prev.attendees + 1 } : null);
-              setRegistering(false);
-              Alert.alert('Success!', 'You have registered for this event.');
-            }, 1000);
-          },
-        },
-      ]
-    );
-  };
-
-  const handleShare = async () => {
-    if (!event) return;
+  const load = async () => {
+    if (!id) return;
     try {
-      await Share.share({
-        message: `Join us for "${event.title}" on ${event.date} at ${event.time} at ${event.location}`,
-        title: event.title,
-      });
-    } catch (error) {
-      console.error('Error sharing:', error);
+      const response = await api.instance.get<CommunityEvent>(`/public/events/${encodeURIComponent(id)}`);
+      setEvent(response.data);
+      setError('');
+    } catch {
+      setError('Event details are temporarily unavailable.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { void load(); }, [id]);
+
+  const register = async () => {
+    if (!event || event.isRegistered || registering) return;
+    setRegistering(true);
+    try {
+      await api.instance.post(`/public/events/${encodeURIComponent(event.id)}/rsvp`);
+      setEvent(current => current ? { ...current, isRegistered: true, attendees: current.attendees + 1 } : null);
+      Alert.alert('Registration confirmed', 'You are registered for this event.');
+    } catch (reason: unknown) {
+      const status = reason && typeof reason === 'object' && 'response' in reason
+        ? (reason as { response?: { status?: number } }).response?.status : undefined;
+      Alert.alert('Unable to register', status === 401
+        ? 'Please sign in before registering for events.'
+        : status === 409 ? 'This event has reached capacity.' : 'Please try again later.');
+    } finally {
+      setRegistering(false);
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
+  const share = async () => {
+    if (!event) return;
+    await Share.share({
+      message: `${event.title} — ${new Date(event.date).toLocaleString('en-US')} at ${event.location}`,
+    }).catch(() => {});
   };
-
-  if (!event) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loading}>
-          <Text>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Event Details</Text>
-        <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
-          <MaterialCommunityIcons name="share-variant" size={22} color={COLORS.text} />
+        <TouchableOpacity onPress={share} accessibilityRole="button" accessibilityLabel="Share event" style={styles.iconButton}>
+          <MaterialCommunityIcons name="share-variant-outline" size={23} color={COLORS.text} />
         </TouchableOpacity>
       </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Event Image Placeholder */}
-        <View style={styles.imageContainer}>
-          <View style={styles.imagePlaceholder}>
-            <MaterialCommunityIcons name="calendar-star" size={64} color={COLORS.primary} />
-          </View>
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryText}>{event.category.toUpperCase()}</Text>
-          </View>
-        </View>
-
-        {/* Event Info */}
-        <View style={styles.infoSection}>
-          <Text style={styles.eventTitle}>{event.title}</Text>
-          
-          <View style={styles.metaRow}>
-            <MaterialCommunityIcons name="calendar" size={18} color={COLORS.primary} />
-            <Text style={styles.metaText}>{formatDate(event.date)}</Text>
-          </View>
-          
-          <View style={styles.metaRow}>
-            <MaterialCommunityIcons name="clock-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.metaText}>{event.time}</Text>
-          </View>
-          
-          <View style={styles.metaRow}>
-            <MaterialCommunityIcons name="map-marker" size={18} color={COLORS.primary} />
-            <Text style={styles.metaText}>{event.location}</Text>
-          </View>
-          
-          <View style={styles.metaRow}>
-            <MaterialCommunityIcons name="account-group" size={18} color={COLORS.primary} />
-            <Text style={styles.metaText}>{event.attendees} attending</Text>
-          </View>
-        </View>
-
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.description}>{event.description}</Text>
-        </View>
-
-        {/* Organizer */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Organizer</Text>
-          <View style={styles.organizerCard}>
-            <View style={styles.organizerAvatar}>
-              <MaterialCommunityIcons name="account-tie" size={24} color={COLORS.primary} />
+      {loading ? <ActivityIndicator style={styles.loading} color={COLORS.primary} /> : !event ? (
+        <View style={styles.empty}><Text style={styles.meta}>{error || 'Event not found'}</Text></View>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={styles.content}>
+            <Text style={styles.category}>{event.category.replace(/_/g, ' ').toUpperCase()}</Text>
+            <Text style={styles.title}>{event.title}</Text>
+            <View style={styles.card}>
+              <View style={styles.line}>
+                <MaterialCommunityIcons name="calendar" size={21} color={COLORS.primary} />
+                <View style={styles.lineBody}>
+                  <Text style={styles.label}>Date & time</Text>
+                  <Text style={styles.value}>{new Date(event.date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</Text>
+                </View>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.line}>
+                <MaterialCommunityIcons name="map-marker-outline" size={21} color={COLORS.primary} />
+                <View style={styles.lineBody}>
+                  <Text style={styles.label}>Location</Text>
+                  <Text style={styles.value}>{event.location}</Text>
+                </View>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.line}>
+                <MaterialCommunityIcons name="account-group-outline" size={21} color={COLORS.primary} />
+                <View style={styles.lineBody}>
+                  <Text style={styles.label}>Attendance</Text>
+                  <Text style={styles.value}>{event.attendees} registered{event.capacity ? ` · ${event.capacity} capacity` : ''}</Text>
+                </View>
+              </View>
             </View>
-            <Text style={styles.organizerName}>{event.organizer}</Text>
+            <Text style={styles.heading}>About</Text>
+            <Text style={styles.description}>{event.description}</Text>
+          </ScrollView>
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={[styles.button, event.isRegistered && styles.registered]}
+              disabled={event.isRegistered || registering || event.status !== 'scheduled'}
+              accessibilityRole="button"
+              accessibilityLabel={event.isRegistered ? 'Already registered' : 'Register for event'}
+              onPress={() => void register()}
+            >
+              <Text style={styles.buttonText}>{registering ? 'Registering…' : event.isRegistered
+                ? 'Registered' : event.status !== 'scheduled' ? 'Registration closed' : 'Register for Event'}</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-      </ScrollView>
-
-      {/* Register Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.registerButton, event.isRegistered && styles.registeredButton]}
-          onPress={handleRegister}
-          disabled={event.isRegistered || registering}
-        >
-          <MaterialCommunityIcons 
-            name={event.isRegistered ? 'check' : 'calendar-plus'} 
-            size={20} 
-            color={COLORS.white} 
-          />
-          <Text style={styles.registerText}>
-            {registering 
-              ? 'Registering...' 
-              : event.isRegistered 
-                ? 'Registered' 
-                : 'Register for Event'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+        </>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  shareButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    paddingBottom: 100,
-  },
-  imageContainer: {
-    height: 200,
-    backgroundColor: COLORS.surface,
-    position: 'relative',
-  },
-  imagePlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary + '15',
-  },
-  categoryBadge: {
-    position: 'absolute',
-    top: SPACING.md,
-    left: SPACING.md,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  categoryText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
-  infoSection: {
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    marginBottom: SPACING.sm,
-  },
-  eventTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.md,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-    gap: SPACING.sm,
-  },
-  metaText: {
-    fontSize: 15,
-    color: COLORS.text,
-  },
-  section: {
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    marginBottom: SPACING.sm,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: SPACING.sm,
-  },
-  description: {
-    fontSize: 15,
-    color: COLORS.text,
-    lineHeight: 24,
-  },
-  organizerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  organizerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  organizerName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  registerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
-    gap: SPACING.sm,
-    ...SHADOWS.md,
-  },
-  registeredButton: {
-    backgroundColor: COLORS.success,
-  },
-  registerText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { paddingHorizontal: SPACING.sm, flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  loading: { flex: 1 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: SPACING.lg,
+    paddingBottom: SPACING.xxl },
+  category: { fontSize: 12, fontWeight: '700', color: COLORS.primary, letterSpacing: 0.3, marginBottom: SPACING.sm },
+  title: { fontSize: 27, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.xl },
+  card: { borderRadius: RADIUS.xl, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.border, padding: SPACING.lg },
+  line: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.sm },
+  lineBody: { flex: 1 },
+  label: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 4 },
+  value: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.sm },
+  heading: { color: COLORS.text, fontSize: 20, fontWeight: '700', marginTop: SPACING.xl, marginBottom: SPACING.sm },
+  description: { color: COLORS.textSecondary, fontSize: 15, lineHeight: 24 },
+  footer: { padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border },
+  button: { height: 52, borderRadius: RADIUS.lg, backgroundColor: COLORS.primary, justifyContent: 'center',
+    alignItems: 'center' },
+  registered: { backgroundColor: COLORS.success },
+  buttonText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+  meta: { color: COLORS.textSecondary, fontSize: 14 },
 });
