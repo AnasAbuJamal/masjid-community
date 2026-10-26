@@ -605,3 +605,65 @@ test("facility administrators cannot approve overlapping reservations", async ({
   });
   expect(next.status()).toBe(200);
 });
+
+
+test("CRM tasks persist create, transition, completion, reopen and deletion with admin authorization", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+  expect((await request.get("/api/mobile/admin/crm/tasks")).status()).toBe(401);
+
+  const parentLogin = await request.post("/api/auth/login", {
+    data: { email: "ci-parent@example.test", password: "ci-only-parent-password-not-for-production" },
+  });
+  expect(parentLogin.status()).toBe(200);
+  const { token: parentToken } = await parentLogin.json();
+  expect((await request.get("/api/mobile/admin/crm/tasks", {
+    headers: { Authorization: `Bearer ${parentToken}` },
+  })).status()).toBe(403);
+
+  const response = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(response.status()).toBe(200);
+  const { token } = await response.json();
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const invalid = await request.post("/api/mobile/admin/crm/tasks", {
+    headers, data: { title: "Unacceptable", description: "",
+      category: "general", priority: "incorrect" },
+  });
+  expect(invalid.status()).toBe(400);
+
+  const created = await request.post("/api/mobile/admin/crm/tasks", {
+    headers, data: {
+      title: "CI Follow-up Call", description: "Phone an enrolled family",
+      assignedTo: "CI Administrator", category: "follow_up", priority: "high",
+      dueDate: new Date(Date.now() + 86400000).toISOString(),
+    },
+  });
+  expect(created.status()).toBe(201);
+  const task = await created.json();
+  expect(task.status).toBe("pending");
+  expect(task.category).toBe("follow_up");
+
+  const list = await request.get("/api/mobile/admin/crm/tasks?category=follow_up", { headers });
+  expect(list.status()).toBe(200);
+  const items = (await list.json()).tasks as { id: string; status: string }[];
+  expect(items.some(item => item.id === task.id)).toBe(true);
+
+  const progress = await request.patch(`/api/mobile/admin/crm/tasks/${task.id}`, {
+    headers, data: { status: "in_progress" },
+  });
+  expect(progress.status()).toBe(200);
+  const completed = await request.patch(`/api/mobile/admin/crm/tasks/${task.id}`, {
+    headers, data: { status: "completed" },
+  });
+  expect(completed.status()).toBe(200);
+  const reOpen = await request.patch(`/api/mobile/admin/crm/tasks/${task.id}`, {
+    headers, data: { status: "pending" },
+  });
+  expect(reOpen.status()).toBe(200);
+
+  const deleted = await request.delete(`/api/mobile/admin/crm/tasks/${task.id}`, { headers });
+  expect(deleted.status()).toBe(200);
+  expect((await request.delete(`/api/mobile/admin/crm/tasks/${task.id}`, { headers })).status()).toBe(404);
+});
