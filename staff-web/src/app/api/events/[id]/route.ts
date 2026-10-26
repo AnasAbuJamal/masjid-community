@@ -6,10 +6,15 @@ import { logAudit, getClientIp } from "@/lib/audit";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     
-    const event = await prisma.event.findUnique({
-        where: { id: parseInt(id) },
-        include: {
-            rsvps: true,
+    const identity = await auth();
+    const allowedPrivate = identity?.user?.role === "admin" || identity?.user?.role === "staff";
+    if (!/^\\d+$/.test(id)) return NextResponse.json({ error: "Invalid event" }, { status: 400 });
+    const event = await prisma.event.findFirst({
+        where: { id: Number(id), ...(allowedPrivate ? {} : { isPublic: true, status: { not: "cancelled" } }) },
+        select: {
+            id: true, title: true, description: true, location: true, startDate: true,
+            endDate: true, isAllDay: true, capacity: true, isPublic: true,
+            coverImage: true, category: true, status: true, _count: { select: { rsvps: true } },
         },
     });
 
@@ -17,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    return NextResponse.json(event);
+    return NextResponse.json(event, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
