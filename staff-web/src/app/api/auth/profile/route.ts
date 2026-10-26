@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest) {
     const updated = await prisma.user.update({ where: { id: user.id }, data: updates });
     return NextResponse.json({
       id: String(updated.id), email: updated.email, firstName: updated.firstName,
-      lastName: updated.lastName, role: updated.role, phone: updated.phone,
+      lastName: updated.lastName, role: updated.role, phone: updated.phone, isVerified: updated.isVerified,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ error: "Unable to update profile" }, { status: 400 });
