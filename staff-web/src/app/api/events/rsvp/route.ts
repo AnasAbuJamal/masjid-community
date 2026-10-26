@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
 
     const where: Prisma.EventRSVPWhereInput = {};
-    if (eventId) where.eventId = eventId;
+    if (eventId) where.eventId = Number(eventId);
     if (status) where.status = status as Prisma.EnumRSVPStatusFilter;
 
     const rsvps = await prisma.eventRSVP.findMany({
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await prisma.eventRSVP.findFirst({
-        where: { eventId, email },
+        where: { eventId: Number(eventId), email },
     });
 
     if (existing) {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const rsvp = await prisma.eventRSVP.create({
         data: {
-            eventId,
+            eventId: Number(eventId),
             name,
             email,
             phone: phone || null,
