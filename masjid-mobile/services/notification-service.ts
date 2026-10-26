@@ -94,6 +94,8 @@ class NotificationService {
     maghrib: string;
     isha: string;
   }): Promise<void> {
+    // Replace only our own prayer schedules instead of piling up duplicates.
+    await this.cancelAllPrayerNotifications();
     const prayers = [
       { name: 'Fajr', time: prayerTimes.fajr },
       { name: 'Dhuhr', time: prayerTimes.dhuhr },
@@ -104,7 +106,9 @@ class NotificationService {
 
     for (const prayer of prayers) {
       const [hours, minutes] = prayer.time.split(':').map(Number);
-      
+      if (!Number.isInteger(hours) || !Number.isInteger(minutes) ||
+          hours < 0 || hours > 23 || minutes < 0 || minutes > 59) continue;
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: `Time for ${prayer.name} Prayer`,
@@ -123,7 +127,14 @@ class NotificationService {
   }
 
   async cancelAllPrayerNotifications(): Promise<void> {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    // Disabling prayer alerts must not delete unrelated event, school or
+    // announcement reminders created by the same device.
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const item of scheduled) {
+      if (item.content.data?.type === 'prayer') {
+        await Notifications.cancelScheduledNotificationAsync(item.identifier);
+      }
+    }
   }
 
   async sendLocalNotification(config: NotificationConfig): Promise<string> {
