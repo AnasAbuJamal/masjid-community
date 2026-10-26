@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import Stripe from "stripe";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getApiIdentity } from "@/lib/api-identity";
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
   if (!rateLimit(`donate:${getClientIp(req)}`, 20, 60 * 60000).success)
     return NextResponse.json({ error: "Please try again later" }, { status: 429 });
   try {
+    const identity = await getApiIdentity(req);
     const body = await req.json();
     const { amount, campaign, isAnonymous, isRecurring, donorEmail, donorName, recurringFrequency } = body;
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 1 || amount > 100000 ||
@@ -56,12 +58,12 @@ export async function POST(req: NextRequest) {
       ...(isRecurring ? { subscription_data: { metadata: { campaign: chosenCampaign,
         isAnonymous: isAnonymous ? "true" : "false" } } } : {}),
     };
-    if (!isAnonymous && donorEmail) params.customer_email = donorEmail.trim().toLowerCase();
+    if (!isAnonymous && (identity?.email || donorEmail)) params.customer_email = (identity?.email || donorEmail).trim().toLowerCase();
     const session = await getStripe().checkout.sessions.create(params);
     await prisma.donation.create({ data: {
-      stripeSessionId: session.id, amount: cents, currency: "usd", status: "pending",
+      stripeSessionId: session.id, userId: identity?.id || null, amount: cents, currency: "usd", status: "pending",
       donorName: isAnonymous ? null : (typeof donorName === "string" ? donorName.slice(0, 100) : null),
-      donorEmail: isAnonymous ? null : (donorEmail || null), isAnonymous: !!isAnonymous,
+      donorEmail: isAnonymous ? null : (identity?.email || donorEmail || null), isAnonymous: !!isAnonymous,
       campaign: chosenCampaign, isRecurring: !!isRecurring,
     } });
     return NextResponse.json({ sessionId: session.id, url: session.url }, {
