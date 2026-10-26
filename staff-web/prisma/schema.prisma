@@ -130,6 +130,7 @@ enum PostStatus {
 enum SchoolInvoiceStatus {
   pending
   paid
+  refunded
   void
 }
 
@@ -143,6 +144,7 @@ model SchoolInvoice {
   dueDate         DateTime
   status          SchoolInvoiceStatus @default(pending)
   stripeSessionId String?             @unique
+  stripePaymentId String?             @unique
   paidAt          DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
