@@ -1,167 +1,170 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import api from '../../services/api-client';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
-interface Grade {
+interface Assessment {
   id: string;
-  subject: string;
-  grade: string;
-  letterGrade: string;
+  date: string;
+  type: string;
+  description: string;
+  rating: 'none' | 'weak' | 'good' | 'very_good' | 'excellent';
+  status: 'pending' | 'completed';
+}
+interface ProgressReport {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
   date: string;
 }
-
-interface Teacher {
+interface StudentProgress {
   id: string;
   name: string;
-  subject: string;
-  email: string;
-  phone?: string;
+  className: string;
+  instructor: string;
+  schedule: string;
+  assignments: Assessment[];
+  reports: ProgressReport[];
 }
+const formatLabel = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-const MOCK_GRADES: Grade[] = [
-  { id: '1', subject: 'Quran Recitation', grade: '92', letterGrade: 'A', date: '2026-02-15' },
-  { id: '2', subject: 'Islamic Studies', grade: '88', letterGrade: 'B+', date: '2026-02-10' },
-  { id: '3', subject: 'Arabic Language', grade: '85', letterGrade: 'B', date: '2026-02-08' },
-];
-
-const MOCK_TEACHERS: Teacher[] = [
-  { id: '1', name: 'Ustad Ahmed', subject: 'Quran', email: 'ahmed@almomineen.org', phone: '+1-555-0101' },
-  { id: '2', name: 'Ustad Fatima', subject: 'Islamic Studies', email: 'fatima@almomineen.org', phone: '+1-555-0102' },
-  { id: '3', name: 'Sheikh Mahmoud', subject: 'Arabic', email: 'mahmoud@almomineen.org' },
-];
-
-export default function GradesScreen() {
+export default function SchoolProgressScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'grades' | 'teachers'>('grades');
+  const [students, setStudents] = useState<StudentProgress[]>([]);
+  const [tab, setTab] = useState<'progress' | 'teachers'>('progress');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  const averageGrade = Math.round(MOCK_GRADES.reduce((sum, g) => sum + parseInt(g.grade), 0) / MOCK_GRADES.length);
-
-  const getGradeColor = (grade: string) => {
-    const num = parseInt(grade);
-    if (num >= 90) return COLORS.success;
-    if (num >= 80) return COLORS.primary;
-    if (num >= 70) return COLORS.warning;
-    return COLORS.error;
+  const load = async () => {
+    try {
+      const response = await api.instance.get<{ students: StudentProgress[] }>('/school/progress');
+      setStudents(response.data.students);
+      setError('');
+    } catch (failure: unknown) {
+      const httpStatus = (failure as { response?: { status?: number } })?.response?.status;
+      setError(httpStatus === 403
+        ? 'Verify your email address in Profile to view student progress.'
+        : 'Unable to retrieve school progress. Please check your connection.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const handleEmail = (email: string) => {
-    Linking.openURL(`mailto:${email}`);
-  };
-
-  const handleCall = (phone: string) => {
-    const callUrl = 'tel:' + phone;
-    Alert.alert('Call Teacher', 'Call ' + phone + '?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Call', onPress: () => Linking.openURL(callUrl) },
-    ]);
-  };
+  useEffect(() => { void load(); }, []);
+  const refresh = () => { setRefreshing(true); void load(); };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity style={styles.back} onPress={() => router.back()}
+          accessibilityRole="button" accessibilityLabel="Go back">
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Progress & Grades</Text>
-        <View style={{ width: 40 }} />
+        <Text style={styles.title}>School Progress</Text>
+        <View style={styles.back} />
       </View>
-
       <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, activeTab === 'grades' && styles.tabActive]} onPress={() => setActiveTab('grades')}>
-          <Text style={[styles.tabText, activeTab === 'grades' && styles.tabTextActive]}>Grades</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, activeTab === 'teachers' && styles.tabActive]} onPress={() => setActiveTab('teachers')}>
-          <Text style={[styles.tabText, activeTab === 'teachers' && styles.tabTextActive]}>Teachers</Text>
-        </TouchableOpacity>
+        {(['progress', 'teachers'] as const).map(key => (
+          <TouchableOpacity key={key} accessibilityRole="tab"
+            accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)}
+            style={[styles.tab, tab === key && styles.tabActive]}>
+            <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>
+              {key === 'progress' ? 'Assessments' : 'Instructors'}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {activeTab === 'grades' ? (
-          <>
-            <View style={styles.averageCard}>
-              <Text style={styles.averageLabel}>Overall Average</Text>
-              <Text style={styles.averageValue}>{averageGrade}%</Text>
-              <View style={styles.gradeScale}>
-                <Text style={styles.gradeScaleText}>A: 90-100  |  B: 80-89  |  C: 70-79  |  D: 60-69</Text>
+      {loading ? <ActivityIndicator style={styles.loader} color={COLORS.primary} size="large" /> : (
+        <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+          contentContainerStyle={styles.content}>
+          {error ? <Text style={styles.notice}>{error}</Text>
+            : students.length === 0 ? (
+              <View style={styles.empty}>
+                <MaterialCommunityIcons name="school-outline" size={44} color={COLORS.textSecondary} />
+                <Text style={styles.notice}>No student progress records are associated with your account.</Text>
               </View>
-            </View>
-
-            {MOCK_GRADES.map((grade) => (
-              <View key={grade.id} style={styles.gradeCard}>
-                <View style={styles.gradeInfo}>
-                  <Text style={styles.gradeSubject}>{grade.subject}</Text>
-                  <Text style={styles.gradeDate}>{new Date(grade.date).toLocaleDateString()}</Text>
-                </View>
-                <View style={styles.gradeRight}>
-                  <Text style={[styles.gradeValue, { color: getGradeColor(grade.grade) }]}>{grade.grade}%</Text>
-                  <Text style={[styles.letterGrade, { color: getGradeColor(grade.grade) }]}>{grade.letterGrade}</Text>
-                </View>
+            ) : students.map(student => (
+              <View style={styles.studentSection} key={student.id}>
+                <Text style={styles.studentName}>{student.name}</Text>
+                <Text style={styles.subheading}>{student.className}</Text>
+                {tab === 'teachers' ? (
+                  <View style={styles.card}>
+                    <View style={styles.iconRow}>
+                      <MaterialCommunityIcons name="account-school-outline" size={24} color={COLORS.primary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cardTitle}>{student.instructor}</Text>
+                        <Text style={styles.secondary}>{student.schedule}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    {student.assignments.length === 0 && student.reports.length === 0 && (
+                      <Text style={styles.notice}>No assessments or reports have been published yet.</Text>
+                    )}
+                    {student.assignments.map(assessment => (
+                      <View style={styles.card} key={`a${assessment.id}`}>
+                        <Text style={styles.cardTitle}>{formatLabel(assessment.type)}</Text>
+                        <Text style={styles.secondary}>{assessment.description}</Text>
+                        <View style={styles.meta}>
+                          <Text style={styles.secondary}>{new Date(assessment.date).toLocaleDateString()}</Text>
+                          <Text style={styles.rating}>{assessment.rating === 'none'
+                            ? formatLabel(assessment.status) : formatLabel(assessment.rating)}</Text>
+                        </View>
+                      </View>
+                    ))}
+                    {student.reports.map(report => (
+                      <View style={styles.card} key={`r${report.id}`}>
+                        <Text style={styles.cardTitle}>{report.title}</Text>
+                        <Text style={styles.secondary}>{report.content}</Text>
+                        <Text style={styles.date}>{new Date(report.date).toLocaleDateString()}</Text>
+                      </View>
+                    ))}
+                  </>
+                )}
               </View>
             ))}
-          </>
-        ) : (
-          MOCK_TEACHERS.map((teacher) => (
-            <View key={teacher.id} style={styles.teacherCard}>
-              <View style={styles.teacherAvatar}>
-                <MaterialCommunityIcons name="account" size={28} color={COLORS.primary} />
-              </View>
-              <View style={styles.teacherInfo}>
-                <Text style={styles.teacherName}>{teacher.name}</Text>
-                <Text style={styles.teacherSubject}>{teacher.subject}</Text>
-                <View style={styles.teacherContact}>
-                  <TouchableOpacity style={styles.contactButton} onPress={() => handleEmail(teacher.email)}>
-                    <MaterialCommunityIcons name="email-outline" size={18} color={COLORS.primary} />
-                  </TouchableOpacity>
-                  {teacher.phone && (
-                    <TouchableOpacity style={styles.contactButton} onPress={() => handleCall(teacher.phone!)}>
-                      <MaterialCommunityIcons name="phone-outline" size={18} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+          <Text style={styles.footerNote}>
+            Results reflect instructor-entered assessments. Numeric grades are not assigned unless the school publishes them.
+          </Text>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  tabs: { flexDirection: 'row', backgroundColor: COLORS.surface, padding: SPACING.xs, marginHorizontal: SPACING.md, marginTop: SPACING.sm, borderRadius: RADIUS.lg },
-  tab: { flex: 1, paddingVertical: SPACING.sm, alignItems: 'center', borderRadius: RADIUS.md },
-  tabActive: { backgroundColor: COLORS.primary },
+    paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  tabs: { flexDirection: 'row', backgroundColor: COLORS.surface, padding: SPACING.sm, gap: SPACING.sm },
+  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md },
+  tabActive: { backgroundColor: COLORS.primaryFaded },
   tabText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.white },
-  content: { padding: SPACING.md },
-  averageCard: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, padding: SPACING.xl, alignItems: 'center', marginBottom: SPACING.lg, ...SHADOWS.lg },
-  averageLabel: { fontSize: 14, color: COLORS.white + '99' },
-  averageValue: { fontSize: 48, fontWeight: '700', color: COLORS.white },
-  gradeScale: { marginTop: SPACING.sm },
-  gradeScaleText: { fontSize: 11, color: COLORS.white + '88' },
-  gradeCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, ...SHADOWS.sm },
-  gradeInfo: { flex: 1 },
-  gradeSubject: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  gradeDate: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  gradeRight: { alignItems: 'flex-end' },
-  gradeValue: { fontSize: 20, fontWeight: '700' },
-  letterGrade: { fontSize: 14, fontWeight: '600' },
-  teacherCard: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, ...SHADOWS.sm },
-  teacherAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primary + '15', justifyContent: 'center', alignItems: 'center', marginRight: SPACING.sm },
-  teacherInfo: { flex: 1 },
-  teacherName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  teacherSubject: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.xs },
-  teacherContact: { flexDirection: 'row', gap: SPACING.sm },
-  contactButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary + '15', justifyContent: 'center', alignItems: 'center' },
+  tabTextActive: { color: COLORS.primary },
+  loader: { flex: 1 },
+  content: { alignSelf: 'center', maxWidth: 820, width: '100%', padding: SPACING.md, paddingBottom: SPACING.xxl },
+  notice: { fontSize: 14, lineHeight: 21, color: COLORS.textSecondary, textAlign: 'center', marginVertical: SPACING.lg },
+  empty: { alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.xxl },
+  studentSection: { marginBottom: SPACING.lg },
+  studentName: { color: COLORS.text, fontSize: 20, fontWeight: '700' },
+  subheading: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2, marginBottom: SPACING.md },
+  card: { backgroundColor: COLORS.surface, borderColor: COLORS.border, borderWidth: 1,
+    borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, gap: SPACING.xs },
+  cardTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  secondary: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 19 },
+  iconRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm, marginTop: SPACING.xs },
+  rating: { color: COLORS.primary, fontSize: 13, fontWeight: '600' },
+  date: { color: COLORS.textSecondary, fontSize: 12, marginTop: SPACING.xs },
+  footerNote: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginTop: SPACING.lg },
 });
