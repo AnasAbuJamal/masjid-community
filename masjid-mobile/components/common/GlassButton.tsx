@@ -82,10 +82,14 @@ export function GlassButton({
         onPress={onPress}
         disabled={disabled || loading}
         activeOpacity={0.85}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: disabled || loading, busy: loading }}
         style={[fullWidth && styles.fullWidth, style]}
       >
         <LinearGradient
-          colors={['#4A90D9', '#7BB3E8']}
+          colors={['#0066CC', '#0066CC']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
@@ -107,6 +111,10 @@ export function GlassButton({
         onPress={onPress}
         disabled={disabled || loading}
         activeOpacity={0.85}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: disabled || loading, busy: loading }}
         style={[fullWidth && styles.fullWidth, style]}
       >
         <LinearGradient
@@ -131,6 +139,10 @@ export function GlassButton({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.7}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       style={buttonStyles}
     >
       {content}
@@ -163,7 +175,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '50%',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderBottomLeftRadius: RADIUS.lg,
     borderBottomRightRadius: RADIUS.lg,
   },
@@ -187,7 +199,7 @@ const styles = StyleSheet.create({
   size_sm: {
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
-    minHeight: 40,
+    minHeight: 44,
   },
   size_md: {
     paddingVertical: SPACING.sm + 4,
