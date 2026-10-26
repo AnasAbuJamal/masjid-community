@@ -434,6 +434,7 @@ enum ProposalCategory {
 model Donation {
   id Int @id @default(autoincrement())
   stripeSessionId   String         @unique
+  userId            Int?
   stripePaymentId   String?        @unique
   donorName         String?
   donorEmail        String?
@@ -446,6 +447,7 @@ model Donation {
   isAnonymous       Boolean        @default(false)
   receiptUrl        String?
   metadata          Json?
+  @@index([userId])
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 }
