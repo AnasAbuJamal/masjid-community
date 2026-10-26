@@ -4,7 +4,14 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log("🌱 Seeding database...\n");
+    // This file populates DEMO content, including hard-coded sample prayer times.
+    // It is deliberately impossible to run against production.
+    if (process.env.ALLOW_DEMO_SEED !== "true" ||
+        process.env.NODE_ENV === "production" ||
+        process.env.VERCEL === "1") {
+        throw new Error("Demo seed blocked. Use an isolated local database and set ALLOW_DEMO_SEED=true.");
+    }
+    console.log("🌱 Seeding DEMO database...\\n");
 
     // ── Admin User ──
     const adminEmail = process.env.ADMIN_SEED_EMAIL;
