@@ -35,3 +35,9 @@ These are code changes, not proof of complete school readiness. No live migratio
 Teachers can mark only active students currently in their assigned class; managers retain school-wide access. The server validates the entire batch before writing and saves it in one serializable transaction with its derived rates. Duplicate students, unsupported statuses, malformed IDs/dates and oversized batches are rejected. A record already owned by a different class on the same student/day returns a conflict, including after a class transfer. Students and parents cannot mark attendance.
 
 Use a date-only `YYYY-MM-DD` value; storage uses UTC midnight to represent that calendar day. Existing production dates need review before rollout if previously written using server-local midnight. The current schema supports one attendance record per student/day, not separate sessions. Late and excused still count as non-present in the existing rate formula; agree on school policy before release.
+
+### Student attendance history
+
+`GET /api/students/me/attendance?page=1` is student-only and derives the active enrollment from the authenticated account's `userId` link. It accepts no student/account selector. Responses contain only the student's name, class, date/status history and aggregate status counts, with 30 records per page and no-store caching. Read queries use a consistent database snapshot. Notes, parent contacts, and staff identifiers are excluded.
+
+Mobile students open **View my attendance** from School; member parents open **View family attendance** through the existing verified-family endpoint. The legacy check-in URL now opens the real history screen and clearly explains that teachers/staff record attendance. This does not implement self-check-in: session verification and its school policy are still pending.

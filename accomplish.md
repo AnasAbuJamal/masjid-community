@@ -362,3 +362,15 @@ Staff UI requires an explicit choice per unmarked student, supports intentional 
 Verification: staff TypeScript passed; 41 focused attendance/school-role/report/account-link tests passed, including 21 new attendance tests. These are unit/mocked API checks, NOT live PostgreSQL rollback/concurrency or browser/device verification. No live migration or deployment smoke checks ran.
 
 Remaining attendance work: PostgreSQL integration tests and visual/mobile checks; history pagination/full summaries; explicit school timezone setting; review/backfill any historical non-UTC-midnight records before adopting the calendar-day convention in an existing production dataset; attendance policy for late/excused (existing rate formula counts only present); multi-session/day model if required (current schema permits one record per student/day); genuine mobile check-in; comprehensive stale-form/concurrent-editor UX. Previous migration and role-link setup prerequisites still apply. Full application release checklist remains open.
+
+## Checkpoint — real student attendance history
+
+Removed fabricated attendance, class sessions, percentages and timer-based check-in success from both mobile attendance routes. The legacy check-in URL now routes to the real attendance history with an explicit teacher/staff marking explanation. Added student and family attendance entry points to the School tab.
+
+Added `/api/students/me/attendance`: student-role only, active enrollment linked by authenticated user ID, no arbitrary student selector, 30-row pagination and all-record counts for present/absent/late/excused. Only limited display fields leave the API; no notes/contact/staff IDs. Snapshot-consistent queries and no-store responses. No records does not mean absent. The mobile screen uses theme colors, wrapping layouts, accessible controls, loading/error/retry/unlinked states, page navigation and request guards. Old account/page results are not displayed for a new account/page.
+
+Both staff and mobile TypeScript checks passed; 21 attendance/family access tests passed (15 new student-history tests). No live database, deployed account flow, native device, or visual accessibility testing ran. No new schema migration is needed, but the prior account-link migration and admin linking remain prerequisites.
+
+Remaining: actual self-check-in with verifiable sessions; teacher dashboard/mobile marking; school-timezone and historical date normalization; larger role/feature audit and all remaining release checklist work. Build inspection also found missing native notification icon and a placeholder EAS projectId; these still require proper native setup. Web favicon now references the existing app icon instead of a missing file.
+
+Web build verification: Expo static web export completed successfully for all 79 routes. Rechecked after fixing the favicon reference. This confirms bundling/static export, not authenticated browser flows or native readiness.
