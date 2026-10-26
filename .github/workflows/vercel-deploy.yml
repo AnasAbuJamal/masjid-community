@@ -54,6 +54,9 @@ jobs:
           fi
       - name: Build and validate web application
         working-directory: staff-web
+        env:
+          # Static Prisma validation only; Vercel has its own encrypted DATABASE_URL.
+          DATABASE_URL: postgresql://unused:unused@localhost:5432/static_validation
         run: |
           npm ci
           npx prisma validate
