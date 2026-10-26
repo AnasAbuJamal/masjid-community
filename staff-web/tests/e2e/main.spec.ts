@@ -667,3 +667,65 @@ test("CRM tasks persist create, transition, completion, reopen and deletion with
   expect(deleted.status()).toBe(200);
   expect((await request.delete(`/api/mobile/admin/crm/tasks/${task.id}`, { headers })).status()).toBe(404);
 });
+
+
+test("teachers' attendance endpoint writes genuine class records and rejects invalid enrollment", async ({ request }) => {
+  test.skip(!hasFixture, "Requires isolated PostgreSQL test database");
+
+  expect((await request.get("/api/school/teacher/overview")).status()).toBe(401);
+  const parentLogin = await request.post("/api/auth/login", {
+    data: { email: "ci-parent@example.test", password: "ci-only-parent-password-not-for-production" },
+  });
+  expect(parentLogin.status()).toBe(200);
+  const parent = await parentLogin.json();
+  expect((await request.get("/api/school/teacher/overview", {
+    headers: { Authorization: `Bearer ${parent.token}` },
+  })).status()).toBe(403);
+
+  const adminLogin = await request.post("/api/auth/login", {
+    data: { email: adminEmail, password: adminPassword },
+  });
+  expect(adminLogin.status()).toBe(200);
+  const admin = await adminLogin.json();
+  const headers = { Authorization: `Bearer ${admin.token}` };
+
+  const response = await request.get("/api/school/teacher/overview", { headers });
+  expect(response.status()).toBe(200);
+  const data = await response.json();
+  const schoolClass = (data.classes as { id: string; name: string; students: { id: string; name: string }[] }[])
+    .find(c => c.name === "CI Test Quran Class");
+  expect(schoolClass).toBeDefined();
+  expect(schoolClass!.students).toHaveLength(1);
+  const student = schoolClass!.students[0];
+  const date = data.date as string;
+  const badMark = await request.post("/api/school/teacher/attendance", {
+    headers, data: { classId: Number(schoolClass!.id), studentId: 0, date, status: "present" },
+  });
+  expect(badMark.status()).toBe(400);
+
+  const present = await request.post("/api/school/teacher/attendance", {
+    headers, data: { classId: Number(schoolClass!.id),
+      studentId: Number(student.id), date, status: "present" },
+  });
+  expect(present.status()).toBe(200);
+  expect((await present.json()).status).toBe("present");
+
+  const corrected = await request.post("/api/school/teacher/attendance", {
+    headers, data: { classId: Number(schoolClass!.id),
+      studentId: Number(student.id), date, status: "late" },
+  });
+  expect(corrected.status()).toBe(200);
+  expect((await corrected.json()).status).toBe("late");
+
+  const latest = await request.get("/api/school/teacher/overview", { headers });
+  expect(latest.status()).toBe(200);
+  const changedClass = (await latest.json()).classes
+    .find((c: { id: string }) => c.id === schoolClass!.id);
+  expect(changedClass.students[0].attendance).toBe("late");
+
+  const unauthorizedMark = await request.post("/api/school/teacher/attendance", {
+    headers: { Authorization: `Bearer ${parent.token}` },
+    data: { classId: Number(schoolClass!.id), studentId: Number(student.id), date, status: "absent" },
+  });
+  expect(unauthorizedMark.status()).toBe(403);
+});
