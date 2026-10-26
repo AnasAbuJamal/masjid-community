@@ -39,7 +39,7 @@ test.describe("Responsive access — phone, iPad and desktop", () => {
       expect(scrollWidth).toBeLessThanOrEqual(device.width + 1);
       if (device.width < 1024) {
         await page.getByRole("button", { name: "Open navigation" }).click();
-        await expect(page.getByRole("link", { name: /users/i }).first()).toBeVisible();
+        await expect(page.locator('a[href="/dashboard/users"]').first()).toBeVisible();
       }
     });
   }
@@ -51,7 +51,7 @@ test("invalid credentials show an authentication error", async ({ page }) => {
   await page.locator('input[type="email"]').fill("invalid@example.test");
   await page.locator('input[type="password"]').fill("not-the-right-password");
   await page.locator('button[type="submit"]').click();
-  await expect(page.getByText(/invalid|incorrect|failed|error/i).first()).toBeVisible();
+  await expect(page.getByRole("alert").first()).toContainText(/invalid|incorrect|failed|error/i);
 });
 
 test("staff can open user management and sign out", async ({ page }) => {
