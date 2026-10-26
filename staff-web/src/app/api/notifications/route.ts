@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     const notification = await prisma.notification.update({
-        where: { id },
+        where: { id, userId: session.user.id },
         data: { isRead: true },
     });
 
@@ -82,7 +82,7 @@ export async function DELETE(req: NextRequest) {
 
     if (id) {
         await prisma.notification.delete({
-            where: { id },
+            where: { id, userId: session.user.id },
         });
         return NextResponse.json({ success: true });
     }
