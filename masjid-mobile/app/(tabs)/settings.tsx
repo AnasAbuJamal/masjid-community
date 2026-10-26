@@ -107,13 +107,13 @@ export default function SettingsScreen() {
             icon="account-circle"
             title={user?.firstName ? `${user.firstName} ${user.lastName}` : 'Profile'}
             subtitle={user?.email}
-            onPress={() => router.push('/profile')}
+            onPress={() => router.push('/(tabs)/profile')}
           />
           <SettingsItem
             icon="heart"
             title="Donation History"
-            subtitle="View past donations"
-            onPress={() => {}}
+            subtitle="View confirmed donations"
+            onPress={() => router.push('/donations/history')}
           />
         </View>
 
@@ -232,16 +232,6 @@ export default function SettingsScreen() {
             title="App Version"
             subtitle="1.0.0"
           />
-          <SettingsItem
-            icon="file-document"
-            title="Terms of Service"
-            onPress={() => {}}
-          />
-          <SettingsItem
-            icon="shield-check"
-            title="Privacy Policy"
-            onPress={() => {}}
-          />
         </View>
 
         {/* Logout */}
@@ -274,6 +264,7 @@ const styles = StyleSheet.create({
   content: {
     padding: SPACING.md,
     paddingBottom: SPACING.xxl,
+    maxWidth: 820, width: '100%', alignSelf: 'center',
   },
   sectionTitle: {
     fontSize: 13,
