@@ -44,37 +44,37 @@ const CAMPAIGNS: Campaign[] = [
     id: 'general',
     name: 'General Fund',
     description: 'Support daily masjid operations',
-    raised: 28400,
-    goal: 50000,
+    raised: 0,
+    goal: 0,
     icon: 'mosque',
     color: COLORS.primary,
-    donors: 156,
+
   },
   {
     id: 'construction',
     name: 'Expansion Project',
     description: 'Phase 2 construction fund',
-    raised: 142000,
-    goal: 250000,
+    raised: 0,
+    goal: 0,
     icon: 'office-building',
     color: COLORS.secondary,
-    donors: 89,
+
   },
   {
     id: 'ramadan',
     name: 'Ramadan Fund',
     description: 'Iftars, Tarawih, Zakat al-Fitr',
-    raised: 8200,
-    goal: 15000,
+    raised: 0,
+    goal: 0,
     icon: 'star-crescent',
     color: COLORS.accent,
     endDate: '2024-04-10',
-    donors: 234,
+
   },
 ];
 
 const MOCK_RECURRING: RecurringDonation[] = [
-  { id: '1', campaignName: 'General Fund', amount: 50, frequency: 'monthly', nextDate: '2024-04-01', active: true },
+  // Recurring donation history must come from the authenticated payment provider.
 ];
 
 const PRESET_AMOUNTS = [10, 25, 50, 100, 250, 500];
@@ -93,7 +93,7 @@ export default function DonateScreen() {
 
   const campaign = CAMPAIGNS.find((c) => c.id === selectedCampaign)!;
   const donationAmount = selectedAmount ?? (parseFloat(customAmount) || null);
-  const pct = Math.round((campaign.raised / campaign.goal) * 100);
+  const pct = campaign.goal > 0 ? Math.round((campaign.raised / campaign.goal) * 100) : 0;
   const remaining = campaign.goal - campaign.raised;
 
   const totalRecurring = recurringDonations.filter(r => r.active).reduce((sum, r) => sum + r.amount, 0);
@@ -145,7 +145,7 @@ export default function DonateScreen() {
           {/* Campaign selection */}
           <Text style={styles.sectionLabel}>Select Campaign</Text>
           {CAMPAIGNS.map((c) => {
-            const cp = Math.round((c.raised / c.goal) * 100);
+            const cp = c.goal > 0 ? Math.round((c.raised / c.goal) * 100) : 0;
             const isSelected = selectedCampaign === c.id;
             const remainingAmount = c.goal - c.raised;
             return (
@@ -161,21 +161,7 @@ export default function DonateScreen() {
                 <View style={styles.campaignInfo}>
                   <Text style={styles.campaignName}>{c.name}</Text>
                   <Text style={styles.campaignDesc}>{c.description}</Text>
-                  <View style={styles.progressRow}>
-                    <View style={styles.progressBarWrap}>
-                      <View style={[styles.progressFill, { width: `${cp}%`, backgroundColor: c.color }]} />
-                    </View>
-                    <Text style={styles.progressLabel}>
-                      {formatCurrency(c.raised)} / {formatCurrency(c.goal)}
-                    </Text>
-                  </View>
-                  <View style={styles.goalProgressRow}>
-                    <View style={styles.goalInfo}>
-                      <View style={[styles.goalDot, { backgroundColor: c.color }]} />
-                      <Text style={styles.goalText}>{cp}% funded</Text>
-                    </View>
-                    <Text style={styles.remainingText}>{formatCurrency(remainingAmount)} remaining</Text>
-                  </View>
+                  <Text style={styles.progressLabel}>Verified fundraising totals are not currently available.</Text>
                 </View>
                 {isSelected && (
                   <MaterialCommunityIcons name="check-circle" size={20} color={c.color} />
