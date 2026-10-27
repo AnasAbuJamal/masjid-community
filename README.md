@@ -41,6 +41,10 @@ No real database migration or external deployment is attempted by the GitHub Act
 
 Steward users with the `worship_publish` capability can visit `/admin/prayer-revisions` to create venue-specific private schedule drafts, submit for review by a different authorized person, approve and atomically publish numbered revisions. An additive `PrayerScheduleRevision` migration preserves candidate history and audit snapshots; public readers continue to see only the previous published `PrayerDay` until a reviewed revision is published. See `document.md` §20.1 and §20.4.
 
+## Gathering reservations and waitlists
+
+Published events offer capacity-aware reservations to verified members. Organizers may explicitly enable a waitlist for an event; full events without one reject further registrations. Members see **confirmed** or **waitlisted — not confirmed** status. A confirmed attendee's cancellation before the event starts atomically promotes the oldest waitlisted member, records a generic private notification, and preserves the seat count. Waitlist departures do not release confirmed places. Duplicate join/cancel requests are idempotent. `staff-web/scripts/test-gather.mjs` runs against the disposable CI database.
+
 ## Guest website
 
 Open `/visit` for the public SILA experience, with published prayer schedules, approved faith notices, announcements, upcoming gatherings and learning programs. A venue picker appears if more than one venue is configured. Guests do not sign in or share location; the page displays clear missing-data states and provides public detail links. The original `/` route remains the staff sign-in portal, and `/kiosk` remains a read-only display. Public web pages do not yet support the full requested Arabic/RTL, accessibility testing or offline flows.
