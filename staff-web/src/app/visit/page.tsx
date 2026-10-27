@@ -187,13 +187,13 @@ export default async function VisitPage({ searchParams }: PageProps) {
               <div className="visit-faith" aria-label="Mosque-confirmed dates">
                 <strong>Mosque-confirmed dates</strong>
                 {faithNotices.map((item) => <article key={item.id}>
-                  <span>{localClockLabel(item.localDate)}</span><h3>{item.title}</h3><p>{item.body}</p>
+                  <span>{localClockLabel(item.localDate)}</span><h3><a href={`/visit/content/faith/${item.id}`}>{item.title}</a></h3><p>{item.body}</p>
                 </article>)}
               </div>
             )}
             {announcements.length ? (
               <div className="visit-list">{announcements.map((item) => (
-                <article key={item.id}><span className="visit-tag">{item.kind}</span><h3>{item.title}</h3><p>{item.body}</p></article>
+                <article key={item.id}><span className="visit-tag">{item.kind}</span><h3><a href={`/visit/content/updates/${item.id}`}>{item.title}</a></h3><p>{item.body}</p></article>
               ))}</div>
             ) : <p className="visit-empty">No official announcements have been published.</p>}
           </section>
@@ -203,7 +203,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
               <div className="visit-list">{events.map((item) => (
                 <article key={item.id}>
                   <span className="visit-date">{eventTime(item.startAt, timeZone)}</span>
-                  <h3>{item.title}</h3><p>{item.description}</p>
+                  <h3><a href={`/visit/content/gatherings/${item.id}`}>{item.title}</a></h3><p>{item.description}</p>
                   <p className="visit-event-place">{item.location}</p>
                 </article>
               ))}</div>
@@ -214,7 +214,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
         <section className="visit-learning" aria-labelledby="learning-heading">
           <div className="visit-section-heading"><div><span className="visit-kicker">GROW WITH PURPOSE</span><h2 id="learning-heading">Learning at the mosque</h2></div></div>
           {programs.length ? <div className="visit-learning-grid">{programs.map((item) => (
-            <article key={item.id}><h3>{item.title}</h3><p>{item.description}</p></article>
+            <article key={item.id}><h3><a href={`/visit/content/learning/${item.id}`}>{item.title}</a></h3><p>{item.description}</p></article>
           ))}</div> : <p className="visit-empty">Learning programs will appear here after the mosque publishes them.</p>}
         </section>
         <footer className="visit-footer">
