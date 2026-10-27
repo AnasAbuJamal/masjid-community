@@ -76,6 +76,9 @@ export default async function PublicDetail({ params }: Props) {
         <h1>{title}</h1>
         {facts.length > 0 ? <ul className="visit-detail-facts">{facts.map((fact, index) => <li key={index}>{fact}</li>)}</ul> : null}
         <div className="visit-detail-body">{body}</div>
+        {kind==="gatherings"?<p className="section"><a className="visit-action" href={`/api/v1/events/${id}/calendar`}>
+          Save this gathering to my calendar</a></p>:null}
+        {kind==="gatherings"?<p className="visit-footnote">Calendar download is informational only and does not reserve a place.</p>:null}
         <p className="visit-footnote">Official content published by {organization.name}. For changes or questions, contact the mosque.</p>
       </article>
       <footer className="visit-footer"><p>SILA · Community and connection</p><a href="/visit#updates">Community updates</a></footer>
