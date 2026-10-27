@@ -6,7 +6,7 @@ import {S,T} from "../../../src/theme";
 import {useResource} from "../../../src/useResource";
 import {apiPost} from "../../../src/api";
 import {useSession} from "../../../src/session";
-type RecordItem={id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number;filled?:number;publishedAt?:string;currency?:string};
+type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number;filled?:number;publishedAt?:string;currency?:string};
 type Result={items:RecordItem[]};
 const categories:{[key:string]:{label:string;subtitle:string}}={
  events:{label:"Events",subtitle:"Discover upcoming gatherings."},
@@ -17,6 +17,8 @@ const categories:{[key:string]:{label:string;subtitle:string}}={
  jobs:{label:"Jobs",subtitle:"Published opportunities."},
  proposals:{label:"Proposals",subtitle:"Share your voice in community projects."},
  rentals:{label:"Facilities",subtitle:"Resources available to request."},
+ articles:{label:"Articles",subtitle:"Published stories from the community."},
+ construction:{label:"Construction",subtitle:"Verified building-project updates."},
 };
 export default function Details(){
  const params=useLocalSearchParams<{kind:string;id:string}>();
@@ -55,6 +57,7 @@ export default function Details(){
    {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
    {item.startAt||item.startsAt?<Text style={S.muted}>Date: {new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
    {item.company?<Text style={S.muted}>Organization: {item.company}</Text>:null}
+   {item.milestones?.length?<View style={{gap:12}}><Text style={S.headline}>Project milestones</Text>{item.milestones.map(m=><Card key={m.id} style={{gap:6}}><Text style={S.label}>{m.title}</Text><Text style={S.bodyText}>{m.description}</Text><Text style={S.muted}>{m.completedAt?"Completed "+new Date(m.completedAt).toLocaleDateString():"In progress"}</Text></Card>)}</View>:null}
    {kind==="jobs"?<Field label="Cover letter (minimum 10 characters)" value={letter} onChange={setLetter} multiline/>:null}
    {kind==="rentals"?<><Field label="Start (ISO date/time)" value={from} onChange={setFrom}/><Field label="End (ISO date/time)" value={to} onChange={setTo}/></>:null}
    {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}

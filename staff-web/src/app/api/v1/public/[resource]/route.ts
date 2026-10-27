@@ -44,6 +44,11 @@ export async function GET(req:NextRequest,{params}:Context){
    :resource==="proposals" ? await db.proposal.findMany({where:{...where,status:"published"},take:limit,select:{id:true,title:true,description:true,_count:{select:{votes:true}}}})
    :resource==="jobs" ? await db.jobPosting.findMany({where:{...where,status:"published"},take:limit,select:{id:true,title:true,description:true,company:true}})
    :resource==="rentals" ? await db.rentalResource.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,description:true}})
+   :resource==="articles" ? await db.communityArticle.findMany({where:{...where,status:"published",publishedAt:{lte:new Date()}},take:limit,
+      orderBy:{publishedAt:"desc"},select:{id:true,title:true,body:true,publishedAt:true}})
+   :resource==="construction" ? await db.constructionProject.findMany({where:{...where,status:"published"},take:limit,
+      select:{id:true,title:true,description:true,goalMinor:true,currency:true,milestones:{
+        where:{status:"published"},orderBy:{createdAt:"asc"},select:{id:true,title:true,description:true,completedAt:true}}}})
    :null;
   if(data===null)throw new HttpError(404,"NOT_FOUND","Unknown resource.");
   return ok({organization:{id:org.id,name:org.name},items:data});

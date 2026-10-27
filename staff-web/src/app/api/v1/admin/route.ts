@@ -20,21 +20,26 @@ const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("job"),title:name,description,company:z.string().trim().min(2).max(150),published:z.boolean().default(false)}),
  z.object({kind:z.literal("proposal"),title:name,description,published:z.boolean().default(false)}),
  z.object({kind:z.literal("rental"),title:name,description,published:z.boolean().default(false)}),
+ z.object({kind:z.literal("article"),title:name,body:description,published:z.boolean().default(false)}),
+ z.object({kind:z.literal("construction"),title:name,description,goalMinor:z.number().int().positive().optional(),published:z.boolean().default(false)}),
+ z.object({kind:z.literal("milestone"),projectId:z.string().min(8),title:name,description,
+  completedAt:z.iso.datetime().optional(),published:z.boolean().default(false)}),
  z.object({kind:z.literal("volunteer-decision"),applicationId:z.string().min(8),decision:z.enum(["approved","declined"])}),
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req,["admin","staff"]);
-  const [org,counts,venues,prayers,announcements,events,applications]=await Promise.all([
+  const [org,counts,venues,prayers,announcements,events,applications,construction]=await Promise.all([
     db.organization.findFirst(),
     Promise.all([db.user.count(),db.event.count(),db.announcement.count(),db.schoolProgram.count(),db.donation.count()]),
     db.venue.findMany({take:10,select:{id:true,name:true,timeZone:true}}),
     db.prayerDay.findMany({take:12,orderBy:{localDate:"desc"}}),
     db.announcement.findMany({take:12,orderBy:{createdAt:"desc"}}),
     db.event.findMany({take:12,orderBy:{startAt:"desc"}}),
-    db.volunteerApplication.findMany({take:15,include:{opportunity:{select:{title:true}},user:{select:{firstName:true,lastName:true}}}})
+    db.volunteerApplication.findMany({take:15,include:{opportunity:{select:{title:true}},user:{select:{firstName:true,lastName:true}}}}),
+    db.constructionProject.findMany({take:100,orderBy:{createdAt:"desc"},select:{id:true,title:true,status:true}})
   ]);
-  return ok({organization:org&&{id:org.id,name:org.name},counts:{users:counts[0],events:counts[1],announcements:counts[2],programs:counts[3],donations:counts[4]},venues,prayers,announcements,events,applications,role:user.role});
+  return ok({organization:org&&{id:org.id,name:org.name},counts:{users:counts[0],events:counts[1],announcements:counts[2],programs:counts[3],donations:counts[4]},venues,prayers,announcements,events,applications,construction,role:user.role});
  });
 }
 export async function POST(req:NextRequest){
@@ -65,6 +70,18 @@ export async function POST(req:NextRequest){
     result=await db.jobPosting.create({data:{organizationId:org.id,title:input.title,description:input.description,company:input.company,status:input.published?"published":"draft"}});
   }else if(input.kind==="proposal"){
     result=await db.proposal.create({data:{organizationId:org.id,title:input.title,description:input.description,status:input.published?"published":"draft"}});
+  }else if(input.kind==="article"){
+    result=await db.communityArticle.create({data:{organizationId:org.id,title:input.title,body:input.body,
+      status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});
+  }else if(input.kind==="construction"){
+    result=await db.constructionProject.create({data:{organizationId:org.id,title:input.title,description:input.description,
+      goalMinor:input.goalMinor,status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});
+  }else if(input.kind==="milestone"){
+    const project=await db.constructionProject.findFirst({where:{id:input.projectId,organizationId:org.id}});
+    if(!project)throw new HttpError(404,"PROJECT_MISSING","Construction project not found.");
+    result=await db.constructionMilestone.create({data:{projectId:project.id,title:input.title,description:input.description,
+      completedAt:input.completedAt?new Date(input.completedAt):null,
+      status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});
   }else if(input.kind==="rental"){
     result=await db.rentalResource.create({data:{organizationId:org.id,title:input.title,description:input.description,published:input.published}});
   }else{

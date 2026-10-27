@@ -65,6 +65,8 @@ model Organization {
   opportunities VolunteerOpportunity[]
   jobs JobPosting[]
   contactRequests ContactSubmission[]
+  articles CommunityArticle[]
+  constructionProjects ConstructionProject[]
   budgets FinanceBudget[]
   expenses FinanceExpense[]
 }
@@ -622,4 +624,44 @@ model VolunteerShift {
   createdAt DateTime @default(now())
   @@index([userId,startAt,status])
   @@index([opportunityId,startAt])
+}
+
+model CommunityArticle {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  body String
+  status ContentStatus @default(draft)
+  version Int @default(1)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([organizationId,status,publishedAt])
+}
+model ConstructionProject {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  description String
+  goalMinor Int?
+  currency String @default("usd")
+  status ContentStatus @default(draft)
+  publishedAt DateTime?
+  milestones ConstructionMilestone[]
+  createdAt DateTime @default(now())
+  @@index([organizationId,status])
+}
+model ConstructionMilestone {
+  id String @id @default(cuid())
+  projectId String
+  project ConstructionProject @relation(fields:[projectId],references:[id])
+  title String
+  description String
+  completedAt DateTime?
+  status ContentStatus @default(draft)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([projectId,status,createdAt])
 }

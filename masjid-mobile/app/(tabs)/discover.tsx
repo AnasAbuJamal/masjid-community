@@ -13,6 +13,8 @@ const categories:Tile[]=[
  {kind:"jobs",title:"Jobs & opportunities",subtitle:"Connect with local work",icon:"briefcase-outline"},
  {kind:"proposals",title:"Community proposals",subtitle:"Help shape upcoming projects",icon:"lightbulb-on-outline"},
  {kind:"rentals",title:"Facilities & rentals",subtitle:"Request spaces and resources",icon:"office-building-outline"},
+ {kind:"articles",title:"Community articles",subtitle:"Thoughtful stories and published updates",icon:"newspaper-variant-outline"},
+ {kind:"construction",title:"Construction progress",subtitle:"Updates on community building projects",icon:"hard-hat"},
 ];
 export default function Discover(){
  return <Shell><Head eyebrow="COMMUNITY · DISCOVER" title="Belong. Contribute. Grow." subtitle="All the ways your community comes together, in one thoughtful place."/>

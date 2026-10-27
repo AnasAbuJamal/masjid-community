@@ -90,3 +90,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Staff scheduling, check-in and completion of approved volunteer shifts, with a private member shift history.
 - Shift relationships and status are persisted and covered by the disposable PostgreSQL fixture.
 - Further work needed: shift capacity across multiple venues, check-in identity proof, recurring shifts and canceled-event reconciliation.
+
+### Thirteenth implementation pass
+- Publishable community articles and construction projects with visible verified milestones.
+- Staff authoring and public mobile browsing through the same governed content API.
+- Dedicated tables and simple database integration checks. Media uploads, revisions and granular editorial approval are still future requirements.

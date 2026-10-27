@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<string,number>;venues:{id:string;name:string}[];prayers:{id:string;localDate:string;fajr:string;dhuhr:string;asr:string;maghrib:string;isha:string;published:boolean}[];announcements:{id:string;title:string;status:string}[];events:{id:string;title:string;status:string;startAt:string}[];applications:{id:string;status:string;opportunity:{title:string};user:{firstName:string;lastName:string}}[]};
-type Kind="prayer"|"announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental";
+type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<string,number>;construction:{id:string;title:string;status:string}[];venues:{id:string;name:string}[];prayers:{id:string;localDate:string;fajr:string;dhuhr:string;asr:string;maghrib:string;isha:string;published:boolean}[];announcements:{id:string;title:string;status:string}[];events:{id:string;title:string;status:string;startAt:string}[];applications:{id:string;status:string;opportunity:{title:string};user:{firstName:string;lastName:string}}[]};
+type Kind="prayer"|"announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental"|"article"|"construction"|"milestone";
 const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
  prayer:[{key:"localDate",label:"Schedule date",type:"date"},...["fajr","sunrise","dhuhr","asr","maghrib","isha","fajrIqamah","dhuhrIqamah","asrIqamah","maghribIqamah","ishaIqamah"].map(x=>({key:x,label:x.replace("Iqamah"," iqamah"),type:"time"}))],
  announcement:[{key:"title",label:"Headline"},{key:"body",label:"Announcement",type:"textarea"}],
@@ -12,8 +12,11 @@ const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
  job:[{key:"title",label:"Position"},{key:"company",label:"Organization"},{key:"description",label:"Details",type:"textarea"}],
  proposal:[{key:"title",label:"Proposal"},{key:"description",label:"Details",type:"textarea"}],
  rental:[{key:"title",label:"Resource"},{key:"description",label:"Description",type:"textarea"}],
+ article:[{key:"title",label:"Article title"},{key:"body",label:"Article body",type:"textarea"}],
+ construction:[{key:"title",label:"Project title"},{key:"description",label:"Project description",type:"textarea"},{key:"goalMinor",label:"Goal (minor units)",type:"number"}],
+ milestone:[{key:"projectId",label:"Construction project"},{key:"title",label:"Milestone title"},{key:"description",label:"Milestone details",type:"textarea"},{key:"completedAt",label:"Completion time (optional)",type:"datetime-local"}],
 };
-const names:Record<Kind,string>={prayer:"Salah schedule",announcement:"Announcement",event:"Event",program:"School program",campaign:"Giving campaign",volunteer:"Volunteer opportunity",job:"Job",proposal:"Proposal",rental:"Rental resource"};
+const names:Record<Kind,string>={prayer:"Salah schedule",announcement:"Announcement",event:"Event",program:"School program",campaign:"Giving campaign",volunteer:"Volunteer opportunity",job:"Job",proposal:"Proposal",rental:"Rental resource",article:"Article",construction:"Construction project",milestone:"Construction milestone"};
 export default function Admin(){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [kind,setKind]=useState<Kind>("prayer"),[form,setForm]=useState<Record<string,string>>({}),[published,setPublished]=useState(false),[busy,setBusy]=useState(false);
@@ -28,8 +31,8 @@ export default function Admin(){
   setBusy(true);setError("");setNotice("");
   const raw:Record<string,unknown>={kind,published,...form};
   for(const key of ["capacity","goalMinor"])if(raw[key]!==undefined&&raw[key]!=="")raw[key]=Number(raw[key]);
-  for(const key of ["startAt","endAt","startsAt"])if(raw[key])raw[key]=new Date(String(raw[key])).toISOString();
-  if(raw.capacity==="")delete raw.capacity;if(raw.goalMinor==="")delete raw.goalMinor;
+  for(const key of ["startAt","endAt","startsAt","completedAt"])if(raw[key])raw[key]=new Date(String(raw[key])).toISOString();
+  if(raw.capacity==="")delete raw.capacity;if(raw.goalMinor==="")delete raw.goalMinor;if(raw.completedAt==="")delete raw.completedAt;
   if(kind==="prayer"){raw.venueId=data.venues[0]?.id;}
   try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(raw)});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");setNotice(names[kind]+" saved successfully.");setForm({});setPublished(false);await reload();}
   catch(e){setError(e instanceof Error?e.message:"Save failed.");}
@@ -52,7 +55,7 @@ export default function Admin(){
     <div className="panel"><h2>Create & publish</h2><p className="small">Items saved as drafts are not shown publicly.</p>
      <div className="tabs" role="group" aria-label="Content type">{(Object.keys(names) as Kind[]).map(k=><button key={k} type="button" className={kind===k?"primary":"secondary"} onClick={()=>{setKind(k);setForm({});setPublished(false)}}>{names[k]}</button>)}</div>
      {data.role!=="admin"?<p className="notice">Your staff role is read-only in this workspace.</p>:<div className="form">
-      {fields[kind].map(f=><div className="field" key={f.key}><label htmlFor={f.key}>{f.label}</label>{f.type==="textarea"?<textarea id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>:<input id={f.key} type={f.type||"text"} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>}</div>)}
+      {fields[kind].map(f=><div className="field" key={f.key}><label htmlFor={f.key}>{f.label}</label>{f.key==="projectId"?<select id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}><option value="">Select project</option>{data.construction.map(p=><option key={p.id} value={p.id}>{p.title} · {p.status}</option>)}</select>:f.type==="textarea"?<textarea id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>:<input id={f.key} type={f.type||"text"} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>}</div>)}
       <div className="field"><label><input type="checkbox" checked={published} onChange={e=>setPublished(e.target.checked)}/> Publish for community</label></div>
       <button className="primary" onClick={()=>void submit()} disabled={busy||(kind==="prayer"&&!data.venues.length)}>{busy?"Saving…":"Save "+names[kind]}</button>
      </div>}

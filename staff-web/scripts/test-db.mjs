@@ -48,6 +48,11 @@ try{
  const volunteerApp=await db.volunteerApplication.create({data:{opportunityId:opp.id,userId:member.id,status:"approved"}});
  const shift=await db.volunteerShift.create({data:{opportunityId:opp.id,applicationId:volunteerApp.id,userId:member.id,startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000)}});
  assert.equal(shift.status,"scheduled");
+ const article=await db.communityArticle.create({data:{organizationId:org.id,title:"School news",body:"Updates from the school",status:"published",publishedAt:new Date()}});
+ assert.equal(article.status,"published");
+ const construction=await db.constructionProject.create({data:{organizationId:org.id,title:"Community hall",description:"Renovation plans",status:"published",publishedAt:new Date()}});
+ const milestone=await db.constructionMilestone.create({data:{projectId:construction.id,title:"Planning",description:"Project approved",status:"published",publishedAt:new Date()}});
+ assert.equal(milestone.projectId,construction.id);
  const prayer=await db.prayerDay.create({data:{venueId:venue.id,localDate:"2026-10-26",fajr:"06:00",sunrise:"07:00",dhuhr:"12:30",asr:"15:30",maghrib:"18:00",isha:"19:00",published:false}});
  assert.equal(prayer.published,false);
  const event=await db.event.create({data:{organizationId:org.id,title:"Example gathering",description:"Fixture",location:"Here",startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000),capacity:1,status:"published"}});
