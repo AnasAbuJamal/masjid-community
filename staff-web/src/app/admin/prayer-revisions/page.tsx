@@ -9,7 +9,7 @@ type Candidate={
  fajrIqamah:string|null;dhuhrIqamah:string|null;asrIqamah:string|null;maghribIqamah:string|null;ishaIqamah:string|null;
 };
 type Published={id:string;localDate:string;revision:number;published:boolean;source:string;updatedAt:string};
-type Data={userId:string;venues:Venue[];selectedVenue:Venue|null;revisions:Candidate[];published:Published[]};
+type Data={userId:string;venues:Venue[];selectedVenue:Venue|null;revisions:Candidate[];published:Published[];actorNames:Record<string,string>};
 const prayerFields=[
  ["fajr","Fajr adhan"],["sunrise","Sunrise"],["dhuhr","Dhuhr adhan"],["asr","Asr adhan"],
  ["maghrib","Maghrib adhan"],["isha","Isha adhan"],["fajrIqamah","Fajr iqamah"],["dhuhrIqamah","Dhuhr iqamah"],
@@ -111,6 +111,8 @@ export default function PrayerPublishing(){
       return <article className="tile section" key={item.id}>
        <h3>{item.localDate} · Revision {item.revision}</h3>
        <p className="small">Status: <strong>{item.status}</strong> · Source: {item.source} · Base revision: {item.baseRevision}</p>
+       <p className="small">Prepared by {data.actorNames[item.authoredById]||"authorized editor"}
+       {item.approvedById?" · Reviewed by "+(data.actorNames[item.approvedById]||"authorized reviewer"):" · Awaiting independent review"}</p>
        <p className="small">Fajr {item.fajr} · Dhuhr {item.dhuhr} · Asr {item.asr} · Maghrib {item.maghrib} · Isha {item.isha}</p>
        {item.correctionReason?<p className="small">Correction reason: {item.correctionReason}</p>:null}
        {item.status==="draft"&&mine?<button disabled={busy} className="primary" onClick={()=>void send("submit",item.id)}>Submit for independent approval</button>:null}
