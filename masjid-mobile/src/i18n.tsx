@@ -3,6 +3,9 @@ import * as SecureStore from "expo-secure-store";
 export type Language="en"|"ar";
 const storageKey="masjid.community.language";
 const words={
+ "venue.choose":{en:"Switch prayer venue",ar:"غيّر المسجد"},
+ "venue.current":{en:"Selected venue",ar:"المسجد المحدد"},
+ "venue.missing":{en:"Could not load venues",ar:"تعذر تحميل المساجد"},
  "tabs.today":{en:"Today",ar:"اليوم"},
  "tabs.gather":{en:"Gather",ar:"اللقاءات"},
  "tabs.learn":{en:"Learn",ar:"التعلّم"},
