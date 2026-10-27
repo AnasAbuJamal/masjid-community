@@ -13,7 +13,7 @@ export async function GET(req:NextRequest){
     db.teacherAssignment.findMany({where:{teacherId:user.id},select:{classSection:{select:{id:true,name:true,schedule:true}}}}),
     db.rentalBooking.findMany({where:{userId:user.id},take:25,orderBy:{startAt:"desc"},select:{id:true,status:true,startAt:true,endAt:true,resource:{select:{title:true}}}}),
     db.volunteerApplication.findMany({where:{userId:user.id},take:25,select:{id:true,status:true,opportunity:{select:{title:true}}}}),
-    db.jobApplication.findMany({where:{userId:user.id},take:25,select:{id:true,job:{select:{title:true}}}})
+    db.jobApplication.findMany({where:{userId:user.id},take:25,select:{id:true,status:true,job:{select:{title:true}}}})
   ]);
   return ok({user:{id:user.id,name:user.firstName+" "+user.lastName,email:user.email,role:user.role,verified:!!user.verifiedAt},donations,rsvps,notifications,children,classes,bookings,volunteerApplications,jobApplications});
  });

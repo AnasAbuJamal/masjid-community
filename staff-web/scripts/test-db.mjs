@@ -43,6 +43,9 @@ try{
  assert.equal(report.status,"published");
  const invoice=await db.schoolInvoice.create({data:{organizationId:org.id,studentId:student.id,payerGuardianId:member.id,description:"Tuition test",amountMinor:2700,dueAt:new Date(Date.now()+86400000)}});
  assert.equal(invoice.amountMinor,2700);
+ const job=await db.jobPosting.create({data:{organizationId:org.id,title:"Community coordinator",description:"Integration role",company:"The Mosque",status:"published"}});
+ const applicationJob=await db.jobApplication.create({data:{jobId:job.id,userId:member.id,coverLetter:"I would like to support this community."}});
+ assert.equal(applicationJob.status,"submitted");
  const budget=await db.financeBudget.create({data:{organizationId:org.id,category:"Community",periodMonth:"2026-10",amountMinor:50000,published:true}});
  assert.equal(budget.amountMinor,50000);
  const expense=await db.financeExpense.create({data:{organizationId:org.id,category:"Community",description:"Test materials",amountMinor:2200,

@@ -135,3 +135,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Primary navigation labels, Home/Salah/Discover/School/Profile headers, prayer names, common loading/error/retry states and prominent actions now use bilingual resources.
 - Shared press rows, headings, action layouts and form text alignment mirror appropriately for Arabic.
 - **Not yet complete:** exhaustive Arabic translations on all secondary/detail screens, localized server-provided editorial data, translated error catalog and testing on real Arabic RTL devices.
+
+### Twentieth implementation pass: job application lifecycle
+- Restricted job-application review dashboard and server-controlled approve/decline decisions for published opportunities.
+- Members see their own application statuses; reviews create audited transitions and private notifications.
+- Provider messaging, file uploads/resume scanning, candidate consent policy and professional recruiting integrations remain to be implemented and reviewed.

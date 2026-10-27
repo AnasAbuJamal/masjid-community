@@ -7,7 +7,7 @@ import {useResource} from "../../src/useResource";
 import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {api} from "../../src/api";
-type Me={bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;event:{id:string;title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
+type Me={bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;status:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;event:{id:string;title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
 export default function Profile(){
  const {t,language}=useLanguage();
  const {user,logout,refresh:refreshUser}=useSession();
@@ -25,7 +25,7 @@ export default function Profile(){
  {result.data?.rsvps?.length?<View style={S.section}><Text style={S.headline}>{t("profile.events")}</Text>{result.data.rsvps.map(r=><Card key={r.id} style={{gap:10}}><Text style={S.label}>{r.event.title}</Text><Text style={S.muted}>{new Date(r.event.startAt).toLocaleString()}</Text>{new Date(r.event.startAt)>new Date()?<Action label="Cancel my RSVP" secondary disabled={!!busy} onPress={()=>void cancel(r.event.id)}/>:null}</Card>)}</View>:null}
  {result.data?.bookings?.length?<View style={S.section}><Text style={S.headline}>{t("profile.bookings")}</Text>{result.data.bookings.map(b=><Card key={b.id}><Text style={S.label}>{b.resource.title}</Text><Text style={S.muted}>{new Date(b.startAt).toLocaleString()} · {b.status}</Text></Card>)}</View>:null}
  {result.data?.volunteerApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.volunteer")}</Text>{result.data.volunteerApplications.map(v=><Card key={v.id}><Text style={S.label}>{v.opportunity.title}</Text><Text style={S.muted}>{v.status}</Text></Card>)}</View>:null}
- {result.data?.jobApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.jobs")}</Text>{result.data.jobApplications.map(j=><Card key={j.id}><Text style={S.label}>{j.job.title}</Text><Text style={S.muted}>Submitted</Text></Card>)}</View>:null}
+ {result.data?.jobApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.jobs")}</Text>{result.data.jobApplications.map(j=><Card key={j.id}><Text style={S.label}>{j.job.title}</Text><Text style={S.muted}>{j.status}</Text></Card>)}</View>:null}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
  <View style={S.section}><Text style={S.headline}>{t("profile.account")}</Text>{user.mfaRequired?<PressRow icon="shield-key-outline" title="Complete administrator MFA" subtitle="Required to access privileged actions" onPress={()=>router.push("/mfa")}/>:null}
  <PressRow icon="account-cog-outline" title="Settings & privacy" subtitle="Profile, communications, sessions and data" onPress={()=>router.push("/settings")}/>

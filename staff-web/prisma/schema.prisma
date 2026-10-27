@@ -423,6 +423,9 @@ model JobApplication {
   userId String
   user User @relation(fields:[userId],references:[id])
   coverLetter String
+  status ApplicationStatus @default(submitted)
+  reviewedAt DateTime?
+  reviewerId String?
   @@unique([jobId,userId])
 }
 model RentalResource {
