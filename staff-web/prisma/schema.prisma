@@ -72,6 +72,7 @@ model Organization {
   invoices SchoolInvoice[]
   ledgerAccounts LedgerAccount[]
   journals JournalEntry[]
+  refundRequests RefundRequest[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -124,6 +125,8 @@ model User {
   deletionRequests DeletionRequest[] @relation("DeletionSubject")
   reviewedDeletions DeletionRequest[] @relation("DeletionReviewer")
   volunteerShifts VolunteerShift[]
+  refundsSubmitted RefundRequest[] @relation("RefundRequester")
+  refundsReviewed RefundRequest[] @relation("RefundReviewer")
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -724,4 +727,38 @@ model JournalLine {
   account LedgerAccount @relation(fields:[accountId],references:[id])
   debitMinor Int @default(0)
   creditMinor Int @default(0)
+}
+
+enum RefundSourceKind {
+  donation
+  tuition
+}
+enum RefundWorkflowStatus {
+  requested
+  submitting
+  provider_pending
+  completed
+  rejected
+  failed
+}
+model RefundRequest {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  sourceKind RefundSourceKind
+  sourceId String
+  amountMinor Int
+  currency String
+  reason String
+  status RefundWorkflowStatus @default(requested)
+  requestedById String
+  requester User @relation("RefundRequester",fields:[requestedById],references:[id])
+  reviewedById String?
+  reviewer User? @relation("RefundReviewer",fields:[reviewedById],references:[id])
+  stripeRefundId String? @unique
+  providerErrorCode String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([sourceKind,sourceId])
+  @@index([organizationId,status,createdAt])
 }

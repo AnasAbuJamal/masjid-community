@@ -109,3 +109,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Added private member/guardian receipt API and native viewing screens.
 - Synthetic signed provider events exercise amount mismatch, signature rejection, exact/different replay IDs, both payment types, privacy, full reversal and partial-refund behavior in CI.
 - **Remaining:** real provider test-mode end-to-end runs, formal refund approvals, partial-refund ledger postings, settlement reconciliation, receipt PDF/legal wording, provider failure retries and migration rehearsal.
+
+### Sixteenth implementation pass: maker/checker refunds
+- Admin/finance may request full refunds on verified settled payments; a separate authorized account must review and approve.
+- Server invokes Stripe Refunds with a stable idempotency key; pending state stays pending until the signed full-refund webhook posts a reversing accounting entry.
+- Refund requests and outcomes are auditable and available to privileged finance users.
+- Partial refund accounting, webhook recovery for out-of-order provider events, multi-person limit thresholds and live Stripe settlement reconciliation remain release blockers.

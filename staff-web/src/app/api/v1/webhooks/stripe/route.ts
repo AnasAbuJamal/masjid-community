@@ -65,11 +65,13 @@ export async function POST(req:NextRequest){
      await tx.donation.update({where:{id:donation.id},data:{status:"refunded"}});
      await reverseVerifiedPayment(tx,{organizationId:donation.campaign.organizationId,sourceType:"donation",sourceId:donation.id,
       amountMinor:amount,currency:donation.currency,paymentIntentId:intent});
+     await tx.refundRequest.updateMany({where:{sourceKind:"donation",sourceId:donation.id,status:{in:["submitting","provider_pending","failed"]}},data:{status:"completed"}});
     }
     if(invoice?.status==="paid"){
      await tx.schoolInvoice.update({where:{id:invoice.id},data:{status:"refunded"}});
      await reverseVerifiedPayment(tx,{organizationId:invoice.organizationId,sourceType:"tuition",sourceId:invoice.id,
       amountMinor:amount,currency:invoice.currency,paymentIntentId:intent});
+     await tx.refundRequest.updateMany({where:{sourceKind:"tuition",sourceId:invoice.id,status:{in:["submitting","provider_pending","failed"]}},data:{status:"completed"}});
     }
    }
   },{isolationLevel:"Serializable"});

@@ -61,9 +61,15 @@ try{
  const partial=await webhook("charge.refunded",{id:"ch_test_ci_donation_1",payment_intent:"pi_ci_donation_1",amount:3175,amount_refunded:500});
  assert.equal(partial.status,200);
  assert.equal((await db.donation.findUniqueOrThrow({where:{id:donation.id}})).status,"paid","partial refunds cannot masquerade as full refunds");
+ const admin=await db.user.findFirstOrThrow({where:{role:"admin"}});
+ const requested=await db.refundRequest.create({data:{organizationId:org.id,sourceKind:"donation",sourceId:donation.id,
+  amountMinor:3175,currency:"usd",reason:"CI tests provider-confirmed refund",requestedById:admin.id,status:"provider_pending"}});
+ const unauthorized=await fetch(base+"admin/refunds",{headers:{Authorization:"Bearer "+auth.token}});
+ assert.equal(unauthorized.status,403,"ordinary members cannot review refunds");
  const full=await webhook("charge.refunded",{id:"ch_test_ci_donation_1",payment_intent:"pi_ci_donation_1",amount:3175,amount_refunded:3175});
  assert.equal(full.status,200,JSON.stringify(full.value));
  assert.equal((await db.donation.findUniqueOrThrow({where:{id:donation.id}})).status,"refunded");
+ assert.equal((await db.refundRequest.findUniqueOrThrow({where:{id:requested.id}})).status,"completed");
  await assertionJournal("donation_refund",donation.id,3175);
  assert.ok((await db.paymentReceipt.findUniqueOrThrow({where:{id:receipt.id}})).reversedAt);
 
