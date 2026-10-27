@@ -11,8 +11,8 @@ export default function LoginPage(){
    const res=await fetch("/api/v1/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
    const value=await res.json();
    if(!res.ok)throw new Error(value.error?.message||"Could not sign in.");
-   if(!["admin","staff","finance"].includes(value.data.user.role)){setError("This portal is reserved for authorized mosque staff.");return;}
-   window.location.assign(value.data.user.role==="finance"?"/admin/finance":"/admin");
+   if(!["admin","staff","finance","teacher"].includes(value.data.user.role)){setError("This portal is reserved for authorized mosque staff.");return;}
+   window.location.assign(value.data.user.role==="finance"?"/admin/finance":value.data.user.role==="teacher"?"/admin/schoolwork":"/admin");
   }catch(e){setError(e instanceof Error?e.message:"Network unavailable.");}
   finally{setBusy(false);}
  }

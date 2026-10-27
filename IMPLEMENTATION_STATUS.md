@@ -53,3 +53,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Password-reset request and secure one-use time-limited reset token flows, with existing-session revocation.
 - Database-backed per-account failed-login throttling (additional network/provider-level anti-abuse still required).
 - Native and web password recovery screens and sign-in links.
+
+### Sixth implementation pass
+- SchoolAssignment, StudentSubmission and StudentReport models, scoped to class/student relations.
+- Teacher-authored assignments and progress reports with explicit publication state, own-student submission, and verified guardian/student read views.
+- Dedicated teacher web workspace and native learning center.
+- Still missing grading rubrics, full enrollment decision workflow, safeguarding review and broad cross-role E2E tests.

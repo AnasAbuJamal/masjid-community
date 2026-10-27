@@ -17,6 +17,7 @@ export default function Teacher(){
  }
  return <Shell><Action label="Back to school" secondary icon="arrow-left" onPress={()=>router.back()}/>
  <Head eyebrow="TEACHER · PRIVATE WORKSPACE" title="Your classroom." subtitle="Only classes assigned to your verified teacher account are shown."/>
+ <Action label="Class assignments & reports" secondary icon="book-open-variant" onPress={()=>router.push("/school/work")}/>
  <Feedback loading={result.loading} error={result.error} empty={!result.data?.classes?.length} refresh={result.refresh}/>
  {result.data?.classes.map(c=><Card key={c.id} style={{gap:11}}><Text style={S.headline}>{c.name}</Text><Text style={S.muted}>{c.schedule} · {c.enrollments.length} enrolled</Text>
  <Action secondary label={selected===c.id?"Hide sessions":"Manage attendance"} onPress={()=>setSelected(selected===c.id?null:c.id)}/>

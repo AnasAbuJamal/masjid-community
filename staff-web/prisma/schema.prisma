@@ -101,6 +101,8 @@ model User {
   bookings RentalBooking[]
   notifications Notification[]
   auditEvents AuditEvent[]
+  authoredAssignments SchoolAssignment[] @relation("AssignmentAuthor")
+  authoredReports StudentReport[] @relation("ReportAuthor")
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -210,6 +212,8 @@ model ClassSection {
   teachers TeacherAssignment[]
   enrollments Enrollment[]
   sessions ClassSession[]
+  assignments SchoolAssignment[]
+  reports StudentReport[]
 }
 model Student {
   id String @id @default(cuid())
@@ -222,6 +226,8 @@ model Student {
   enrollments Enrollment[]
   attendance Attendance[]
   invoices SchoolInvoice[]
+  submissions StudentSubmission[]
+  reports StudentReport[]
 }
 model GuardianLink {
   id String @id @default(cuid())
@@ -433,4 +439,43 @@ model AuthThrottle {
   failures Int @default(0)
   blockedUntil DateTime?
   updatedAt DateTime @updatedAt
+}
+
+model SchoolAssignment {
+  id String @id @default(cuid())
+  classId String
+  classSection ClassSection @relation(fields:[classId],references:[id])
+  teacherId String
+  author User @relation("AssignmentAuthor",fields:[teacherId],references:[id])
+  title String
+  instructions String
+  dueAt DateTime
+  published Boolean @default(false)
+  createdAt DateTime @default(now())
+  submissions StudentSubmission[]
+  @@index([classId,published,dueAt])
+}
+model StudentSubmission {
+  id String @id @default(cuid())
+  assignmentId String
+  assignment SchoolAssignment @relation(fields:[assignmentId],references:[id])
+  studentId String
+  student Student @relation(fields:[studentId],references:[id])
+  body String
+  submittedAt DateTime @default(now())
+  @@unique([assignmentId,studentId])
+}
+model StudentReport {
+  id String @id @default(cuid())
+  studentId String
+  student Student @relation(fields:[studentId],references:[id])
+  classId String
+  classSection ClassSection @relation(fields:[classId],references:[id])
+  teacherId String
+  teacher User @relation("ReportAuthor",fields:[teacherId],references:[id])
+  summary String
+  status ContentStatus @default(draft)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([studentId,status,publishedAt])
 }
