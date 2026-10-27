@@ -35,7 +35,7 @@ export default function WorshipEditor(){
    void send({kind,id},"DELETE");
  }
  return <><header className="masthead"><div className="brand"><span className="mark">✧</span>Worship publishing</div><a href="/admin" className="secondary">Control center</a></header>
- <main className="container"><div className="hero"><p className="eyebrow">WORSHIP · MOSQUE CONFIRMED</p><h1>Clarity for every gathering.</h1>
+ <main className="container"><div className="section"><a className="primary" href="/admin/prayer-revisions">Manage prayer times · independent approval</a></div><div className="hero"><p className="eyebrow">WORSHIP · MOSQUE CONFIRMED</p><h1>Clarity for every gathering.</h1>
  <p>Publish verified Jummah sessions and manually confirmed Ramadan/Eid dates. No automatic lunar-date guesses are presented as announcements.</p></div>
  {error?<p className="error" role="alert">{error}</p>:null}{notice?<p className="notice" role="status">{notice}</p>:null}
  <div className="split section"><section className="panel"><div className="tabs"><button className={mode==="jummah"?"primary":"secondary"} onClick={()=>setMode("jummah")}>Jummah sessions</button>
