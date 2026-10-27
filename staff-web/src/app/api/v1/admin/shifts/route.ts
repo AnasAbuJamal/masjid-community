@@ -1,6 +1,7 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
+import {notifyUser} from "@/lib/notifications";
 import {requireCapability} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const command=z.discriminatedUnion("kind",[
@@ -34,7 +35,7 @@ export async function POST(req:NextRequest){
     const conflict=await tx.volunteerShift.findFirst({where:{userId:app.userId,status:"scheduled",startAt:{lt:end},endAt:{gt:start}}});
     if(conflict)throw new HttpError(409,"OVERLAPPING_SHIFT","This volunteer has an overlapping shift.");
     const shift=await tx.volunteerShift.create({data:{applicationId:app.id,opportunityId:app.opportunityId,userId:app.userId,startAt:start,endAt:end}});
-    await tx.notification.create({data:{userId:app.userId,title:"Volunteer shift scheduled",body:"You have a new volunteer shift. View your volunteer schedule."}});
+    await notifyUser(tx,app.userId,"Volunteer shift scheduled","You have a new volunteer shift. View your volunteer schedule.");
     await tx.auditEvent.create({data:{actorId:actor.id,action:"volunteer.shift.schedule",entity:"VolunteerShift",entityId:shift.id}});
     return {id:shift.id,status:shift.status};
    },{isolationLevel:"Serializable"});
@@ -52,7 +53,7 @@ export async function POST(req:NextRequest){
     data:input.action==="check-in"?{checkedInAt:new Date()}:{status:input.action==="complete"?"completed":"cancelled"}});
    if(!updated.count)throw new HttpError(409,"SHIFT_CHANGED","Shift already changed.");
    await tx.auditEvent.create({data:{actorId:actor.id,action:"volunteer.shift."+input.action,entity:"VolunteerShift",entityId:shift.id}});
-   if(input.action==="cancel")await tx.notification.create({data:{userId:shift.userId,title:"Volunteer shift cancelled",body:"The mosque has cancelled a scheduled volunteer shift."}});
+   if(input.action==="cancel")await notifyUser(tx,shift.userId,"Volunteer shift cancelled","The mosque has cancelled a scheduled volunteer shift.");
    return {id:shift.id,action:input.action};
   },{isolationLevel:"Serializable"});
   return ok(result);

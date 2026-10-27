@@ -58,3 +58,6 @@ The local bootstrap creates an admin membership, and new accounts are linked to 
 
 ## Native language support
 The mobile app provides an English/Arabic language selector in Account Settings. The primary tabs, key worship and community copy, common feedback states and shared components have localized labels and directional styling. Translation coverage across deeper screens is **in progress** and requires native-device Arabic/RTL review before release.
+
+## Transactional notifications
+The server persists a private in-app notification and an `OutboxEvent` in the same transaction for selected workflows. The bounded delivery worker is `GET /api/internal/notifications`, requiring `Authorization: Bearer <CRON_SECRET>` (minimum 32 characters). Configure `CRON_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, and `NEXT_PUBLIC_APP_URL` privately before scheduling it through your deployment's authenticated scheduler. The worker delivers generic subject/body text without child or financial details. **No scheduler, sending domain, or push service is connected in this repository.** The provider integration is not production-tested.

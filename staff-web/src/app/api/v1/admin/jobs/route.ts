@@ -1,6 +1,7 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
+import {notifyUser} from "@/lib/notifications";
 import {requireVerified} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 export async function GET(req:NextRequest){
@@ -28,8 +29,7 @@ export async function PATCH(req:NextRequest){
    const changed=await tx.jobApplication.updateMany({where:{id:app.id,status:"submitted"},data:{status,reviewedAt:new Date(),reviewerId:actor.id}});
    if(!changed.count)throw new HttpError(409,"ALREADY_REVIEWED","This application already has a decision.");
    await tx.auditEvent.create({data:{actorId:actor.id,action:"job.application."+status,entity:"JobApplication",entityId:app.id}});
-   await tx.notification.create({data:{userId:app.userId,title:"Your job application was reviewed",
-    body:status==="approved"?"Your application moved forward. The organizer may contact you with details.":"Your application was not selected at this stage."}});
+   await notifyUser(tx,app.userId,"Your job application was reviewed",status==="approved"?"Your application moved forward. The organizer may contact you with details.":"Your application was not selected at this stage.");
   });
   return ok({id:app.id,status});
  });

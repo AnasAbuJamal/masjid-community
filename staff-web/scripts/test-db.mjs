@@ -72,6 +72,10 @@ try{
   body:"This unconfirmed date must remain private.",status:"draft"}});
  const friday=await db.jummahSession.create({data:{venueId:venue.id,localDate:"2026-10-30",ordinal:1,khutbahAt:"13:00",iqamahAt:"13:20",language:"en"}});
  assert.equal(friday.ordinal,1);
+ const notice=await db.notification.create({data:{userId:member.id,title:"Account update",body:"Integration queue."}});
+ const queued=await db.outboxEvent.create({data:{userId:member.id,notificationId:notice.id}});
+ assert.equal(queued.status,"pending");
+ await assert.rejects(()=>db.outboxEvent.create({data:{userId:member.id,notificationId:notice.id}}));
  const prayer=await db.prayerDay.create({data:{venueId:venue.id,localDate:"2026-10-26",fajr:"06:00",sunrise:"07:00",dhuhr:"12:30",asr:"15:30",maghrib:"18:00",isha:"19:00",published:false}});
  assert.equal(prayer.published,false);
  const event=await db.event.create({data:{organizationId:org.id,title:"Example gathering",description:"Fixture",location:"Here",startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000),capacity:1,status:"published"}});

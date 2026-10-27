@@ -1,6 +1,7 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
+import {notifyUser} from "@/lib/notifications";
 import {requireVerified} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const capability=z.enum(["worship_publish","facilities_manage","volunteers_manage","community_moderate"]);
@@ -51,8 +52,7 @@ export async function POST(req:NextRequest){
     await tx.authSession.updateMany({where:{userId:input.userId,revokedAt:null},data:{revokedAt:new Date()}});
     if(input.role!=="staff")await tx.roleGrant.updateMany({where:{membershipId:membership.id,revokedAt:null},data:{revokedAt:new Date()}});
     await tx.auditEvent.create({data:{actorId:admin.id,action:"team.role."+input.role,entity:"User",entityId:input.userId}});
-    await tx.notification.create({data:{userId:input.userId,title:"Your community access was updated",
-      body:"Please sign in again to review your updated community permissions."}});
+    await notifyUser(tx,input.userId,"Your community access was updated","Please sign in again to review your updated community permissions.");
    });
    return ok({id:input.userId,role:input.role,sessionRevoked:true});
   }

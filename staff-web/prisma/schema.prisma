@@ -115,6 +115,7 @@ model User {
   jobApplications JobApplication[]
   bookings RentalBooking[]
   notifications Notification[]
+  outboxEvents OutboxEvent[]
   auditEvents AuditEvent[]
   authoredAssignments SchoolAssignment[] @relation("AssignmentAuthor")
   authoredReports StudentReport[] @relation("ReportAuthor")
@@ -456,6 +457,7 @@ model Notification {
   body String
   readAt DateTime?
   createdAt DateTime @default(now())
+  outboxEvents OutboxEvent[]
 }
 model AuditEvent {
   id String @id @default(cuid())
@@ -831,4 +833,30 @@ model RoleGrant {
   revokedAt DateTime?
   @@unique([membershipId,capability])
   @@index([membershipId,revokedAt,expiresAt])
+}
+
+enum OutboxStatus {
+  pending
+  leased
+  delivered
+  retry
+  exhausted
+}
+model OutboxEvent {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  notificationId String
+  notification Notification @relation(fields:[notificationId],references:[id])
+  channel String @default("email")
+  status OutboxStatus @default(pending)
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  leaseUntil DateTime?
+  lastErrorCode String?
+  providerMessageId String?
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([notificationId,channel])
+  @@index([status,availableAt,leaseUntil])
 }

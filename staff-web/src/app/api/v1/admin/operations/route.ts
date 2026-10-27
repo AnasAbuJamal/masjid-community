@@ -1,6 +1,7 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
+import {notifyUser} from "@/lib/notifications";
 import {requireCapability} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const schema=z.object({kind:z.literal("rental-decision"),bookingId:z.string().min(8),decision:z.enum(["approved","rejected"])});
@@ -30,7 +31,7 @@ export async function POST(req:NextRequest){
    const updated=await tx.rentalBooking.updateMany({where:{id:booking.id,status:"requested"},data:{status:value.decision}});
    if(!updated.count)throw new HttpError(409,"STALE_BOOKING","Booking already updated.");
    await tx.auditEvent.create({data:{actorId:user.id,action:"booking."+value.decision,entity:"RentalBooking",entityId:booking.id}});
-   await tx.notification.create({data:{userId:booking.userId,title:"Your facility request was reviewed",body:"Your booking request is "+value.decision+". View your account for details."}});
+   await notifyUser(tx,booking.userId,"Your facility request was reviewed","Your booking request is "+value.decision+". View your account for details.");
    return {bookingId:booking.id,status:value.decision};
   },{isolationLevel:"Serializable"});
   return ok(result);

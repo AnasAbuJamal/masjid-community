@@ -145,3 +145,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Durable per-account TOTP throttling now applies to enrollment and re-authentication, in addition to the existing one-time code replay checks.
 - Successful verification clears attempt counters; privilege enforcement stays on the server.
 - Production IP/network edge controls, privileged recovery and independent penetration testing are still required.
+
+### Twenty-second implementation pass: durable notification delivery
+- In-app notifications and durable email outbox records now commit atomically in key business workflows: school enrollment, facilities, volunteering, jobs and team role changes.
+- A separately authenticated bounded delivery worker leases pending items, sends only privacy-safe generic email text via the configured provider, and records failures and retry state.
+- Worker is **disabled by default** without strong `CRON_SECRET`, `RESEND_API_KEY`, sender domain and origin; no external emails are claimed delivered without provider success.
+- Still missing: configured scheduler, production sender domain, locked-down recipient preferences, push notification device registration/delivery, provider reconciliation, multi-tenant source scoping and full lifecycle/integration tests.

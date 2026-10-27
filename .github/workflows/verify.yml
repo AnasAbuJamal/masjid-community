@@ -58,6 +58,7 @@ jobs:
           node scripts/test-auth.mjs
           node scripts/test-payments.mjs
           node scripts/test-public.mjs
+          node scripts/test-delivery.mjs
 
   verify-mobile:
     name: Native app TypeScript and package compatibility
