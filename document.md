@@ -1,2017 +1,694 @@
-# SILA / صِلَة — A New Beginning
-## The complete product, experience, architecture and delivery blueprint
+# Masjid Community / SILA — Complete App Plan
 
-**Document:** document.md  
-**Edition:** 1.2 — Apple HIG-informed interface rules and researched engineering, 26 October 2026  
-**Working product name:** **SILA** (Arabic: **صِلَة**, connection or a meaningful bond)  
-**Brand status:** Provisional. Name, domains, translations, trademarks and app-store availability require clearance before public use.  
-**Status:** **Future product specification, NOT implemented code, certification, deployment or a declaration of production readiness.**  
-**Source of truth:** This document supersedes the previous Masjid Community / Azure Sanctuary blueprint as the forward-looking product concept. Do not import the old architecture, routes, database names or features without a fresh decision.  
-**Intended products:** SILA Mobile (iOS/Android), SILA Steward (authorized browser-based operations console), SILA Public (accessible public site), SILA Display (read-only mosque screen), and their shared API/worker platform.
+**Edition:** 2.0 · 27 October 2026  
+**Repository:** AnasAbuJamal/masjid-community  
+**Baseline reviewed:** development at `27e428a067ce9ea8d31e660c465d7baadeaa5d94`  
+**Status:** Proposed product and engineering plan. Features below are requirements, not claims of implementation or production readiness.  
+**Name:** Keep Masjid Community as the repository identity; SILA / صِلَة remains an optional working brand.
 
-> **North star:** Turn a mosque from a place people visit into a community they can belong to throughout the week—without turning worship into an attention economy, exposing vulnerable people, or making ordinary tasks complicated.
->
-> **Engineering north star:** Correctness before effects. Authorization before convenience. Accessible, comprehensible flows before feature count. Every button must have an implemented, tested, truthful result.
+> Give the community one dependable place to find prayer times, participate, learn, give and get help—and give mosque staff the tools to run those services responsibly.
 
----
+This edition replaces the previous build-from-zero blueprint with a practical plan to complete and improve the existing application. Preserve useful code, data and tests. Do not start another rewrite merely to adopt a different framework. The previous specification remains available in [Git history](https://github.com/AnasAbuJamal/masjid-community/blob/27e428a067ce9ea8d31e660c465d7baadeaa5d94/document.md).
 
-# PART I — THE PRODUCT WE ARE BUILDING
+## Contents
 
-## 01. Reset the idea
+1. [Product decisions and launch scope](#1-product-decisions-and-launch-scope)
+2. [Current application and gaps](#2-current-application-and-gaps)
+3. [Navigation and primary experiences](#3-navigation-and-primary-experiences)
+4. [Roles, permissions and account lifecycle](#4-roles-permissions-and-account-lifecycle)
+5. [Worship and mosque information](#5-worship-and-mosque-information)
+6. [Events, circles and volunteering](#6-events-circles-and-volunteering)
+7. [School, families and learning](#7-school-families-and-learning)
+8. [Giving, tuition and finance](#8-giving-tuition-and-finance)
+9. [Care, appointments and mosque services](#9-care-appointments-and-mosque-services)
+10. [Facilities and community extensions](#10-facilities-and-community-extensions)
+11. [Communication, content and operational tools](#11-communication-content-and-operational-tools)
+12. [Interface, accessibility and Arabic](#12-interface-accessibility-and-arabic)
+13. [Architecture and engineering tools](#13-architecture-and-engineering-tools)
+14. [Data model and API contracts](#14-data-model-and-api-contracts)
+15. [Security, privacy and reliability](#15-security-privacy-and-reliability)
+16. [Vercel, GitHub and release operations](#16-vercel-github-and-release-operations)
+17. [Delivery roadmap and implementation tickets](#17-delivery-roadmap-and-implementation-tickets)
+18. [Acceptance tests and definition of done](#18-acceptance-tests-and-definition-of-done)
+19. [Owners, decisions and success measures](#19-owners-decisions-and-success-measures)
+20. [Evidence and technical references](#20-evidence-and-technical-references)
 
-### 01.1 What is SILA?
-SILA is a **mosque-centered community companion and operating system**. It helps people answer five simple questions:
+## 1. Product decisions and launch scope
 
-1. **Today:** What matters at my mosque now—verified prayer times, Jummah details, closures, and a relevant next step?
-2. **Gather:** Where can I meet people, attend a gathering or take part in a trusted circle?
-3. **Learn:** Which age-appropriate classes, study paths and learning activities can I join or support?
-4. **Care:** How can I help—or confidentially ask for help—through donations, service and supervised care programs?
-5. **You:** What have I joined, what do I owe, what can I change, and what information does this organization hold about me?
+### 1.1 What the product includes
 
-The product is **not** another public social feed. It is an organized network of **trusted places, real gatherings, meaningful learning, and dignified acts of care**. Its digital side should help community life happen in person.
+| Surface | Main users | Purpose |
+| --- | --- | --- |
+| Public website | Visitors and members | Prayer times, visiting information, events, programs, donation entry, contact |
+| Mobile app | Members, families, volunteers | Daily mosque information, registrations, school, giving, personal commitments |
+| Staff console | Authorized staff | Work queues, publishing, enrollment, attendance, finance and operations |
+| Mosque display | People in the building | Read-only prayer timetable, Jummah, closures and approved announcements |
+| Shared API and delivery jobs | All surfaces | One source of truth, permissions, transactions, notifications and audit |
 
-### 01.2 Core proposition
-**For a visitor:** Reliable worship information without creating an account.  
-**For a member:** One clean account for gatherings, volunteering, donations and participation.  
-**For a family:** Carefully verified relationships, approved enrollment, attendance and tuition information.  
-**For an educator:** A scoped, focused classroom—not an unrestricted view of children.  
-**For a steward:** Confident, accountable operations: publishing, approving, scheduling and communicating.  
-**For leadership:** Understand participation and service without spying on people or gamifying religion.
+The public website must remain useful without downloading an app. Public information must remain useful without registering. Account creation is required only when identity is needed for an action. Staff operations use a clearly separated workspace.
 
-### 01.3 A different product logic
-The old pattern was "a screen for each department." SILA instead works around **member intent**:
+### 1.2 Product rules
 
-| Intent | First action | Trust mechanism | Real-world outcome |
+- Every module has a named operator, an understandable lifecycle, a recovery path and measurable acceptance criteria.
+- Show real statuses: submitted, waiting for review, confirmed, canceled, processing, paid or refunded.
+- Never fabricate prayer times, donor totals, attendees, receipts or reports.
+- Keep English and Arabic, accessibility, truthful errors and private-data protection in the definition of a complete feature.
+- One identity can hold multiple responsibilities. Permissions depend on organization, action, resource and relationship.
+- Pilot with one mosque organization; support multiple venues inside it. Multi-organization hosting is a separate release gate.
+- Prefer complete everyday services over a large menu of unfinished tools.
+- No open stranger-to-child messaging, religious scoring, automatic fatwas or automated care/financial eligibility decisions.
+
+### 1.3 Release boundaries
+
+**R0 — Stabilize:** inventory, reproducible builds, deployment safety, authorization, migration strategy, design primitives and observability.
+
+**R1 — Community pilot:** public information, worship, announcements, events with cancellation/waitlist/check-in, volunteering, accounts, staff permissions, support inbox, notification delivery and read-only display.
+
+**R2 — Family and finance:** verified guardianship, school operations, tuition, one-time giving, verified receipts, refund approval, partial-refund accounting and settlement reconciliation. No real-money or private school launch before these domain gates pass.
+
+**R3 — Managed services:** circles, recurring giving, appointments, care intake, rooms and maintenance. Enable each only when its operating team and full workflow are ready.
+
+**R4 — Optional growth:** jobs, proposals, construction updates, resource library, additional integrations and additional organizations.
+
+These are release groups, not calendar promises. A feature can be implemented earlier in test environments; production enablement follows its gate. Existing optional features remain available for engineering evaluation, but are not automatically included in the pilot.
+
+## 2. Current application and gaps
+
+Reviewed the existing specification, README, implementation log, repository tree, package manifests, Prisma schema, authentication, team administration, action route and CI workflow. This was a planning review, not a full security audit or execution of the application.
+
+| Area | Evidence in the repository | Required direction |
+| --- | --- | --- |
+| Web/API | Next.js 16 declarations in `staff-web/package.json`; versioned routes under `/api/v1` | Keep; extract reusable domain services from large command routes |
+| Mobile | Expo 54, React Native 0.81.5, Expo Router declarations; five existing tabs | Keep; reorganize journeys gradually with compatible deep links |
+| Database | PostgreSQL/Prisma 5 declarations; 56-model schema and initial SQL migration | Retain; review additive migrations and existing-data backfills |
+| Identity | Database sessions, secure cookie, native SecureStore, TOTP and throttling foundations | Complete privileged recovery, fresh step-up, session lifecycle and abuse controls |
+| Authorization | Global `User.role`, memberships and four capability kinds; `organization.findFirst()` in auth | Replace implicit organization and global-role authority with explicit scoped policy |
+| School | Programs, students, guardian links, enrollment, attendance, assignments, reports and invoices | Finish complete administration, relationship revocation and field-level access |
+| Finance | Checkout, signed webhook, receipts/journals and full-refund workflow reported in implementation log | Verify end to end; complete partial refunds, disputes and reconciliation |
+| Operations | Events, volunteers, facilities, jobs, proposals, articles and construction records | Complete lifecycle and operator UI before enabling each |
+| Notifications | In-app records and leased email outbox foundations | Configure safe delivery; enforce preferences; monitor retries and outcomes |
+| Quality | Node tests, disposable PostgreSQL checks, API scripts, types/build and Expo compatibility workflow | Add PR checks, concurrency coverage, browser/native journeys and evidence |
+| Documentation | Implementation log contains early gaps followed by later implementation passes | Treat it as history; reconcile feature status against code and test evidence |
+
+**Concrete gaps observed:** the auth helper selects the first organization, privileged capability checks contain an admin bypass, team updates replace one global primary role, and the action route mixes multiple business domains. These are refactoring targets; having a membership table does not establish complete tenant isolation.
+
+**Deployment observation:** Vercel project `masjid-community` reported its latest deployment `dpl_3krJxqb5NT9jUyqsGstgmfTYb4Yj` as ERROR. It references older commit `a1b8d49685b049808010573d3b79c07b6ff0800d`, with failed command `npx prisma db push && npx prisma db seed && npm run build`. This is a historical deployment observation, not a diagnosis of the current commit. Inspect logs and settings during R0; remove schema push/seeding from the deployment build path before a future production build.
+
+## 3. Navigation and primary experiences
+
+### 3.1 Mobile and member web
+
+| Destination | First screen | Deeper tools |
+| --- | --- | --- |
+| Today | Next published prayer, iqamah, venue, urgent notice | Full timetable, Jummah, directions, Ramadan/Eid, Qibla, upcoming commitments |
+| Community | Upcoming events and opportunities | Event registration, circles, volunteer shifts, approved community resources |
+| Learn | Programs and family learning overview | Apply, child profiles, class schedule, attendance, assignments, progress, tuition |
+| Give & Help | Approved causes and service options | One-time/recurring giving when enabled, receipts, volunteer entry, service request |
+| Account | My upcoming actions and account settings | Family relationships, registrations, invoices, notifications, language, security, privacy |
+
+Tab names are proposed bilingual product copy; validate Arabic labels and small-screen fit before implementation. Keep all five main destinations stable. Do not duplicate a module's data because it has more than one entry point.
+
+### 3.2 Staff console
+
+Use a task-oriented home page: overdue approvals, today's classes/events, schedule warnings, reconciliation exceptions and failed delivery jobs. Each item shows owner, next action, age and status.
+
+Authorized navigation: Overview; Worship; Events & Circles; School; Volunteers; Services; Facilities; Finance; Communications; People & Access; Reports; Settings. A user sees only relevant workspaces, but the server always enforces permissions independently.
+
+The teacher sees assigned classes and attendance. The finance officer sees invoices and reconciliation. The worship editor sees schedules and publication drafts. The organization owner sees configuration and access reviews, without automatic access to counseling notes or child records.
+
+### 3.3 Core journeys
+
+| Journey | Complete outcome |
+| --- | --- |
+| Visitor checks Friday prayers | Correct venue-local sessions and directions, without sign-in |
+| Member reserves an event | Confirmed or waitlisted server result, personal history, cancellation and check-in |
+| Guardian applies for school | Request tracked through verification, placement, enrollment and invoicing |
+| Teacher records attendance | Assigned session only, saved mark, correction reason and guardian visibility policy |
+| Donor contributes | Provider-confirmed transaction, private receipt and reconciled accounting |
+| Volunteer joins | Application, eligibility review, shift assignment, check-in and completed record |
+| Person requests a service | Private acknowledgment, assigned human owner, next step and closure |
+| Staff publishes a correction | Reviewed revision, updated public surfaces, notification and audit |
+| Staff leaves the mosque | Grants revoked, sessions invalidated, responsibilities reassigned |
+| User requests deletion | Identity verified, retention decisions explained, eligible data removed and request closed |
+
+## 4. Roles, permissions and account lifecycle
+
+### 4.1 Role catalog
+
+Roles are editable **permission templates**, not global superuser labels. Specialized roles appear only when the module is enabled. Small teams can assign several templates to one person, except where separation of duties forbids it.
+
+| Role | Scope and working tools | Explicit restrictions |
+| --- | --- | --- |
+| Guest | Published worship, programs, events and visiting information | No private rosters or account actions |
+| Member | Own profile, registrations, volunteering, giving and requests | No other member's records |
+| Guardian | Verified linked child's authorized school records and designated billing | A parent label or shared email never establishes a relationship |
+| Student | Own enrolled classes, assignments and published feedback | Age/consent policy; no classmates' private records |
+| Teacher | Assigned cohorts, attendance, assignments and reports | No unrelated children, custody evidence or donor records |
+| School administrator | Assigned programs, class placement, schedules and teacher assignments | Relationship approval requires a separate safeguarding grant |
+| Safeguarding officer | Guardian verification, pickup permissions and restricted incident review | No finance or public publishing by default |
+| Imam / religious lead | Approved worship/faith content, assigned appointments and learning programs | No automatic finance, custody or care-case access |
+| Worship editor | Assigned venue timetable drafts and import preview | High-impact publication requires a separate reviewer |
+| Worship reviewer | Review and publish assigned venue revisions | Cannot approve own change when two-person review applies |
+| Event / circle coordinator | Assigned activities, registrations, waitlist, check-in and moderation | No organization-wide contact export |
+| Volunteer coordinator | Assigned programs, eligibility, shifts and hours | No unrelated care notes or child records |
+| Facilities manager | Assigned venues, room allocations, maintenance and equipment | No private appointment narrative |
+| Communications editor | Public pages, announcements, translations and approved audience campaigns | Cannot freely export recipients or approve sensitive content alone |
+| Care / service coordinator | Explicitly assigned requests or case team | Case access does not come from ordinary staff status |
+| Finance preparer | Assigned funds, invoices, reconciliation preparation, refund/expense requests | Cannot approve own request or change provider credentials |
+| Finance approver | Assigned financial approvals, limits and exception review | Different actor from preparer; no silent alteration of request amount |
+| Organization owner / access administrator | Organization setup, invitations, approved role grants and access reviews | No automatic domain-record access or unilateral self-escalation |
+| Board / auditor | Approved aggregate reports and time-limited read-only audit scope | No routine individual donor, child or care-case access |
+| Support / privacy officer | Scoped support, identity verification and privacy-request tracking | No impersonation or unrestricted exports by default |
+| Platform operator | Infrastructure health and deployment | Business data only through exceptional time-bound, independently approved access |
+
+### 4.2 Permission contract
+
+Represent each assignment with membership, role template, capabilities, scope type, scope ID, issuer, approval reference, effective dates and revocation. Scope types include organization, venue, program, cohort, event, fund and case. Guardianship and enrollment are relationships, not grantable shortcuts.
+
+Example capabilities: `worship.draft`, `worship.publish`, `event.manage`, `event.checkin`, `school.enroll`, `guardian.verify`, `attendance.write`, `invoice.issue`, `refund.request`, `refund.approve`, `care.read`, `roles.assign`, `audit.read`, `privacy.export`.
+
+A private action requires all of: active identity/session, active organization membership, sufficient authentication assurance, applicable capability, matching resource scope, valid relationship where required, allowed workflow transition and no separation-of-duty conflict.
+
+Multiple grants can add allowed actions, but never override suspension, revoked relationships, confidentiality boundaries or self-approval prohibitions. Perform policy checks on reads, lists, searches, exports, files, background jobs and mutations.
+
+### 4.3 High-risk action matrix
+
+| Action | Required authority | Additional guard |
+| --- | --- | --- |
+| Assign privileged role | Access administrator plus independent privileged reviewer | Fresh MFA; cannot self-approve or delegate beyond approved authority |
+| Transfer organization ownership | Existing owner and independent authorized reviewer | Verified new owner, fresh MFA, audit; keep a recoverable owner |
+| Approve guardian relationship | Safeguarding verification grant | Evidence reference, reason, effective dates; not the applicant |
+| Read child progress | Linked guardian, enrolled student or assigned teacher | Correct organization/cohort and allowed fields |
+| Publish prayer change | Venue publication grant | Independent review for material changes; controlled urgent override |
+| Refund / reimburse expense | Finance approver in fund/organization scope | Actor differs from requester; amount/limit check; fresh MFA |
+| Read care narrative | Assigned case grant | Purpose recorded; owner role alone is insufficient |
+| Export people or finance | Explicit export capability | Field minimization, fresh MFA, expiry and audit |
+| Emergency support access | Independently approved break-glass grant | Time limit, reason, operator notification and retrospective review |
+
+Urgent closure publication may use a designated emergency grant when a second reviewer is unavailable. Record reason, notify reviewers immediately and require later review. This exception does not authorize self-approved money movement or unrestricted care access.
+
+### 4.4 Account and staff lifecycle
+
+Invitation → verified recipient acceptance → required MFA → approved grants become active → periodic access review → expiration/suspension/revocation. Invitations are single-use, expiring and organization-bound; signup cannot choose a staff role.
+
+Revocation blocks fresh requests immediately, invalidates cached authorization/session state, disables device delivery where appropriate and reassigns pending work. Avoid deleting historical actors from audit records. Recovery must not bypass MFA through ordinary email alone. Define a two-person privileged recovery procedure and test the lost-device scenario.
+
+## 5. Worship and mosque information
+
+**Owner:** religious lead and designated venue editor. **Release:** R1.
+
+Tools: mosque/venue profile, address and accessibility notes, timetable editor, CSV import dry run, missing-day warnings, adhan/iqamah, multiple Jummah sessions, Ramadan timetable, human-approved Eid/moon-sighting notices, emergency closure, print/calendar export, display preview and version history.
+
+Schedule lifecycle: draft → reviewed → scheduled/published → superseded/archived. Keep author, source, local date, timezone, reviewer, revision and publication time. Import/calculation creates drafts; a calculation is not an official mosque decision.
+
+Publication is atomic. Invalidate public caches and display projections, keep previous revisions for audit, and notify affected subscribers after commit. If a schedule is unavailable, show that clearly. Offline data shows its venue, date, revision and freshness; never use yesterday's time as today's.
+
+Qibla is optional and permission-based. Offer manual location selection, distinguish bearing from a live compass heading, handle unavailable sensors and avoid storing location history.
+
+**Acceptance:** a guest sees the correct venue-local day while traveling; a DST change does not shift Jummah incorrectly; missing schedules remain visibly missing; draft data never appears publicly; a corrected timetable propagates to app, website and display.
+
+## 6. Events, circles and volunteering
+
+### 6.1 Events — R1
+
+Tools: event series and sessions, room/time allocation, audience/language/accessibility fields, capacity, registration windows, household attendee selection, waitlist, reminders, cancellation, roster, check-in, attendance correction and exports limited to the organizer's scope.
+
+Event lifecycle: draft → published → registration closed → completed; cancellation is possible with reason and affected-person notification. Each occurrence of a recurring event has its own capacity and attendance.
+
+Reservation lifecycle: requested → confirmed or waitlisted → checked in/completed; cancellation, no-show and offer expiry are explicit. A household registration identifies actual authorized attendees and consumes the correct number of seats without publicly exposing minors.
+
+Reserve the final seat atomically. Repeated taps return the same reservation. Cancellation releases capacity once. Waitlist offers follow a documented order, hold a seat for a configured duration, and expire without overbooking. Changing date, venue or capacity creates a reviewed update; reducing capacity below reservations requires an explicit resolution.
+
+Check-in can use an opaque event-specific QR token or a manual lookup. Do not encode names, birthdays or bearer sessions in QR codes. Staff can correct mistaken check-ins with a reason. Paid events remain disabled until the full payment/refund lifecycle is ready.
+
+### 6.2 Circles — R3
+
+Tools: public summary, joining rules, host approval, membership requests, moderated updates, meeting calendar, report-content action and member removal. States: requested → approved → left/removed; circle: draft → active → paused → archived.
+
+Private membership and rosters are never publicly searchable. No unrestricted private messaging at launch. Youth circles require supervision and guardian policy. Host departure must trigger reassignment or suspension, not an unattended group.
+
+### 6.3 Volunteering — R1
+
+Tools: opportunities, skills and availability, eligibility evidence status, shift capacity, recurring slots, assignment, swap request, check-in/out, hours correction, cancellation and participation letter where supported.
+
+Application: submitted → reviewing → approved/declined/withdrawn. Shift: offered → accepted → checked in → completed, with canceled/no-show alternatives. Eligibility expiration blocks newly assigned protected duties. Reject conflicting shifts; coordinator override requires a documented reason.
+
+**Acceptance:** concurrent registrations cannot exceed capacity; canceled events release rooms and stop reminders; an unassigned coordinator cannot read rosters; a volunteer sees accurate shift status and can withdraw; expired eligibility is enforced server-side.
+
+## 7. School, families and learning
+
+**Owners:** school administrator, teachers and safeguarding officer. **Release:** R2.
+
+### 7.1 Required school tools
+
+- Program catalog with age bands, language, curriculum, term dates, fees, prerequisites and enrollment windows.
+- Academic terms, cohorts, session calendar, rooms, teachers, substitute assignments and capacity/waitlists.
+- Guardian verification queue; evidence references, relationship dates, consent versions and immediate revocation.
+- Child profile with minimum necessary fields; emergency contact and authorized pickup recorded separately from guardianship.
+- Enrollment applications, duplicate review, class placement, transfers, withdrawals and term completion.
+- Teacher attendance, absence corrections, approved guardian notifications and attendance reports.
+- Assignments, private submissions, Quran memorization/recitation progress and teacher feedback; no public rankings.
+- Draft/published progress reports with defined guardian/student audiences.
+- Tuition issuance, designated payer, discounts/scholarship decisions, invoice history and private receipts.
+- Class announcements through moderated, scoped channels; no unmonitored adult-to-child DMs.
+
+### 7.2 Enrollment lifecycle
+
+Draft → submitted → needs information → relationship verified → approved/waitlisted/declined → enrolled → transferred/withdrawn/completed.
+
+Application approval, guardian verification and actual class enrollment are separate decisions. Approval does not automatically activate a student account or charge tuition. An atomic class placement checks capacity, prerequisites and active relationships. Fee generation is idempotent.
+
+Provide age-appropriate student access only after the organization sets consent and account policies. Guardians see only approved child records; being the invoice payer does not automatically grant academic access, and being a guardian does not expose another payer's transaction.
+
+### 7.3 Revocation and classroom operations
+
+A custody or safeguarding concern can temporarily freeze a relationship pending human review. Revoke access across APIs, search, cached private data, exports and pending notifications. Already downloaded copies cannot be remotely guaranteed erased; minimize exports and explain this limitation.
+
+Teachers see only currently assigned cohorts and relevant fields. Substitute grants expire. Attendance corrections keep old/new values and reason. Session cancellation stops reminders and marks attendance not required.
+
+**Acceptance:** two guardians with different authorizations see only their permitted data; revocation takes effect on the next request; a teacher cannot guess another student's ID; duplicate approval does not duplicate enrollment or invoices; private submissions and drafts stay private.
+
+## 8. Giving, tuition and finance
+
+**Owner:** finance lead. **Release:** R2; recurring giving in R3.
+
+### 8.1 Required finance tools
+
+| Tool | Required behavior |
+| --- | --- |
+| Campaigns and funds | Purpose, restriction, currency, publication approval, optional truthful goal |
+| Hosted checkout | Server validates amount/currency/campaign; provider handles payment details |
+| Donor account | Own payment history, receipts, privacy preference and recurring management |
+| Tuition | Authorized payer, due dates, approved adjustments, payment allocation and balance |
+| Receipts | Unique number, verified transaction, organization identity, refund history |
+| Refund desk | Request, independent approval, provider submission, pending/failed/confirmed states |
+| Reconciliation | Charges, fees, refunds, disputes, payouts, bank confirmation and exception queue |
+| Budgets and expenses | Allocation versus actual expense, evidence, maker/checker and payment status |
+| Reports | Restricted/unrestricted fund activity, outstanding invoices, reconciliation and export |
+| Offline contributions | Authorized recording of cash/check, counted by distinct people, deposit match |
+
+Do not equate a donation goal, budget allocation, payment total, processor balance and bank cash. Public transparency shows approved aggregates with period and definitions, never individual donor or beneficiary details.
+
+### 8.2 Money lifecycle and invariants
+
+Checkout intent → provider pending → paid/failed/expired. Only verified provider events confirm online payment. A checkout redirect remains processing until the server confirms the transaction.
+
+Persist a verified webhook inbox before acknowledging durable acceptance. Deduplicate provider event IDs and business transaction IDs. Verify organization/provider account, source, exact amount and currency. Handle delayed, repeated and out-of-order events through state guards and provider reconciliation.
+
+A confirmed payment creates the payment record, immutable receipt, balanced journal and notification outbox once. Every journal balances within one currency; corrections are new entries, never edits to posted history.
+
+Refund: requested → approved/rejected → submitting → provider pending → confirmed/failed. The approver differs from requester. Partial refunds cannot exceed remaining refundable value. Record each confirmed refund delta once; do not turn a partial refund into a full reversal. Track chargebacks and payout fees independently.
+
+Tuition: draft → issued → partially paid/paid/overdue → adjusted/voided as appropriate. Use credits and approved adjustments after posting; never overwrite a paid invoice to hide a correction. Installments require separate allocation rules and receipts.
+
+### 8.3 Recurring and offline giving
+
+Recurring giving requires explicit amount/frequency/terms, provider-confirmed subscription, cancellation, failed-renewal handling, payment-method update and a separate receipt for each paid installment. Canceling a subscription does not refund past installments.
+
+Cash/check entries are distinct from Stripe payments. Use numbered acknowledgment, dual count/verification, deposit batch and reconciliation. Do not label an unbanked check as a provider-verified online payment.
+
+**Acceptance:** duplicate or reordered webhooks never double-post; amount mismatch is quarantined; preparers cannot approve their own refund; partial/full refund and fee totals reconcile; another member cannot download a receipt; pending payment is never labeled paid. Finance signs off account definitions and receipt wording before real-money enablement.
+
+## 9. Care, appointments and mosque services
+
+**Release:** R3, enabled per service. **Owner:** named service coordinator.
+
+| Service | Member tools | Operator tools and limits |
+| --- | --- | --- |
+| Imam appointment | Choose service, request slot, reschedule/cancel | Availability, buffers, private assignment, minimal appointment notes |
+| New Muslim support | Request contact, preferred language, opt-in follow-up | Mentor assignment, supervised meetings, consent and closure |
+| General assistance / zakat request | Minimal private intake, document request, status | Named case team, eligibility review, separate award/payment approval |
+| Nikah inquiry | Requirements checklist, appointment request | Human eligibility/document review and coordination; no automatic legal certification |
+| Janazah / bereavement coordination | Clear contact route and availability, request tracking | Urgent task checklist, assigned coordinator and verified service contacts |
+| Counseling / family support | Confidential request with service limits | Restricted practitioner scope, safe follow-up; not a public support inbox |
+
+Request lifecycle: submitted → triaged → assigned → appointment/action scheduled → awaiting requester/provider → resolved → closed, with declined, withdrawn and escalated alternatives.
+
+Each enabled service needs operating hours, realistic response expectation, backup owner, confidentiality notice and retention rule. Do not imply round-the-clock emergency coverage. A service-request tool is not an automated clinical, religious or legal decision-maker.
+
+Appointment reservations lock a slot atomically, account for buffers and venue timezones, and prevent staff/room conflicts. Notifications say only that an update is available. Exclude narrative text from general search, logs, analytics, board reporting and ordinary email.
+
+Assistance eligibility is a human decision. Finance receives only the minimum approved disbursement instruction; it does not receive the full case file. Care staff do not gain donor access.
+
+**Acceptance:** a general admin cannot open a case without a case grant; canceled appointments free the slot once; unstaffed service intake is unavailable with a clear contact alternative; every accepted request has an owner and visible next step.
+
+## 10. Facilities and community extensions
+
+These modules preserve useful existing concepts while giving each a complete operating model.
+
+| Module | Release | Functional tools | Enablement gate |
 | --- | --- | --- | --- |
-| I want to pray | Read venue-authorized schedule | Mosque-verified revision and local timezone | Arrive at the right place/time |
-| I want to meet people | Explore an event or approved circle | Moderator, capacity and safeguarding rules | Attend an authentic gathering |
-| I want to learn | Browse path/program, apply | Enrollment approval and protected child records | Participate in learning |
-| I want to help | Select a service shift or approved cause | Scheduling and verified payment status | Time or money makes a difference |
-| I need assistance | Request a private care conversation | Restricted case intake and explicit consent | Safe human follow-up |
-| I manage the mosque | Open task queue, decide, publish | Scoped permissions, audit and maker/checker | A dependable community service |
+| Rooms and facilities | R3 | Availability, resource capacity, setup/cleanup buffers, request, approval, cancellation, calendar | Shared event/class/appointment conflict checks; assigned manager |
+| Paid rentals | R3 optional | Terms, quote, deposit, payment, refund, handover and damage review | Finance gate plus approved rental policy; no payment before slot policy is satisfied |
+| Maintenance / inventory | R3 | Issue reporting, work orders, priority, assignee, equipment and completion evidence | Clear urgent hazard escalation and private attachments |
+| Community proposals | R4 | Submit, moderate, discuss through reviewed updates, vote, publish decision | Duplicate/eligibility control; votes are advisory unless a formal policy says otherwise |
+| Jobs / opportunities | R4 | Reviewed employer listing, application, private status, withdrawal and closure | Employer verification, consent, resume scanning and retention |
+| Construction / projects | R4 | Approved milestone updates, funding links, status and documents | Verified progress and finance-reviewed numbers |
+| Resource / sermon library | R4 | Reviewed recordings, transcripts, category search and downloads | Consent, rights, moderation, translation review and storage budget |
+| Member directory | R4 optional | Explicit opt-in, selected fields, withdrawal | No children, no default contact exposure, no bulk extraction |
+| Multi-organization hosting | R4 separate gate | Organization switch, isolated configuration and tenant administration | Cross-tenant tests, scoped jobs/files/cache, provider-account isolation and audit |
 
-The same event, person, room or notification should never be duplicated into departmental silos. Use one canonical record and permission-aware views.
+All shared room allocations use one canonical reservation model; a class must not collide with a rental because they use separate tables. Pending requests do not imply a confirmed reservation. Approvals and expiring holds enforce conflicts in database transactions.
 
-### 01.4 Four experience principles
-- **Calm:** Zero endless feeds, artificial streaks, religious scores, manipulative badges or attention-maximizing notifications.
-- **Human:** Digital workflows end in a meeting, answer, check-in, class, service or receipt. Avoid "submit and disappear" experiences.
-- **Trustworthy:** Label the source and status of prayer times, schedules, financial transactions and official announcements.
-- **Inclusive:** An older person, a first-time guest, a busy parent, a screen-reader user and an Arabic-speaking member must all understand what to do.
+## 11. Communication, content and operational tools
 
-### 01.5 Success is not download count
-Use a small, privacy-preserving scorecard: percentage of prayer-day records verified on time; event check-ins versus RSVP; time to close a care request; approved school enrollments with signed guardian evidence; service shifts completed; receipt accuracy; successful task completion; accessibility defect count; security exceptions; user-reported trust. No individual religiosity scoring, leaderboards, inferred beliefs or covert location tracking.
+### 11.1 Content and notifications
 
----
+Content tools: drafts, preview, scheduled publication/expiry, revision history, EN/AR translation review, media provenance and audience rules. Authoring and publishing permissions are distinct for material changes. Unpublishing removes the item from public search and caches.
 
-## 02. Naming and brand architecture
+Notification channels: in-app first; transactional email for enabled workflows; push after device registration and receipt handling; SMS only for an explicitly approved need and budget. Keep marketing opt-ins separate from operational messages and respect quiet hours where appropriate.
 
-### 02.1 Working identity
-- **Umbrella:** SILA / صِلَة.
-- **Consumer app:** **SILA**. Descriptor: *Your place, your people, your moments.*
-- **Staff product:** **SILA Steward**. Descriptor: *Organize with care.*
-- **Public presence:** **SILA Public** (normally branded as the mosque's own website).
-- **On-premise read-only view:** **SILA Display**.
-- **Internal product platform:** SILA Core (not a marketed consumer product).
+Commit business change and outbox record in one transaction. A bounded worker leases work, retries with backoff, reclaims expired leases and quarantines exhausted items. Use stable provider idempotency where supported; reconcile uncertain sends before retry. Do not promise exactly-once email delivery across network failures.
 
-The mosque's **own legal name and identity remain primary**. SILA is an enabling system, not a substitute for local community identity. White-labeling is possible later through organization-bound design tokens and verified content.
+Distinguish queued, provider accepted, delivered where provider receipts exist, bounced, suppressed and failed. Recheck active recipient relationship and preferences at delivery time. Deep links always reauthorize.
 
-### 02.2 Naming rules
-Use understandable words; do not use internal database terms in menus:
-- **Gathering**, not EventRSVP.
-- **Circle**, not GroupMembership.
-- **Learning Path**, not SchoolProgramType.
-- **Service Shift**, not VolunteerOpportunitySlot.
-- **Care Request**, not CRM Ticket.
-- **Steward**, not Super User.
-- **Contribution**, not CheckoutSession.
-- **Receipts**, not Payments API.
+### 11.2 Staff operational toolkit
 
-The UI should distinguish: **requested, awaiting review, confirmed, active, completed, declined, canceled, refunded**. Never present a requested reservation or submitted payment as completed.
-
-### 02.3 Brand personality
-Warm, composed, intelligent, spiritually respectful, never theatrical. Avoid cliché mosque clip-art, decorative Arabic text used without linguistic review, gold gradients, borrowed Apple assets, marketing noise or flashy glass everywhere. Visual authenticity comes from hierarchy, material, typography, clarity and humane detail.
-
-### 02.4 Naming clearance gate
-Before publishing SILA publicly: trademark search by a qualified professional in target jurisdictions and software classes; domain and social handle checks; app-store conflict search; native Arabic proofreading; potential negative connotations in languages served; written owner approval. **SILA is a working name, not a promise of legal availability.**
-
----
-
-## 03. Who uses the product
-
-| Persona | Principal goal | Default access | Highest-risk consideration |
-| --- | --- | --- | --- |
-| Guest | See prayers, visit, browse public events | Anonymous public records | No forced registration |
-| Member | Join gatherings, give, serve, manage profile | Verified own account | Private data minimization |
-| Guardian | Apply for child, view authorized reports and invoices | Verified guardian relationship | Child safeguarding and custody changes |
-| Student | Access assigned work via age-appropriate account | Self plus school scopes | Minor permissions and consent |
-| Teacher | Manage assigned cohorts and attendance | Cohort/subject scopes | Zero cross-class disclosure |
-| Program host | Manage own gathering or circle | Explicit program grant | No organization-wide access |
-| Volunteer coordinator | Staff service calendars and check-ins | Assigned service-area grant | Identity validation |
-| Care coordinator | Review restricted requests | Restricted named case scope | Extreme confidentiality |
-| Finance maker/checker | Handle contributions, requests, approvals and ledger | Financial actions with separation of duty | Funds and donor identities |
-| Worship editor | Update authorized venue schedules | Venue-scoped publishing | Time accuracy and urgent corrections |
-| Organization steward | Configure org, staff, policies and review queues | Organization scope, MFA | Privilege management |
-| Auditor | Read approved audit/reconciliation artifacts | Expiring read-only access | No write capability |
-| Platform operator | Maintain infrastructure, not browse private case data | Break-glass operations only | Cross-tenant protection and audit |
-
-A single person may have **multiple scoped assignments** in one or several organizations; do not force all privileges into a mutable "one role" column. Primary app navigation is based on current context and authorized actions.
-
----
-
-## 04. Product boundaries and ethical decisions
-
-### 04.1 Launch product: complete but focused
-The first production version includes trusted worship schedules, events/gatherings, moderated circles, learning/enrollment, private guardian views, volunteering, contributions/tuition, receipts, controlled care intake, multilingual discovery, official announcements, a serious steward console and a safe public website. A business workflow is included only when it has a realistic **complete lifecycle** and an accountable human owner.
-
-### 04.2 Deliberately not a first-release feature
-- Open public chat/DMs with strangers; anonymous social streams; child-to-adult unmoderated messaging.
-- Prayer streaks, "who prays most" charts, religion-based rankings or sensational engagement loops.
-- Marketplace jobs and paid space rentals, unless leadership validates operations, policies, support and refund obligations.
-- Automatic religious rulings, fatwas or moon-sighting declarations from an AI model.
-- Automated approval of financial assistance, child custody, educational discipline or expense reimbursement.
-- Collecting detailed medical or welfare histories without a defined program, trained case owner, retention policy and legal review.
-- Vendor lock-in via opaque proprietary database formats; premature microservices.
-
-These may later be assessed with problem statements, safeguards and independent acceptance gates. Do not quietly introduce them because they existed in the previous code.
-
-### 04.3 Core rules
-Every proposed feature needs: target persona, evidence of demand, success criterion, sensitivity classification, object ownership, access policy, UI states, API contract, data model, negative tests, operating owner, and recovery path. If any is missing, implementation is not ready.
-
----
-
-## 05. The five experiences
-
-### 05.1 TODAY — a reliable starting place
-First surface, usable without sign-in:
-- **Now card:** Local date, assigned venue, next published prayer and source timestamp; never fabricate unpublished times.
-- Prayer schedule by venue with iqamah alongside adhan, Jummah sessions, exceptional holiday schedules and seasonal adjustments.
-- **One consequential message**, such as a confirmed closure or changed Jummah time, visually prioritized over routine announcements.
-- Personal next step **only after login and opt-in**: confirmed gathering, upcoming shift, due learning task.
-- "Directions to venue" may open platform maps; no continuous GPS collection.
-- Accessible Qibla: compass if permission granted, explanatory manual fallback; say when compass accuracy is uncertain.
-- Ramadan/Eid and moon-sighting announcements sourced from explicitly approved mosque records, never guessed.
-
-### 05.2 GATHER — actual community, not a feed
-- Browse curated, public gatherings: lectures, youth events, meals, Jummah community programs and special events.
-- Search and filter by date, venue, audience, accessibility accommodations and category.
-- A gathering has a host, status, visibility, start/end in venue timezone, location, capacity/waitlist policy, RSVP deadline and cancellation terms.
-- RSVP once, cancel within rules, receive truthful confirmation and optional calendar export.
-- Attended vs merely registered is distinct; authorized hosts check in by roster or short-lived code.
-- **Circles** are sustained, moderated groups (e.g., sisters' learning circle, new-neighbor welcome, volunteer crew). Members request access; an approved host manages attendance, calendar and carefully moderated updates. No public member directories by default.
-- Guest access for public gatherings; sign-in at the precise point needed to reserve or join.
-
-### 05.3 LEARN — structured, respectful growth
-- **Learning Paths** group goals, programs, sessions and resources; users understand prerequisites, ages, language, dates and availability.
-- Adult enrollments can be self-managed; child enrollments require verified guardian requests and school approval.
-- Teachers have assigned rosters, attendance, session notes, assignments and reviewed progress reports.
-- Student work is visible only to the student and authorized teacher(s); approved guardians see only appropriately shared progress.
-- School fees, concessions, invoices and attendance are separately secured from community-wide volunteer/event data.
-- Uploads undergo type checks, scan/quarantine and signed-URL access; no raw public child files.
-- Attendance corrections and report publication are versioned, attributable actions with a challenge or appeal process.
-
-### 05.4 CARE — dignity through clear requests
-- Two modes: **Give time** (volunteer programs, shifts, training, check-in) and **Give funds** (verified causes, donation and tuition invoices).
-- **Ask for support**: optional, private referral intake for approved organizations with trained staff; minimum fields, clear confidentiality scope, urgent-help disclaimers and human response targets.
-- A donor sees an amount, designated program, currency, recurring terms (if supported), provider status, receipt and refund policy before committing.
-- A volunteer applies, is approved, chooses or receives a shift, confirms it, and sees attendance history.
-- Admins never display identifiable care cases on a TV, public dashboard, general leader summary or routine push.
-- Case decisions stay human-led. Do not model welfare recipients as a marketing audience.
-
-### 05.5 YOU — ownership and clarity
-- Account identity, selected mosque and venue, language, text-size support, notifications and consent settings.
-- "My commitments": upcoming gatherings, circles, learning, service and a small timeline of relevant changes.
-- Own invoices, receipts and transaction statuses; explicitly show provider-pending versus completed.
-- Accessible account recovery, device sessions, sign out everywhere, data export and a reviewed privacy/deletion request path.
-- Dependents are visible only via explicit active GuardianLink evidence with revocation; no email-address inference.
-- Easy sign out; there are no dark patterns to retain or delete data.
-
----
-
-## 06. The companion surfaces
-
-### 06.1 SILA Mobile
-A native-feeling, five-tab experience: **Today • Gather • Learn • Care • You**. Worship is the highest-visibility destination inside Today and always reachable with a one-tap prayer shortcut. The user's authorized staff tools appear only inside an explicit **Switch to Steward** mode, never as random member actions inside public cards.
-
-### 06.2 SILA Steward
-One browser console designed around **work queues and responsibilities**, not 40 dashboard tiles:
-
-- **Overview:** exceptions, today's schedule, actions awaiting review, safe totals.
-- **Worship:** venues, prayer revisions, Jummah, Eid/Ramadan verification.
-- **Gatherings:** events, circles, RSVP, check-in, venues.
-- **Learning:** paths, cohorts, enrollment decisions, attendance and reports.
-- **Service:** shifts, hosts, facilities relevant to the program, restricted care cases.
-- **Treasury:** receipts, donations, invoices, journals, reconciliation and requests.
-- **Publishing:** announcements, public pages, bilingual content, preview and approval.
-- **People:** memberships, invitations, guardianship verification, delegated access.
-- **Insights:** aggregate operational KPIs without child/care-case leakage.
-- **Settings:** organization, locales, provider health, data policies and audit access.
-
-Navigation is filtered by scoped capabilities. A volunteer coordinator must not even load the Treasury's underlying data; a finance role cannot self-approve refunds.
-
-### 06.3 SILA Public
-An accessible, indexable organization website: visit information, published worship schedule, official notices, gatherings, class catalog and transparent approved fundraisers. Anonymous guest content and authenticated member content are separated by the server, not by hiding elements with CSS. Give every public item a shareable canonical URL; render critical worship content without JavaScript dependence where practical.
-
-### 06.4 SILA Display
-A strictly read-only, kiosk-optimized view: mosque name, venue, today's verified prayer and Jummah times, urgent approved notices, select public gatherings. Device credentials are read-only and scoped; never expose emails, private RSVP counts, donation history or attendance. Support automatic revalidation, stale-content banner and manual emergency blanking.
-
----
-
-## 07. User journeys and definitions of successful outcomes
-
-### J01 — First visit
-Open the app → see correct public mosque/venue name → view today and next prayer → inspect source and timezone → get directions → optionally choose default venue. **No account required**, no fictitious data if schedule missing.
-
-### J02 — Join a gathering
-Browse → open real event → read venue, date/time, language, price (if any), accessibility, waitlist and policies → sign in only at reservation → submit idempotent RSVP → get confirmed/waitlisted state → see own commitment → optional reminder → staff check-in → attendance reflected correctly.
-
-### J03 — Participate in a circle
-Read public outline → request to join → host reviews against group rules → approved membership appears under Gather → view only approved circle content → leave or request removal. Private rosters stay private; no strangers' contact list.
-
-### J04 — Enroll a child
-Verified adult initiates application → consent/safeguarding notices → minimal child details → review queue → authorized staff checks evidence *outside public UI* → approves/rejects with reason → creates verified guardian link and independent enrollment → family sees scoped school dashboard → revoke relationship immediately on verified custody change.
-
-### J05 — Record learning
-Assigned teacher opens assigned cohort → marks an authorized student present/absent → correction with reason and audit → drafts progress feedback → publishes to chosen authorized audience → guardian/student views only applicable records.
-
-### J06 — Give once
-Select approved cause → amount in exact minor units → confirm terms → launch hosted provider checkout → return shows "processing" until signed webhook → verified receipt and ledger posting once → staff reconciles payout → refund requests follow two-person approval and provider confirmation.
-
-### J07 — Give recurring (not silently enabled)
-User explicitly selects recurring terms and cancellation policy → provider mandate/subscription confirmation → each period has its own transaction and receipt → webhooks update installment status → clear cancellation and payment failure path. Do not include recurring checkbox without a finished lifecycle.
-
-### J08 — Serve the community
-Choose opportunity → apply → staff checks program eligibility → approve → select/assign shift → reminders with opt-in → check-in by authorized coordinator → log hours as factual records (not religious merit) → corrections require reason.
-
-### J09 — Ask for confidential assistance
-Read scope and limitations → consent to restricted data processing → submit minimum-information request → private receipt/reference → case coordinator reviews → assign human owner and contact next step → close with minimal retained outcome. No triaging sensitive details in ordinary email or analytics.
-
-### J10 — Publish an urgent change
-Venue editor edits draft schedule → permissioned reviewer approves (dual control for high-impact notices) → atomically publish a new revision → invalidate caches/display → notify opted-in affected people → audit previous/new values and actor; display a clear "last verified" timestamp.
-
-### J11 — Steward joins the organization
-Admin sends expiring invitation for one organization and scoped capability set → new user verifies identity and MFA when required → confirms acceptance → steward can access only assigned workspaces → revocation invalidates sessions, active jobs and fresh requests.
-
-### J12 — Close a family relationship
-Privacy officer validates documented guardianship change → revokes GuardianLink → all read paths, cached queries, scheduled notifications and file URLs stop exposing the child → existing audit and legally retained accounting references remain controlled.
-
-### J13 — Recover from provider outage
-Member starts payment or publishes a request while provider is unavailable → client shows pending or retryable error, not success → durable retry/incident queue → idempotent replay → support sees exception and trace ID → customer sees corrected state without double charge.
-
-### J14 — Use Arabic / accessible controls
-Select العربية → layout respects RTL, labels, numerals and reading order; prayer/date information remains semantically correct → switch back to English without sign-out or lost work → VoiceOver/TalkBack exposes descriptive actions and state.
-
----
-
-## 08. Product governance and nonfunctional promises
-
-Every organization adopts a written content charter, refund policy, safeguarding policy, staff access review and privacy contact. High-impact changes require explicit approval. Every external provider has a failure-mode plan. Every "success" screen is backed by a durable result, not a local animation.
-
-Initial suggested performance/service targets are **engineering goals**, not measured guarantees: API p95 under 400 ms for healthy cached reads excluding third-party latency; public schedule availability target 99.9%; critical payment callback acknowledgment and reconciliation monitored; crashes below 0.5% of active sessions; first content usable within 2.5 seconds on representative midrange devices after warm start. Set real service-level objectives and alert thresholds after load testing, not by wishful claims.
-
----
-
-# PART II — INTERFACE, DESIGN SYSTEM AND INFORMATION ARCHITECTURE
-
-## 09. The visual system: "Quiet Radiance"
-
-The aesthetic must be **modern, beautifully restrained, confident and human**, not the old ice-blue glass redesign. Its vocabulary comes from natural light, architectural rhythm, handcrafted paper and generous breathing room. It should feel like a premium cultural institution, not a finance template or a game.
-
-### 09.1 Visual direction
-- **Canvas:** warm porcelain with rare soft mist-blue surfaces; dark-ink typography; clear, purposeful emphasis.
-- **Signature detail:** a subtle, original "connection line" motif, never stolen geometric ornament. Avoid predictable domes, crescents used as generic religious clip-art or decorative scripture.
-- **Surface treatment:** primarily opaque for legibility. Translucency only for contextual overlays if readability, reduce-transparency settings, power use and device support allow.
-- **Cards:** fewer, larger, more useful. The design should not turn every line of information into a bordered tile.
-- **Imagery:** documentary community photography only with informed permission, especially for minors; otherwise illustration rooted in objects, materials and spaces, not generated fake worshippers passed off as real attendees.
-- **Emphasis:** let genuine changes ("Jummah moved to 1:30 PM") interrupt visual rhythm; routine content stays calm.
-- **Identity:** organization logo and authorized photography are first-class; system branding should not dominate the mosque.
-
-### 09.2 Semantic design tokens (starting values, subject to measured contrast)
-| Semantic token | Light theme | Dark theme proposal | Use |
-| --- | --- | --- | --- |
-| Canvas | #FBFCFA | #0E1920 | App background |
-| Surface | #FFFFFF | #17262E | Forms and cards |
-| SurfaceSoft | #EFF5F5 | #1D3038 | Contextual panel |
-| Ink | #142A35 | #EEF4F5 | Main text |
-| InkMuted | #506570 | #B0C2C8 | Secondary content, check contrast |
-| Primary | #236C83 | #8DCADD | Links, primary CTA and selected state |
-| PrimaryTint | #E1F0F2 | #183943 | Soft emphasis |
-| AccentWarm | #B17D51 | #DDB38D | Very sparing editorial accent |
-| Success | #246C54 | #8AD8B6 | Durable confirmed outcomes |
-| Warning | #975817 | #F0BC78 | Pending, risk or attention |
-| Danger | #AA3E43 | #FFA4A6 | Destructive and validation |
-| Outline | #DCE5E7 | #354850 | Structural borders |
-| Focus | #185C7A | #B5E9F1 | Visible keyboard focus |
-
-**Never assume these hex values pass every WCAG contrast pairing.** Generate and audit the full token matrix for 4.5:1 normal-text contrast, 3:1 large text and required UI boundaries where applicable. Prefer APCA-aware visual review as supplementary, not a replacement for the project's WCAG criterion. Express colors via semantic variables; features must never hard-code their own palette.
-
-### 09.3 Typography
-- Latin: high-quality accessible system sans for everyday UI (San Francisco on Apple where available, Roboto/appropriate system sans on Android, modern system fallback on web). A licensed editorial display face is optional for large headlines only.
-- Arabic: professionally tested Arabic UI family with excellent shaping and numerals (e.g., Noto Sans Arabic when licensing/distribution and platform rendering are validated); never use a Latin font fallback that breaks diacritics.
-- Type scale: caption 12–13; body 16; secondary 14; label 15; card title 20; screen title 30–36; hero 40–48 on large surfaces. All are scalable, not fixed px ceilings.
-- Line height: body roughly 1.45–1.6, adapted to Arabic metrics and dynamic text settings. Do not truncate money, schedules, emergency notices or form errors.
-- Font weights: reserve heavier weights for hierarchy, not entire screens.
-
-### 09.4 Space, geometry and motion
-- Spacing steps in density-independent points: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64.
-- Minimum touch target: **44×44 pt actionable hit region on iOS** (Apple guidance); **48×48 dp on Android** (SILA target). A visible icon may be smaller, with adequate non-overlapping hit slop.
-- Corner radii: control 12, card 20, sheet 28, full-pill for a very small subset of actions. Avoid 30 different radii.
-- Shadows: subtle elevation, only when needed to distinguish layer. Stronger borders in dark/high-contrast mode.
-- Motion: 120–180 ms state transitions, 200–300 ms navigation/layer transitions where platform-appropriate. Prefer opacity/transform. Respect Reduce Motion; no bouncing donation confirmations.
-- Haptics: optional light acknowledgement on confirmed action, never required feedback and never the sole indicator.
-- Platform conventions: iOS and Android may differ for sheets, date pickers, gestures, typography and system navigation. Consistency means shared intent and hierarchy—not pixel-identical native imitations.
-
-### 09.5 Icon and illustration policy
-Use one licensed icon family per surface with consistent stroke weight, mirrored directional icons in RTL, and accessible labels. Design a small proprietary motif set, export as vectors with provenance. Never embed font files or imagery without ownership/licensing verification.
-
-### 09.6 Component inventory and contracts
-| Component | Core behavior | Required states |
-| --- | --- | --- |
-| ScreenHeader | Title, optional back, context switcher, trailing action | Compact/expanded, RTL, loading |
-| NextPrayer | Venue/date/source, adhan+iqamah | Published, missing, changed, stale, offline |
-| GatheringCard | Location, audience, time, capacity, action | Open, full, waitlisted, canceled, ended |
-| CircleCard | Host, cadence, participation policy | Open, review required, member, archived |
-| LearningPath | Milestones, age band, prerequisites | Available, closed, enrolled, completed |
-| ServiceOpportunity | Eligibility, date and shift | Apply, approved, scheduled, complete |
-| ContributionForm | Cause, amount, period, processor | Validation, pending, verified, error |
-| ReceiptSheet | Official receipt number and source | Paid, partially refunded, fully refunded |
-| CareIntake | Short and private form, consent | Draft, sending, received, responded |
-| WorkQueueItem | Priority, reason, owner, due time | New, assigned, blocked, resolved |
-| ReviewDialog | Facts, evidence reference, decision reason | Confirm, reject, conflict, audited |
-| InlineNotice | Accessible announcement and remediation | Info, warning, error, success |
-| EmptyState | Explain next possible user action | Legitimately empty, forbidden, offline |
-| SearchPanel | Query with filters and keyboard support | Loading, results, empty, error |
-| FormField | Label, description, errors and input | Default, focus, invalid, disabled |
-| IdentitySwitch | Active organization/venue/role | Switching, forbidden, active |
-| DataTable | Search/sort/filter, action menu | Loading, empty, paginated, keyboard |
-| BottomSheet | Focus-managed supplemental workflow | Expanded, compact, dismiss blocked |
-| ActivityTimeline | Structured change history | Pending, completed, correction, revised |
-| Skeleton | Avoid misleading layout jump | Loading only, no fake content |
-
-Each component must have screenshots for light/dark, EN/AR, loading/empty/error, extreme text scale and screen-reader reading order before design sign-off.
-
----
-
-## 10. Mobile layout and navigation
-
-### 10.1 Global shell
-Use five fixed tabs (Today, Gather, Learn, Care, You). Avoid nesting tabs inside tabs. A compact top header shows the current mosque/venue with a clearly discoverable switcher. Account status appears only where relevant. Route stacks and modals should work with deep links and back gestures. All data fetching occurs through typed services, never directly inside view components.
-
-### 10.2 Mobile screen map
-~~~text
-Root
-├── Public startup / select mosque and venue / privacy notice
-├── (tabs)
-│   ├── today
-│   │   ├── next prayer / verified daily timings
-│   │   ├── venue switcher / directions
-│   │   ├── prayer calendar / Jummah / Qibla
-│   │   └── Ramadan, Eid and emergency notices
-│   ├── gather
-│   │   ├── curated gatherings / filters / details / RSVP
-│   │   ├── commitments / check-in
-│   │   └── circles / circle details / request / member view
-│   ├── learn
-│   │   ├── learning paths / cohorts / schedule
-│   │   ├── enrollment request and status
-│   │   └── guardian or student learning workspace
-│   ├── care
-│   │   ├── serve / applications / shifts
-│   │   ├── give / contributions / receipts
-│   │   └── ask for help / confidential intake (where enabled)
-│   └── you
-│       ├── upcoming commitments / activity
-│       ├── dependents and linked accounts
-│       ├── transactions / receipts
-│       ├── language, access, consent and notifications
-│       └── account security / data rights
-├── Authentication and verification
-│   ├── sign in / registration / email confirmation
-│   ├── account recovery / elevated challenge
-│   └── consent and invitation acceptance
-└── Authorized stewardship mode (optional, tightly scoped)
-    ├── my action queue / assigned activities
-    ├── check-in / limited roster
-    └── quick publish actions (restricted)
-~~~
-
-### 10.3 Mobile implementation rules
-- Show public schedule before login; do not send someone through an account wall to check prayer times.
-- A context switch must invalidate organization/venue-scoped cache, listeners and offline snapshots; never display prior mosque private details under a new header.
-- Request location only on explicit "use my location" action. City/venue selection must work without location. Store no route history.
-- Forms preserve unsent drafts locally with expiration when appropriate, but private care/intake drafts must never be stored unencrypted.
-- Loading shows measured skeletons, not fabricated people or prefilled donation amounts.
-- Every screen has a retry and a clearly labeled stale/offline state when applicable.
-- Accessible login and account recovery are mandatory; passkeys are preferred when provider and platform support are verified.
-- Full deep-link test matrix: guest, authenticated, expired, revoked, unknown org, unavailable record and cross-org target.
-- File/document download uses short-lived scoped URLs, safe filename handling and share-sheet privacy copy.
-
-### 10.4 Navigation anti-patterns
-No route or button should be hidden behind an unlabeled icon; avoid giant floating action buttons, nested carousels, obligatory onboarding tours, menu duplication, animated backgrounds, unexplained premium controls or money totals shown without units.
-
----
-
-## 11. Steward console layout
-
-### 11.1 Core desktop shell
-- Persistent left nav by authorized domain, top organization selector, user role/context, universal scoped search and inbox/notifications.
-- Home emphasizes **what needs decision**, with date/time and affected group, not vanity charts.
-- Tables: sticky headers, contextual filters, saved (permission-safe) views, pagination and keyboard actions; no hidden critical action behind hover only.
-- Details: split pane if desktop width allows; drawer/sheet for quick edits; dedicated route for complex reviews, finance and safeguarding.
-- Forms: clear section breaks, contextual field descriptions, autosave only for drafts, explicit publish transaction. Never autosave a child custody decision or payment refund.
-- Availability/status: all queues show unassigned/in review/blocked/completed with filters; cases have named responsible owners.
-
-### 11.2 Steward routes (conceptual, not a promise of existing files)
-~~~text
-/console
-  /overview
-  /worship/{venues,prayers,jummah,notices,approvals}
-  /gather/{events,circles,checkins,venues}
-  /learn/{paths,cohorts,enrollments,attendance,assignments,reports}
-  /care/{volunteers,shifts,requests,case-reviews}
-  /treasury/{contributions,invoices,payments,receipts,journals,
-             settlement-reconciliation,refunds,disputes,budgets}
-  /publish/{pages,announcements,translations,media,approvals}
-  /people/{memberships,invitations,guardianship,access-reviews}
-  /insights/{attendance,participation,operations}
-  /settings/{organization,locales,policies,integrations,audit}
-~~~
-
-### 11.3 Operational UX patterns
-- **Review queue:** item name, sensitivity, action needed, time since submission and owner.
-- **High-impact publishing:** draft → compare changes → preview per venue/language → independent approval where policy requires → publish revision → notify affected audience → audit.
-- **Finance:** separate maker/checker; money displayed in minor-unit-safe formatted locale currency; never derive fund balance from requested donations.
-- **School:** never show all children in global search by default; teachers search only assigned cohorts; staff exceptions require a documented delegation.
-- **Care:** confidential records have a separate navigation context, no preview snippets in browser notifications or general search.
-- **Analytics:** aggregation threshold for small groups, controlled export, retention rules and explicit definition of denominators.
-
----
-
-# PART III — TECHNICAL FOUNDATION
-
-## 12. Architecture decision: one modular product core
-
-### 12.1 Why this structure?
-Build a **TypeScript monorepo with a separately deployable, modular monolith API**. Mobile, web and kiosk consume the same versioned public contracts. One transactional PostgreSQL database is authoritative. A durable worker handles asynchronous side effects. This is simpler to operate and reason about than splitting ten services before there are actual scaling needs.
-
-**Preferred framework baseline — reviewed 26 October 2026**
-
-- **Native mobile:** React Native + Expo + Expo Router, with Expo-aligned package versions and SILA-owned accessible components. Do not add a second navigation framework.
-- **Web:** ONE Next.js App Router application with separate Public, Steward and Display route groups, not separate deployments.
-- **API:** a modular monolith built with NestJS and its Fastify adapter. Business use cases and authorization policies live outside controllers.
-- **Validation and contracts:** Zod schemas and NestJS built-in Standard Schema validation; @nestjs/swagger and generated OpenAPI client types. Do not duplicate the same DTOs across class-validator and Zod.
-- **Database:** PostgreSQL with Drizzle ORM / Drizzle Kit, versioned SQL migrations, explicit transactions and manually reviewed SQL constraints where appropriate. Confirm complex concurrency behavior in a database proof of concept.
-- **Background jobs:** pg-boss on PostgreSQL, with transactionally enqueued jobs / transactional outbox and idempotent handlers. Do not add Redis without evidence it is needed.
-- **Client data:** TanStack Query for interactive server state, React for local view state; Zustand only when shared ephemeral state proves necessary.
-- **Forms:** React Hook Form + @hookform/resolvers + Zod; server rules remain authoritative.
-- **Localization:** i18next + react-i18next + expo-localization, with Intl formatters and explicit native/web RTL testing.
-- **Design:** Tailwind CSS + selectively adopted/owned shadcn/ui web primitives; custom React Native components using semantic tokens and native accessibility. Share tokens and contracts, not DOM components.
-- **Authentication:** managed OIDC/OAuth with PKCE and step-up MFA/passkeys after a security, minors' privacy and procurement evaluation; never invent authentication cryptography.
-- **Payments:** server-side Stripe SDK and hosted Checkout initially, conditional on geography and organizational approval, with signed webhooks, immutable ledger and reconciliation.
-- **Observability:** Pino structured redacted logs + OpenTelemetry, plus independent security audit trails.
-- **Testing:** Vitest for pure API/web tests; jest-expo and React Native Testing Library for native components; Playwright for browsers, Maestro for real mobile E2E; disposable PostgreSQL for integration/concurrency.
-- **Workspace:** pnpm workspaces + Turborepo, strict TypeScript, ESLint, Prettier, GitHub Actions and EAS Build.
-
-The stack is a **preferred baseline pending working proof-of-concept and legal/vendor review**. Pin compatible stable versions using lockfiles rather than hard-coding transient “latest” major versions. Avoid GraphQL, Redux alongside Zustand, separate display microservices, custom card handling and prematurely introducing Redis.
-
-
-### 12.2 Logical architecture
-~~~text
-[SILA Mobile]       [SILA Steward]      [SILA Public / Display]
-      |                    |                     |
-      +-------------- HTTPS / TLS ---------------+
-                           |
-                   [API Edge / Gateway]
-             authenticated tenant + policy context
-                           |
-                 [SILA Core Modular API]
-  identity | organizations | worship | gatherings | circles
-  learning | service | care | treasury | publishing | search
-                           |
-        +------------------+------------------+
-        |                  |                  |
-   [PostgreSQL]      [Private Objects]   [Outbox/Jobs]
-        |                                     |
-        +--------------------[SILA Worker]----+
-                                       |
-                    Email / Push / Payment Webhooks
-                         with retry + observability
-~~~
-
-Each module owns its data access and domain rules. **UI → application service → domain policy → repository → DB**. No client imports Drizzle or raw database adapters. The API never depends on React components. The worker reuses application/domain contracts but not HTTP route handlers.
-
-### 12.3 Monorepo layout (brand-new target, minimal deployment complexity)
-~~~text
-/
-├── document.md
-├── apps/
-│   ├── mobile/               # Expo Router, native SILA design
-│   └── web/                  # ONE Next.js app: Public + Steward + Display
-├── services/
-│   ├── api/                  # NestJS + Fastify, policy-bound domains
-│   └── worker/               # pg-boss jobs, outbox, reconciliation
-├── packages/
-│   ├── database/             # Drizzle schema + reviewed SQL migrations
-│   ├── contracts/            # Zod schemas, generated OpenAPI client
-│   ├── design-tokens/        # Semantic tokens for both platforms
-│   ├── ui-native/            # Native-only accessible primitives
-│   ├── ui-web/               # Owned web primitives (shadcn adaptations)
-│   ├── i18n/                 # Arabic / English catalogs
-│   ├── shared/               # Pure cross-runtime code only
-│   └── config/               # Tooling and architecture boundaries
-├── tests/                    # Cross-system acceptance scenarios
-├── infra/                    # Deploy, secrets policy, monitoring, runbooks
-├── docs/{adr,security,api,design,runbooks}
-├── .github/workflows/
-├── pnpm-workspace.yaml
-├── turbo.json
-└── package.json + pnpm-lock.yaml
-~~~
-
-Create packages when there are multiple genuine consumers, not merely to make the folder tree elaborate. Client apps communicate with the single authenticated API; Next.js is a presentation/backend-for-frontend layer, not an alternative business write gateway.
-
-
-**Repository rules:** strict TypeScript; ESLint and consistent formatting; workspace-level dependency boundaries; conventional commits; code ownership for sensitive modules; protected mainline release branch when eventually introduced; no generated secrets, node_modules or platform credentials in Git. Keep the existing Git branch arrangement intact until expressly authorized to change it.
-
-### 12.4 Domain module template
-~~~text
-modules/gatherings/
-  domain/
-    event.ts                  # invariants, state transitions
-    policies.ts               # scope and access logic
-  application/
-    create-gathering.ts       # use case
-    reserve-seat.ts
-  infrastructure/
-    gatherings-repository.ts  # DB adapter
-    calendar-projection.ts
-  transport/
-    gatherings.routes.ts      # input validation / HTTP mapping
-  tests/
-    reserve-seat.test.ts
-    policies.test.ts
-    api.contract.test.ts
-~~~
-
-Controller routes do **not** make authorization decisions with role strings alone. Domain-level policy functions receive the current actor, organization, scope and target resource; all paths use them.
-
----
-
-## 13. Data ownership, organization scoping and identity
-
-### 13.1 Tenancy model
-- Every business-owned record has an immutable **organizationId** where applicable; venues, cohorts, roles and financial accounts are children of one organization.
-- Person identity and organization membership are different objects. One identity may be a teacher in Org A and a member in Org B.
-- An API request specifies an active organization through a validated route/subdomain/tenant context, **never by trusting a submitted organizationId**.
-- Membership-scoped policies filter both list and individual read/write paths. Authorization for a single record must not use a global "is staff" shortcut.
-- Use explicit tenant tests for every sensitive module and consider PostgreSQL row-level security as a second line of defense for selected tables.
-- Audit identity always includes actor, organization, action, object and outcome, even for denied sensitive operations where logging is safe.
-- No multi-tenant production launch without adversarial cross-tenant E2E tests and audited service-account scope.
-
-### 13.2 Identity objects
-- **Identity:** auth provider subject and verified authenticators; not the same as member profile.
-- **Person:** optional natural person record with verified email/phone claims and display name.
-- **Membership:** relationship of a person/identity to a particular organization, with lifecycle state.
-- **CapabilityGrant:** action, scope kind/id, issuer, expiry, revocation and verification requirement.
-- **GuardianLink:** student-person relation with evidence status, approval actor, effective period and revocation. An email match **never** creates guardianship.
-- **StudentProfile:** restricted record and privacy/age flags; not automatically a sign-in account.
-- **Session:** verified assurance level, client/device metadata, rotation state and revocation.
-- **Invitation:** one-time, expiring, organization-bound, least-privilege proposed grants.
-
-### 13.3 Authorization grammar
-Permissions should describe **capability + resource + scope**, not page names:
-
-- view:public-prayer@venue:123
-- edit:venue-schedule@venue:123
-- approve:schedule@venue:123
-- manage:gathering@gathering:456
-- mark:attendance@cohort:789
-- view:student-record@student:789 (only after GuardianLink or enrollment/teacher policy)
-- decide:care-request@care-team:3
-- post:journal@organization:12
-- approve:refund@organization:12 (must differ from requester)
-
-These are illustrative policy semantics, not actual authorization token strings. Never trust app navigation guards as a substitute for server-side checks.
-
-### 13.4 Deny-by-default matrix
-| Sensitive resource/action | Member | Guardian | Teacher | Host | Care staff | Finance | Org steward |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Public prayer and gatherings | Read | Read | Read | Read | Read | Read | Read |
-| Own RSVPs/cancel | Own | Own | Own | Own | Own | Own | Own |
-| Circle private roster | No | No | No | Assigned circle | No | No | Per documented audit reason |
-| Child record | No | Verified linked child only | Assigned learner and field subset | No | No | Only designated billing fields | Explicit school authority only |
-| Approve guardian link | No | No | No | No | No | No | Scoped safeguarding reviewer |
-| Confidential care case | No | No | No | No | Assigned case only | No | Only designated privacy supervisor |
-| Donation receipt | Own | Own | Own | Own | Own | Authorized fund reconciliation | Only if separately granted |
-| Approve own refund/expense | Never | Never | Never | Never | Never | Never | Never |
-| Worship publish | No | No | No | No | No | No | Venue editor/approver grant |
-| Manage roles | No | No | No | No | No | No | MFA + organization grant |
-
-The table is the minimum, not an exhaustive override. More restrictive policy wins when role and scope conflict.
-
----
-
-## 14. Data platform and relational model
-
-### 14.1 Fundamental conventions
-PostgreSQL is the source of truth. Every table gets stable UUID/ULID-style identity; timestamps are timezone-aware UTC instants; display dates for worship use **venue-local dates** separately; monetary values use integer minor units with ISO 4217 currency; server owns authoritative timestamps. Use foreign keys, check constraints, unique/exclusion constraints, optimistic version fields and indexed scope keys. No floating-point money, magic booleans for complicated workflows or deleted rows hiding audit history.
-
-### 14.2 Core identity and trust tables
-| Table | Representative fields / constraints |
+| Tool | Required functionality |
 | --- | --- |
-| identities | id, provider, providerSubject unique, createdAt, state |
-| authenticators | identityId, type/passkey/TOTP, encrypted reference, verifiedAt, lastUsed |
-| sessions | identityId, refreshTokenHash, assuranceLevel, createdAt, rotatedAt, revokedAt, expiresAt |
-| organizations | id, slug unique, legalName, displayName, defaultLocale, timezone, status |
-| venues | organizationId, code, name, location, timezone, accessibility, status; unique(org,code) |
-| people | id, preferredName, contact references and privacy flags |
-| memberships | organizationId, personId, status, joinedAt; unique(org,person) |
-| capability_grants | membershipId, action, scopeType, scopeId, issuedBy, expiresAt, revokedAt |
-| invitations | organizationId, recipientHash, proposedGrants, expiry, acceptedAt, tokenHash unique |
-| consent_records | personId, purpose, documentVersion, actor, granted/revoked timestamp |
-| guardian_links | orgId, guardianId, studentId, evidenceRef, approvedBy, activeFrom/to, revokedAt |
-| audit_events | orgId, actor, action, target, outcome, redactedDiff, requestId, occurredAt; append-only |
+| Work queues | Owner, due date, priority, status, filters, reassignment and escalation |
+| Search | Published public search; permission-filtered staff search; no case/child snippets globally |
+| Forms and approvals | Versioned form schemas, required fields, saved drafts, reviewer reason and conflict handling |
+| Member management | Verified contacts, membership history, duplicate review, consent and access requests |
+| Imports | CSV template, validation, preview/dry run, duplicate mapping, batch audit and rollback strategy |
+| Exports | Explicit scope, field selection, row limit, CSV formula protection, expiry and download audit |
+| Support inbox | Ticket reference, category, assignee, safe correspondence and closure |
+| Integration health | Configured/not configured, last successful check, retry backlog and safe error codes |
+| Audit explorer | Actor, scope, target, action, result, time and redacted changes |
+| Reports | Defined denominators/date ranges, aggregate permissions, no misleading default zeroes |
+| Feature controls | Server-enforced module flags; disabling also blocks writes and scheduled jobs |
+| Training / help | Role-specific guidance, contact owner, operational runbooks and searchable help |
 
-### 14.3 Worship tables
-| Table | Fields and rules |
+Assisted registration for people without a smartphone must record staff actor, member consent and identity verification. Never ask staff to reuse a member's password.
+
+## 12. Interface, accessibility and Arabic
+
+Keep the earlier calm SILA design intent: readable opaque surfaces, restrained accents, clear typography and original assets. Use semantic tokens shared by web and mobile. Avoid a new visual redesign that delays working services.
+
+- One prominent primary action per task; tables for staff work, straightforward cards/lists for members.
+- Reusable states: loading, empty, unavailable, offline/stale, unauthorized, invalid, conflict, pending and saved.
+- Accessible labels and error summaries; keyboard focus, screen-reader announcements and logical reading order.
+- Target WCAG 2.2 AA for web and equivalent practical native accessibility; verify on actual devices.
+- At least 44-point iOS and 48-dp Android target areas as project baselines; large text must reflow.
+- Light/dark themes, reduced motion, adequate contrast and no essential meaning conveyed only through color.
+- Full English/Arabic UI, dates, validation messages and notification templates; human review of authoritative content.
+- RTL uses semantic direction. Do not mirror logos, maps, Qibla bearings, photos or digit order.
+- Staff can manage translations separately; missing translation is labeled rather than silently invented.
+- Respect safe areas, keyboards, back navigation and interrupted forms. Payment/approval success follows server state.
+- Public pages have descriptive titles, canonical URLs, accessible visit information and useful error pages.
+
+Before UI implementation, produce validated flows for guest prayer, event RSVP, enrollment, teacher attendance, donation/receipt, refund review and access revocation. Check small phones, desktop, Arabic, large text and slow networks.
+
+## 13. Architecture and engineering tools
+
+### 13.1 Architecture decision
+
+Retain a **modular Next.js backend with PostgreSQL/Prisma and an Expo client**. Keep public, staff and display routes in one web deployment. Domain services implement business rules and authorization; route handlers validate input and translate responses. Jobs call the same domain services.
+
+This explicitly supersedes the prior mandatory NestJS/Fastify, Drizzle and pg-boss rewrite. Those remain possible future decisions only if a measured limitation justifies migration. Neither security nor a clean domain model requires changing frameworks.
+
+### 13.2 Tool decisions
+
+| Need | Selected direction | Status / reason |
+| --- | --- | --- |
+| Native app | Existing Expo, React Native, Expo Router, SecureStore | Retain; pin compatible versions and test signed builds |
+| Public/staff web and API | Existing Next.js App Router + TypeScript | Retain; one server-side business implementation |
+| Database/migrations | PostgreSQL + existing Prisma; reviewed SQL where needed | Retain; no ORM migration without an ADR and data rehearsal |
+| Validation/contracts | Existing Zod; typed request/response contracts | Retain; generate OpenAPI/client artifacts after compatibility proof |
+| Server state | TanStack Query proposed for interactive mobile/web screens | Add when replacing ad hoc fetch behavior; scope keys by actor/org |
+| Forms | React Hook Form + Zod proposed for complex forms | Add selectively; server validation remains authoritative |
+| Design system | Shared semantic tokens; separate native/web components | Improve existing primitives; no blanket component-library rewrite |
+| Identity | Harden existing session/MFA flow behind an auth adapter | Evaluate maintained auth library/provider in R0; do not invent new crypto |
+| Payments | Existing Stripe hosted Checkout and server SDK | Complete ledger/reconciliation before live activation |
+| Email | Existing Resend delivery adapter | Verify sender, preferences, bounce handling and test delivery |
+| Push | Expo Notifications / platform delivery proposed | Device-token lifecycle and native permission tests required |
+| Background work | Existing PostgreSQL outbox + authenticated bounded scheduled worker | Keep initially; prove leases, retries and throughput |
+| Larger durable workflows | Vercel Workflow or Queues evaluation if required | Optional; verify current availability, pricing and delivery semantics |
+| Files | Private object storage adapter; evaluate Vercel Blob or compatible store | Scanning/quarantine and authorized downloads required |
+| Testing | Existing Node tests/API scripts; Playwright and Maestro proposed | Add behavioral coverage instead of replacing working tests |
+| Monitoring | Structured redacted logs, request IDs, error monitoring and operational metrics | Select provider after cost/privacy review |
+| Delivery | GitHub Actions, Vercel web/API, Expo EAS native builds | Independent web and mobile release pipelines |
+
+Version numbers in section 2 describe manifests, not verified installed versions. The inspected tree has no committed dependency lockfiles. R0 must resolve and commit compatible locks, align CI/runtime versions, check advisories and use reproducible installs. Current upstream documentation may describe newer major versions; do not apply its migration commands blindly to the existing Prisma/Expo baseline.
+
+Avoid introducing Redis, a search cluster, separate API framework or a workflow service before the current workload requires it. Public content can begin with bounded PostgreSQL search. Standard calendar export and map deep links need no complex integration.
+
+### 13.3 Repository organization
+
+Keep `staff-web/` and `masjid-mobile/` during delivery. Introduce `staff-web/src/modules/<domain>/` with policy, service, validation and repository boundaries. Introduce shared contracts/tokens/i18n packages only once multiple consumers need them. Preserve `/api/v1` compatibility; retain old action routes as adapters while moving their implementation into modules.
+
+Create ADRs for identity provider choice, file store, background execution and major dependency upgrades. Record alternatives, operational owner, cost drivers, migration impact and proof-of-concept results.
+
+## 14. Data model and API contracts
+
+### 14.1 Existing-to-target model changes
+
+| Existing entities | Target additions / corrections |
 | --- | --- |
-| prayer_schedule_sources | organizationId, venueId, calculation/source attribution, validation policy |
-| prayer_days | venueId, localDate, adhan fields, iqamah fields, revision, source, publishedAt; unique(venue,date,revision) |
-| jummah_sessions | venueId, localDate, ordinal, khutbahTime, iqamahTime, language, room, revision |
-| faith_notices | orgId, category, confirmedLocalDate, bodyLocale, approval, publish window, revision |
-| venue_closures | venueId, reason/public copy, startAt/endAt, severity, approval |
-| schedule_publications | venueId, day/range, revision, reviewedBy, publishedBy, supersededBy |
+| User, AuthSession, OrganizationMembership, RoleGrant | Multi-role assignments, resource scope, assurance expiry, invitations and approved delegation |
+| Organization, Venue | Explicit organization resolution, venue timezone and module settings |
+| PrayerDay, JummahSession, FaithNotice | Publication revisions, reviewer/source and urgent-change history |
+| Event, EventRSVP | Occurrences, reservation state/party members, waitlist offers and check-in history |
+| SchoolProgram, ClassSection, Student, GuardianLink | Terms, org-owned student scope, relationship evidence/revocation, pickup consent |
+| Enrollment, Attendance, SchoolAssignment, StudentReport | Explicit lifecycle, capacity locks, correction versions and publication audiences |
+| Donation, SchoolInvoice, RefundRequest | Payment allocations, multiple partial refunds, recurring subscriptions and credit adjustments |
+| PaymentEvent, PaymentReceipt, JournalEntry/Line | Durable webhook inbox, reconciliation/settlement/dispute records and posting invariants |
+| VolunteerApplication, VolunteerShift | Slots, acceptance, eligibility expiry, conflicts and correction history |
+| RentalResource, RentalBooking | Shared resource reservations, hold expiry, buffers and conflict constraints |
+| Notification, OutboxEvent, UserPreference | Organization/source scope, purpose/channel consent, device tokens and delivery receipts |
+| AuditEvent, DeletionRequest | Scope, redacted diff, outcome, lifecycle completion, retention decisions |
+| New optional modules | Circles, service requests/case access, appointment slots, maintenance and media quarantine |
 
-Store prayers as validated local clock times with timezone and source; do not treat naive Date objects or device-local UTC conversions as canonical.
+Use existing naming where it avoids unnecessary migrations. This table specifies relationships and invariants, not a command to generate all tables immediately.
 
-### 14.4 Gatherings and circles
-| Table | Key relations |
-| --- | --- |
-| gatherings | orgId, venueId, ownerMembershipId, capacity, audience policy, status, version |
-| gathering_sessions | gatheringId, startAt/endAt, room, timezone, capacity override |
-| reservations | sessionId, membershipId, state, createdAt, idempotencyKey; unique active reservation rule |
-| waitlist_entries | sessionId, membershipId, rankedAt, offerExpiresAt, state |
-| attendance_events | sessionId, membershipId, checkedInAt, actorId, correctionVersion |
-| circles | orgId, hostMembershipId, purpose, visibility, audience, cadence, moderationPolicy |
-| circle_memberships | circleId, membershipId, requested/approved/left, approvedBy |
-| circle_updates | circleId, authorId, content revision, publication state, visibility |
-| rooms | venueId, resources, capacity, accessibility, availability constraints |
+### 14.2 Database invariants
 
-Capacity must be atomic in the DB transaction with a lock/constraint, not a number incremented in independent read/write requests. Event changes affect RSVPs and waitlists through explicit transition rules.
+- Explicit organization ownership and compatible parent/child relationships; compound constraints where practical.
+- Unique active membership/registration/enrollment rules, with history rather than silent overwriting.
+- Integer minor-unit money plus currency; balanced posted journals and immutable payment source references.
+- Atomic capacity reservation; bounded retries for serialization conflicts; database-enforced room overlap protection where suitable.
+- UTC instants for events, separate venue-local civil dates/clock times for prayer schedules.
+- Version fields for edits; reject stale approval or update with a conflict response.
+- Idempotency records keyed by actor, organization, operation and key; store payload hash and original result. Same key with different payload is a conflict.
+- Audit and outbox committed with the business change; external side effects occur after commit.
+- Sensitive files are private, scanned and released only after authorization; no permanent public child-document URLs.
 
-### 14.5 Learning and child protection
-| Table | Key relations |
-| --- | --- |
-| learning_paths | orgId, name, language, ageBand, curriculum summary, published revision |
-| learning_programs | pathId, cohort rules, prerequisites, tuition policy |
-| cohorts | programId, venueId, schedule, teacher grants, capacity, lifecycle |
-| student_profiles | orgId, personId optional, guardian requirements, restricted fields |
-| enrollment_requests | orgId, program/cohort, guardian applicant, student minimal profile, review state |
-| enrollments | studentId, cohortId, effective dates, state; unique active per cohort/student |
-| session_attendance | cohortSessionId, studentId, status, markedBy, reason, version |
-| learning_tasks | cohortId, title, body, dueAt, publish audience, revision |
-| task_submissions | taskId, studentId, restricted content, submittedAt, teacher feedback |
-| progress_reports | studentId, cohortId, author, approved audience, status, publishedAt, revision |
-| safeguarding_cases | restricted separate policy scope, incident category, minimum necessary facts |
+### 14.3 API direction
 
-Any operation on minors must require: approved guardian/teacher relationship **and** organization/cohort scope **and** field-level policy. Parent relationships have effective and revoked dates. Downloads, search, caches and notifications obey the same policy.
+Keep `/api/v1`. Add resource-specific endpoints behind shared domain services; these are planned route families, not an inventory of existing routes.
 
-### 14.6 Care, volunteers and contributions
-| Table | Key relations |
-| --- | --- |
-| service_programs | orgId, owner, eligibility policy, safeguarding requirements |
-| service_opportunities | programId, time window, capacity, location and terms |
-| service_applications | opportunityId, membershipId, review status and reviewer |
-| service_shifts | applicationId, slot start/end, confirmedAt, check-in and correction trail |
-| care_requests | orgId, minimal request, consentRef, sensitivity, assignedCaseTeamId, retentionAt |
-| care_case_access | caseId, authorizedMembershipId, purpose, expiry, audited access |
-| causes | orgId, approval state, designated restrictions, payout allocation |
-| contribution_intents | causeId, payerRef, amountMinor, currency, frequency, provider intent ID |
-| payment_events | provider, immutable eventId unique, type, receivedAt, processedAt, state |
-| receipts | source transaction, immutable receiptNumber unique, issuedAt, reversals |
-| tuition_invoices | orgId, studentId, authorizedPayerId, amountMinor, terms, dueAt, status |
-| ledger_accounts | orgId, code, currency, type; unique(org,code,currency) |
-| journal_entries | orgId, sourceKind/sourceId unique, postedAt, reversalId |
-| journal_lines | journalId, accountId, debitMinor, creditMinor; sum debits = sum credits |
-| settlements | providerId, payoutId, currency, gross/fee/net in minor units, reconciledBy |
-| refunds | paymentId, requestedBy, approvedBy, providerId, state, partial/full amount |
-| disputes | processorCaseId, amount, deadline, evidenceRef, state |
-| finance_budgets | orgId, period, category, allocation, approval and revision |
-
-Every confirmed financial movement produces a balanced journal, never a mutation of an old posted entry. Refunds produce new reversal lines, and differences/fees settle via explicit accounts. "Budget" is not "cash on hand". A care request is **never** linked to a public donor record or used for fundraising targeting without independently documented lawful consent and necessity.
-
-### 14.7 Publishing, reliability and governance
-| Table | Fields |
-| --- | --- |
-| content_items | orgId, kind, locale, revision, state, approval history, schedule windows |
-| content_localizations | itemId, locale, text, translator, review status, version |
-| media_assets | orgId, objectKey, mime, size, scanStatus, sensitivity, retentionAt |
-| delivery_preferences | personId, channel, purpose, consent state, quiet hours |
-| device_push_tokens | identityId/deviceId, encrypted token, platform, revokedAt |
-| notification_outbox | orgId, recipient, templateVersion, payloadRef, status, attempts, nextAt, idempotencyKey |
-| notifications | recipientId, deepLink target, createdAt, readAt, minimal body |
-| background_jobs | type, payloadRef, leasedUntil, attempts, deadLetterAt, owner |
-| privacy_requests | identityId, requestType, state, reviewer, retention assessment |
-| integration_connections | orgId, provider, configRef, scopes, health, lastCheckAt |
-| webhook_inbox | providerEventId unique, payloadHash, verifiedAt, processedAt |
-| import_batches | orgId, source, checksum, dryRunDiff, appliedAt, rollbackNotes |
-| feature_flag_assignments | orgId, name, status, effectivePeriod, approvedBy |
-| security_events | subject, IP risk metadata if justified, auth failures, retentionAt |
-
-### 14.8 Database discipline and indexes
-- Enforce compound tenant ownership in parent/child foreign keys where possible, not only in application code.
-- Suggested indexes: (orgId,status,updatedAt), (venueId,localDate,publishedAt), (cohortId,sessionDate), (recipientId,readAt), (outboxStatus,nextAttemptAt), (provider,eventId unique), (resourceId,startAt,endAt), (guardianId,studentId,revokedAt).
-- Overlapping room allocations use PostgreSQL exclusion constraints for time ranges when semantics support them.
-- Use check constraints: positive financial amounts, mutually exclusive debit/credit lines, end > start, valid status combinations; use state machine services plus DB constraints.
-- Sensitive data is not exported to public analytics without aggregation/anonymization review.
-- DB migrations: additive → dual read/write if necessary → backfill → verify → cut over → remove old. No destructive push on a live system.
-
----
-
-## 15. Architecture boundaries and trade-offs
-
-**One API is chosen because:** coherent identity, transactional enrollment/finance operations, easier audit, fewer operational teams and less network coordination. Modules can be extracted later only if ownership, throughput or availability requirements justify the cost.
-
-**One database is chosen because:** tightly related identities, permissions, session capacity and accounting depend on integrity constraints. Avoid distributed transactions.
-
-**Separate worker is chosen because:** sending an email, charging a card or updating a search index cannot be safely made part of a user-facing HTTP transaction. Use an outbox/inbox and durable idempotency.
-
-**Typed contracts are chosen because:** mobile and web must not drift from actual server responses. OpenAPI is generated from validated server schemas and checked in CI.
-
-**Org-scoped policies are chosen because:** a future multi-organization path must not be a retrofit to a system that assumes one omnipotent admin. Deploy to one initial organization if operationally practical, but design identity and data correctly now.
-
-**Native Expo is chosen because:** one maintainable client codebase can deliver platform-quality experiences, deep links, accessible forms and device integrations. Native modules or platform-specific screens are allowed when needed; do not force all behaviors into generic cross-platform abstractions.
-
----
-
-# PART IV — API CONTRACTS, SECURITY, CORRECTNESS AND OPERATIONS
-
-## 16. API system and integration boundaries
-
-### 16.1 Protocol and conventions
-- Base path: **/v1** behind a versioned domain, for example api.sila.example (placeholder domain, not an acquired asset).
-- HTTPS only. JSON REST for ordinary transactions; signed short-lived media URLs for uploads/downloads. Use push/websocket only for justified high-frequency real-time views.
-- OpenAPI 3.1 contracts generated from server-owned schemas. Every endpoint has request/response examples, authorization scope, error cases and stable operation IDs.
-- Names: plural resources, lower-kebab-case URLs, consistent ISO 8601 UTC instants, IANA timezones, ISO 4217 currency, UUID/ULID IDs.
-- Money: integer **amountMinor**, valid **currency**, explicit tax/fee/allocation breakdown, never JSON floats.
-- Paging: opaque cursor and bounded limit (default 20, max 100), deterministic ordering and organization-filtered queries.
-- Filtering: server allowlist; search query length/type restrictions; no arbitrary "include all" relation parameter.
-- Writes: user-visible workflow commands must be idempotent where retried, and return a durable state change reference.
-- Public endpoints have caching with ETag/revision; private data is no-store and partitioned by identity + org context.
-- Every response includes trace/request identifier and a current policy-safe link for remediation when appropriate.
-
-### 16.2 Standard envelopes
-~~~json
-{
-  "data": {
-    "id": "evt_example",
-    "status": "confirmed",
-    "startsAt": "2026-11-06T18:00:00Z",
-    "venueTimeZone": "America/New_York"
-  },
-  "meta": {
-    "requestId": "req_example",
-    "apiVersion": "1",
-    "revision": 7
-  }
-}
-~~~
-
-~~~json
-{
-  "error": {
-    "code": "WAITLISTED_OR_FULL",
-    "message": "This gathering is at capacity.",
-    "details": { "waitlistAvailable": true },
-    "requestId": "req_example"
-  }
-}
-~~~
-
-Errors are localized through a stable error code, not by matching English strings. Field errors use field keys; never echo passwords, access tokens, care narratives or full card/payment payloads. Appropriate status codes: 400/422 validation, 401 unauthenticated, 403 forbidden, 404 not found or private target masked, 409 conflict, 429 throttled, 503 dependency unavailable.
-
-### 16.3 Auth, context and governance endpoints
-| Method | Endpoint | Rule |
+| Family | Examples | Required policy |
 | --- | --- | --- |
-| POST | /v1/auth/register | Rate-limited registration and anti-automation |
-| POST | /v1/auth/login | Password or provider login with assurance challenge |
-| POST | /v1/auth/refresh | Rotate one refresh token, revoke reuse chain |
-| POST | /v1/auth/logout | Revoke active session |
-| POST | /v1/auth/logout-all | Revoke all owned sessions |
-| POST | /v1/auth/verify-contact | One-time confirmation token |
-| POST | /v1/auth/recovery/request | Indistinguishable account existence response |
-| POST | /v1/auth/recovery/complete | One-use expiring token and session revocation |
-| POST | /v1/auth/mfa/enroll | Challenge proof then register authenticator |
-| POST | /v1/auth/mfa/verify | Fresh, replay-resistant challenge |
-| GET | /v1/me | Own profile and assurance state |
-| PATCH | /v1/me | Allowed display fields only |
-| GET/DELETE | /v1/me/sessions/{id} | Own device/session control |
-| GET/PATCH | /v1/me/preferences | Locale and consent preferences |
-| POST | /v1/me/privacy-requests | Record and track own requests |
-| GET | /v1/me/export | Scoped export after suitable reauth |
-| GET | /v1/organizations | Public active organization directory |
-| GET | /v1/organizations/{orgId}/venues | Public venue details |
-| POST | /v1/organizations/{orgId}/invitations | Verified steward with invite capability |
-| POST | /v1/invitations/{token}/accept | Invited identity only |
-| GET/POST/DELETE | /v1/steward/grants | MFA + org-scoped role administration |
+| Public | GET /public/home, /public/prayers, /public/events, /public/programs | Published projection, explicit organization/venue |
+| Account | GET/PATCH /me; /me/sessions; /me/preferences; /me/privacy-requests | Own account; fresh reauth for sensitive operations |
+| Membership/access | /organizations/:id/invitations; /role-assignments | Access-admin scope, delegation rules, audit |
+| Worship | /venues/:id/schedules; /publications/:id/approve | Venue editor/reviewer and revision check |
+| Events | /events/:id/reservations; /waitlist-offers; /checkins | Own reservation or assigned coordinator |
+| School | /enrollments; /guardian-links; /classes/:id/attendance | Relationship, class and field scope |
+| Giving | /donations/checkout; /invoices/:id/checkout; /receipts/:id | Donor/payer ownership; validated server amount |
+| Finance | /refunds; /settlements; /expenses; /reconciliation | Fund capability, maker/checker and MFA |
+| Services | /service-requests; /appointments | Requester ownership or explicit case assignment |
+| Facilities | /resources/:id/reservations; /work-orders | Venue capability and conflict enforcement |
+| Delivery | /notifications; /devices; internal worker endpoints | Recipient ownership or authenticated service identity |
 
-### 16.4 Worship and discover endpoints
-| Method | Endpoint | Contract highlights |
+Use bounded cursor pagination, allowlisted sorting/filtering and stable localized error codes. Typical results: 401 for authentication, 403 for denied action, policy-safe 404 for private objects, 409 for stale/capacity conflict, 422 for invalid input and 429 for throttling. Include request ID and actual durable status. Never leak sensitive payloads into error messages.
+
+Document request/response examples, scope, state transitions, retries and errors for every endpoint. Support released mobile clients during route migration; a web deploy does not update all phones.
+
+## 15. Security, privacy and reliability
+
+### 15.1 Data classification
+
+| Class | Examples | Default treatment |
 | --- | --- | --- |
-| GET | /v1/organizations/{orgId}/today | Public aggregate of approved snippets |
-| GET | /v1/venues/{venueId}/prayers?localDate=YYYY-MM-DD | Published schedule, revision, source, timezone |
-| GET | /v1/venues/{venueId}/jummah?from=YYYY-MM-DD | Published session sequence and revisions |
-| GET | /v1/organizations/{orgId}/faith-notices | Mosque-approved dated notices |
-| GET | /v1/organizations/{orgId}/announcements | Approved public content only |
-| GET | /v1/search?query=...&kind=... | Limited published records, no private people |
-| POST | /v1/steward/venues/{venueId}/schedules | Draft change, venue editor grant |
-| POST | /v1/steward/publications/{id}/approve | Different eligible approver where required |
-| POST | /v1/steward/publications/{id}/publish | Atomic revision publication |
-| POST | /v1/steward/notices/{id}/emergency | Documented emergency override and alert |
-
-### 16.5 Gather, circles, learning and care
-| Method | Endpoint | Minimum rule |
-| --- | --- | --- |
-| GET | /v1/gatherings | Only public, published, filterable |
-| GET | /v1/gatherings/{id} | Audience-scoped detail |
-| POST | /v1/gatherings/{id}/reservations | One active reservation; atomic capacity |
-| DELETE | /v1/gatherings/{id}/reservations/me | Own cancellation, deadline/state guards |
-| POST | /v1/gatherings/{id}/checkins | Assigned check-in host and attendee validation |
-| GET | /v1/circles | Public discoverable circles only |
-| POST | /v1/circles/{id}/join-requests | Applicant with eligibility and cooldown |
-| POST | /v1/steward/circles/{id}/decisions | Authorized host decision + notification |
-| GET | /v1/learning-paths | Published catalog |
-| GET | /v1/learning-paths/{id} | Public summary with policy-safe cohort info |
-| POST | /v1/enrollment-requests | Eligible verified applicant |
-| GET | /v1/me/enrollment-requests | Own pending and decided applications |
-| POST | /v1/steward/enrollment-requests/{id}/decision | Scoped reviewer plus evidence |
-| GET | /v1/guardians/me/children | Active verified links only |
-| GET | /v1/students/{id}/progress | Own/verified guardian/assigned teacher policy |
-| POST | /v1/cohorts/{id}/attendance | Assigned teacher, session open |
-| POST | /v1/cohorts/{id}/tasks | Teacher scope, publication control |
-| POST | /v1/tasks/{id}/submissions | Own enrolled student; due date |
-| GET | /v1/service-opportunities | Published volunteer offerings |
-| POST | /v1/service-opportunities/{id}/applications | Eligible applicant |
-| GET | /v1/me/service-shifts | Own accepted assignments |
-| POST | /v1/steward/shifts/{id}/checkin | Assigned coordinator |
-| POST | /v1/care-requests | Informed consent, minimized payload, protected queue |
-| GET/PATCH | /v1/steward/care-requests/{id} | Named case team and purpose audit |
-
-### 16.6 Treasury, messages and platform
-| Method | Endpoint | Critical guarantee |
-| --- | --- | --- |
-| GET | /v1/causes | Approved designated fund listing |
-| POST | /v1/contributions/checkout | Org-bound cause, immutable amount and idempotency |
-| POST | /v1/tuition-invoices/{id}/checkout | Verified payer and guardian relationship |
-| GET | /v1/me/contributions | Own statuses and receipts |
-| GET | /v1/me/receipts/{id} | Only invoice payer/donor or scoped authorized actor |
-| POST | /v1/steward/refunds | Requested full/partial refund with maker |
-| POST | /v1/steward/refunds/{id}/approve | Independent authorized checker |
-| GET | /v1/steward/ledger/entries | Treasury scoped, audited export |
-| GET | /v1/steward/settlements | Provider payout and reconciliation status |
-| POST | /v1/webhooks/payments/{provider} | Signature-verified raw body and dedupe |
-| GET | /v1/me/notifications | Minimal personal notification data |
-| PATCH | /v1/me/notifications/{id} | Own read/archive state |
-| PUT | /v1/me/device-push-token | Device association with consent and revocation |
-| GET | /v1/steward/audit | Scope-filtered append-only audit |
-| GET | /health/live | Process liveness, no credentials or private data |
-| GET | /health/ready | Dependency readiness, protected operational detail |
-
-### 16.7 Versioning and transitions
-Version non-backwards-compatible changes explicitly (e.g., /v2), allow bounded deprecation windows, generate SDK clients, and test old supported mobile builds against current server. Avoid hidden "breaking but we updated the web" changes because native apps do not all update simultaneously.
-
-### 16.8 Example: Reserve a seat
-~~~json
-{
-  "sessionId": "ses_example",
-  "partySize": 1,
-  "accessibilityRequest": "wheelchair-space",
-  "idempotencyKey": "generated-client-uuid"
-}
-~~~
-
-On transaction: resolve actor and org; check audience/eligibility; lock session capacity; return existing reservation if same idempotency key; otherwise create confirmed or waitlisted reservation with status and stable ID; emit notification outbox once; record audit event. The response must differentiate confirmed versus waitlisted. Any provider/network retry returns the same operation result.
-
----
-
-## 17. Auth, session and permissions engineering
-
-### 17.1 Authentication
-Use a mature authentication provider or well-audited library with OAuth 2.1/OIDC Authorization Code + PKCE for native login where relevant. Password authentication requires strong server-side hash (Argon2id preferred with operationally appropriate parameters), credential stuffing protections, breached-password checks when justified, and generic account recovery messaging.
-
-- **Mobile:** short-lived access and rotating refresh tokens; refresh secret stored in Keychain/Keystore via approved secure storage; server stores only hash and token-family/reuse state. Never keep bearer tokens in plain AsyncStorage or logs.
-- **Web:** HttpOnly, Secure, SameSite cookies with CSRF/origin controls; avoid long-lived session tokens in localStorage.
-- **Privileged:** phishing-resistant WebAuthn/passkey/physical key recommended for stewards and treasury; TOTP fallback only with policy and approved recovery path; step-up reauthentication for payouts, refunds, privilege grants, privacy exports and sensitive guardian revocations.
-- **Recovery:** logged and rate-limited, no insecure email-only bypass of privileged MFA; documented two-person break-glass under retention and audit policy.
-- **Sessions:** device list; logout all; revoked/expired checks on API; refresh-token replay kills token family; privilege or membership revocation invalidates active sessions promptly.
-- **Invitations:** signed/hashed one-time tokens, expiry, organization binding, verified recipient and least-privilege acceptance.
-- **Bots:** edge/WAF controls for signup and public forms with accessible alternatives; do not require inaccessible visual CAPTCHAs everywhere.
-
-### 17.2 Authorization workflow
-For every private API request:
-1. Verify session, assurance level, token lifetime and issuer/audience.
-2. Resolve trusted active organization (never trust a posted orgId).
-3. Resolve current membership state and effective grants.
-4. Load target within tenant scope, enforcing field-level minimization.
-5. Evaluate permission on target, relation and action; default DENY.
-6. Evaluate state-machine guard (deadline, amount, published status, separation of duties).
-7. Write in a DB transaction with idempotency/version check; produce audit/outbox event.
-8. Return a minimal, policy-safe response. Treat hidden-not-found and true-forbidden consistently with threat model.
-
-**Negative-test requirements:** cross-org ID, expired invitation, unverified guardian, revoked teacher, finance self-approval, guessed receipt ID, bypass via sorting/filtering, modified org header, cached prior identity, skipped MFA, orphan file link, background worker wrong scope.
-
-### 17.3 Security design reference
-- OWASP **ASVS 5.0.0** for web/API security requirements (https://asvs.owasp.org/).
-- OWASP **MASVS** and **MASTG** for mobile storage, authentication, network, platform, privacy and resilience (https://mas.owasp.org/MASVS/).
-- NIST secure development guidance where relevant; organization security policy and independent penetration test are separate release requirements.
-- Never call an app "OWASP certified" merely because a checklist was read or a dependency scanner passed.
-
----
-
-## 18. Privacy, safeguarding and consent
-
-### 18.1 Classify data before collecting it
-| Classification | Examples | Default controls |
-| --- | --- | --- |
-| Public | Published prayer time, approved public event | Public access, revision and correction |
-| Member-private | Own RSVP, notification preference | Owner access, encrypted transit |
-| School-restricted | Child enrollment, attendance, progress | Verified guardian/teacher and field scope |
-| Care-confidential | Support request, case notes, protection concerns | Named case team, no general search/export |
-| Financial-sensitive | Donor identity, tuition, payouts, refund audit | Treasury scope, masking, immutable audit |
-| Authentication-secret | Refresh token, MFA secret, recovery token | Hashed/encrypted, zero logging, rotation |
-| Operational-security | Worker secret, incident evidence, IP abuse signals | Strict access and short retention |
+| Public | Published schedule and public event | Cacheable with revision and expiry |
+| Personal | Own RSVP and preferences | Owner access; private cache discipline |
+| School restricted | Child records and relationship evidence | Verified relationship plus scoped staff access |
+| Care confidential | Assistance narrative and counseling request | Named case team; excluded from generic search/analytics |
+| Finance sensitive | Donor identity, invoice, refund | Donor/payer or explicit finance permission |
+| Secret | Session, MFA, provider credentials | Hash/encrypt as appropriate; never log or expose to client |
+| Operational | Audit and security events | Restricted access, redaction and retention |
 
-### 18.2 Non-negotiable protections
-- Every personal field has a purpose, owner, legal basis/consent analysis, retention duration, deletion/exception rule, encryption class and access test.
-- Child profile visibility requires verified GuardianLink, not a shared surname, email or parent role flag.
-- Guardianship disputes have manual verified review and immediate temporary access freeze capability.
-- Care-case intake never sends raw narratives through push notifications, ordinary email or analytics.
-- School uploads use malware scanning, content/type limits, private storage and short-lived access URLs.
-- Protect private exports with step-up auth, scoped download links, audit, expiry and file-level encryption as needed.
-- Do not collect or predict religious practice or caste/ethnic characteristics as engagement metrics.
-- Sensitive logs are redacted at source. Production support does not gain carte-blanche database browsing.
-- User data deletion is request-based with documented financial/child safeguarding retention exceptions; explain what remains and why.
-- Jurisdiction-specific child protection, privacy, fundraising, financial and accessibility law must be assessed by qualified counsel; the design does not assume a law applies universally.
-
-### 18.3 Care escalation and human safety
-The product must not appear to provide emergency, medical or legal response where none is staffed. Where care programs are enabled, publish operating hours, who responds, limits of confidentiality, response expectation and an emergency alternative. A request may be escalated only by authorized humans under an approved protocol; no unreviewed AI triage on vulnerable cases.
-
-### 18.4 Consent and communication
-Marketing opt-ins are separate from essential transactional notices. Guardian consent is versioned. A push token is tied to the active device/identity and removed on logout, token rotation or user revocation. No sensitive financial, child, custody or care details in lock-screen notifications.
-
----
-
-## 19. Financial integrity and money movement
-
-### 19.1 Principles
-A payment provider confirms the movement; the application records it; the ledger accounts for it; settlements reconcile it. These are separate facts and must have separate states. A redirect back from Checkout is **not** a successful payment confirmation.
-
-### 19.2 Contribution flow
-1. Server validates published cause, organization currency, amount limits, designated allocation and donor terms.
-2. Create an immutable checkout intent with unique idempotency key.
-3. Provider checkout token or hosted URL is generated using server-only credentials.
-4. User completes provider flow; UI displays **processing**.
-5. Signed webhook raw bytes are verified before parsing; deduplicate event IDs and provider business objects.
-6. Transactionally update payment state, create immutable receipt, post balanced ledger journal and outbox notification.
-7. Reconciliation worker compares source transactions with provider charges, fees, refunds and payout settlements.
-8. Audit and alert unmatched amounts, currencies, orphan payments or double postings.
-
-### 19.3 Example journal (USD 50.00 donation)
-| Account | Debit minor | Credit minor |
-| --- | ---: | ---: |
-| Payment processor clearing | 5000 | 0 |
-| Restricted/unrestricted contribution revenue | 0 | 5000 |
-| **Total** | **5000** | **5000** |
-
-On payout, move clearing to cash and book processor fees explicitly. On a full/partial refund, create **new** reversal lines for the actual provider-confirmed refunded amount. Do not delete or overwrite posted receipts.
-
-### 19.4 Refund/expense safeguards
-- Maker and checker are different verified actors.
-- Amount, organization, source, payer, currency, provider refund status and prior partial refunds checked.
-- Idempotency on provider call; stalled provider request enters reconciliation queue rather than blind duplicate retry.
-- Provider webhook decides external money status; independent admin approval merely authorizes submission.
-- Expense requests can attach scanned evidence, have organization/category budgets and a separate payable/payment lifecycle.
-- Staff cannot approve their own reimbursement or access bank integration credentials via UI.
-- Restricted donation allocations must not be silently reassigned.
-
-### 19.5 Accounting release gate
-Finance policy owner approves chart of accounts, fund restrictions, refunds, statement wording and reporting requirements. Real payment sandbox and live limited pilots must reconcile including fees, chargebacks, failed/late/out-of-order webhooks, disputes, network outages and export retention. Do not claim general-ledger compliance based only on two-line posting tests.
-
----
-
-## 20. Worship, time, calendars and geographical correctness
-
-### 20.1 Prayer source of truth
-Each venue selects its authoritative source/calculation method and local policy. For every date, store authoritative adhan/iqamah/Jummah values, original source, reviewedBy, publishedBy and revision. Support imported calculations only as **drafts** pending venue confirmation. A scheduled publication never silently changes past prayer records.
-
-### 20.2 Time handling
-- Store instant timestamps in UTC and display via the venue's IANA timezone.
-- Store mosque-local **civil date** separately from timestamp, especially across DST transitions.
-- A 13:15 Jummah local clock time has meaning even if UTC offset changes.
-- Use tested timezone/date libraries and avoid relying on server or handset default timezone.
-- The Hijri calendar can use a documented display convention, but Eid/Ramadan announcements require explicit human mosque approval.
-
-### 20.3 Qibla
-Direction may be calculated from user-granted location (to Kaaba coordinates) with correct geodesic bearing. Check permissions, compass sensor availability and magnetic/true north assumptions. If location unavailable, offer city/manual lookup and say what accuracy cannot be guaranteed. Do not persist individual prayer-location history.
-
-### 20.4 Correction and safety
-Urgent schedule changes use a named editor and approver, with timestamp and publication revision. Cache invalidation and display updates are part of success. If an approved time is unavailable, show "Schedule not published" with contact route—not a derived guess.
-
----
-
-## 21. Education and safeguarding lifecycle
-
-The education domain is a protected school operating area within SILA, not a generic "student" table exposed throughout the community app.
-
-### 21.1 Child enrollment lifecycle
-**Application → identity/guardian evidence review → guardian link approval → student profile creation → class allocation → active enrollment → attendance and progress → renewal/withdrawal.**
-
-Approving an application does **not** automatically prove guardianship unless evidence review is complete; approving guardianship does **not** automatically grant access to all future class reports. Relationship, class, audience and status each matter.
-
-### 21.2 Class operations
-Cohort capacity is enforced transactionally. Teachers only see assigned rosters. Attendance is a dated record with original marker, latest revision, reason and correctedBy. Student reports are drafts until published to specified recipient class (student, approved guardian, school staff). The approval policy is configured by the school.
-
-### 21.3 Financial boundaries
-Invoice issued to an explicitly authorized payer; tuition is allocated by organization, student, period and program. Refunds/waivers/concessions are reasoned and audited. Teachers cannot browse full guardian payment histories. A student ID should not expose child name, address or birthdate by inference.
-
-### 21.4 Child-facing experience
-Age-appropriate text and minimum features; no direct chats with strangers, public leaderboard, unrestricted location, unmoderated photos or student discovery by name. Files and school communications are subject to written safeguarding policy and independent review.
-
----
-
-## 22. Notifications, queues and offline operation
-
-### 22.1 Delivery design
-Every consequential server transaction adds an **outbox event** in the same DB transaction; the worker leases it, selects an allowed channel based on consent and purpose, sends through provider and records actual provider acknowledgment. Retry with exponential backoff and jitter; dead-letter after a bounded policy; page on critical failures; dedupe provider callback IDs. Never deliver stale guardian-only content after permission revocation.
-
-### 22.2 Notification examples
-| Event | Channel | Payload rule |
-| --- | --- | --- |
-| Prayer schedule changed | Opted-in push, in-app, display | Generic notice + updated public link |
-| RSVP confirmed | In-app + optional email/push | Event title and safe details |
-| Gathering canceled | Essential in-app/transactional message | Clear affected schedule |
-| Shift assigned | In-app + opted-in reminder | Title and safe link |
-| Child report published | In-app, generic push only | No child/report text on lock screen |
-| Care case response available | Private in-app, generic email | No case content |
-| Donation verified | In-app and permitted receipt email | Full receipt only via authenticated link or secure delivery |
-| Refund changed | In-app + transactional notice | Status and verified reference |
-| Privilege revoked | Security notification, session invalidation | No internal risk metadata |
-
-### 22.3 Offline policy
-| Feature | Offline experience |
-| --- | --- |
-| Published prayers / public venue info | Last verified snapshot with date, source and **STORED/OFFLINE** label |
-| Public gatherings | Read-only previously opened records, may be stale |
-| Qibla | Locally calculated if permitted location available, with warning |
-| Draft non-sensitive RSVP form | Local draft only; cannot falsely claim reservation |
-| Private child or care records | No default unencrypted offline caching |
-| Payments / refunds / role grants / enrollment decisions | **Online-only**, no fabricated success |
-| Notifications | Previously downloaded own items only, guarded by current session and data policy |
-
-Offline sync uses explicit version and conflict resolution; sensitive revocations cause cache purge. An internet reconnection does not automatically replay a donation or irreversible action without user/protocol safeguards.
-
----
-
-## 23. Internationalization, inclusivity and content design
-
-### 23.1 English and Arabic are equal product languages
-Internationalization is architectural, not a late text swap:
-- Centralized message catalog, typed keys and review workflow.
-- RTL-aware flex, leading/trailing padding, icons, reading order and motion direction.
-- Bidi isolation for URLs, email addresses, amounts, dates and named entities inside Arabic.
-- Locale-specific number/date/currency formatting with explicit timezone.
-- Arabic font shaping, line height, mark/diacritic correctness and numerals validated on real iOS/Android devices.
-- Editors enter **separately approved translations** of public announcements; automatic translation may be a private suggestion only, never an unreviewed mosque statement.
-- Complete forms, accessibility labels, validation errors, empty states, receipts and emails localized before declaring language complete.
-- Text expansion tolerance and dynamic type; do not assume Arabic uses fewer characters.
-- Allow bilingual content and organization-approved transliteration without culturally inappropriate defaults.
-
-### 23.2 Accessibility acceptance standard
-Target **WCAG 2.2 AA** for applicable web interfaces and corresponding native mobile accessibility behaviors: semantics and roles, headings, keyboard-only traversal, logical focus, sufficient contrast, non-color status, scalable text, high-contrast/dark options, reduce motion, captioned content, helpful errors, touch targets and labels. Include VoiceOver, TalkBack, hardware keyboard, switch control and a motor accessibility pass.
-
-Automated accessibility scanners are necessary but insufficient: manual assistive-tech journeys must be passed and recorded for every key flow. Official WCAG: https://www.w3.org/TR/WCAG22/.
-
-### 23.3 Content voice
-Warm, plain, precise, never patronizing. Use "A place is available" rather than artificial urgency. Do not call someone a donor hero or imply that payments measure faith. Say **"Awaiting payment confirmation"**, **"Request submitted; not yet approved"**, **"Published by your mosque"**, and **"We cannot load this record now; retry safely"**.
-
----
-
-## 24. Observability, reliability, scaling and backups
-
-### 24.1 Operational telemetry
-Log structured traceId, safe actor pseudonym, organizationId, action, latency, policy outcome and error code. Mask child details, care narratives, tokens and donation payloads. Monitor API latency/error budgets; database slow queries; provider callback lag; outbox lag; job retries; refund exception queues; cache invalidation; permission denials; anomalous financial mismatches.
-
-### 24.2 Reliability patterns
-- Idempotent commands and webhook inbox (unique provider event IDs).
-- Outbox/inbox transactional messaging; no best-effort email inside business transaction.
-- Bounded retries with jitter and circuit breaking for external providers.
-- Timeouts at HTTP, DB and queue boundaries; graceful degradation for optional integrations.
-- Graceful shutdown and worker lease expiry recovery.
-- Readiness/liveness separated; no sensitive config details on public health route.
-- Connection pool limits; load test database locks for capacity/waitlist transactions.
-- Files scan in quarantine; no public upload bucket by default.
-- Feature flags and tenant-specific rollout; incident rollback policy.
-- Schema migrations are reviewed, additive, reversible where possible and backup-tested.
-
-### 24.3 Backups, disaster recovery and continuity
-Define RPO/RTO with organization before release. Use encrypted automated backups, offsite retention, access-separated credentials and **monthly sampled restore drills** plus a full prelaunch restore test. Practice a payment-webhook backlog replay, accidental guardian grant revocation, school content leak response and stale prayer schedule correction. Recovery credentials should not be held by one individual without documented continuity.
-
-### 24.4 Performance and cost
-Monitor request fan-out and the query plan for heavy admin lists; precompute non-sensitive daily venue aggregates; use cursor pagination; cache immutable public content by revision; optimize image dimensions and lazy load assets. Avoid synchronous report generation inside an interactive request. Build cost forecasts for provider mail/push, storage, payment fees, platform builds, monitoring and DB growth.
-
----
-
-# PART V — DELIVERY, VERIFICATION AND BUSINESS READINESS
-
-## 25. Development workflow and engineering standards
-
-### 25.1 Work method
-Use **small vertical slices**, each containing real UX, typed API, domain policy, database migration, integration test, telemetry and documentation. Never count a UI-only placeholder as a completed feature. Prefer a readable monolith to a clever abstraction. Establish a short architecture decision record (ADR) before unusual infrastructure additions.
-
-For each feature:
-1. Define problem, persona and measurable outcome.
-2. Map interaction states and sensitive fields.
-3. Model resources and access rules; document threat scenarios.
-4. Write contract and policy tests **before** implementation where feasible.
-5. Implement database constraint and migration; generate API/types.
-6. Build use case and actual API; test transaction/concurrency/error paths.
-7. Build native and/or web UI with accessibility and RTL states.
-8. Add queue/notification and operational owner when needed.
-9. Run end-to-end and negative authorization tests.
-10. Observe on staging with safe seeded/fake data only.
-11. Obtain product/security/finance/safeguarding approval as applicable.
-12. Release behind a rollout gate, monitor, rollback if necessary.
-
-### 25.2 Code quality standards
-- Strict TypeScript, no unchecked casts or "any" creeping into public contracts; runtime validation for untrusted input and provider responses.
-- Typed domain errors, discriminated state unions, no duplicated status semantics.
-- Use explicit dependency injection/seams for time, random IDs, third-party services and permission checks in tests.
-- No API endpoint directly mutating a dozen unrelated tables without an application use case and transaction design.
-- No circular imports between modules; contracts → domain → application → infrastructure and transport are one-way boundaries.
-- Domain models never expose raw credentials, payment provider secrets or protected case files.
-- Generated SDK clients come from OpenAPI; avoid handwritten fetch-response duplication across apps.
-- UTC instants and IANA timezones; test DST and leap-day cases.
-- Currency library/formatting handles integer minor units, decimal input validation and currencies with differing minor units.
-- Every public error has a code and localization key; failures are observable with a safe request ID.
-- No console logging of secrets or PII, no local development credentials in Git.
-- Dependency pinning via lockfile, signed CI artifacts where available, reproducible builds and license inventory.
-- PRs show acceptance mapping and screenshots/accessibility evidence for UI changes.
-
-### 25.3 Branch, release and ownership discipline
-Only edit the agreed Git branch(es); **current work belongs to development** until the owner approves a branching or release policy. Every commit links to a capability and contains verified scope. Use protected reviews on finance/auth/safeguarding areas; do not force-push or erase history to hide vulnerabilities. Separate environment variables and encryption keys for development, preview, staging and production.
-
-### 25.4 Developer environment: new installation
-A contributor should be able to clone the repo, copy **example** environment files, start local Postgres/object-store substitutes, run versioned migrations on a disposable DB, seed only demonstrably fictional records, start API/worker/web/mobile and run one test command. Never depend on production data to develop or showcase UI.
-
-### 25.5 Repository conventions
-- Root command groups: typecheck, lint, format-check, unit, integration, contract, a11y, e2e, db:migrate, db:status, web:build, mobile:build-validation.
-- CI rejects missing schema migration, insecure permission changes without tests, drift between contracts and generated clients, critical vulnerability findings, broken locale keys or unsupported runtime versions.
-- Ensure test names express intent ("guardian from Org B cannot see Child A"), not implementation details ("should be 403").
-- Use structured fixtures via factories; no arbitrary real names, addresses, bank/card data or child records.
-
----
-
-## 26. Testing strategy: correctness is a release feature
-
-### 26.1 Test pyramid
-| Layer | What it proves | Environment |
-| --- | --- | --- |
-| Pure unit | Timezone conversion, state machine, amount validation, policy utilities | In-process deterministic tests |
-| Domain/service | Correct authorization and state changes | Mock services + real policy inputs |
-| Database integration | FK, unique keys, RLS/tenant scope, locks, financial posting | Disposable PostgreSQL via migrations |
-| API contract | Every documented request, error and result | Running API + generated client |
-| Provider contract | Signed webhooks, retries, out-of-order and duplicate events | Official sandbox plus synthetic adversarial fixtures |
-| Native E2E | Navigation, permission prompts, accessibility and auth | Real devices + iOS/Android simulator |
-| Browser E2E | Full steward and public flows | Multiple browsers and sizes |
-| Security | Token replay, scope bypass, SSRF/upload abuse, privilege escalation | Automated + independent manual review |
-| Accessibility | VoiceOver, TalkBack, keyboard, contrast, RTL, scaling | Manual and automated |
-| Performance/resilience | p95, degraded providers, reconnection, failover | Staging load/chaos exercise |
-| Migration/restore | Apply new schema, safe backfill, rollback strategy, restore | Staging snapshot with sanitized data |
-| Human UAT | Actual staff/guardian/teacher understand and complete work | Facilitated test scripts |
-
-### 26.2 Mandatory negative tests
-1. Guest cannot access any private API; public metadata does not leak email or child details.
-2. Member A cannot access member B's receipt, invoice, event ticket, account or export by guessed ID.
-3. Organization A administrator cannot read organization B user or finance records.
-4. Guardian with revoked or unapproved link cannot read student data via list, detail, search, cached query or document URL.
-5. Teacher can see only assigned cohorts and authorized fields; former teacher loses access on revocation.
-6. A care coordinator cannot view unassigned cases; general stewards do not get a private care list by default.
-7. Staff cannot self-grant permission, self-approve own refunds or evade approval with stale requests.
-8. Expired/replayed MFA, invitation and reset tokens fail; privilege grants require fresh assurance.
-9. Two parallel last-seat reservations create **one** confirmed seat, not two.
-10. Payment redirect alone cannot mark paid; invalid signature/amount/currency rejects posting.
-11. Duplicate and reordered provider events cannot double-charge or double-journal.
-12. Partial refunds, chargebacks, disputed payments and fees reconcile to appropriate accounts.
-13. Failed provider request does not say completed and does not silently erase pending intent.
-14. A private unpublished prayer schedule or draft notice never appears in public API/cache/kiosk/search.
-15. Cross-organization search/filter/pagination cannot reveal records via count side-channels.
-16. Switching users/organizations empties private cache, queued requests, old deep links and push token associations.
-17. Offline mode cannot submit an irreversible payment or guardian approval and report success.
-18. Malicious upload MIME, oversize file, malware signature and signed URL reuse are rejected.
-19. Canceled gatherings invalidate affected check-in rights and notify only appropriate audience.
-20. Arabic RTL, large text, screen-reader controls and keyboard focus work in every high-value flow.
-
-### 26.3 Every-control acceptance checklist
-For each visible button, menu, icon, search filter, date picker, navigation link, table action, slider and form submit, record:
-- **Action:** What exactly changes or opens?
-- **Eligibility:** Who can use it and against which resource?
-- **Result:** Which durable server state or new screen proves success?
-- **Pending:** How is the in-progress state communicated?
-- **Errors:** How are network, denied permission, validation, conflict and provider failures handled?
-- **Retry:** Is retry safe and idempotent?
-- **Accessibility:** Label, focus, semantic status, touch target, keyboard and RTL.
-- **Telemetry:** How can support diagnose failure without sensitive data?
-- **Tests:** Unit/contract/E2E identifier, screenshot and reviewer.
-
-A control with no real handler must be removed, genuinely disabled with an explanation, or explicitly labeled "not available" in a staging-only environment—never launched as a dead button.
-
----
-
-## 27. Feature acceptance register
-
-Each row is a **must-pass product requirement**, not a claim that code currently implements it.
-
-| ID | Capability | Surface | Primary actor | Definition of working |
+Configure retention per field/category with an accountable owner; do not invent universal legal retention periods. Deletion workflows distinguish removable data, retained records, anonymization and legal holds, with an actual completed status. Analytics must not infer religiosity or rank worship.
+
+### 15.2 Security implementation
+
+Centralize server policy checks; deny by default. Require fresh MFA for privileged actions. Improve token rotation/session expiry, account enumeration protection, rate limiting and privileged recovery. Protect cookie writes with CSRF/origin controls and restrict CORS. Validate upload content, size and type, quarantine for scanning, and authorize every download.
+
+Private cache identity includes actor, organization and applicable scope; clear it on logout/context change. Permit offline public schedules with freshness labels. Do not queue financial approvals, role grants or care decisions offline. Avoid persistent child/care data on devices by default.
+
+### 15.3 Reliability operations
+
+Track request errors, p95 latency, publication freshness, outbox age, provider failure rate, reconciliation exceptions and crash-free sessions. Use request IDs for support without copying sensitive narratives.
+
+Set provisional targets, validate during the pilot: public schedule availability 99.9%; critical schedule correction visible within 60 seconds; healthy ordinary API reads p95 under 750 ms; transactional notification queued immediately and provider submission within five minutes at pilot load. These are design targets, not current measurements or guaranteed external delivery.
+
+Agree recovery targets in R0; starting proposals are database RPO 24 hours and RTO four hours, tightened if school/finance operations require it. Restore a backup to an isolated environment and reconcile external provider transactions after recovery. Test key custody/rotation, worker crash recovery and incident communications. Assign primary and backup incident owners.
+
+## 16. Vercel, GitHub and release operations
+
+### 16.1 Deployment plan
+
+Use the existing repository and one selected Vercel project for web/API. The account contains similarly named projects; record the canonical project's ID, repository binding, domain and owner before settings changes. Do not delete duplicate projects without a separate decision.
+
+For the current layout, the proposed root is `staff-web`; the repository build script is `prisma generate && next build`. Verify actual project settings and logs first. Do not run `db push`, destructive reset or seed during deployment builds.
+
+Separate development, preview/staging and production database credentials, payment modes, email recipients, storage and secrets. Preview must never send to real community lists or mutate production. Use synthetic records and test payment accounts.
+
+The current CI uses Node 22 while the inspected Vercel project reports Node 24.x. Choose a supported version compatible with the pinned dependencies and align it across environments after a clean-build test.
+
+### 16.2 Migration and release order
+
+1. Inventory existing databases and migration history; identify whether any data is live.
+2. Back up and prove isolated restoration.
+3. Rehearse migrations/backfills against a representative sanitized copy.
+4. Apply additive changes through a separately controlled migration job using the pinned toolchain.
+5. Deploy compatible application code; verify health, authorization and critical flows.
+6. Enable the module for the pilot organization; monitor outcomes.
+7. Remove obsolete fields/routes only after old mobile-client compatibility and retention requirements are resolved.
+
+The existing initial migration is for empty databases. An existing database needs a reviewed baseline/backfill plan; never replay the empty baseline blindly. Application rollback must remain compatible with the new schema; destructive database rollback is not the routine fallback.
+
+### 16.3 GitHub quality gates
+
+The inspected workflow runs on pushes to development and manual dispatch, not PR events. Add pull-request checks in R0, then protect the agreed release branch with required checks after owner review. Commit lockfiles and use reproducible installs.
+
+Required gates: lint/types, schema/migration checks on disposable PostgreSQL, policy and transaction tests, web build, mobile package compatibility, browser critical journeys, native smoke evidence, dependency/secret scanning and changed-contract review. Treat inventory regex tests as smoke checks, not proof of behavior.
+
+### 16.4 External services and native distribution
+
+Configure production secrets through appropriate environment storage. Audit secret **names and presence**, not their values in logs. Verify public API reachability for mobile, signed payment callbacks and authenticated scheduled workers; deployment protection must not accidentally block intended public endpoints.
+
+Vercel hosts web/API; native builds and signing follow the Expo EAS pipeline with organization-owned Apple/Google accounts. Verify API origin, deep links, bundle identifiers, privacy disclosures, notification permissions and release-channel compatibility separately.
+
+Schedule the bounded outbox worker with authenticated invocations. Validate frequency/limits against the selected Vercel plan; cron invocation alone is not a durable retry system. Add alerting and recovery for missed or overlapping runs.
+
+No project settings, secrets, database records, deployments or app-store releases are changed by this planning document.
+
+## 17. Delivery roadmap and implementation tickets
+
+### 17.1 Work packages
+
+| Package | Release | Deliverable | Dependencies | Exit evidence |
 | --- | --- | --- | --- | --- |
-| F-001 | First-run locale + mosque selection | Mobile | Guest | Switch and persist venue; correct data, no location required |
-| F-002 | Prayer/day schedule | Mobile/Public/Display | Everyone | Venue-authorized times, local date, source and missing state |
-| F-003 | Jummah and corrections | All | Guest/editor | Multiple sessions, versions, approval and cache invalidation |
-| F-004 | Qibla direction | Mobile | Guest | Permission-aware, accuracy caveat, manual fallback |
-| F-005 | Confirmed Eid/Ramadan notices | All | Everyone/editor | Only approved and attributed dates are shown |
-| F-006 | Emergency venue notice | All | Editor | Authorized revision immediately visible and actionable |
-| F-007 | Public gatherings catalog | Mobile/Public | Guest | Search/date/location/accessibility filter and accurate content |
-| F-008 | Gathering details | Mobile/Public | Guest | Real audience, capacity, venue, policy and times |
-| F-009 | RSVP and cancellation | Mobile/API | Member | Correct capacity, waitlist, own state, safe duplicate handling |
-| F-010 | Check-in | Steward | Host | Assigned host only, factual attendance and correction trail |
-| F-011 | Circle discovery and join request | Mobile | Guest/member | Public details, private membership review |
-| F-012 | Circle stewardship | Steward | Host | Moderated membership, updates and scoped roster |
-| F-013 | Learning catalog | Mobile/Public | Guest | Correct age, venue, instructor policy and prerequisites |
-| F-014 | Guardian application | Mobile | Guardian | Valid consent, status and reviewer evidence workflow |
-| F-015 | Verified dependent link | Steward | Safeguarding reviewer | Explicit validation, approval, revocation and audit |
-| F-016 | Cohort enrollment/capacity | Steward | School staff | Atomic seat assignment and defined waitlist |
-| F-017 | Attendance | Steward | Assigned teacher | Current session only, versioned corrections |
-| F-018 | Assignments and submissions | Mobile/Steward | Teacher/student | Class-scoped publication, own work and due-date rules |
-| F-019 | Progress report | Mobile/Steward | Teacher/guardian | Draft/approved publication and field-level access |
-| F-020 | Service opportunities | Mobile | Member | Published, eligibility-scoped shifts |
-| F-021 | Service application review | Steward | Coordinator | Decision, reason, audit and applicant state |
-| F-022 | Shift scheduling and check-in | Both | Coordinator/volunteer | No overlaps; real times and completion |
-| F-023 | Private care intake | Mobile/API | Eligible applicant | Consent and safe confidential acknowledgment |
-| F-024 | Case review | Steward | Named care team | Minimal case data, audit, human owner, closure |
-| F-025 | Causes and transparency | Mobile/Public | Everyone | Reviewed program, truthful allocation disclosures |
-| F-026 | One-time contribution | Mobile/API | Member/guest if allowed | Provider checkout + webhook state |
-| F-027 | Recurring contribution | Mobile/API | Donor | Explicit schedule, cancel, receipts, failure handling |
-| F-028 | Receipt | Mobile/Steward | Donor/finance | Unique verified payment and refund history |
-| F-029 | Tuition invoice | Both | Guardian/finance | Only approved payer; true ledger status |
-| F-030 | Refund request and approval | Steward | Finance maker/checker | Distinct actors and provider-confirmed outcome |
-| F-031 | Payout/settlement reconciliation | Steward/Worker | Finance | Provider totals, fees, disputes and exceptions match |
-| F-032 | Budget and expense control | Steward | Finance | Allocations separated from actual payments; maker/checker |
-| F-033 | Announcements/content | All | Editor | Draft, preview, translated review, publish revision |
-| F-034 | Public pages and SEO | Public | Guest | Indexable, accessible official mosque information |
-| F-035 | Read-only mosque display | Display | Everyone | Only published venue records with stale-state handling |
-| F-036 | Search | Mobile/Public | Everyone | No private index entries, scoped filters |
-| F-037 | Signup/contact verification | Both | Person | Real session, confirmed identity, generic recovery |
-| F-038 | MFA/passkeys and recovery | Both | Privileged users | Step-up, rotation, replay and recovery review |
-| F-039 | Organization role grants | Steward | Admin | Scope/expiry, independent audit, revocation |
-| F-040 | Personal dashboard | Mobile | Member | Own commitments, truthful status changes |
-| F-041 | Settings and localization | Mobile/Steward | User | Complete English/Arabic and native RTL behaviors |
-| F-042 | Preferences and notices | Mobile/API | User | Opt-in separation and actual delivery proof |
-| F-043 | Privacy export/deletion request | Mobile/Steward | User/privacy team | Scope-safe export and governed retention decisions |
-| F-044 | Audit and traceability | Steward/API | Auditor | Event actor, result, diff, request ID, tamper protection |
-| F-045 | Backup/restore and incident ops | Ops | Maintainer | Recovery drills and recorded SLA/SLO monitoring |
-| F-046 | Public and privileged accessibility | All | All | WCAG/assistive-tech/manual UAT gates passed |
-| F-047 | Dynamic content revisions | All | Editor | No stale unpublished leak; affected users notified |
-| F-048 | Multi-venue context | All | Member/staff | Venue scope and tenant-safe cache/state separation |
-| F-049 | Non-predatory product analytics | Steward | Leadership | Aggregates, consent, small-group suppression |
-| F-050 | Operational support tooling | Steward/Ops | Approved support | Case notes, trace IDs and time-limited audited access |
+| WP-01 | R0 | Reconciled inventory, lockfiles, CI and Vercel build diagnosis | None | Clean install/build evidence; no DB mutation in build |
+| WP-02 | R0 | Explicit org context, multi-role grants and central policy | WP-01 | Two-org negative tests and immediate revocation |
+| WP-03 | R0 | Session/MFA recovery, privacy foundations and design primitives | WP-01/02 | Lost-device, reauth, EN/AR and accessible form evidence |
+| WP-04 | R1 | Worship/public site/display and publication workflow | WP-02/03 | Missing/DST/correction/published-only tests |
+| WP-05 | R1 | Events, waitlist, check-in and room allocation | WP-02/03 | Concurrency, cancellation and organizer-scope tests |
+| WP-06 | R1 | Volunteer lifecycle and staff queues | WP-02/05 | Eligibility, overlapping shift and completion tests |
+| WP-07 | R1 | Delivery preferences, outbox operations and support | WP-02/03 | Retry, consent, delivery and alert drills |
+| WP-08 | R1 | Community pilot and operational training | WP-04–07 | Staff/member UAT; restore and rollback drill |
+| WP-09 | R2 | Guardian verification and complete school lifecycle | WP-02/03/07 | Child privacy, placement, withdrawal and teacher tests |
+| WP-10 | R2 | Finance, partial refunds, reconciliation and tuition | WP-02/03/07; WP-09 for tuition | Provider sandbox reconciliation and finance approval |
+| WP-11 | R2 | Family/finance pilot and controlled enablement | WP-09/10 | Approved data migration, limited live reconciliation |
+| WP-12 | R3 | Circles, appointments, facilities and optional care | Relevant domain gates | Per-module operator readiness and complete lifecycle |
+| WP-13 | R3 | Recurring giving and advanced operations | WP-10/11 | Cancellation, renewal failure and receipt reconciliation |
+| WP-14 | R4 | Validated extensions and multi-org readiness | Pilot evidence | Separate business case and isolation acceptance |
 
-**Completeness means these 50 high-level capabilities are decomposed into acceptance tests, developed with required edge cases, and signed off.** Do not score a feature at 100% if only its happy-path demo works.
+Estimate tickets after WP-01 inventory. Report progress by accepted workflow, not screen count or number of endpoints. Parallel implementation is possible only after shared contracts and policies are agreed.
 
-### 27.1 P0 launch slice
-F-001–F-010; F-013–F-019; F-020–F-022; F-025–F-026; F-028–F-030; F-033–F-040; F-041, F-044, F-045, F-046, F-048.
+### 17.2 First implementation tickets
 
-### 27.2 Conditional P0 by organization
-F-023/F-024 only if an independently reviewed care program, trained staff and approved privacy/retention policy exist. Otherwise **ship hidden and unavailable, not an empty dangerous module**. F-027 recurring contributions requires explicit cancellation, mandate and failed-payment implementation; if unavailable, allow one-time giving only. F-031 is required for a real-money production launch, even if its UI is limited to authorized finance users.
-
-### 27.3 Post-launch extensions
-Deeper learning-path progress, integrations with member-approved calendars, facility scheduling beyond events, additional locales, public-facing programs with multi-venue waitlists, finance exports, and new organization integrations. Marketplace hiring or paid rental is a new product evaluation, **not a guaranteed inherited feature**.
-
----
-
-## 28. Delivery roadmap: build from zero with gates
-
-### Phase 0 — Product discovery and legal validation
-**Output:** Confirm mosque operational model, interview guests/parents/teachers/hosts/finance; finalize naming and bilingual vocabulary; prioritize ten most valuable tasks; approve safeguarding, financial and privacy operating owners.
-
-**Exit gate:** Signed product charter; initial deployment geography/currency/language; agreed threat model, scope and non-goals; design principles accepted.
-
-### Phase 1 — Identity and design foundation
-**Output:** SILA design tokens, typography and bilingual directionality; reusable mobile/web components; navigation prototypes; identity and organization membership model; permission system skeleton; auth and recovery.
-
-**Exit gate:** EN/AR task walkthroughs, access policy spec, CI/lint/typecheck, mobile builds, public guest prayer stub with **explicit missing data**.
-
-### Phase 2 — Worship and trusted public site
-**Output:** Venue setup, prayer source workflows, approved schedules and Jummah, publication revisions, today app, public site, display, search index for published content.
-
-**Exit gate:** Correct date/time and urgent change propagation; zero unpublished schedule leakage; accessible guest journeys.
-
-### Phase 3 — Gatherings and circles
-**Output:** Event catalog, RSVP, capacity/waitlists, cancellations, authorized check-in, circle request/review and host tools.
-
-**Exit gate:** Parallel last-seat tests, cancellations and waiting-list promotion tests; verified host scoping.
-
-### Phase 4 — Learning and protected family
-**Output:** Paths and cohorts, guardian verification, enrollment queue, teacher assignment, attendance, reports, guardian/student access.
-
-**Exit gate:** Child privacy review passed; custody change access revocation validated across API, cached state, files and notifications.
-
-### Phase 5 — Care and service
-**Output:** Volunteer scheduling/check-in; optional confidential care programs enabled only after separate safeguarding and retention approval.
-
-**Exit gate:** Safe volunteering flows; case confidentiality red-team exercises if care enabled.
-
-### Phase 6 — Contributions, tuition and treasury
-**Output:** Provider checkout, verified webhooks, immutable receipts, journal posting, invoices, refund maker/checker, partial refunds, disputes, payout settlement reconciliation.
-
-**Exit gate:** Sandbox plus controlled live reconciliation; zero unmatched or double-posted charges in pilot; approved accounting policies and customer notices.
-
-### Phase 7 — Messaging, resilience and operations
-**Output:** Durable notifications and consent, localization completion, offline read-only snapshots, backup/restore, provider alerts, key rotation runbooks, import/export dry-run tools.
-
-**Exit gate:** Alert drills, queue retries, provider outages, iOS/Android device matrix and WCAG audits passed.
-
-### Phase 8 — Quality assurance and limited pilot
-**Output:** Staging acceptance walkthroughs with actual staff, bilingual users and families using fictional/synthetic records; performance, security and safeguarding testing.
-
-**Exit gate:** No critical/high security bugs; all P0 flows passed with evidence; real-time operational owners trained; incident response tested.
-
-### Phase 9 — Controlled production launch
-**Output:** Verified domains, app signing, legal policies, monitoring, backups, app-store review, secrets manager, supervised data imports, limited organization rollout.
-
-**Exit gate:** Signed launch readiness checklist with owners. No undeclared open blockers, no dummy checkouts or unpublished schedules masquerading as real. Rollback and contact plan published.
-
-### Phase 10 — Sustain and extend
-**Output:** Monthly access review, on-call rotation, observed SLOs, dependency upgrades, privacy retention jobs, roadmap feedback and evidence-based feature selection.
-
-**Exit gate:** Product operations are staffed, not just coded.
-
-### 28.1 Suggested sequencing and parallel work
-Design + permission model can run in parallel, but **no private UI ships before authorization semantics exist**. Worship can be developed independently of financial provider integration; payments depend on ledger and webhook policy; education depends on GuardianLink and school approvals; care cannot launch ahead of trained operators and retention policy. Every parallel team shares contracts and tokens, not duplicated models.
-
----
-
-## 29. Delivery evidence and definition of done
-
-A capability is **done** only if all apply:
-1. Product requirement and acceptance criteria are approved.
-2. UI design has mobile + relevant web, both languages and error/empty/loading/disabled states.
-3. Accessible semantics and touch/keyboard/screen-reader checks pass.
-4. Server ownership, tenant scope and field-level permissions have negative tests.
-5. Schema constraints and reversible migration are reviewed.
-6. End-to-end happy, failure and concurrency journeys pass.
-7. Provider events are handled securely and idempotently if involved.
-8. Logs, traces, monitoring, support error IDs and runbook links exist.
-9. Privacy classifications, consent and retention handling are approved.
-10. Feature is tested in a realistic staging environment using non-sensitive data.
-11. Applicable subject matter expert signs off: worship editor, teacher/safeguarding, finance, legal or security.
-12. Rollback plan, feature flag and operator training exist.
-13. Documentation, release note and multilingual messaging are correct.
-14. No dead buttons, sample fake records, silent errors or misleading statuses remain.
-15. A product owner confirms the full experience meets the intended member need.
-
-A green compile job is not "100%". A merged route is not a finished workflow. A sandbox payment is not reconciled live finance. An Arabic button is not fully translated RTL support.
-
-### 29.1 Traceability record template
-~~~yaml
-feature_id: F-009
-feature_name: Gathering RSVP
-owner: Community Operations
-surfaces: [mobile, public, steward, api]
-data_classification: member-private
-capabilities: [reserve:gathering, cancel:own-reservation]
-entry_points: [Gather search, gathering detail, My commitments]
-states: [available, full, waitlisted, confirmed, canceled, ended]
-tests:
-  - capacity-concurrency
-  - cross-org-denial
-  - duplicate-idempotency
-  - canceled-event-access
-  - rtl-screenreader
-  - offline-no-false-success
-operational_runbook: docs/runbooks/gatherings.md
-status: planned
-acceptance_owner: community-director
-~~~
-
-### 29.2 Audit evidence register
-For every release, archive: commit SHA, lockfile hash, build ID, migration set, migration dry-run output, dependency findings, security test results, contract diff, accessibility results, payment reconciliation reports, localization review, iOS/Android device results, operational approval and rollback reference.
-
----
-
-## 30. Decisions the organization must approve
-
-| Decision | Working recommendation | Consequence if unresolved |
+| Ticket | Concrete work | Acceptance |
 | --- | --- | --- |
-| Public name and logo | SILA as placeholder; clearance before use | Brand remains internal only |
-| Initial mosque and geography | One operating org and venues, org-scoped model | Tenant configuration remains blocked |
-| Prayer authority | Venue-approved timetable, import drafts only | No published prayer times |
-| Arabic/English wording | Professional bilingual editorial review | Translation cannot be marked done |
-| Joining policy | Guest public, verified member for commitment | RSVP/circle onboarding uncertainty |
-| Child account age bands | School policy + legal review | Student login/enrollment launch blocked |
-| Guardian evidence | Manual authorized verification and revocation | Private school dashboard blocked |
-| Care program | Opt-in only with trained case team | Care module remains disabled |
-| Donation minimum/currencies | USD provisional, server-configured | Live checkout blocked |
-| Recurring donations | Only when provider mandate/cancellation finished | Offer one-time only |
-| Finance accounting policy | Finance sign-off on chart/fees/refunds | Real payment launch blocked |
-| Provider choices | Hosted PCI-scope-reducing checkout | No live payments |
-| Email/push sender | Verified domain, templates, preferences | Notifications cannot claim delivery |
-| Content approval | Two-person for critical schedule changes | Publishing authority uncertain |
-| Organization hierarchy | One org pilot, multi-tenant-safe data now | Cross-tenant expansion blocked |
-| Data retention/deletion | Written policy per sensitive domain | Privacy requests cannot be closed safely |
-| Hosting and region | Data residency, cost and SLA review | Production infrastructure undecided |
-| Incident response | Named 24/7 contact for urgent changes | Public launch unsafe |
-| App-store ownership | Organization-owned Apple/Google accounts | Public distribution blocked |
-| Use of analytics | Small safe aggregate only | Opt-in/metrics defaults not final |
+| MC-001 | Replace contradictory implementation-history summary with current feature evidence matrix | Each module has state, source files, test evidence and remaining blocker |
+| MC-002 | Diagnose failed Vercel deployment and reconcile build/root/runtime settings | Preview build uses no production schema push or seed |
+| MC-003 | Resolve dependency compatibility, commit locks and add PR CI | Fresh checkout produces repeatable checks |
+| MC-004 | Introduce trusted active organization context and remove first-org lookups from auth | Cross-org ID/header cannot change access |
+| MC-005 | Add scoped multi-role assignment model and approved migration from legacy roles | No privilege expansion; dual-role user works; revoke blocks next request |
+| MC-006 | Centralize authorization with actor/action/resource policy and negative-test fixtures | Admin label cannot bypass school/care/fund restrictions |
+| MC-007 | Complete privileged recovery and fresh MFA/session assurance | Stale assurance, replay, lost-device and suspended user handled |
+| MC-008 | Add transaction-safe audit/outbox helper and operator retry queue | Rollback emits no notification; crash/retry has no duplicate business effect |
+| MC-009 | Build EN/AR accessible navigation and shared feedback/form primitives | Small-screen, keyboard, large-text and RTL review |
+| MC-010 | Add prayer revision/approval/import dry-run and correction propagation | DST/missing/published-only and invalid-import tests |
+| MC-011 | Complete event occurrence, waitlist, cancellation and check-in lifecycle | Last-seat concurrency and duplicate cancellation pass |
+| MC-012 | Add scoped staff overview, support ownership and notification preference enforcement | Every queue item has owner; ungranted staff see no restricted data |
 
-**These are explicit sign-off gates, not requests for the developer to invent legal or financial policies.**
+These are proposed backlog records, not GitHub issues created by this document. Later tickets must include data migration, role policy, API, UI, failure paths, tests and operational owner together.
 
----
+## 18. Acceptance tests and definition of done
 
-## 31. Proposed first implementation tickets
+### 18.1 Release-blocking scenarios
 
-The first ten tickets should build a **real product spine**, not isolated decorative screenshots.
-
-| Ticket | Deliverable | Test required |
+| ID | Scenario | Expected result |
 | --- | --- | --- |
-| SILA-001 | Monorepo, lint, types, CI and migrations on fresh Postgres | One-command clean setup |
-| SILA-002 | Token-driven EN/AR shared components and layout | Screenshots + RTL reader walkthrough |
-| SILA-003 | Organization/venue context with guest experience | Switch without leaking previous venue |
-| SILA-004 | Auth/session/recovery and invitation flow | Replay, expiration and session revocation |
-| SILA-005 | Organization membership and scoped policy engine | Cross-tenant adversarial matrix |
-| SILA-006 | Prayer schedules/import draft/publication pipeline | DST/source/override/correction tests |
-| SILA-007 | Today and public worship experience | Guest works offline-stale with clear label |
-| SILA-008 | Steward overview and worship approval queue | Authorized edit + denied review tests |
-| SILA-009 | Gathering models, discover/read and event detail | Published-only server-side filter |
-| SILA-010 | RSVP + cancellation + check-in + notifications | Concurrency/idempotency, E2E |
+| AT-01 | Guest opens prayer page on wrong device timezone | Correct venue-local date and source; no login required |
+| AT-02 | Schedule missing or expired offline | Honest unavailable/stale state; no invented time |
+| AT-03 | Member guesses another org's event/student/receipt ID | No private access or mutation |
+| AT-04 | Role expires or membership is suspended mid-session | Next protected request denied; private cache invalidated |
+| AT-05 | Admin without school/care grant requests records | Denied despite admin title |
+| AT-06 | Two clients reserve last seat concurrently | One confirmation; other waitlisted/full; no overbooking |
+| AT-07 | Retry RSVP/cancel/approve after timeout | Same durable result; no duplicate seat, invoice or side effect |
+| AT-08 | Teacher requests unassigned class or revoked guardian opens child | Denied in API, export, file and notification paths |
+| AT-09 | Duplicate school acceptance or full class | Single enrollment/invoice; no capacity violation |
+| AT-10 | Payment redirect arrives before webhook | Processing until verified; no premature receipt |
+| AT-11 | Forged/replayed/reordered webhook, amount mismatch | Reject/quarantine or safe replay; no duplicate posting |
+| AT-12 | Refund maker approves own request | Denied; valid independent approval still awaits provider outcome |
+| AT-13 | Partial refund, dispute, fee and payout | Correct new journal entries and reconciliation exception handling |
+| AT-14 | Worker stops after send or before acknowledgment | Recover lease; reconcile uncertain send; business state remains correct |
+| AT-15 | Preferences or child relationship revoked before delivery | Ineligible message suppressed; no sensitive payload |
+| AT-16 | Simultaneous event/class/rental room booking | Conflict enforced consistently across modules |
+| AT-17 | Care request accessed via search/log/export | No unauthorized narrative disclosure |
+| AT-18 | Arabic, screen reader, large text, offline and expired login | Core journey remains understandable and recoverable |
+| AT-19 | Restore backup and replay provider events | No double posting; missing external events reconciled |
+| AT-20 | Old supported mobile client uses updated API | Compatible result or deliberate supported upgrade path |
+| AT-21 | Privacy request completes with retention exceptions | Eligible data removed; retained categories and reason explained |
+| AT-22 | Preview deployment runs tests | No production data access, real recipients or live charge |
 
-Then proceed to protected learning, volunteering and treasury only when their prerequisite modules are approved. All work should land on the agreed repository branch and use this document's acceptance register.
+### 18.2 Definition of done
 
----
+A feature is accepted only when it has: named owner; complete user/operator journey; approved capability/scope rules; reviewed schema/migration; positive and negative tests; concurrency/retry tests where applicable; EN/AR and accessibility evidence; truthful failure states; private-data controls; logs/alerts; recovery runbook; staging UAT; and a controlled rollout/rollback path.
 
-## 32. Product design deliverables before build
+Track status as **planned**, **in progress**, **implemented unverified**, **verified in staging**, **pilot accepted**, or **production enabled**. Do not collapse these into “done.” Compile success is not functional acceptance. Synthetic payment tests are not provider sandbox reconciliation or live settlement proof.
 
-A designer/product engineer must produce:
-- Brand exploration: two non-copycat visual territories, rationale, Arabic wordmark proofing and accessible logo variants.
-- Navigation map with every guest/member/steward/dependent/teacher state.
-- Component tokens and Figma/Storybook synchronization policy.
-- Key screens in both languages and themes: Today, prayers, gathering, RSVP, learning catalog, child enrollment, give, receipts, You, Steward queue, critical approvals.
-- Interaction prototype for J01–J14 showing keyboard, loading, error, missing data, confirmation and recovery.
-- Copy deck with localized notifications and validation errors.
-- Design QA plan for voice/read order, high contrast, dynamic type, reduced motion and platform-safe areas.
-- Asset provenance register and licensed/consented photography records.
-- UX research plan with guests, elders, youth, guardians, teachers, volunteers and people with disabilities.
+## 19. Owners, decisions and success measures
 
-**Visual acceptance:** no crowded dashboards, broken Arabic baseline, truncated invoice amount, poor focus indication, unreadable glass overlay, decorative fake statistics or inaccessible icon-only control.
+### 19.1 Decisions to settle during delivery
 
----
-
-## 33. Product security review checklist
-
-Every release/security reviewer should verify:
-- [ ] Session tokens and secrets are securely stored/rotated with revocation tested.
-- [ ] Admin finance and sensitive data operations require fresh privileged assurance.
-- [ ] All routes enforce effective organization/scope policy, not UI role checks.
-- [ ] Guardian and student access is explicit, expiring/revocable and negative-tested.
-- [ ] No confidential case information in email, logs, search, push, display or analytics.
-- [ ] Payment webhooks verify raw signed payload and store immutable events.
-- [ ] Refunds and journal entries reconcile exactly once and cannot be self-approved.
-- [ ] Object storage has private access, scanning and short-lived policy-scoped URLs.
-- [ ] Data retention, deletion exceptions and consent are configured and audited.
-- [ ] Dependency, image and infrastructure scans are reviewed; high findings resolved.
-- [ ] Device, browser, RTL and assistive-technology acceptance evidence exists.
-- [ ] Database restore and urgent mosque schedule correction drills succeed.
-- [ ] Support and incident responders know escalation, key custody and access limits.
-- [ ] There are no placeholder donation links or hard-coded people/school data in production.
-
-All checkboxes are **unchecked until evidence exists**.
-
----
-
-## 34. External references and standards (verify current versions during implementation)
-
-**Design and accessibility**
-- W3C WCAG 2.2: https://www.w3.org/TR/WCAG22/
-- Apple Human Interface Guidelines: https://developer.apple.com/design/human-interface-guidelines/
-- Android design and accessibility guidance: https://developer.android.com/design
-- Unicode bidirectional text reference: https://unicode.org/reports/tr9/
-
-**Security and privacy**
-- OWASP ASVS: https://asvs.owasp.org/
-- OWASP Mobile MASVS: https://mas.owasp.org/MASVS/
-- OWASP Mobile Application Security Testing Guide: https://mas.owasp.org/MASTG/
-- NIST Secure Software Development Framework: https://csrc.nist.gov/Projects/ssdf
-
-**Platform and integration**
-- Expo Router: https://docs.expo.dev/router/introduction/
-- Expo authentication and protected navigation: https://docs.expo.dev/router/advanced/authentication/
-- React Native: https://reactnative.dev/
-- Next.js: https://nextjs.org/docs
-- PostgreSQL: https://www.postgresql.org/docs/
-- OpenAPI Specification: https://spec.openapis.org/oas/latest.html
-- Stripe webhooks: https://docs.stripe.com/webhooks
-- Stripe idempotent requests: https://docs.stripe.com/api/idempotent_requests
-
-These are learning and engineering references, not certificates or proof of compliance. Technology versions and provider policies should be checked at the time of implementation.
-
----
-
-## 35. The final standard for SILA
-
-The program is finished **only** when a person can open it, understand it, trust it and complete the task they came for; a teacher cannot accidentally disclose another child's records; a treasurer cannot fake a payment or approve their own refund; a steward can correct a worship schedule without confusion; a volunteer knows their true shift; a person asking for help is treated with dignity; Arabic and English are equally usable; and the organization can restore, maintain and operate the system without the original developer.
-
-**The goal is not to reproduce the old app with new file names. The goal is to build the right product, with a new concept, original brand, clear interaction language, coherent architecture, strict domain boundaries and measurable correctness.**
-
-**Owner approval status:** Proposed concept, awaiting approval.  
-**Engineering implementation status:** Not asserted; this file is a specification, not an implementation certificate.  
-**Repository action authorized by this request:** Replace only the content of root document.md on development. Do not delete code, create project files, change branches, deploy services or claim production completion solely from this document.
-
-
----
-
-# PART VI — OFFICIALLY RESEARCHED LIBRARIES AND BUILD STANDARDS
-
-## 36. How to select the best libraries
-
-**Source review date:** 26 October 2026. Use official maintainer guidance, OWASP, W3C and reliable engineering references, not generic “top 10 libraries” marketing. This register is an implementation recommendation, not a certification or proof that dependencies are installed.
-
-Library-selection rubric (weights are proposed criteria, **not fabricated scores**):
-- **Security, privacy and correctness — 25%:** release vulnerability history, incident response, tenant safety, sensitive data impact.
-- **Expo/Next/Nest/Postgres compatibility — 20%:** supported React/RN/runtime versions, peer dependency matrix, actual device tests.
-- **Maintenance and stability — 20%:** recent releases, healthy maintainer base, licenses, upgrade guides, future replacement path.
-- **Team productivity and operational simplicity — 15%:** learnability, service count, documentation, reproducible builds.
-- **Accessibility and Arabic/RTL behavior — 10%:** true platform semantics and localized experiences.
-- **Performance and cost — 10%:** native app size, server load, latency, queue operations, bundle overhead.
-
-**Classification:** Adopt = required when implementing the corresponding feature; Conditional = do not install until needed; Vendor review = legal, financial, privacy or hosting decision; Avoid initially = redundant or overly complex.
-
-### 36.1 Nonnegotiable library hygiene
-1. A pull request that adds a library must state why the platform or existing stack cannot handle the requirement, the alternatives, license, active maintenance evidence, transitive dependency impact, security advisories, Expo/runtime compatibility, size impact and exit plan.
-2. Pin supported versions and a reproducible lockfile. Install native Expo dependencies via npx expo install; run npx expo install --check. Do not independently upgrade Expo, React, RN and Expo Router.
-3. Use a single primary ORM/migration system, one API validation source, one navigation system per app, one server-state cache and one primary localization catalog.
-4. Require working examples on actual iOS and Android builds for every nontrivial native dependency. Expo Go compatibility is not equivalent to a production native build.
-5. Prefer first-party Expo device APIs and standard Web APIs. Avoid duplicated wrappers, redundant state libraries, unmaintained UI packages and invasive telemetry.
-6. Test new security-sensitive SDKs against cross-tenant and revoked-user scenarios. Never assume a framework or ORM implements authorization for you.
-7. Review upgrades on a regular cadence with automated dependency PRs, a vulnerability scan, lockfile diff, compatibility tests and staged rollouts.
-8. External service agreements must cover data residency, children, retention, incident notification, deletion, cost and vendor exit.
-9. Keep authorization, payments and identity providers behind SILA-owned domain interfaces; never expose provider SDK objects directly to UI/domain models.
-10. Do not claim a framework is “certified secure” because its examples compile.
-
----
-
-## 37. Definitive framework and library catalog
-
-### 37.1 Native application (Expo)
-
-| Library | Status | Exact use and boundary |
+| Decision | Working assumption | Accountable owner / deadline |
 | --- | --- | --- |
-| React Native + Expo + Expo Router | Adopt | One iOS/Android app with typed routes, deep links and platform navigation |
-| expo-localization | Adopt | Native locale/RTL configuration; validate SDK-specific LocaleProvider and I18nManager interactions |
-| i18next + react-i18next | Adopt | Shared EN/AR messages; use Intl for dates, currencies, pluralized numbers |
-| @tanstack/react-query | Adopt | Own API request/cache/mutation state, keyed by identity, tenant, venue and locale |
-| react-hook-form + @hookform/resolvers + zod | Adopt | Forms, validation messages and accessible error state |
-| expo-secure-store | Adopt | Small authentication tokens in OS-backed secure storage; never large school/private files |
-| react-native-safe-area-context | Adopt as required | Correct safe-area insets and platform boundaries |
-| expo-image | Conditional | Measured, optimized images with permissioned media URLs |
-| expo-location | Conditional | Explicit user-granted Qibla/venue-nearby lookup; no background tracking |
-| expo-notifications | Conditional | User-permitted push with generic protected payload; invalidate token on logout |
-| expo-haptics | Conditional | Light optional feedback; never the only state indicator |
-| react-native-reanimated and react-native-gesture-handler | Conditional | Only for complex gestures or custom transitions that truly require them |
-| lucide-react-native + react-native-svg | Conditional | One approved icon family; screen-reader labels and RTL directional mirroring |
-| zustand | Conditional | Shared ephemeral view state only; never duplicate TanStack Query server entities |
-| expo-web-browser / Expo-supported auth flow | Vendor review | OIDC PKCE and hosted checkout; browser return does not confirm payment |
-| expo-dev-client + EAS Build | Adopt for delivery | Native QA builds and signed distribution, not a substitute for device testing |
+| Pilot organization and venues | One mosque; multiple configured venues | Product owner before R1 |
+| Public name | Existing mosque identity primary; SILA provisional | Leadership before public brand change |
+| Prayer source and emergency authority | Mosque-approved timetable and designated reviewers | Religious lead before worship publication |
+| Member enrollment policy | Guest browsing, verified account for personal actions | Community operations before R1 |
+| Guardian evidence and student access | Manual verified relationships; no automatic child account | Safeguarding/school leads before R2 |
+| Country, currency and payment eligibility | Configure explicitly; do not infer from developer/user location | Finance/leadership before real payments |
+| Donations, receipts and accounting | Named finance owner approves restrictions and reconciliation | Finance before R2 |
+| Care services and response hours | Disabled until staffed with policy and backup owner | Service lead before R3 |
+| Email/push/SMS policy | In-app + verified transactional email first | Communications before R1 |
+| Hosting region, retention and recovery | Match actual organization obligations and budget | Operations/privacy owner in R0 |
+| Staff approval staffing | At least two eligible people for separated high-risk actions | Leadership before finance/access delegation |
+| App store and domain ownership | Organization-owned accounts and recovery contacts | Operations before distribution |
 
-**Avoid initially:** a heavyweight mobile UI kit selected solely for aesthetics, a second navigation package alongside Expo Router, web-tailwind semantics forced into RN, Firebase analytics by default, persistent child/care query caches, uncontrolled local copies of restricted files.
+Unresolved decisions block only the affected module; they do not stop implementation of independent public/community features.
 
-**RTL-specific warning:** Expo's official localization documentation describes changes in SDK 58 and later. Determine the pinned version first; test dynamic language change, Router header/navigation direction, gestures, text alignment, bidi numbers, focus/read order and full-screen forms on native devices. Right-aligned text alone is not proper Arabic support.
+### 19.2 Measure outcomes
 
-### 37.2 One Next.js web application
+Measure successful prayer lookup, schedule freshness, registration completion, waitlist resolution, volunteer attendance, enrollment turnaround, unresolved support requests, notification backlog and reconciliation exceptions. Segment only where privacy permits; suppress small-group reporting.
 
-| Library | Status | Exact use and boundary |
-| --- | --- | --- |
-| Next.js App Router + React | Adopt | Public SSR/SEO, separately authorized console route group and read-only display |
-| tailwindcss + semantic CSS variables | Adopt | Accessible SILA color/type/space tokens, not ad hoc visual overrides |
-| shadcn/ui source components | Adopt selectively | Accessible owned dialogs, tables, inputs and popovers; review/change underlying primitives carefully |
-| lucide-react | Adopt | Coherent web iconography and accessible affordances |
-| react-hook-form + @hookform/resolvers + zod | Adopt | Console forms, independent server validation remains mandatory |
-| @tanstack/react-table | Conditional | Dense, keyboard-accessible admin grids; pagination/filtering and access checks stay server-side |
-| @tanstack/react-query | Conditional | Highly interactive client-side data; avoid redundant use in Server Components |
-| recharts | Conditional | Approved, aggregate-only operational metrics, not donor/child visibility leakage |
-| @playwright/test | Adopt as QA | End-to-end browser user journeys, traces, screenshots and accessibility testing |
-| @axe-core/playwright | Adopt as QA | Basic automated accessibility checks; must complement human screen-reader/keyboard QA |
+Launch targets: all enabled release-blocking scenarios pass; no unresolved critical/high security defects; every production service has primary/backup owners; every money movement is reconciled or in a reviewed exception queue; no dead primary action; and all critical EN/AR journeys pass human review.
 
-**Avoid initially:** three independently deployed web apps, competing component kits, CSS-only role hiding, direct database reads bypassing SILA Core policies, excessive motion on finance forms, a full charting system before metrics are defined.
+Track operating cost by hosting/database/storage, email/push/SMS, monitoring, payment processing and native builds. Establish monthly budget alerts and per-module cost ownership. No provider price or delivery guarantee is assumed in this plan.
 
-### 37.3 API, database and worker
+## 20. Evidence and technical references
 
-| Library | Status | Exact use and boundary |
-| --- | --- | --- |
-| @nestjs/core, @nestjs/common, @nestjs/platform-fastify | Adopt | Domain-modular API with controlled request lifecycle and Fastify adapter |
-| zod | Adopt | Runtime input/output schemas and shared type inference |
-| Nest StandardSchemaValidationPipe | Adopt | Built-in schema validation; avoid a second class-validator DTO hierarchy |
-| @nestjs/swagger | Adopt | Generate OpenAPI; supported Zod schema conversion and generated type drift tests |
-| openapi-typescript | Adopt | Generated API client-side types from actual documented endpoints |
-| drizzle-orm + drizzle-kit + pg | Adopt after POC | PostgreSQL queries, transactions and committed reviewed SQL migrations |
-| pg-boss | Adopt after POC | Durable retries, scheduled jobs and worker leases backed by PostgreSQL |
-| pino / compatible Nest logger | Adopt | Structured privacy-redacted audit-safe operational logging |
-| @opentelemetry/api + @opentelemetry/sdk-node | Adopt | Correlated traces/metrics and SLO alerts with PII controls |
-| stripe | Vendor review | Hosted Checkout, raw signed webhooks, refunds, provider reconciliation |
-| jose | Conditional | OIDC signature/JWKS/issuer/audience verification if managed provider requires it |
-| @aws-sdk/client-s3 + @aws-sdk/s3-request-presigner | Conditional | Time-limited private downloads, scanned and access-scoped uploads |
-| file-type + malware scanning integration | Conditional | Upload real-content detection and quarantine, never MIME-only trust |
-| @nestjs/config + schema validation | Conditional | Typed startup configuration, fail closed on missing secrets |
-| @fastify/helmet and throttling plugins | Conditional | Compatible web hardening and WAF/edge complement |
-| date-fns / date-fns-tz + Intl | Conditional | Venue time zone rendering, DST/gap/fold tests, not invented worship decisions |
-| decimal.js | Conditional | Auditable fractional fee allocation, with integer persisted ledger minor units |
+Repository evidence at the reviewed baseline:
 
-**Boundaries:** Drizzle is not authorization. pg-boss is not proof of exactly-once external side effects: worker code must be idempotent. Nest with Fastify needs Fastify-compatible plugins, not blindly imported Express middleware. Zod input validation does not supersede domain policy. Generated OpenAPI does not prove the API matches production behavior without contract tests.
+- [README.md](README.md) — current setup and operating caveats.
+- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — historical passes; not independent proof of completion.
+- [Web package manifest](staff-web/package.json), [mobile manifest](masjid-mobile/package.json) and [schema](staff-web/prisma/schema.prisma).
+- [Authorization helper](staff-web/src/lib/auth.ts), [team administration](staff-web/src/app/api/v1/admin/team/route.ts) and [shared actions route](staff-web/src/app/api/v1/actions/route.ts).
+- [GitHub verification workflow](.github/workflows/verify.yml) and [inventory smoke tests](tests/inventory.test.mjs).
+- [Original blueprint at reviewed commit](https://github.com/AnasAbuJamal/masjid-community/blob/27e428a067ce9ea8d31e660c465d7baadeaa5d94/document.md).
 
-### 37.4 Identity, messaging and external service decisions
+Live account evidence: Vercel project and deployment metadata inspected on 27 October 2026; project ID `prj_pZXOEhlv8sCH13f5XLIpMMRhqHae`, deployment ID recorded in section 2. Other similarly named projects were listed but their bindings and runtime state were not fully audited.
 
-**Identity:** Choose ONE audited managed OIDC/OAuth provider after formal evaluation (for example Auth0/Okta Customer Identity, Clerk or an equivalently supported OIDC provider). Must support Expo native PKCE in a system browser, web HttpOnly cookie sessions, API token verification, MFA/passkeys and safe recovery, organization separation, auditing and data protection. SILA always owns its own OrganizationMembership/GuardianLink/CapabilityGrant policy. Do not pick a provider based on marketing speed alone.
+Primary technical references checked for this planning revision:
 
-**Payments:** Initial evaluated integration is server-side Stripe SDK with hosted Checkout. Confirm local organization eligibility and fees. Signature-verification of raw webhook payload, duplicate/out-of-order handling, full and partial refunds, immutable receipts, balanced ledger, settlement reconciliation and maker/checker controls are required. Browser redirect NEVER means payment paid.
+- [Vercel cron management](https://vercel.com/docs/cron-jobs/manage-cron-jobs) — authenticated scheduling, overlap and reliability considerations.
+- [Expo EAS Build](https://docs.expo.dev/build/introduction/) — separate native binary build pipeline.
+- [Stripe webhook documentation](https://docs.stripe.com/webhooks) — signed callbacks, retries and event processing.
+- [Prisma migration documentation](https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production) — current documentation redirects to a newer migration workflow; use version-matched guidance for this repository's existing Prisma major.
 
-**Email:** choose ONE reviewed transactional provider such as Resend or SES behind a notification adapter; verify sender domain and real delivery receipts. **Push:** expo-notifications with user consent and safe previews. **Files:** private S3-compatible store with malware scanning, encrypted objects and signed URLs. **Search:** begin with PostgreSQL indexes / pg_trgm and explicit Arabic normalization tests; only introduce a second search engine when measured recall or performance warrants it. **Analytics:** privacy-safe aggregate metrics, not session recording on care, child or treasury screens.
-
-### 37.5 Testing, build and supply-chain libraries
-
-| Tool | Status | Rule |
-| --- | --- | --- |
-| pnpm workspaces + Turborepo | Adopt | One lockfile and simple deterministic workspace task graph |
-| TypeScript strict + ESLint + Prettier | Adopt | Type-check boundaries, formatting, React hooks, no floating promises |
-| Vitest | Adopt | Pure domain/API/web unit tests and deterministic mocks |
-| jest-expo + Jest + @testing-library/react-native | Adopt | Native component tests with Expo-supported compatibility matrix |
-| Playwright | Adopt | Real browser journeys for public, steward, accessibility and auth |
-| Maestro | Adopt | Mobile iOS/Android binary E2E, no injected production app test SDK |
-| Disposable PostgreSQL integration database | Adopt | Migrations, concurrency, foreign keys, ledger and tenant-scope tests |
-| MSW | Conditional | Network mocks for UI, never replaces a real API and DB test |
-| OpenAPI contract validation | Adopt | Versioned generated client/schema compatibility in CI |
-| GitHub Actions | Adopt | Frozen install, lint, types, migrations, integration, E2E, builds, scanning |
-| GitHub CodeQL + dependency/secret scanning | Conditional to repository entitlement | Findings triaged under explicit security policy |
-| EAS Build / Submit | Adopt for release | Signed real device builds, staged rollout and store submission |
-| Renovate OR Dependabot | Adopt one | Reviewed vulnerability/security updates, not two competing bots |
-| Storybook | Conditional | Shared web primitive review only after meaningful component reuse exists |
-
-Do not use Jest and Vitest for the same test target: pure Node/web tests can use Vitest; native uses the Expo-recommended Jest preset. Do not add Cypress alongside Playwright, or Redis/BullMQ alongside pg-boss, without a documented architectural need.
-
----
-
-## 38. Engineering rules based on established standards
-
-### 38.1 Security and privacy
-- **OWASP ASVS 5.0.0** is the web/API security requirement baseline; **OWASP MASVS** and **MASTG** guide mobile review. Controls need mapped tests and independent review, not claimed certification.
-- **W3C WCAG 2.2 AA** is the web accessibility target; analogous native testing includes VoiceOver/TalkBack, dynamic type, keyboard, motor access, reduced motion and real Arabic RTL.
-- **NIST SSDF** informs secure code reviews, supply-chain checks, incident handling and release provenance.
-- Every private request validates identity, current assurance, active organization membership, capability grant, target resource and field-level scope; deny by default.
-- No private student, care or donor information in unapproved third-party telemetry or lock-screen notification payloads.
-- No unmanaged encryption key in Git, raw token logging, anonymous file bucket, custom cryptography or unsafe provider SDK in client bundles.
-- Guardian/teacher links, role revocation and org switch must invalidate server authorization, cached data, future worker deliveries and signed file URLs.
-- Finance journals are append-only; no balance from checkout attempts; every provider movement is reconciled, with a distinct approver when required.
-
-### 38.2 Design implementation
-- Use one semantic token scale for color/space/type, accessible contrast and real keyboard focus. Native components follow iOS/Android conventions rather than imitating web UI.
-- Every control has real success/pending/failure/disabled/denied and retry states. No dead buttons, fabricated metrics or fake financial/prayer data.
-- Locale catalogs contain all user-facing copy, form errors, notifications and accessibility labels. Dates/currency use Intl with venue time zones and bidi isolation.
-- Validate large text, RTL navigation transitions, Arabic text shaping, dark mode and offline/stale data on actual devices.
-- No manipulative engagement streaks, unapproved religious predictions or gamified donation pressure.
-
-### 38.3 Testing and release
-- Every protected domain has negative cross-tenant authorization tests; each financial API has amount/currency/idempotency tests; each RSVP/check-in capacity flow has concurrency tests.
-- CI sequence: frozen lockfile install, lint/format, typecheck, unit, migration apply, database integration, OpenAPI contract checks, API negative tests, web build, native compatibility and E2E where appropriate, security/license scan.
-- Staging must run a real provider sandbox integration, backup restore and native device build. A TypeScript build alone is NOT production-readiness.
-- Use low-risk feature flags, scoped logs/request IDs and rollback drills; audit sensitive actions separately from diagnostic logs.
-- Require independent approval from education/safeguarding for minors, finance for ledger/payment, and security for auth/provider infrastructure.
-- Document operations and costs, do not deploy a service without backup, monitoring, owner and on-call escalation.
-
----
-
-## 39. Explicit choices versus rejected shortcuts
-
-| Candidate / habit | Decision | Rationale |
-| --- | --- | --- |
-| Expo Router vs separate React Navigation trees | Expo Router | Official Expo recommendation and deep-link support |
-| Next.js public + console + display as separate apps | ONE Next.js web | Fewer deployables and one shared design system, but distinct secure route groups |
-| NestJS + Fastify vs Next-only backend | NestJS + Fastify | High-trust domain modules need explicit service boundaries |
-| Drizzle vs Prisma | Drizzle preferred after POC | Auditable SQL and versioned migration control; Prisma remains valid alternative if Drizzle fails |
-| Zod and class-validator simultaneously | Zod alone | Native Nest Standard Schema support can avoid duplicate validation definitions |
-| PostgreSQL pg-boss vs Redis/BullMQ | pg-boss first | Reduce operational services; validate real job semantics |
-| TanStack Query vs Redux for API data | TanStack Query | Cache/invalidation for server state; local React or optional Zustand for UI state |
-| Tailwind/shadcn vs a large generic admin theme | Tokenized Tailwind + owned primitives | Original design, accessible ownership, easier maintenance |
-| Shared React Native and DOM components | Shared tokens/contracts, separate components | Better true-native semantics and web accessibility |
-| Flutter | Not initial baseline | Strong alternative, but TypeScript/React alignment lowers SILA team maintenance |
-| GraphQL and microservices | Do not add initially | No validated need for added complexity and failure domains |
-| Custom auth/password crypto | Reject | High security risk in school/finance system |
-| Custom payment/card storage | Reject | Hosted regulated provider is safer |
-| Real-time location/analytics SDK by default | Reject | Privacy cost without demonstrated value |
-| UI mocks counted as finished features | Reject | Every feature needs real end-to-end API and verified domain state |
-
----
-
-## 40. Mandatory compatibility proof-of-concept gates
-
-### POC 1 — Expo RTL / native UI
-Create a new Expo Router app with a stable pinned SDK and native development build; install selected Expo libraries with compatibility checks. Run iOS and Android builds. Demonstrate EN/AR language switch, RTL navigation/gestures, large text, VoiceOver/TalkBack, native secure token storage, universal deep link and measured startup time.
-
-### POC 2 — NestJS Zod OpenAPI contract
-Create one Fastify-backed NestJS module with StandardSchemaValidationPipe, Zod input and output, @nestjs/swagger OpenAPI generation, generated TypeScript client and browser/mobile use. Verify the chosen version combination and compare generated spec against live contract responses.
-
-### POC 3 — Drizzle / tenant / concurrency
-Migrate a disposable PostgreSQL database from committed SQL. Seed two organizations, two guardians and a teacher; reject cross-org student, invoice and donor access. Simulate concurrent last-seat booking and transaction retries, ensure DB uniqueness and rollback/replay safety.
-
-### POC 4 — Checkout / ledger / webhook
-Run signed Stripe sandbox webhook tests, including different event order, replay, partial and full refund, chargeback, processor fees, receipt, balanced journal and payout reconciliation. Never treat redirect as paid. Verify maker/checker separation.
-
-### POC 5 — Identity and operations
-Validate managed OIDC native PKCE and web cookie sessions, MFA, access revocation, refresh token replay, real device sign-out. Prove pg-boss enqueue-with-transaction, killed worker recovery, idempotent side effects and DLQ redrive. Produce a signed EAS test build, CI test artifacts and database restore evidence.
-
-**Approval rule:** Create ADRs recording compatibility and measured results before adding major modules. If a tool fails a POC, replace it rather than accumulating a second workaround framework.
-
----
-
-## 41. Official primary-source references reviewed
-
-These sources guide library and standards choices; they do not imply installed or audited compliance. Recheck exact API/version support at implementation time.
-
-- Expo Router: https://docs.expo.dev/router/introduction/
-- Expo native library compatibility: https://docs.expo.dev/workflow/using-libraries/
-- Expo localization and RTL: https://docs.expo.dev/guides/localization/
-- Expo SecureStore: https://docs.expo.dev/versions/latest/sdk/securestore/
-- Expo Jest testing: https://docs.expo.dev/develop/unit-testing/
-- Expo EAS Build: https://docs.expo.dev/build/introduction/
-- NestJS Fastify adapter: https://docs.nestjs.com/techniques/performance
-- NestJS Standard Schema validation: https://docs.nestjs.com/application/validation
-- NestJS Swagger + Zod schema conversion: https://docs.nestjs.com/openapi/introduction
-- Next.js backend-for-frontend boundary: https://nextjs.org/docs/app/guides/backend-for-frontend
-- Drizzle versioned migration generation: https://orm.drizzle.team/docs/drizzle-kit-generate
-- Drizzle production migration application: https://orm.drizzle.team/docs/drizzle-kit-migrate
-- TanStack Query cache identity: https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
-- React Hook Form Zod integration: https://react-hook-form.com/integrations
-- shadcn/ui owned primitives: https://ui.shadcn.com/docs
-- pg-boss queue: https://github.com/timgit/pg-boss
-- Maestro native E2E: https://docs.maestro.dev/get-started/supported-platform/react-native
-- Playwright QA: https://playwright.dev/docs/best-practices
-- OpenTelemetry Node: https://opentelemetry.io/docs/languages/js/getting-started/nodejs/
-- Stripe API idempotency: https://docs.stripe.com/api/idempotent_requests
-- Stripe webhooks: https://docs.stripe.com/webhooks
-- OWASP ASVS: https://asvs.owasp.org/
-- OWASP MASVS: https://mas.owasp.org/MASVS/
-- W3C WCAG 2.2: https://www.w3.org/TR/WCAG22/
-- NIST SSDF: https://csrc.nist.gov/Projects/ssdf
-
----
-
-## 42. Final tool-selection rule
-
-**For SILA, the recommended architecture is a small TypeScript monorepo, Expo/React Native mobile app, a single Next.js web app, one NestJS/Fastify modular API, PostgreSQL with Drizzle versioned SQL migrations, a pg-boss worker, shared typed contracts, and a carefully tested native/web design system.**
-
-Install a library only when it solves an accepted feature, passes license/security/RTL/compatibility review, and reduces lifetime complexity. The five proofs of concept and release gates must pass before calling this technology choice final.
-
-**This is researched specification, NOT implemented application code. No package installation, migration or deployment is implied by this documentation update.**
-
-
----
-
-# PART VII — APPLE HUMAN INTERFACE GUIDELINES–INSPIRED DESIGN RULES
-
-## 43. Apple's public design principles and SILA's own design charter
-
-**Research date: 26 October 2026.** This part is based on Apple's **public** Human Interface Guidelines (HIG), especially the design principles reintroduced on 8 June 2026. It does not claim access to Apple's internal confidential design rules, mean that Apple endorses SILA, or authorize reuse of Apple logos, proprietary interface assets, or fonts on unsupported platforms.
-
-**Primary source:** https://developer.apple.com/design/human-interface-guidelines/design-principles
-
-The HIG defines eight fundamental design principles:
-
-| Official Apple principle | Meaning | Mandatory SILA application |
-| --- | --- | --- |
-| **Purpose** | Make something meaningful | Today immediately answers the next verified prayer question. Don't lead with promos or decorative data. |
-| **Agency** | Let people do things their own way | Public worship without login, discoverable choices, back navigation, safe cancellation and draft recovery. |
-| **Responsibility** | Act in people's best interest | Transparency about data collection, protection of children and care cases, no misleading payment completion. |
-| **Familiarity** | Build on what people know | Understandable bottom tabs, predictable push/back/sheet patterns and recognizable control states. |
-| **Flexibility** | Adapt to diverse contexts | Arabic/English, RTL, VoiceOver, Dark Mode, dynamic type, reduced motion and multiple device sizes. |
-| **Simplicity** | Be clear and direct | Put important content first. One dominant action per decision area and no meaningless controls. |
-| **Craft** | Care about every detail | Accurate values, baseline alignment, smooth handling of failure, consistent tokens and high-quality writing. |
-| **Delight** | Make it human | Warm, restrained response to meaningful achievement, never religious scoring, pushy giving or animation overload. |
-
-**Decision priority:** safety and factual correctness → understandable purpose → native familiarity → accessible adaptability → consistent visual execution → polish. A beautiful interface that gives incorrect payment, prayer or guardian information fails design review.
-
-### 43.1 Source-of-truth hierarchy
-1. Apple's HIG is the reference for **iPhone/iPad interaction design**.
-2. Android official design guidance governs platform-specific Android behavior: https://developer.android.com/design.
-3. W3C WCAG 2.2 AA is the applicable web accessibility target: https://www.w3.org/TR/WCAG22/.
-4. SILA's original brand/design tokens make the app visually distinctive, without copying Apple's UI composition.
-5. Domain rules, ethical safeguards and verified sources override aesthetic preferences for worship, school, care and finance.
-
-Apple HIG is not a universal mandate for the separate Android and web interfaces. The **4-point grid, colors and animation timings in SILA are design choices**, not secret or official Apple standards.
-
----
-
-## 44. Native iOS design rules and interaction patterns
-
-### 44.1 Navigation and hierarchy
-**Apple references:** https://developer.apple.com/design/human-interface-guidelines/tab-bars and https://developer.apple.com/design/human-interface-guidelines/designing-for-ios.
-
-- Bottom tabs represent **destinations**, not commands. SILA's starting destinations are Today, Gather, Learn, Care and You; validate readability and discoverability across small devices, Arabic and large text. Reduce tab count if user research demonstrates excessive complexity.
-- Tabs use clear one-word labels and accessible icons. Keep each destination consistently available; if unavailable, show an honest empty or permission state rather than hiding a tab unpredictably.
-- Preserve navigation context per tab. Use push navigation for deep content, sheets for temporary focused tasks and a full screen for complex enrollment, financial or privacy workflows.
-- Use native system back behavior, plus a clearly identifiable Back action. Respect swipe-back gestures, keyboard dismissal, focus restoration and safe area insets.
-- Do not stack tabs inside tabs or make essential controls appear only on hover. Search should be easy to find where relevant.
-- On tablet or wider layouts, adapt navigation rather than mechanically magnifying the phone bottom bar.
-- The separate Steward mode is clearly labeled and secured; staff actions are not hidden in a consumer tab icon.
-
-### 44.2 Buttons and touch accessibility
-**Apple references:** https://developer.apple.com/design/tips/ and https://developer.apple.com/design/human-interface-guidelines/buttons.
-
-- On iOS, **at least 44 by 44 points of actionable hit area**, not necessarily icon artwork size. On Android, SILA sets **48 by 48 dp** as its target. Prevent overlapping hit areas and overly crowded controls.
-- Choose one visually prominent primary action in a task context. Secondary options should be quieter, and destructive commands should be descriptive and confirm genuinely irreversible consequences.
-- All interactive controls have pressed, disabled, loading, failure, focus (where relevant) and actual success states. A tap animation is never proof the server accepted a reservation/payment.
-- Prefer standard platform pickers, text input, switches, sheets and system interactions when supported. Custom components must reproduce their accessibility, feedback and failure handling.
-- Use explicit, stable field labels; do not rely on placeholders. Present concise errors beside the field and as an accessible summary.
-
-### 44.3 Typography, legibility and type scaling
-**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/typography.
-
-- Use system-supplied text metrics/faces when appropriate for iOS and Android, with an appropriately licensed Arabic typeface and correct native shaping.
-- Respect Dynamic Type and bold-text accessibility preferences. SILA's 16-pt-equivalent default body text is an internal starting size, **not an official Apple mandated body size**.
-- Use type hierarchy consistently: screen title, section label, card/item title, body, helper text. Do not create new typography styles for every feature.
-- Prayer times, money values, due dates, emergency notices and form errors must wrap or reflow; never hide a critical digit behind ellipsis.
-- Arabic and mixed English-Arabic paragraphs need script-aware line height, direction and font optical balance; validate on native devices.
-
-### 44.4 Layout, insets and content priority
-**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/layout.
-
-- Use a semantic spacing scale (SILA's proposed 4, 8, 12, 16, 20, 24, 32, 40, 48, 64 pt/dp) with consistent margins. These values are **SILA-specific**, not Apple-required.
-- Keep the primary task within the first visible hierarchy whenever possible; group related elements through alignment and whitespace before adding extra card borders.
-- Respect notches, system status area, home indicator, keyboards, tab bar, different widths, rotated orientation and large Dynamic Type.
-- Place controls close to the content they affect. Make primary call-to-action comfortable to reach without obscuring information or forcing horizontal scroll.
-- Preserve aspect ratio of photographs and illustrations; use high-resolution, licensed and consented imagery only. Avoid stock-photo/fake-community imagery masquerading as reality.
-
-### 44.5 Color, Dark Mode and Liquid Glass
-**Apple references:** https://developer.apple.com/design/human-interface-guidelines/color, https://developer.apple.com/design/human-interface-guidelines/dark-mode, https://developer.apple.com/design/human-interface-guidelines/materials.
-
-- Use semantic color roles and variants for light, dark and increased contrast. Prefer following the operating system's appearance on iOS, and adapt when system preference changes.
-- Meet appropriate WCAG 2.2 contrast targets (generally ≥4.5:1 normal text, ≥3:1 large text, ≥3:1 for applicable non-text UI). Test all token combinations in real context.
-- Do not rely on color alone: pending, verified, error and canceled states also have icon/text and screen-reader semantics.
-- **Liquid Glass** is Apple's system material for certain **navigation and controls**, not a mandate to make every content card transparent. Apple's HIG recommends avoiding Liquid Glass in the content layer and applying effects sparingly.
-- Use platform-provided navigation materials only when actually supported by pinned Expo/native versions and accessibility settings. Do not emulate Apple's proprietary material with blanket CSS blur.
-- For prayer schedules, school reports, receipts and other high-importance text, prefer opaque stable surfaces and excellent outdoor readability.
-- Use brand accent selectively; a screen full of colored buttons destroys action hierarchy.
-
-### 44.6 Motion, haptics and feedback
-**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/motion.
-
-- Animate only to clarify state changes, spatial relationships and consequences. Prefer standard platform motions for push, sheet, tab and common controls.
-- Custom motions should be brief and cancellable where possible, and never block someone from acting until decorative animation finishes.
-- SILA's tentative timings are internal motion tokens, **not Apple's specified fixed millisecond durations**.
-- Respect Reduce Motion and Reduce Transparency. Important results must remain understandable without motion, haptics or color.
-- No looping visual effects, artificial donation celebration or animations implying payment confirmation before a signed provider event.
-- Haptics are optional supplementary feedback on real user outcomes; never the sole success/error communication.
-
-### 44.7 Alerts, confirmations and interruption
-**Apple references:** https://developer.apple.com/design/human-interface-guidelines/alerts and https://developer.apple.com/design/human-interface-guidelines/action-sheets.
-
-- Use alerts **sparingly**, chiefly for critical information requiring attention and unexpected irreversible consequences.
-- Use action/confirmation sheets for contextual choices that someone deliberately initiated, such as save draft / discard / continue editing.
-- Show normal successes inline or unobtrusively. Don't interrupt with alerts after every button press.
-- Prefer consequence-oriented labels such as Cancel reservation, Submit application, Request refund, Revoke access. Avoid ambiguous Yes and OK for important decisions.
-- Offer safe Cancel/back paths and retain input after recoverable network errors. Keep private data out of generic alerts.
-- Use accessible live status messages for processing, errors, conflicts and confirmations.
-
-### 44.8 Notifications and privacy
-**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/notifications.
-
-- Notifications must be genuinely useful, concise, relevant and appropriately opted in; avoid sending repeated reminders that create noise.
-- No confidential care details, child records, payment amounts or custody information in ordinary lock-screen notifications.
-- If the app is foregrounded, update visible in-app state rather than issuing unnecessary intrusive banners.
-- Deep links must recheck current identity, membership, role and record access before showing any private detail.
-
-### 44.9 Arabic: direction-aware, not mirrored blindly
-**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/right-to-left.
-
-- Reverse reading-direction elements, ordered progress, Back/Forward icons and relevant layout arrangement for RTL.
-- **Never mirror** a logo, real-world north/east direction, map orientation, clock, photograph, universal mark or individual numeral sequence.
-- Numbers inside an invoice or phone number preserve digit order regardless of surrounding Arabic text. Use locale-appropriate numeric formatting and bidi isolation for email, URLs and currencies.
-- English paragraphs embedded in Arabic UI may follow their own language's paragraph alignment; shorter labels align with the control context.
-- Use accurate native RTL APIs for the **pinned Expo/RN SDK**, and test navigation gestures, tab order, page headings, typography, form fields and VoiceOver/TalkBack on real devices.
-- Every Arabic interface requires a human linguistic/visual review; auto-translated authoritative mosque notices remain unpublished until approved.
-
----
-
-## 45. SILA-specific Apple-quality screen recipes
-
-### 45.1 Today / public worship
-**Primary job:** Show the next **published** prayer and venue reliably.
-
-Layout:
-1. Current verified mosque/venue selector in safe header; guest can browse without an account.
-2. Local date; high-contrast next prayer name and **approved** time with iqamah and last-published source.
-3. A discoverable All prayers shortcut and Directions (user-initiated location/map).
-4. Priority urgent closure/schedule notices; then upcoming gatherings.
-5. Consistent Today/Gather/Learn/Care/You navigation.
-
-**Do not invent a prayer time.** If absent, show Schedule not published, contact details and a retry; stale offline records must be marked with source timestamp. Use a single clear action at a time, not many competing colored cards.
-
-### 45.2 Gathering detail and RSVP
-Show title, verified date/time and venue, audience and accessibility information, capacity/waitlist status, host, cancellation terms, then a dominant **Reserve place** or **Join waitlist** action. After tap: pending state → confirmed/waitlisted from server. Duplicate/network retries are idempotent. Present canceled/full/expired states truthfully.
-
-### 45.3 Guardian enrollment
-Show program summary → relationship and data consent → minimum child details → review screen → Submit request. Preserve draft safely on interruption. Initial response is **Awaiting verification**, not Enrolled. Error focus moves to correct field. Children's details never leak to unauthorized teachers/other organizations.
-
-### 45.4 Contribution and tuition
-Show purpose, exact formatted amount/currency, frequency and cancel/refund terms, clear Continue securely action and provider identity. Hosted checkout return shows **Awaiting payment verification** until provider-signed webhook confirms. Receipt screen uses actual transaction state, not celebratory visual guesses.
-
-### 45.5 Steward approvals
-Desktop design is work-queue-centered rather than iPhone-tab-inspired. Clear title and urgency, understandable compare/diff, named approver, review reason, confirmation and audit. Finance maker/checker and safeguarding role restrictions are server-enforced, with distinct review/decision states.
-
----
-
-## 46. Component and token acceptance contract
-
-These are SILA implementation starting values, **not claimed Apple mandated values**:
-
-| Attribute | SILA baseline | Verification |
-| --- | --- | --- |
-| iOS touch region | 44×44 pt minimum | Actual hit area and adjacent spacing |
-| Android touch region | 48×48 dp minimum | Actual hit area and TalkBack |
-| Spacing | 4-point rhythm, named tokens | Screenshots at multiple device sizes |
-| Body | ~16 pt/sp with native scale and Arabic adjustments | Large Dynamic Type, no truncation |
-| Screen title | ~30–36 adaptive, never fixed-clipped | Small-device and RTL screenshots |
-| Radius | 12 controls, ~20 cards, 24–28 sheets | Optical consistency and native sheets |
-| Contrast | Appropriate WCAG 2.2 AA targets | Token tests + human evaluation |
-| Light/Dark | Follow system by default, dynamic token variants | Live theme switching, readability |
-| RTL | Semantic mirroring; no photo/logo/digit reversal | Arabic real-device tests |
-| Interaction | Pressed, pending, disabled, failure, confirmed | Functional E2E test per control |
-| Motion | Meaningful, reduced-motion alternative | System accessibility settings |
-| Safe areas | Respect hardware/system inset | Keyboard, notch and tab overlap testing |
-| Content accuracy | No invented prayer, invoices or payment success | Authoritative API and stale states |
-
-**Token convention:** use semantic names such as color.text.primary, color.surface.base, color.action.primary, color.status.warning, space.section, radius.control, type.body, type.screen and motion.feedback. Never scatter arbitrary hex codes or offsets inside feature files.
-
-### 46.1 Every interactive element must be documented
-For each shared component record: purpose, states, role/semantic label, touch target, disabled/loading behavior, error and retry, native gesture/back behavior, light/dark/contrast, Dynamic Type, RTL, reduced motion, screenshot evidence and test IDs.
-
-Use **original** brand assets. Native iOS SF Symbols are subject to Apple's usage rules; never copy Apple proprietary fonts or assets into Android/web without an appropriate license and supported use.
-
----
-
-## 47. Design review scorecard and nonnegotiable QA
-
-### 47.1 Evaluate the experience, not just screenshots
-Score 1–5 across: task clarity, information hierarchy, navigation familiarity, typographic legibility, spacing/alignment, visual restraint, input ergonomics, accessibility, Arabic correctness, feedback/recovery, privacy and accurate statuses. Averages never cancel high-severity privacy, safeguarding, payment, prayer or access problems.
-
-### 47.2 Required test matrix
-- iPhone with small and large display; modern iOS and real native build; iPad if supported.
-- Small/midrange Android and large Android with real native build.
-- English and Arabic; device RTL and in-app switching; mixed-language dates, numbers, currency.
-- Light, Dark, increased contrast, reduced transparency and reduced motion.
-- Accessibility font scaling 200% and above where supported; VoiceOver, TalkBack, keyboard and switch access.
-- Guest, member, guardian, teacher, volunteer, finance and steward.
-- Empty, loading, offline, stale, error, unauthorized, expired session, processing and completed.
-- Notch/home indicator, keyboard visible, landscape where supported, interrupted/resumed app.
-- Outdoor sunlight legibility and real-device press feedback.
-
-### 47.3 Mandatory sign-off checklist
-- [ ] The user can identify the primary task/action immediately.
-- [ ] Screen flow, tabs, Back behavior and sheets feel natural on that platform.
-- [ ] Every actionable target meets that platform's size/accessibility expectations.
-- [ ] Layout has clear hierarchy, spacing, stable alignment and no clipped data.
-- [ ] Readable system-scale text, Arabic shaping and appropriate dark/high-contrast colors.
-- [ ] Navigation and symbols mirror only when semantic, preserving physical direction.
-- [ ] VoiceOver/TalkBack, focus order, motion-reduction and keyboard are verified.
-- [ ] Feedback represents **real** saved server/payment state.
-- [ ] No private information in general notification, cached public screen or unauthorized modal.
-- [ ] Every control has meaningful loading/error/empty/denied/confirmation behavior.
-- [ ] Brand is original and does not imitate Apple intellectual property.
-- [ ] Product, accessibility and affected domain owner approve the complete flow.
-
-### 47.4 Official Apple documentation (primary references)
-- Design principles: https://developer.apple.com/design/human-interface-guidelines/design-principles
-- Full HIG: https://developer.apple.com/design/human-interface-guidelines/
-- Designing for iOS: https://developer.apple.com/design/human-interface-guidelines/designing-for-ios
-- Layout: https://developer.apple.com/design/human-interface-guidelines/layout
-- Tab bars: https://developer.apple.com/design/human-interface-guidelines/tab-bars
-- Buttons and touch size: https://developer.apple.com/design/human-interface-guidelines/buttons
-- Typography: https://developer.apple.com/design/human-interface-guidelines/typography
-- Color: https://developer.apple.com/design/human-interface-guidelines/color
-- Dark Mode: https://developer.apple.com/design/human-interface-guidelines/dark-mode
-- Materials / Liquid Glass: https://developer.apple.com/design/human-interface-guidelines/materials
-- Motion: https://developer.apple.com/design/human-interface-guidelines/motion
-- Right-to-left: https://developer.apple.com/design/human-interface-guidelines/right-to-left
-- Alerts: https://developer.apple.com/design/human-interface-guidelines/alerts
-- Action sheets: https://developer.apple.com/design/human-interface-guidelines/action-sheets
-- Notifications: https://developer.apple.com/design/human-interface-guidelines/notifications
-- Apple UI design tips: https://developer.apple.com/design/tips/
-
-This is a **public-guideline-informed product specification**, not a certification by Apple or a claim that application code is completed. Recheck the appropriate HIG version and Expo/native integration on the devices actually targeted for release.
-
-**End of SILA product blueprint.**
-
-
+The plan's product choices, role templates, milestones and service targets are recommendations for this project. They are not certifications, legal conclusions, measured performance claims or evidence that unimplemented features already work.
