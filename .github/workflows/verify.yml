@@ -12,8 +12,20 @@ jobs:
     defaults:
       run:
         working-directory: staff-web
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: masjid_ci
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: masjid_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U masjid_ci -d masjid_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://unused:unused@127.0.0.1:5432/masjid
+      DATABASE_URL: postgresql://masjid_ci:ci_only_password@127.0.0.1:5432/masjid_ci
       AUTH_SECRET: ci-not-for-production-000000000000000000000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
@@ -24,8 +36,23 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx prisma validate
       - run: npx prisma generate
+      - run: npx prisma db push
+      - run: node scripts/test-db.mjs
       - run: npm run check
       - run: npm run build
+      - name: Web and public API smoke
+        run: |
+          npm run start > /tmp/masjid-next.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/health > /tmp/health.json; then break; fi
+            sleep 2
+          done
+          cat /tmp/health.json
+          curl -fsS http://127.0.0.1:3000/api/v1/public/home > /tmp/home.json
+          node -e "const d=require('/tmp/home.json');if(!d.data?.organization)process.exit(1);"
+          curl -fsS http://127.0.0.1:3000/api/v1/public/prayers > /tmp/prayers.json
+          node -e "const d=require('/tmp/prayers.json');if(!Array.isArray(d.data?.days))process.exit(1);"
+
   verify-mobile:
     name: Native app TypeScript and package compatibility
     runs-on: ubuntu-latest

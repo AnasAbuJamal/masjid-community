@@ -65,3 +65,7 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Public contact form with basic cooldown, admin inbox and review/close actions.
 - Public read-only mosque kiosk showing only published daily Salah, announcements, and events.
 - **Not yet complete:** network-level anti-spam, full content revision workflow, moderated attachments, CRM contact consents and safe automated alerts.
+
+### Eighth implementation pass
+- CI now provisions a dedicated PostgreSQL 16 service, initializes the schema in a disposable database, tests relationships/constraints, then runs web/API smoke checks.
+- This validates schema functionality but is not a staging/prod migration rehearsal or full native end-to-end suite.

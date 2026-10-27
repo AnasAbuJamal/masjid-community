@@ -1,0 +1,45 @@
+// Executes against an isolated CI database only. Refuses production environments.
+import assert from "node:assert/strict";
+import {PrismaClient} from "@prisma/client";
+import bcrypt from "bcryptjs";
+if(process.env.NODE_ENV==="production"||process.env.VERCEL)throw Error("Cannot test against production.");
+if(!process.env.DATABASE_URL?.includes("masjid_ci"))throw Error("Database name must be masjid_ci for integration tests.");
+const db=new PrismaClient();
+const suffix=Date.now().toString();
+try{
+ const org=await db.organization.create({data:{slug:"ci-"+suffix,name:"Integration Fixture",timeZone:"America/New_York",
+  venues:{create:{name:"CI Venue",timeZone:"America/New_York"}}},include:{venues:true}});
+ const venue=org.venues[0];
+ const hashes=await bcrypt.hash("sample-development-password",10);
+ const member=await db.user.create({data:{email:"member-"+suffix+"@example.test",firstName:"Member",lastName:"Fixture",passwordHash:hashes,verifiedAt:new Date()}});
+ const teacher=await db.user.create({data:{email:"teacher-"+suffix+"@example.test",firstName:"Teacher",lastName:"Fixture",passwordHash:hashes,role:"teacher",verifiedAt:new Date()}});
+ const admin=await db.user.create({data:{email:"admin-"+suffix+"@example.test",firstName:"Admin",lastName:"Fixture",passwordHash:hashes,role:"admin",verifiedAt:new Date()}});
+ const program=await db.schoolProgram.create({data:{organizationId:org.id,title:"Reading Skills",description:"Integration only",published:true}});
+ const klass=await db.classSection.create({data:{programId:program.id,name:"Class A",schedule:"Mondays",capacity:25}});
+ const student=await db.student.create({data:{studentNumber:"CI-"+suffix,firstName:"Student",lastName:"Fixture"}});
+ await db.teacherAssignment.create({data:{teacherId:teacher.id,classId:klass.id}});
+ await db.guardianLink.create({data:{guardianId:member.id,studentId:student.id,approvedAt:new Date()}});
+ await db.enrollment.create({data:{studentId:student.id,classId:klass.id}});
+ const session=await db.classSession.create({data:{classId:klass.id,startsAt:new Date(Date.now()+86400000)}});
+ const attendance=await db.attendance.create({data:{sessionId:session.id,studentId:student.id,markedById:teacher.id,status:"present"}});
+ assert.equal(attendance.status,"present");
+ await assert.rejects(()=>db.attendance.create({data:{sessionId:session.id,studentId:student.id,markedById:teacher.id,status:"absent"}}));
+ const assignment=await db.schoolAssignment.create({data:{classId:klass.id,teacherId:teacher.id,title:"Reading assignment",instructions:"Read pages one and two.",dueAt:new Date(Date.now()+86400000),published:true}});
+ const submission=await db.studentSubmission.create({data:{assignmentId:assignment.id,studentId:student.id,body:"Completed reading."}});
+ assert.equal(submission.studentId,student.id);
+ const report=await db.studentReport.create({data:{classId:klass.id,teacherId:teacher.id,studentId:student.id,summary:"Learning well in class.",status:"published",publishedAt:new Date()}});
+ assert.equal(report.status,"published");
+ const invoice=await db.schoolInvoice.create({data:{studentId:student.id,payerGuardianId:member.id,description:"Tuition test",amountMinor:2700,dueAt:new Date(Date.now()+86400000)}});
+ assert.equal(invoice.amountMinor,2700);
+ const prayer=await db.prayerDay.create({data:{venueId:venue.id,localDate:"2026-10-26",fajr:"06:00",sunrise:"07:00",dhuhr:"12:30",asr:"15:30",maghrib:"18:00",isha:"19:00",published:false}});
+ assert.equal(prayer.published,false);
+ const event=await db.event.create({data:{organizationId:org.id,title:"Example gathering",description:"Fixture",location:"Here",startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000),capacity:1,status:"published"}});
+ await db.eventRSVP.create({data:{eventId:event.id,userId:member.id}});
+ await assert.rejects(()=>db.eventRSVP.create({data:{eventId:event.id,userId:member.id}}));
+ const other=await db.student.create({data:{studentNumber:"CI-OTHER-"+suffix,firstName:"Other",lastName:"Fixture"}});
+ const owned=await db.guardianLink.findMany({where:{guardianId:member.id,approvedAt:{not:null},revokedAt:null},select:{studentId:true}});
+ assert.deepEqual(owned.map(x=>x.studentId),[student.id]);
+ assert.ok(!owned.some(x=>x.studentId===other.id));
+ console.log("CI schema integration passed: worship, school, guardian, attendance uniqueness, reports, invoices and events");
+}catch(error){console.error(error);process.exitCode=1;}
+finally{await db.$disconnect();}
