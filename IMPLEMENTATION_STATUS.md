@@ -43,3 +43,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Admin tuition issuance and voiding with audited role checks; native family invoice list and Stripe Checkout initiation.
 - Expanded signed webhook handling for invoice settlement and session expiry.
 - **Not yet complete:** invoice refund workflow, reconciliation ledger, electronic receipt generation and finance dual approval; these remain release blockers.
+
+### Fourth implementation pass
+- Facility approval/rejection queue with server-side conflict checks and private status notifications.
+- Member event RSVP cancellation, in-app notification read state, and personal booking/volunteer/job histories.
+- Staff portal operations navigation and mobile notification inbox.

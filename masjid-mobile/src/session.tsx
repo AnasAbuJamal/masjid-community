@@ -1,5 +1,5 @@
 import React,{createContext,useCallback,useContext,useEffect,useState} from "react";
-import { api,apiPost,ApiUser,clearToken,setToken,token } from "./api";
+import { api,apiPost,ApiUser,clearToken,setToken } from "./api";
 type Session={user:ApiUser|null;loading:boolean;login:(email:string,password:string)=>Promise<void>;register:(value:{firstName:string;lastName:string;email:string;password:string})=>Promise<string>;logout:()=>Promise<void>;refresh:()=>Promise<void>};
 const Context=createContext<Session|null>(null);
 export function SessionProvider({children}:{children:React.ReactNode}){
