@@ -44,3 +44,10 @@ Work on `development` only. For each scoped implementation slice:
 3. Confirm the target Vercel project and production/preview environment, and inspect its readiness without reading secret values.
 4. Deploy only to an environment satisfying its gates. After deployment check live health, public guest journeys and errors; record exact commit and deployment URL.
 5. If a gate fails, retain code on `development`, record the blocker, and do not mark it deployed.
+
+
+## Deployment attempt — October 27, 2026
+
+A scoped Vercel preview deployment was attempted for GitHub commit `f6963c8f` after all GitHub Actions jobs passed. The deployment API rejected the request with **402 payment_required**, resource code `api-deployments-free-per-day` (daily free-tier API deployment limit; 24-hour retry). No preview or production deployment was created by this request. The same Vercel project still lacks a database connection. Do not try to bypass the quota using unrelated projects or request automatic upgrades/billing changes.
+
+After the team quota resets, only retry a preview if a working isolated database and required runtime secrets are configured; do not promote it without the production release checks above.
