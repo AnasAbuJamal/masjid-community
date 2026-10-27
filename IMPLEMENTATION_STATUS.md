@@ -37,3 +37,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Scoped teacher classes API and native teacher attendance screen, with persisted marks.
 - Separate restricted finance overview displaying **only** latest paid Stripe-verified donation records, explicitly not a financial reconciliation or bank balance.
 - Role-specific links from admin portal and school mobile tab.
+
+### Third implementation pass
+- School invoice model in integer minor currency units with a designated, approved guardian payer.
+- Admin tuition issuance and voiding with audited role checks; native family invoice list and Stripe Checkout initiation.
+- Expanded signed webhook handling for invoice settlement and session expiry.
+- **Not yet complete:** invoice refund workflow, reconciliation ledger, electronic receipt generation and finance dual approval; these remain release blockers.
