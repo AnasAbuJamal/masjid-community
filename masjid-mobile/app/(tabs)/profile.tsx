@@ -6,7 +6,7 @@ import {useSession} from "../../src/session";
 import {useResource} from "../../src/useResource";
 import {S,T} from "../../src/theme";
 import {api} from "../../src/api";
-type Me={bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string}}[];rsvps:{id:string;event:{title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
+type Me={bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string}}[];rsvps:{id:string;event:{id:string;title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
 export default function Profile(){
  const {user,logout,refresh:refreshUser}=useSession();
  const [error,setError]=useState(""),[busy,setBusy]=useState("");
