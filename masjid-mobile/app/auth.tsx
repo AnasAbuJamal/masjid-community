@@ -27,6 +27,7 @@ export default function AuthScreen(){
   {notice?<Text style={{color:T.success}}>{notice}</Text>:null}
   <Action label={mode==="login"?"Sign in":"Create account"} loading={busy} onPress={()=>void submit()}/>
   <Action label={mode==="login"?"Create a member account":"I already have an account"} secondary onPress={()=>{setError("");setMode(mode==="login"?"register":"login")}}/>
+  <Action label="Forgot password?" secondary icon="lock-reset" onPress={()=>router.push("/recover")}/>
   <Action label="Back to community" secondary icon="arrow-left" onPress={()=>router.back()}/>
  </Card></Shell>;
 }

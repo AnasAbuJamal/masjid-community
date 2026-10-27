@@ -65,3 +65,22 @@ export async function audit(actorId: string, action: string, entity: string, ent
   await db.auditEvent.create({ data: {actorId,action,entity,entityId} });
 }
 export const tokenHash = hash;
+
+export async function checkLoginThrottle(email: string) {
+  const keyHash=hash("login:"+email.toLowerCase());
+  const row=await db.authThrottle.findUnique({where:{keyHash}});
+  if(row?.blockedUntil&&row.blockedUntil>new Date())
+    throw new HttpError(429,"LOGIN_THROTTLED","Too many sign-in attempts. Please try again later.");
+}
+export async function recordFailedLogin(email: string) {
+  const keyHash=hash("login:"+email.toLowerCase());
+  const row=await db.authThrottle.findUnique({where:{keyHash}});
+  const recent=!!row && row.updatedAt>new Date(Date.now()-15*60_000);
+  const failures=recent?(row?.failures||0)+1:1;
+  await db.authThrottle.upsert({where:{keyHash},
+    create:{keyHash,failures,blockedUntil:failures>=6?new Date(Date.now()+15*60_000):null},
+    update:{failures,blockedUntil:failures>=6?new Date(Date.now()+15*60_000):null}});
+}
+export async function clearLoginThrottle(email:string){
+  await db.authThrottle.deleteMany({where:{keyHash:hash("login:"+email.toLowerCase())}});
+}

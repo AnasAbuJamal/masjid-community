@@ -25,3 +25,24 @@ export async function requestVerification(user: {id:string; email:string;firstNa
   return true;
 }
 function escapeHtml(s:string) {return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c] || c));}
+
+export async function sendPasswordReset(user:{id:string;email:string;firstName:string}) {
+  const key=process.env.RESEND_API_KEY,from=process.env.EMAIL_FROM,origin=process.env.NEXT_PUBLIC_APP_URL;
+  if(!key||!from||!origin||(process.env.NODE_ENV==="production"&&!origin.startsWith("https://")))return false;
+  const value=randomBytes(32).toString("hex");
+  const record=await db.passwordResetToken.create({data:{userId:user.id,tokenHash:tokenHash(value),expiresAt:new Date(Date.now()+30*60_000)}});
+  const url=new URL("/reset-password",origin);
+  url.searchParams.set("token",value);
+  try{
+    const res=await fetch("https://api.resend.com/emails",{method:"POST",
+      headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},
+      body:JSON.stringify({from,to:[user.email],subject:"Reset your Masjid Community password",
+        html:'<p>Assalamu alaikum '+escapeHtml(user.firstName)+',</p><p>Use the secure link below to reset your password. It expires in 30 minutes.</p><p><a href="'+escapeHtml(url.toString())+'">Reset my password</a></p><p>If you did not request this, ignore the email.</p>'})
+    });
+    if(!res.ok)throw new Error("Email delivery failed: "+res.status);
+    return true;
+  }catch {
+    await db.passwordResetToken.delete({where:{id:record.id}});
+    return false;
+  }
+}

@@ -25,6 +25,6 @@ export default function LoginPage(){
    {error&&<p role="alert" className="error">{error}</p>}
    <button className="primary" type="submit" disabled={busy}>{busy?"Signing in…":"Sign in to portal"}</button>
   </form>
-  <p className="small section">Guest worship information is available in the community mobile app. No sample schedule or payment data is presented as real.</p>
+  <a href="/reset-password">Forgot password?</a><p className="small section">Guest worship information is available in the community mobile app. No sample schedule or payment data is presented as real.</p>
  </section></main>;
 }

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { actor, checkPassword, clearSessionCookie, requireActor, revokeSession, sessionFrom, setSessionCookie, startSession, tokenHash } from "@/lib/auth";
-import { requestVerification } from "@/lib/email";
+import { actor, checkPassword, checkLoginThrottle, recordFailedLogin, clearLoginThrottle, clearSessionCookie, requireActor, revokeSession, sessionFrom, setSessionCookie, startSession, tokenHash } from "@/lib/auth";
+import { requestVerification, sendPasswordReset } from "@/lib/email";
 import { assertSameOrigin, fail, handled, HttpError, jsonBody, ok } from "@/lib/http";
 
 const register = z.object({email:z.email().max(254),password:z.string().min(12).max(128),firstName:z.string().trim().min(1).max(100),lastName:z.string().trim().min(1).max(100)});
@@ -32,7 +31,12 @@ export async function POST(req:NextRequest,{params}:Context) {
   }
   if(action==="login"){
     const values=login.parse(await jsonBody(req));
-    const user=await checkPassword(values.email,values.password);
+    const normalized=values.email.trim().toLowerCase();
+    await checkLoginThrottle(normalized);
+    let user;
+    try { user=await checkPassword(normalized,values.password); }
+    catch(error) { await recordFailedLogin(normalized); throw error; }
+    await clearLoginThrottle(normalized);
     const token=await startSession(user.id);
     const response=NextResponse.json({data:{token,user:{id:user.id,email:user.email,firstName:user.firstName,lastName:user.lastName,role:user.role,isVerified:!!user.verifiedAt}}},{headers:{"Cache-Control":"no-store"}});
     setSessionCookie(response,token);
@@ -61,6 +65,37 @@ export async function POST(req:NextRequest,{params}:Context) {
     if(last)throw new HttpError(429,"PLEASE_WAIT","Use your recent email or try again later.");
     const verificationSent=await requestVerification(user).catch(()=>false);
     return ok({verificationSent});
+  }
+  if(action==="request-password-reset"){
+    const {email}=z.object({email:z.email().max(254)}).parse(await jsonBody(req));
+    const target=await db.user.findUnique({where:{email:email.trim().toLowerCase()}});
+    if(target&&target.status==="active"){
+      const recent=await db.passwordResetToken.findFirst({where:{userId:target.id,createdAt:{gt:new Date(Date.now()-5*60_000)}}});
+      if(!recent)await sendPasswordReset(target);
+    }
+    return ok({message:"If an account exists, a reset link will be sent if email delivery is available."});
+  }
+  if(action==="reset-password"){
+    const {token,password}=z.object({token:z.string().regex(/^[a-f0-9]{64}$/i),password:z.string().min(12).max(128)}).parse(await jsonBody(req));
+    const challenge=await db.passwordResetToken.findUnique({where:{tokenHash:tokenHash(token)}});
+    if(!challenge||challenge.consumedAt||challenge.expiresAt<=new Date())
+      throw new HttpError(400,"RESET_INVALID","This reset link is invalid or expired.");
+    const now=new Date();
+    const updated=await db.passwordResetToken.updateMany({where:{id:challenge.id,consumedAt:null,expiresAt:{gt:now}},data:{consumedAt:now}});
+    if(!updated.count)throw new HttpError(409,"RESET_USED","This reset link has already been used.");
+    await db.$transaction([
+      db.user.update({where:{id:challenge.userId},data:{passwordHash:await bcrypt.hash(password,12)}}),
+      db.authSession.updateMany({where:{userId:challenge.userId,revokedAt:null},data:{revokedAt:now}}),
+      db.passwordResetToken.updateMany({where:{userId:challenge.userId,consumedAt:null},data:{consumedAt:now}})
+    ]);
+    return ok({passwordChanged:true,message:"Password updated. Please sign in again."});
+  }
+  if(action==="logout-all"){
+    const user=await requireActor(req);
+    await db.authSession.updateMany({where:{userId:user.id,revokedAt:null},data:{revokedAt:new Date()}});
+    const response=NextResponse.json({data:{revoked:true}});
+    clearSessionCookie(response);
+    return response;
   }
   throw new HttpError(404,"NOT_FOUND","Unknown action.");
  });

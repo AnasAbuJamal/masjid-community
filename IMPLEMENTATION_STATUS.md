@@ -48,3 +48,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Facility approval/rejection queue with server-side conflict checks and private status notifications.
 - Member event RSVP cancellation, in-app notification read state, and personal booking/volunteer/job histories.
 - Staff portal operations navigation and mobile notification inbox.
+
+### Fifth implementation pass
+- Password-reset request and secure one-use time-limited reset token flows, with existing-session revocation.
+- Database-backed per-account failed-login throttling (additional network/provider-level anti-abuse still required).
+- Native and web password recovery screens and sign-in links.

@@ -89,6 +89,7 @@ model User {
   updatedAt DateTime @updatedAt
   sessions AuthSession[]
   emailTokens EmailToken[]
+  resetTokens PasswordResetToken[]
   rsvps EventRSVP[]
   volunteerApplications VolunteerApplication[]
   studentAccount Student? @relation("StudentAccount")
@@ -415,4 +416,21 @@ model AuditEvent {
   detail String?
   occurredAt DateTime @default(now())
   @@index([actorId,occurredAt])
+}
+
+model PasswordResetToken {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  tokenHash String @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId,expiresAt])
+}
+model AuthThrottle {
+  keyHash String @id
+  failures Int @default(0)
+  blockedUntil DateTime?
+  updatedAt DateTime @updatedAt
 }
