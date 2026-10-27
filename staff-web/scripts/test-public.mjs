@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+if(process.env.NODE_ENV==="production"||!process.env.DATABASE_URL?.includes("masjid_ci"))throw Error("Refusing production public smoke.");
+const api="http://127.0.0.1:3000/api/v1/";
+async function get(path){const res=await fetch(api+path);return {status:res.status,data:await res.json()};}
+const programs=await get("public/search?q=Reading&kind=programs");
+assert.equal(programs.status,200);
+assert.ok(programs.data.data.items.some(x=>x.kind==="programs"&&x.title==="Reading Skills"));
+const secret=await get("public/search?q=Unpublished");
+assert.equal(secret.status,200);
+assert.ok(!secret.data.data.items.some(x=>x.title==="Unpublished fixture"),"draft dates never appear in search");
+const malformed=await get("public/search?q="+encodeURIComponent("<private>"));
+assert.equal(malformed.status,422);
+const faith=await get("public/faith");
+assert.equal(faith.status,200);
+assert.ok(faith.data.data.notices.some(x=>x.title==="Integration fixture notice"));
+assert.ok(!faith.data.data.notices.some(x=>x.title==="Unpublished fixture"));
+const privateAdmin=await get("admin/worship");
+assert.equal(privateAdmin.status,401);
+const prayer=await get("public/prayers?date=2026-10-26");
+assert.equal(prayer.status,200);
+assert.deepEqual(prayer.data.data.days,[],"unpublished adhan times are not public");
+console.log("Verified published-only search, date-confirmed faith notices, admin denial and unpublished worship privacy.");

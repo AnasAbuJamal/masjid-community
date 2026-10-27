@@ -115,3 +115,10 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Server invokes Stripe Refunds with a stable idempotency key; pending state stays pending until the signed full-refund webhook posts a reversing accounting entry.
 - Refund requests and outcomes are auditable and available to privileged finance users.
 - Partial refund accounting, webhook recovery for out-of-order provider events, multi-person limit thresholds and live Stripe settlement reconciliation remain release blockers.
+
+### Seventeenth implementation pass: searchable published content and faith calendar
+- Bounded multilingual-letter search over published public events, programs, campaigns, articles, jobs and community records; native search discovery interface.
+- Mosque-approved Ramadan, Eid and moon-sighting dates with draft/publish/archive workflow and audit trail. No automatic astronomical date is presented as official.
+- Editable Friday Jummah sessions by venue, with admin date/clock validation.
+- CI verifies published-only search, faith notice privacy, and private admin access denial.
+- Next work still needed: full Arabic translations/RTL across every screen, accessibility/device testing, automated notifications, and detailed faith schedule review workflow.

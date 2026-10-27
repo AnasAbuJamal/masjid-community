@@ -55,6 +55,13 @@ try{
  const construction=await db.constructionProject.create({data:{organizationId:org.id,title:"Community hall",description:"Renovation plans",status:"published",publishedAt:new Date()}});
  const milestone=await db.constructionMilestone.create({data:{projectId:construction.id,title:"Planning",description:"Project approved",status:"published",publishedAt:new Date()}});
  assert.equal(milestone.projectId,construction.id);
+ const faith=await db.faithNotice.create({data:{organizationId:org.id,kind:"other",localDate:"2026-10-30",title:"Integration fixture notice",
+  body:"The mosque has confirmed a community service schedule.",status:"published",approvedById:admin.id,publishedAt:new Date()}});
+ assert.equal(faith.status,"published");
+ await db.faithNotice.create({data:{organizationId:org.id,kind:"moon_sighting",localDate:"2026-10-31",title:"Unpublished fixture",
+  body:"This unconfirmed date must remain private.",status:"draft"}});
+ const friday=await db.jummahSession.create({data:{venueId:venue.id,localDate:"2026-10-30",ordinal:1,khutbahAt:"13:00",iqamahAt:"13:20",language:"en"}});
+ assert.equal(friday.ordinal,1);
  const prayer=await db.prayerDay.create({data:{venueId:venue.id,localDate:"2026-10-26",fajr:"06:00",sunrise:"07:00",dhuhr:"12:30",asr:"15:30",maghrib:"18:00",isha:"19:00",published:false}});
  assert.equal(prayer.published,false);
  const event=await db.event.create({data:{organizationId:org.id,title:"Example gathering",description:"Fixture",location:"Here",startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000),capacity:1,status:"published"}});

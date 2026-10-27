@@ -25,6 +25,7 @@ export default function Salah(){
  </Card>:null}
  {data?.jummah?.length?<Card><Text style={S.headline}>Jummah</Text>{data.jummah.map(j=><Text key={j.id} style={[S.bodyText,{marginTop:9}]}>Session {j.ordinal} · {j.iqamahAt} {j.khutbahAt?"· Khutbah "+j.khutbahAt:""}</Text>)}</Card>:null}
  <View style={S.section}><PressRow icon="compass-outline" title="Find the Qibla" subtitle="Optional location-based direction" onPress={()=>router.push("/qibla")}/>
+ <PressRow icon="moon-waning-crescent" title="Ramadan & Eid announcements" subtitle="Dates confirmed by mosque leadership" onPress={()=>router.push("/faith")}/>
  <PressRow icon="calendar-month-outline" title="Prayer calendar" subtitle="Check another date's published schedule" onPress={()=>router.push("/calendar")}/>
  <Action label="Refresh schedule" secondary icon="refresh" onPress={()=>void refresh()}/></View>
  </Shell>;

@@ -73,6 +73,7 @@ model Organization {
   ledgerAccounts LedgerAccount[]
   journals JournalEntry[]
   refundRequests RefundRequest[]
+  faithNotices FaithNotice[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -127,6 +128,7 @@ model User {
   volunteerShifts VolunteerShift[]
   refundsSubmitted RefundRequest[] @relation("RefundRequester")
   refundsReviewed RefundRequest[] @relation("RefundReviewer")
+  approvedFaithNotices FaithNotice[]
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -761,4 +763,29 @@ model RefundRequest {
   createdAt DateTime @default(now())
   @@unique([sourceKind,sourceId])
   @@index([organizationId,status,createdAt])
+}
+
+enum FaithNoticeKind {
+  ramadan_start
+  eid_al_fitr
+  eid_al_adha
+  moon_sighting
+  other
+}
+model FaithNotice {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  kind FaithNoticeKind
+  localDate String
+  title String
+  body String
+  status ContentStatus @default(draft)
+  approvedById String?
+  approvedBy User? @relation(fields:[approvedById],references:[id])
+  publishedAt DateTime?
+  revision Int @default(1)
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId,kind,localDate])
+  @@index([organizationId,status,localDate])
 }
