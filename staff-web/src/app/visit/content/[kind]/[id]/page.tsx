@@ -30,7 +30,7 @@ export default async function PublicDetail({ params }: Props) {
     if (!item) notFound();
     title = item.title; body = item.description; label = "PUBLIC GATHERING";
     const format = (date: Date) => new Intl.DateTimeFormat("en-US", {
-      dateStyle: "full", timeStyle: "short", timeZone: organization.timeZone, timeZoneName: "short",
+      weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: organization.timeZone, timeZoneName: "short",
     }).format(date);
     facts = [format(item.startAt), "Ends " + format(item.endAt), item.location];
   } else if (kind === "updates") {
