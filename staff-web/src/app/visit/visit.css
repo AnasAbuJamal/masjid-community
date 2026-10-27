@@ -1,0 +1,94 @@
+/* SILA's guest surface uses semantic Quiet Radiance tokens and preserves the existing staff portal. */
+.visit {
+  --v-ink: #142a35;
+  --v-muted: #506570;
+  --v-primary: #236c83;
+  --v-strong: #15546b;
+  --v-line: #dce5e7;
+  --v-soft: #eff5f5;
+  color: var(--v-ink);
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 88% 2%, #dbeef0 0, transparent 35%),
+    radial-gradient(ellipse at 10% 22%, #f2ede3 0, transparent 43%), #fbfcfa;
+}
+.visit a { color: inherit; }
+.visit-container { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+.visit-header { display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 20px max(28px, calc((100vw - 1144px)/2)); border-bottom: 1px solid var(--v-line);
+  background: rgba(251,252,250,.92); }
+.visit-brand { display: inline-flex; gap: 12px; align-items: center; text-decoration: none; font-size: 1.22rem; font-weight: 800; letter-spacing: -.04em; }
+.visit-brand small { display: block; color: var(--v-muted); letter-spacing: .17em; font-size: .57rem; font-weight: 700; }
+.visit-symbol { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 1px solid #98b9be;
+  border-radius: 15px; background: #e0eff0; color: var(--v-strong); font-size: 2rem; }
+.visit-header nav { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; }
+.visit-header nav a { font-size: .88rem; font-weight: 650; text-decoration: none; }
+.visit-header nav a:hover, .visit-header nav a:focus-visible { text-decoration: underline; }
+.visit-header nav .visit-staff-link { border: 1px solid #bfd3d5; border-radius: 12px; padding: 11px 15px; }
+.visit-kicker { display: block; color: var(--v-primary); letter-spacing: .19em; font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+.visit-hero { display: grid; grid-template-columns: 1.25fr .75fr; gap: clamp(24px,6vw,90px); align-items: center; padding: 86px 0 70px; }
+.visit-hero h1 { font-size: clamp(2.7rem,6vw,5.3rem); max-width: 730px; letter-spacing: -.065em; line-height: 1.05; margin: 18px 0 24px; }
+.visit-hero h1 em { font-style: normal; color: var(--v-primary); }
+.visit-hero p { max-width: 520px; color: var(--v-muted); line-height: 1.7; font-size: 1.05rem; }
+.visit-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 29px; }
+.visit-action, .visit-action-outline { display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+  min-height: 48px; border: 1px solid var(--v-primary); border-radius: 13px; padding: 12px 19px;
+  font-weight: 700; text-decoration: none; }
+.visit-action { background: var(--v-primary); color: #fff !important; }
+.visit-action-outline { color: var(--v-primary) !important; background: #fff; }
+.visit-action:hover, .visit-action-outline:hover { text-decoration: underline; }
+.visit-place { padding: 34px; min-height: 300px; border-radius: 28px; background: linear-gradient(145deg,#e1eff1,#fbfcfa 82%);
+  border: 1px solid #c7dddf; box-shadow: 0 24px 70px -48px #224a54; }
+.visit-place-icon { font-size: 2.5rem; display: block; margin-bottom: 16px; color: var(--v-primary); }
+.visit-place h2 { margin: 10px 0; font-size: clamp(1.4rem,2.4vw,2rem); }
+.visit-place p, .visit-place address { color: var(--v-muted); font-size: 1rem; font-style: normal; margin-bottom: 10px; }
+.visit-place-note { display: block; color: var(--v-muted); font-size: .77rem; margin-top: 18px; overflow-wrap: anywhere; }
+.visit-venue-form { display: grid; gap: 8px; margin-top: 18px; }
+.visit-venue-form label { font-weight: 700; font-size: .82rem; }
+.visit-venue-form select, .visit-venue-form button { border: 1px solid #aac5c9; border-radius: 12px; padding: 11px; min-height: 46px; width: 100%; background: white; color: var(--v-ink); }
+.visit-venue-form button { background: var(--v-primary); color: white; font-weight: 700; }
+.visit-schedule { padding: 34px; border: 1px solid #cfdddd; border-radius: 28px; background: #fff; box-shadow: 0 24px 60px -56px #274d58; scroll-margin-top: 24px; }
+.visit-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.visit-section-heading h2 { font-size: clamp(1.6rem,3vw,2.15rem); margin: 6px 0 0; }
+.visit-section-heading p { color: var(--v-muted); margin: 0; }
+.visit-prayer-grid { display: grid; }
+.visit-prayer-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr; align-items: center; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid var(--v-line); font-variant-numeric: tabular-nums; }
+.visit-prayer-row:nth-child(even) { background: #f5f9f8; }
+.visit-prayer-row strong { font-weight: 750; }
+.visit-prayer-head { color: var(--v-muted); font-size: .77rem; letter-spacing: .09em; text-transform: uppercase; font-weight: 750; }
+.visit-footnote { color: var(--v-muted); font-size: .81rem; margin: 16px 0 0; overflow-wrap: anywhere; }
+.visit-jummah { margin-top: 22px; padding: 16px 20px; border-radius: 16px; background: var(--v-soft); }
+.visit-jummah h3 { font-size: 1.05rem; margin-bottom: 8px; }
+.visit-jummah ul { margin: 0; padding-inline-start: 20px; }
+.visit-jummah li { padding: 4px 0; }
+.visit-empty { color: var(--v-muted); padding: 23px; border-radius: 15px; background: var(--v-soft); }
+.visit-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-top: 40px; }
+.visit-panel, .visit-learning { border: 1px solid var(--v-line); background: #fff; border-radius: 24px; padding: 30px; scroll-margin-top: 24px; }
+.visit-list article { border-top: 1px solid var(--v-line); padding: 22px 0; }
+.visit-list h3, .visit-faith h3, .visit-learning h3 { font-size: 1.18rem; margin: 8px 0; }
+.visit-list p, .visit-faith p, .visit-learning p { color: var(--v-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin: 7px 0; }
+.visit-tag { font-weight: 700; font-size: .75rem; color: var(--v-strong); text-transform: capitalize; }
+.visit-date { color: var(--v-primary); font-weight: 750; font-size: .85rem; }
+.visit-list .visit-event-place { color: var(--v-strong); font-weight: 650; font-size: .85rem; }
+.visit-faith { padding: 18px 20px; border-radius: 18px; background: #eff5f5; border-inline-start: 4px solid var(--v-primary); }
+.visit-faith strong { color: var(--v-strong); display: block; margin-bottom: 8px; }
+.visit-faith article { padding: 12px 0; border-top: 1px solid var(--v-line); }
+.visit-faith article span { font-size: .83rem; font-weight: 750; }
+.visit-learning { margin-top: 28px; }
+.visit-learning-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,230px),1fr)); gap: 15px; }
+.visit-learning-grid article { background: var(--v-soft); padding: 22px; border-radius: 18px; }
+.visit-footer { margin: 38px 0 0; padding: 30px 0; border-top: 1px solid var(--v-line); color: var(--v-muted); font-size: .8rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.visit-footer p { margin: 0; }
+.visit-footer a { text-decoration: underline; }
+@media (max-width: 850px) { .visit-hero { grid-template-columns: 1fr; padding: 52px 0 42px; } .visit-columns { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .visit-header { align-items: flex-start; flex-direction: column; padding: 15px 18px; }
+  .visit-header nav { gap: 10px 18px; }
+  .visit-container { padding: 0 16px; }
+  .visit-hero { padding-top: 38px; }
+  .visit-place, .visit-schedule, .visit-panel, .visit-learning { padding: 22px; border-radius: 20px; }
+  .visit-section-heading { align-items: flex-start; flex-direction: column; }
+  .visit-prayer-row { grid-template-columns: 1fr .85fr .95fr; gap: 6px; padding: 13px 7px; font-size: .9rem; }
+  .visit-hero h1 { font-size: clamp(2.55rem,11vw,3.5rem); }
+}
+@media (prefers-reduced-motion: reduce) { .visit { scroll-behavior: auto; } }
