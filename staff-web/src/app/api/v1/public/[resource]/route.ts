@@ -14,7 +14,11 @@ export async function GET(req:NextRequest,{params}:Context){
     return ok({organization:{name:org.name},budgets,note:"Published budgets are planned allocations, not donations received or cash balances."});
   }
   if(resource==="home"){
-    const venue=await db.venue.findFirst({where:{organizationId:org.id},orderBy:{id:"asc"}});
+    const venueId=req.nextUrl.searchParams.get("venueId");
+    const venue=venueId
+      ? await db.venue.findFirst({where:{id:venueId,organizationId:org.id}})
+      : await db.venue.findFirst({where:{organizationId:org.id},orderBy:{id:"asc"}});
+    if(venueId&&!venue)throw new HttpError(404,"VENUE_NOT_FOUND","The selected venue is unavailable.");
     const today=venue ? localDate(new Date(),venue.timeZone) : null;
     const [prayer,announcements,events]=await Promise.all([
       venue&&today?db.prayerDay.findFirst({where:{venueId:venue.id,localDate:today,published:true}}):null,
@@ -25,7 +29,8 @@ export async function GET(req:NextRequest,{params}:Context){
   }
   if(resource==="prayers"){
     const venueId=req.nextUrl.searchParams.get("venueId");
-    const venue=venueId ? await db.venue.findFirst({where:{id:venueId,organizationId:org.id}}) : await db.venue.findFirst({where:{organizationId:org.id}});
+    const venue=venueId ? await db.venue.findFirst({where:{id:venueId,organizationId:org.id}}) : await db.venue.findFirst({where:{organizationId:org.id},orderBy:{id:"asc"}});
+    if(venueId&&!venue)throw new HttpError(404,"VENUE_NOT_FOUND","The selected venue is unavailable.");
     if(!venue) return ok({venue:null,days:[],jummah:[]});
     const date=req.nextUrl.searchParams.get("date")||localDate(new Date(),venue.timeZone);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new HttpError(422,"BAD_DATE","Use YYYY-MM-DD.");
