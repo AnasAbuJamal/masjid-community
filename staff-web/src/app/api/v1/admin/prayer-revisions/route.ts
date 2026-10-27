@@ -73,7 +73,7 @@ export async function GET(req:NextRequest){
   const selected=venues.find(v=>v.id===requested)??venues[0];
   if(requested&&!venues.some(v=>v.id===requested))
    throw new HttpError(404,"VENUE_NOT_FOUND","Venue is not part of this mosque.");
-  if(!selected)return ok({userId:user.id,venues,selectedVenue:null,revisions:[],published:[]});
+  if(!selected)return ok({userId:user.id,venues,selectedVenue:null,revisions:[],published:[],actorNames:{}});
   const now=localDate(new Date(),selected.timeZone);
   const [revisions,published]=await Promise.all([
    db.prayerScheduleRevision.findMany({where:{venueId:selected.id},
@@ -81,7 +81,13 @@ export async function GET(req:NextRequest){
    db.prayerDay.findMany({where:{venueId:selected.id,localDate:{gte:now}},orderBy:{localDate:"asc"},take:30,
     select:{id:true,localDate:true,revision:true,published:true,source:true,updatedAt:true}})
   ]);
-  return ok({userId:user.id,venues,selectedVenue:selected,revisions,published});
+  const actorIds=[...new Set(revisions.flatMap(item=>[item.authoredById,item.approvedById].filter(
+   (id):id is string=>!!id
+  )))];
+  const people=await db.user.findMany({where:{id:{in:actorIds}},
+   select:{id:true,firstName:true,lastName:true}});
+  const actorNames=Object.fromEntries(people.map(p=>[p.id,(p.firstName+" "+p.lastName).trim()]));
+  return ok({userId:user.id,venues,selectedVenue:selected,revisions,published,actorNames});
  });
 }
 
