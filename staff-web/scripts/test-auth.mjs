@@ -82,6 +82,17 @@ try{
  const venue=await worshipDb.venue.findFirst({where:{organizationId:org.id},orderBy:{id:"asc"}});
  assert.ok(venue);
  const day="2032-11-05";
+ const bypass=await request("admin","POST",{
+  kind:"prayer",venueId:venue.id,localDate:"2032-11-05",published:true,
+  fajr:"05:30",sunrise:"06:44",dhuhr:"12:10",asr:"15:15",maghrib:"17:20",isha:"19:00"
+ },admin.data.token);
+ assert.equal(bypass.status,409,"old admin endpoint must reject direct prayer publishing");
+ assert.equal(bypass.error.code,"PRAYER_REVIEW_REQUIRED");
+ const unchanged=await worshipDb.prayerDay.findUnique({where:{venueId_localDate:{
+  venueId:venue.id,localDate:"2032-11-05"
+ }}});
+ assert.equal(unchanged,null,"old admin route must not create even an unpublished schedule");
+
  const draft={
   action:"create",venueId:venue.id,localDate:day,source:"CI verified mosque schedule",
   fajr:"05:30",sunrise:"06:44",dhuhr:"12:10",asr:"15:15",maghrib:"17:20",isha:"19:00",
