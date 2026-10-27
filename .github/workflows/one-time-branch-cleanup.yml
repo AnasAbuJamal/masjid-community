@@ -1,0 +1,66 @@
+name: Remove obsolete SILA branches
+on:
+  push:
+    branches: [development]
+    paths:
+      - '.github/workflows/one-time-branch-cleanup.yml'
+permissions:
+  contents: write
+jobs:
+  single-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify default branch and remove obsolete refs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.parse, urllib.request
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          root = f"https://api.github.com/repos/{repository}"
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "masjid-community-single-branch-cleanup",
+          }
+
+          def api(path, method="GET"):
+              request = urllib.request.Request(root + path, headers=headers, method=method)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  raw = response.read()
+                  return json.loads(raw) if raw else None
+
+          info = api("")
+          if info["default_branch"] != "development":
+              raise RuntimeError("Refusing cleanup: development is not the default branch.")
+
+          def branches():
+              names = []
+              page = 1
+              while True:
+                  entries = api(f"/branches?per_page=100&page={page}")
+                  names.extend(item["name"] for item in entries)
+                  if len(entries) < 100:
+                      return names
+                  page += 1
+
+          active = api("/pulls?state=open&per_page=100")
+          active_heads = {
+              pr["head"]["ref"] for pr in active
+              if pr["head"]["repo"] and pr["head"]["repo"]["full_name"] == repository
+          }
+          old = [name for name in branches() if name != "development"]
+          if any(name in active_heads for name in old):
+              raise RuntimeError("Refusing to remove a branch that still has an open PR.")
+          for name in old:
+              print(f"Removing obsolete branch: {name}", flush=True)
+              api("/git/refs/heads/" + urllib.parse.quote(name, safe="/"), "DELETE")
+          remaining = branches()
+          print("Remaining branches:", remaining, flush=True)
+          if remaining != ["development"]:
+              raise RuntimeError("Branch cleanup incomplete.")
+          PY
