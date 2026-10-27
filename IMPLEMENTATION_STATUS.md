@@ -22,6 +22,13 @@
 - App icon/splash/media assets, automated native E2E, stress/security tests and live production deployment.
 - SDK versions and lint/build must be validated in GitHub CI; this environment cannot install dependencies from the public registry.
 
+### Twenty-fourth implementation pass: public SILA visitor website (in review)
+- Added a server-rendered, guest-accessible `/visit` website with mosque and venue selection, venue-local published prayer/iqamah/Jummah times, source/revision information, approved faith notices, published announcements, upcoming gatherings and published learning programs.
+- Published gatherings, notices, faith dates and programs have shareable detail URLs with server-side publication and organization filters; unknown or draft IDs return 404.
+- Guest public site preserves explicit missing-schedule states and never substitutes sample worship values. Staff sign-in now links to public information.
+- CI integration checks no-login access, venue isolation, hidden drafts and public detail routes, and workflow checks run on development-targeted pull requests.
+- This is one vertical slice; it does **not** complete comprehensive Arabic/RTL, offline access, approved prayer revision workflow, child safeguarding, cross-organization launch readiness, or end-to-end device/accessibility review.
+
 ## Feature acceptance
 No feature is considered production-complete until it meets the privacy, accuracy, security, accessibility, migration and device verification criteria in \`document.md\`. API endpoints can be present without every related role/screen being ready.
 
