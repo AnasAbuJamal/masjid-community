@@ -193,3 +193,10 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Added an additive SQL migration for `Event.waitlistEnabled` and `EventRSVP.status`, organizer checkbox, public/mobile capacity and waitlist clarity, and a member profile showing confirmed versus waitlisted registration with the appropriate cancellation action.
 - Extended isolated PostgreSQL CI tests for guest denial, idempotence, capacity, FIFO promotion, notifications, waitlist exit, full events without waitlisting and cross-organization rejection.
 - **Limitations:** Circles, real host check-in and rich event policies (language, pricing, accessibility, RSVP cutoffs, waitlist opt-in messaging and cancellation terms) still require a scoped implementation and field review. Existing records require a tested migration plan before any existing production database is changed.
+
+
+### Twenty-eighth implementation pass: member self-service and calendar downloads
+- Added `GET /api/v1/events/registration?eventId=...`, with verified identity and organization scoping, returning **only the signed-in member's** confirmed/waitlisted record (never another attendee's record or a public roster). Native Gather detail shows this live state, avoids duplicate RSVP actions, and lets the member leave the waitlist or cancel before the event.
+- Added a safe public iCalendar download for published, organization-scoped gatherings at `/api/v1/events/{id}/calendar`. Exports actual event timestamps in UTC with calendar escaping/folding and no attendee information, explicitly stating that downloading **does not reserve a seat**. The public gathering detail links to this download.
+- Expanded isolated HTTP tests for guest denial, private member-specific state before/after promotion/cancellation, foreign-mosque denial and public calendar content and published-only restrictions.
+- Remaining Gather release gates: real host-scoped event check-in, fair conflict/last-seat stress tests, explicit RSVP deadlines and cancellation policy, accessible complete Arabic UX, and event policy review.
