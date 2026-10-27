@@ -43,7 +43,7 @@ Steward users with the `worship_publish` capability can visit `/admin/prayer-rev
 
 ## Gathering reservations and waitlists
 
-Published events offer capacity-aware reservations to verified members. Organizers may explicitly enable a waitlist for an event; full events without one reject further registrations. Members see **confirmed** or **waitlisted — not confirmed** status. A confirmed attendee's cancellation before the event starts atomically promotes the oldest waitlisted member, records a generic private notification, and preserves the seat count. Waitlist departures do not release confirmed places. Duplicate join/cancel requests are idempotent. `staff-web/scripts/test-gather.mjs` runs against the disposable CI database.
+Published events offer capacity-aware reservations to verified members. Organizers may explicitly enable a waitlist for an event; full events without one reject further registrations. Members see **confirmed** or **waitlisted — not confirmed** status. A confirmed attendee's cancellation before the event starts atomically promotes the oldest waitlisted member, records a generic private notification, and preserves the seat count. Waitlist departures do not release confirmed places. Duplicate join/cancel requests are idempotent. A signed-in member can read only their own RSVP state from `GET /api/v1/events/registration?eventId=...`, and the native detail screen provides an immediate cancellation action. Public published gatherings offer an `.ics` download at `GET /api/v1/events/{id}/calendar`, labeled as informational—not an RSVP confirmation. `staff-web/scripts/test-gather.mjs` runs against the disposable CI database.
 
 ## Guest website
 
