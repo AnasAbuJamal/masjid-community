@@ -3,7 +3,7 @@ import { encryptMfaSecret, generateMfaSecret, decryptMfaSecret, verifyMfaCode } 
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { actor, checkPassword, checkLoginThrottle, recordFailedLogin, clearLoginThrottle, clearSessionCookie, requireActor, revokeSession, sessionFrom, setSessionCookie, startSession, tokenHash } from "@/lib/auth";
+import { actor, checkPassword, checkLoginThrottle, recordFailedLogin, clearLoginThrottle, checkMfaThrottle, recordMfaFailure, clearMfaThrottle, clearSessionCookie, requireActor, revokeSession, sessionFrom, setSessionCookie, startSession, tokenHash } from "@/lib/auth";
 import { requestVerification, sendPasswordReset } from "@/lib/email";
 import { assertSameOrigin, fail, handled, HttpError, jsonBody, ok } from "@/lib/http";
 
@@ -66,10 +66,11 @@ export async function POST(req:NextRequest,{params}:Context) {
     const current=await requireActor(req);
     if(!current.verifiedAt)throw new HttpError(403,"VERIFY_EMAIL","Verify your email first.");
     const {code}=z.object({code:z.string().regex(/^\d{6}$/)}).parse(await jsonBody(req));
+    await checkMfaThrottle(current.id);
     const account=await db.user.findUniqueOrThrow({where:{id:current.id}});
     if(account.mfaEnabledAt||!account.mfaPendingSecretEncrypted)throw new HttpError(409,"NO_SETUP","Start MFA enrollment before confirming.");
     const step=verifyMfaCode(decryptMfaSecret(account.mfaPendingSecretEncrypted),code);
-    if(step===null)throw new HttpError(422,"INCORRECT_CODE","Authenticator code is incorrect or expired.");
+    if(step===null){await recordMfaFailure(current.id);throw new HttpError(422,"INCORRECT_CODE","Authenticator code is incorrect or expired.");}
     const token=sessionFrom(req);
     await db.$transaction(async tx=>{
       const updated=await tx.user.updateMany({where:{id:current.id,mfaEnabledAt:null,mfaPendingSecretEncrypted:account.mfaPendingSecretEncrypted},
@@ -78,22 +79,25 @@ export async function POST(req:NextRequest,{params}:Context) {
       await tx.authSession.updateMany({where:{userId:current.id,tokenHash:tokenHash(token),revokedAt:null},data:{mfaVerifiedAt:new Date()}});
       await tx.auditEvent.create({data:{actorId:current.id,action:"auth.mfa.enable",entity:"User",entityId:current.id}});
     });
+    await clearMfaThrottle(current.id);
     return ok({mfaVerified:true,message:"MFA is enabled."});
   }
   if(action==="mfa-verify"){
     const current=await requireActor(req);
     if(!current.verifiedAt)throw new HttpError(403,"VERIFY_EMAIL","Verify your email first.");
     const {code}=z.object({code:z.string().regex(/^\d{6}$/)}).parse(await jsonBody(req));
+    await checkMfaThrottle(current.id);
     const account=await db.user.findUniqueOrThrow({where:{id:current.id}});
     if(!account.mfaEnabledAt||!account.mfaSecretEncrypted)throw new HttpError(409,"MFA_NOT_ENABLED","Configure your authenticator first.");
     const step=verifyMfaCode(decryptMfaSecret(account.mfaSecretEncrypted),code);
-    if(step===null)throw new HttpError(401,"INVALID_CODE","Authenticator code is incorrect or expired.");
+    if(step===null){await recordMfaFailure(current.id);throw new HttpError(401,"INVALID_CODE","Authenticator code is incorrect or expired.");}
     const changed=await db.user.updateMany({where:{id:current.id,mfaLastCounter:{lt:step}},data:{mfaLastCounter:step}});
     if(!changed.count)throw new HttpError(409,"CODE_REUSED","Use the next authenticator code.");
     const token=sessionFrom(req);
     const session=await db.authSession.updateMany({where:{userId:current.id,tokenHash:tokenHash(token),revokedAt:null,expiresAt:{gt:new Date()}},data:{mfaVerifiedAt:new Date()}});
     if(!session.count)throw new HttpError(401,"SESSION_EXPIRED","Sign in again.");
     await db.auditEvent.create({data:{actorId:current.id,action:"auth.mfa.verify",entity:"AuthSession",entityId:current.id}});
+    await clearMfaThrottle(current.id);
     return ok({mfaVerified:true});
   }
   if(action==="logout"){

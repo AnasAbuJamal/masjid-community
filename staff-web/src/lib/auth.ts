@@ -104,3 +104,21 @@ export async function requireCapability(req:NextRequest,capability:RoleCapabilit
  if(!granted)throw new HttpError(403,"FORBIDDEN","This staff capability has not been granted or has expired.");
  return user;
 }
+
+export async function checkMfaThrottle(userId:string){
+ const keyHash=hash("mfa:"+userId);
+ const row=await db.authThrottle.findUnique({where:{keyHash}});
+ if(row?.blockedUntil&&row.blockedUntil>new Date())
+  throw new HttpError(429,"MFA_THROTTLED","Authenticator requests are temporarily limited. Try again later.");
+}
+export async function recordMfaFailure(userId:string){
+ const keyHash=hash("mfa:"+userId);
+ const now=new Date(),recent=new Date(now.getTime()-15*60_000);
+ const row=await db.authThrottle.findUnique({where:{keyHash}});
+ const failures=await db.authThrottle.upsert({where:{keyHash},
+  create:{keyHash,failures:1},update:{failures:row&&row.updatedAt>recent?{increment:1}:1}});
+ if(failures.failures>=6)await db.authThrottle.update({where:{keyHash},data:{blockedUntil:new Date(now.getTime()+15*60_000)}});
+}
+export async function clearMfaThrottle(userId:string){
+ await db.authThrottle.deleteMany({where:{keyHash:hash("mfa:"+userId)}});
+}

@@ -140,3 +140,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Restricted job-application review dashboard and server-controlled approve/decline decisions for published opportunities.
 - Members see their own application statuses; reviews create audited transitions and private notifications.
 - Provider messaging, file uploads/resume scanning, candidate consent policy and professional recruiting integrations remain to be implemented and reviewed.
+
+### Twenty-first implementation pass: authenticator abuse protection
+- Durable per-account TOTP throttling now applies to enrollment and re-authentication, in addition to the existing one-time code replay checks.
+- Successful verification clears attempt counters; privilege enforcement stays on the server.
+- Production IP/network edge controls, privileged recovery and independent penetration testing are still required.
