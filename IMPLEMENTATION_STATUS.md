@@ -80,3 +80,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Verified guardians can submit program applications; admins approve or decline with documented relationship-verification confirmation.
 - Approval creates a private student profile and approved guardian relationship with a recorded decision and notification.
 - Class enrollment remains a separate administrative action; student accounts are never automatically activated by acceptance.
+
+### Eleventh implementation pass
+- Member profile/preferences, session revocation, bounded account data export and account-deletion request workflows.
+- Dedicated native account settings and restricted admin privacy review screen.
+- **Important:** requesting deletion does not erase records; legal retention and child-data safeguards still need formal implementation. Marketing integrations are not activated by saving opt-ins.

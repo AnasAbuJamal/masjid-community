@@ -40,6 +40,10 @@ try{
   incurredOn:new Date(),submittedById:teacher.id}});
  assert.equal(expense.status,"pending");
  await db.financeExpense.update({where:{id:expense.id},data:{status:"approved",approvedById:admin.id,reviewedAt:new Date()}});
+ const prefs=await db.userPreference.create({data:{userId:member.id,newsletterOptIn:true}});
+ assert.equal(prefs.newsletterOptIn,true);
+ const deleteRequest=await db.deletionRequest.create({data:{userId:member.id}});
+ assert.equal(deleteRequest.status,"pending");
  const prayer=await db.prayerDay.create({data:{venueId:venue.id,localDate:"2026-10-26",fajr:"06:00",sunrise:"07:00",dhuhr:"12:30",asr:"15:30",maghrib:"18:00",isha:"19:00",published:false}});
  assert.equal(prayer.published,false);
  const event=await db.event.create({data:{organizationId:org.id,title:"Example gathering",description:"Fixture",location:"Here",startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000),capacity:1,status:"published"}});

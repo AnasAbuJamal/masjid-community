@@ -111,6 +111,9 @@ model User {
   expensesApproved FinanceExpense[] @relation("ExpenseApprover")
   enrollmentApplications EnrollmentApplication[] @relation("ApplicationParent")
   reviewedApplications EnrollmentApplication[] @relation("ApplicationReviewer")
+  preferences UserPreference?
+  deletionRequests DeletionRequest[] @relation("DeletionSubject")
+  reviewedDeletions DeletionRequest[] @relation("DeletionReviewer")
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -568,4 +571,30 @@ model EnrollmentApplication {
   reviewedAt DateTime?
   @@index([organizationId,status,createdAt])
   @@index([applicantUserId,createdAt])
+}
+
+model UserPreference {
+  userId String @id
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  newsletterOptIn Boolean @default(false)
+  eventEmailOptIn Boolean @default(false)
+  quietHoursEnabled Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+enum DeletionStatus {
+  pending
+  in_review
+  rejected
+}
+model DeletionRequest {
+  id String @id @default(cuid())
+  userId String
+  user User @relation("DeletionSubject",fields:[userId],references:[id])
+  status DeletionStatus @default(pending)
+  reason String?
+  reviewedById String?
+  reviewer User? @relation("DeletionReviewer",fields:[reviewedById],references:[id])
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId,status])
 }
