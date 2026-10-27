@@ -1,77 +1,62 @@
-name: Prune merged feature branches after verification
+name: Remove redundant merged branches
 
 on:
-  workflow_run:
-    workflows: ["Verify web and mobile"]
-    types: [completed]
+  push:
     branches: [development]
+    paths:
+      - '.github/workflows/prune-merged-branches.yml'
 
-# Deletion is guarded by the specific consolidation parent, commit title,
-# a successful CI run, and exact old branch SHAs.
 permissions:
   contents: write
 
 jobs:
   prune:
-    name: Remove redundant branches if integration passed
+    name: Retain only development
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'development' && github.event.workflow_run.head_repository.full_name == github.repository }}
     steps:
-      - name: Verify refs, then delete the two merged branches
-        shell: bash
+      - name: Remove unchanged redundant refs after verified consolidation
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_HEAD: ${{ github.sha }}
         run: |
           node <<'NODE'
           const repo = process.env.GH_REPO;
-          const sha = process.env.VERIFIED_SHA;
-          const token = process.env.GH_TOKEN;
+          const expectedHead = process.env.EXPECTED_HEAD;
           const headers = {
             Accept: 'application/vnd.github+json',
-            Authorization: 'Bearer ' + token,
+            Authorization: 'Bearer ' + process.env.GH_TOKEN,
             'X-GitHub-Api-Version': '2022-11-28',
           };
-          async function request(path, method = 'GET') {
-            const response = await fetch('https://api.github.com/repos/' + repo + '/' + path, {
-              method, headers,
-            });
-            if (!response.ok) {
-              const message = await response.text();
-              throw Error(method + ' ' + path + ': HTTP ' + response.status + ' ' + message.slice(0, 350));
-            }
+          async function api(path, method='GET') {
+            const response = await fetch('https://api.github.com/repos/' + repo + '/' + path, { method, headers });
+            if (!response.ok) throw Error(method + ' ' + path + ': HTTP ' + response.status + ' ' + (await response.text()).slice(0, 400));
             return response.status === 204 ? null : response.json();
           }
-          async function ref(branch) {
-            return (await request('git/ref/heads/' + branch)).object.sha;
+          async function sha(branch) {
+            return (await api('git/ref/heads/' + branch)).object.sha;
           }
           (async () => {
-            const current = await ref('development');
-            if (current !== sha) {
-              console.log('Skipped cleanup: development moved after verified CI.');
-              return;
-            }
-            const commit = await request('git/commits/' + sha);
-            if (commit.message.trim() !== 'chore: finish verified consolidation' ||
+            const main = await api('');
+            if (main.default_branch !== 'development') throw Error('Expected default branch development');
+            if (await sha('development') !== expectedHead) throw Error('Development moved; refusing cleanup');
+            const commit = await api('git/commits/' + expectedHead);
+            if (commit.message.trim() !== 'chore: delete merged branches, keep development' ||
                 commit.parents.length !== 1 ||
-                commit.parents[0].sha !== 'e0f7645f7842e01b964abc447e843f01949734fc') {
-              console.log('Skipped cleanup: not the authorized one-time consolidation revision.');
-              return;
+                commit.parents[0].sha !== '62cd1e22bf63719e6a85f4377cb2e409309c4926') {
+              throw Error('Unexpected consolidation commit; refusing cleanup');
             }
-            const redundant = [
+            const old = [
               ['codex/completion-and-database-readiness', 'faa4fd30d918ba711864d9a22efc6fd49b5de1e6'],
               ['fix/security-functionality-apple-ui-20261026', 'd5e3fd6e59b246a81912335c11d08bb3f84627fd'],
             ];
-            for (const [branch, expected] of redundant) {
-              if (await ref(branch) !== expected) {
-                throw Error('Branch changed; no deletion: ' + branch);
-              }
+            for (const [branch, expected] of old) {
+              if (await sha(branch) !== expected) throw Error('Branch changed since consolidation: ' + branch);
             }
-            for (const [branch] of redundant) {
-              await request('git/refs/heads/' + branch, 'DELETE');
-              console.log('Deleted merged branch: ' + branch);
+            for (const [branch] of old) {
+              await api('git/refs/heads/' + branch, 'DELETE');
+              console.log('Deleted: ' + branch);
             }
-            console.log('Consolidation cleanup complete; development is the sole branch.');
-          })().catch(err => { console.error(err.message); process.exitCode = 1; });
+            console.log('Only development remains');
+          })().catch(e => { console.error(e); process.exitCode = 1; });
           NODE
