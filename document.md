@@ -2,7 +2,7 @@
 ## The complete product, experience, architecture and delivery blueprint
 
 **Document:** document.md  
-**Edition:** 1.0 — clean-sheet concept, 26 October 2026  
+**Edition:** 1.1 — researched frameworks, libraries and engineering standards, 26 October 2026  
 **Working product name:** **SILA** (Arabic: **صِلَة**, connection or a meaningful bond)  
 **Brand status:** Provisional. Name, domains, translations, trademarks and app-store availability require clearance before public use.  
 **Status:** **Future product specification, NOT implemented code, certification, deployment or a declaration of production readiness.**  
@@ -453,18 +453,26 @@ No route or button should be hidden behind an unlabeled icon; avoid giant floati
 ### 12.1 Why this structure?
 Build a **TypeScript monorepo with a separately deployable, modular monolith API**. Mobile, web and kiosk consume the same versioned public contracts. One transactional PostgreSQL database is authoritative. A durable worker handles asynchronous side effects. This is simpler to operate and reason about than splitting ten services before there are actual scaling needs.
 
-**Decisions**
-- **Client:** Expo/React Native with Expo Router and platform-appropriate native components.
-- **Steward/public web:** Next.js with server-side rendering for public content and authenticated, permission-checked console routes.
-- **Backend:** Node.js TypeScript, Fastify (with schema validation and typed OpenAPI contract) organized by domain. Alternative frameworks require an explicit ADR, never by default.
-- **Database:** PostgreSQL with explicit transaction boundaries and migration history; an ORM/query builder chosen after a short validation spike (default Prisma for velocity with raw SQL only for measured needs).
-- **Async:** Postgres-backed durable queue/worker initially (avoid a second persistence system unless throughput warrants it).
-- **Cache:** CDN/public schedule cache with bounded TTL and revision-key invalidation. No public caching for private records.
-- **Storage:** private object storage, encrypted and key-scoped, with signed downloads and file scanning.
-- **Payments:** regulated hosted payment processor integration, never store card numbers or CVC.
-- **Observability:** OpenTelemetry-compatible traces/metrics, structured logs with redaction, alerts and audit events separated from application debug logs.
+**Preferred framework baseline — reviewed 26 October 2026**
 
-Do not hard-code transient "latest" framework versions. At project creation, pin **supported stable versions** to an ADR and lockfile, verify Expo/native compatibility, and schedule dependency/security upgrades.
+- **Native mobile:** React Native + Expo + Expo Router, with Expo-aligned package versions and SILA-owned accessible components. Do not add a second navigation framework.
+- **Web:** ONE Next.js App Router application with separate Public, Steward and Display route groups, not separate deployments.
+- **API:** a modular monolith built with NestJS and its Fastify adapter. Business use cases and authorization policies live outside controllers.
+- **Validation and contracts:** Zod schemas and NestJS built-in Standard Schema validation; @nestjs/swagger and generated OpenAPI client types. Do not duplicate the same DTOs across class-validator and Zod.
+- **Database:** PostgreSQL with Drizzle ORM / Drizzle Kit, versioned SQL migrations, explicit transactions and manually reviewed SQL constraints where appropriate. Confirm complex concurrency behavior in a database proof of concept.
+- **Background jobs:** pg-boss on PostgreSQL, with transactionally enqueued jobs / transactional outbox and idempotent handlers. Do not add Redis without evidence it is needed.
+- **Client data:** TanStack Query for interactive server state, React for local view state; Zustand only when shared ephemeral state proves necessary.
+- **Forms:** React Hook Form + @hookform/resolvers + Zod; server rules remain authoritative.
+- **Localization:** i18next + react-i18next + expo-localization, with Intl formatters and explicit native/web RTL testing.
+- **Design:** Tailwind CSS + selectively adopted/owned shadcn/ui web primitives; custom React Native components using semantic tokens and native accessibility. Share tokens and contracts, not DOM components.
+- **Authentication:** managed OIDC/OAuth with PKCE and step-up MFA/passkeys after a security, minors' privacy and procurement evaluation; never invent authentication cryptography.
+- **Payments:** server-side Stripe SDK and hosted Checkout initially, conditional on geography and organizational approval, with signed webhooks, immutable ledger and reconciliation.
+- **Observability:** Pino structured redacted logs + OpenTelemetry, plus independent security audit trails.
+- **Testing:** Vitest for pure API/web tests; jest-expo and React Native Testing Library for native components; Playwright for browsers, Maestro for real mobile E2E; disposable PostgreSQL for integration/concurrency.
+- **Workspace:** pnpm workspaces + Turborepo, strict TypeScript, ESLint, Prettier, GitHub Actions and EAS Build.
+
+The stack is a **preferred baseline pending working proof-of-concept and legal/vendor review**. Pin compatible stable versions using lockfiles rather than hard-coding transient “latest” major versions. Avoid GraphQL, Redux alongside Zustand, separate display microservices, custom card handling and prematurely introducing Redis.
+
 
 ### 12.2 Logical architecture
 ~~~text
@@ -489,45 +497,38 @@ Do not hard-code transient "latest" framework versions. At project creation, pin
                          with retry + observability
 ~~~
 
-Each module owns its data access and domain rules. **UI → application service → domain policy → repository → DB**. No client imports Prisma. The API never depends on React components. The worker reuses application/domain contracts but not HTTP route handlers.
+Each module owns its data access and domain rules. **UI → application service → domain policy → repository → DB**. No client imports Drizzle or raw database adapters. The API never depends on React components. The worker reuses application/domain contracts but not HTTP route handlers.
 
-### 12.3 Monorepo layout (brand-new target)
+### 12.3 Monorepo layout (brand-new target, minimal deployment complexity)
 ~~~text
 /
 ├── document.md
 ├── apps/
-│   ├── mobile/                    # Expo Router
-│   │   └── src/{app,features,components,services,state,i18n,assets}
-│   ├── steward/                   # Next.js permissioned operator console
-│   │   └── src/{app,features,components,lib}
-│   ├── public/                    # Next.js public website + display mode
-│   └── storybook/                 # Component examples/test surfaces
+│   ├── mobile/               # Expo Router, native SILA design
+│   └── web/                  # ONE Next.js app: Public + Steward + Display
 ├── services/
-│   ├── api/                       # Fastify, domain modules, OpenAPI
-│   │   └── src/{bootstrap,modules,platform,policies}
-│   └── worker/                    # Outbox + jobs + reconciliation
+│   ├── api/                  # NestJS + Fastify, policy-bound domains
+│   └── worker/               # pg-boss jobs, outbox, reconciliation
 ├── packages/
-│   ├── contracts/                 # Versioned request/response schemas
-│   ├── design-tokens/             # Semantic cross-platform tokens
-│   ├── ui-native/                 # Reusable accessible RN primitives
-│   ├── ui-web/                    # Web component library
-│   ├── i18n/                      # Shared messages and locale formatters
-│   ├── test-kit/                  # Test factories, fixtures, simulators
-│   ├── config/                    # TS, lint, format and policy config
-│   └── shared/                    # Safe pure utilities ONLY
-├── infra/
-│   ├── deploy/                    # Environment definitions, IaC
-│   ├── monitors/                  # Alerts, SLOs, runbooks
-│   └── policies/                  # Data access + retention controls
-├── docs/
-│   ├── adr/                       # Architecture decisions
-│   ├── api/                       # Generated OpenAPI + examples
-│   ├── runbooks/                  # Incident, restore, deployment, keys
-│   ├── threat-model/              # Data flows, risks, mitigations
-│   └── design/                    # Tokens, accessibility, content style
+│   ├── database/             # Drizzle schema + reviewed SQL migrations
+│   ├── contracts/            # Zod schemas, generated OpenAPI client
+│   ├── design-tokens/        # Semantic tokens for both platforms
+│   ├── ui-native/            # Native-only accessible primitives
+│   ├── ui-web/               # Owned web primitives (shadcn adaptations)
+│   ├── i18n/                 # Arabic / English catalogs
+│   ├── shared/               # Pure cross-runtime code only
+│   └── config/               # Tooling and architecture boundaries
+├── tests/                    # Cross-system acceptance scenarios
+├── infra/                    # Deploy, secrets policy, monitoring, runbooks
+├── docs/{adr,security,api,design,runbooks}
 ├── .github/workflows/
-└── root package/lock/workspace configuration
+├── pnpm-workspace.yaml
+├── turbo.json
+└── package.json + pnpm-lock.yaml
 ~~~
+
+Create packages when there are multiple genuine consumers, not merely to make the folder tree elaborate. Client apps communicate with the single authenticated API; Next.js is a presentation/backend-for-frontend layer, not an alternative business write gateway.
+
 
 **Repository rules:** strict TypeScript; ESLint and consistent formatting; workspace-level dependency boundaries; conventional commits; code ownership for sensitive modules; protected mainline release branch when eventually introduced; no generated secrets, node_modules or platform credentials in Git. Keep the existing Git branch arrangement intact until expressly authorized to change it.
 
@@ -1532,4 +1533,249 @@ The program is finished **only** when a person can open it, understand it, trust
 **Engineering implementation status:** Not asserted; this file is a specification, not an implementation certificate.  
 **Repository action authorized by this request:** Replace only the content of root document.md on development. Do not delete code, create project files, change branches, deploy services or claim production completion solely from this document.
 
+
+---
+
+# PART VI — OFFICIALLY RESEARCHED LIBRARIES AND BUILD STANDARDS
+
+## 36. How to select the best libraries
+
+**Source review date:** 26 October 2026. Use official maintainer guidance, OWASP, W3C and reliable engineering references, not generic “top 10 libraries” marketing. This register is an implementation recommendation, not a certification or proof that dependencies are installed.
+
+Library-selection rubric (weights are proposed criteria, **not fabricated scores**):
+- **Security, privacy and correctness — 25%:** release vulnerability history, incident response, tenant safety, sensitive data impact.
+- **Expo/Next/Nest/Postgres compatibility — 20%:** supported React/RN/runtime versions, peer dependency matrix, actual device tests.
+- **Maintenance and stability — 20%:** recent releases, healthy maintainer base, licenses, upgrade guides, future replacement path.
+- **Team productivity and operational simplicity — 15%:** learnability, service count, documentation, reproducible builds.
+- **Accessibility and Arabic/RTL behavior — 10%:** true platform semantics and localized experiences.
+- **Performance and cost — 10%:** native app size, server load, latency, queue operations, bundle overhead.
+
+**Classification:** Adopt = required when implementing the corresponding feature; Conditional = do not install until needed; Vendor review = legal, financial, privacy or hosting decision; Avoid initially = redundant or overly complex.
+
+### 36.1 Nonnegotiable library hygiene
+1. A pull request that adds a library must state why the platform or existing stack cannot handle the requirement, the alternatives, license, active maintenance evidence, transitive dependency impact, security advisories, Expo/runtime compatibility, size impact and exit plan.
+2. Pin supported versions and a reproducible lockfile. Install native Expo dependencies via npx expo install; run npx expo install --check. Do not independently upgrade Expo, React, RN and Expo Router.
+3. Use a single primary ORM/migration system, one API validation source, one navigation system per app, one server-state cache and one primary localization catalog.
+4. Require working examples on actual iOS and Android builds for every nontrivial native dependency. Expo Go compatibility is not equivalent to a production native build.
+5. Prefer first-party Expo device APIs and standard Web APIs. Avoid duplicated wrappers, redundant state libraries, unmaintained UI packages and invasive telemetry.
+6. Test new security-sensitive SDKs against cross-tenant and revoked-user scenarios. Never assume a framework or ORM implements authorization for you.
+7. Review upgrades on a regular cadence with automated dependency PRs, a vulnerability scan, lockfile diff, compatibility tests and staged rollouts.
+8. External service agreements must cover data residency, children, retention, incident notification, deletion, cost and vendor exit.
+9. Keep authorization, payments and identity providers behind SILA-owned domain interfaces; never expose provider SDK objects directly to UI/domain models.
+10. Do not claim a framework is “certified secure” because its examples compile.
+
+---
+
+## 37. Definitive framework and library catalog
+
+### 37.1 Native application (Expo)
+
+| Library | Status | Exact use and boundary |
+| --- | --- | --- |
+| React Native + Expo + Expo Router | Adopt | One iOS/Android app with typed routes, deep links and platform navigation |
+| expo-localization | Adopt | Native locale/RTL configuration; validate SDK-specific LocaleProvider and I18nManager interactions |
+| i18next + react-i18next | Adopt | Shared EN/AR messages; use Intl for dates, currencies, pluralized numbers |
+| @tanstack/react-query | Adopt | Own API request/cache/mutation state, keyed by identity, tenant, venue and locale |
+| react-hook-form + @hookform/resolvers + zod | Adopt | Forms, validation messages and accessible error state |
+| expo-secure-store | Adopt | Small authentication tokens in OS-backed secure storage; never large school/private files |
+| react-native-safe-area-context | Adopt as required | Correct safe-area insets and platform boundaries |
+| expo-image | Conditional | Measured, optimized images with permissioned media URLs |
+| expo-location | Conditional | Explicit user-granted Qibla/venue-nearby lookup; no background tracking |
+| expo-notifications | Conditional | User-permitted push with generic protected payload; invalidate token on logout |
+| expo-haptics | Conditional | Light optional feedback; never the only state indicator |
+| react-native-reanimated and react-native-gesture-handler | Conditional | Only for complex gestures or custom transitions that truly require them |
+| lucide-react-native + react-native-svg | Conditional | One approved icon family; screen-reader labels and RTL directional mirroring |
+| zustand | Conditional | Shared ephemeral view state only; never duplicate TanStack Query server entities |
+| expo-web-browser / Expo-supported auth flow | Vendor review | OIDC PKCE and hosted checkout; browser return does not confirm payment |
+| expo-dev-client + EAS Build | Adopt for delivery | Native QA builds and signed distribution, not a substitute for device testing |
+
+**Avoid initially:** a heavyweight mobile UI kit selected solely for aesthetics, a second navigation package alongside Expo Router, web-tailwind semantics forced into RN, Firebase analytics by default, persistent child/care query caches, uncontrolled local copies of restricted files.
+
+**RTL-specific warning:** Expo's official localization documentation describes changes in SDK 58 and later. Determine the pinned version first; test dynamic language change, Router header/navigation direction, gestures, text alignment, bidi numbers, focus/read order and full-screen forms on native devices. Right-aligned text alone is not proper Arabic support.
+
+### 37.2 One Next.js web application
+
+| Library | Status | Exact use and boundary |
+| --- | --- | --- |
+| Next.js App Router + React | Adopt | Public SSR/SEO, separately authorized console route group and read-only display |
+| tailwindcss + semantic CSS variables | Adopt | Accessible SILA color/type/space tokens, not ad hoc visual overrides |
+| shadcn/ui source components | Adopt selectively | Accessible owned dialogs, tables, inputs and popovers; review/change underlying primitives carefully |
+| lucide-react | Adopt | Coherent web iconography and accessible affordances |
+| react-hook-form + @hookform/resolvers + zod | Adopt | Console forms, independent server validation remains mandatory |
+| @tanstack/react-table | Conditional | Dense, keyboard-accessible admin grids; pagination/filtering and access checks stay server-side |
+| @tanstack/react-query | Conditional | Highly interactive client-side data; avoid redundant use in Server Components |
+| recharts | Conditional | Approved, aggregate-only operational metrics, not donor/child visibility leakage |
+| @playwright/test | Adopt as QA | End-to-end browser user journeys, traces, screenshots and accessibility testing |
+| @axe-core/playwright | Adopt as QA | Basic automated accessibility checks; must complement human screen-reader/keyboard QA |
+
+**Avoid initially:** three independently deployed web apps, competing component kits, CSS-only role hiding, direct database reads bypassing SILA Core policies, excessive motion on finance forms, a full charting system before metrics are defined.
+
+### 37.3 API, database and worker
+
+| Library | Status | Exact use and boundary |
+| --- | --- | --- |
+| @nestjs/core, @nestjs/common, @nestjs/platform-fastify | Adopt | Domain-modular API with controlled request lifecycle and Fastify adapter |
+| zod | Adopt | Runtime input/output schemas and shared type inference |
+| Nest StandardSchemaValidationPipe | Adopt | Built-in schema validation; avoid a second class-validator DTO hierarchy |
+| @nestjs/swagger | Adopt | Generate OpenAPI; supported Zod schema conversion and generated type drift tests |
+| openapi-typescript | Adopt | Generated API client-side types from actual documented endpoints |
+| drizzle-orm + drizzle-kit + pg | Adopt after POC | PostgreSQL queries, transactions and committed reviewed SQL migrations |
+| pg-boss | Adopt after POC | Durable retries, scheduled jobs and worker leases backed by PostgreSQL |
+| pino / compatible Nest logger | Adopt | Structured privacy-redacted audit-safe operational logging |
+| @opentelemetry/api + @opentelemetry/sdk-node | Adopt | Correlated traces/metrics and SLO alerts with PII controls |
+| stripe | Vendor review | Hosted Checkout, raw signed webhooks, refunds, provider reconciliation |
+| jose | Conditional | OIDC signature/JWKS/issuer/audience verification if managed provider requires it |
+| @aws-sdk/client-s3 + @aws-sdk/s3-request-presigner | Conditional | Time-limited private downloads, scanned and access-scoped uploads |
+| file-type + malware scanning integration | Conditional | Upload real-content detection and quarantine, never MIME-only trust |
+| @nestjs/config + schema validation | Conditional | Typed startup configuration, fail closed on missing secrets |
+| @fastify/helmet and throttling plugins | Conditional | Compatible web hardening and WAF/edge complement |
+| date-fns / date-fns-tz + Intl | Conditional | Venue time zone rendering, DST/gap/fold tests, not invented worship decisions |
+| decimal.js | Conditional | Auditable fractional fee allocation, with integer persisted ledger minor units |
+
+**Boundaries:** Drizzle is not authorization. pg-boss is not proof of exactly-once external side effects: worker code must be idempotent. Nest with Fastify needs Fastify-compatible plugins, not blindly imported Express middleware. Zod input validation does not supersede domain policy. Generated OpenAPI does not prove the API matches production behavior without contract tests.
+
+### 37.4 Identity, messaging and external service decisions
+
+**Identity:** Choose ONE audited managed OIDC/OAuth provider after formal evaluation (for example Auth0/Okta Customer Identity, Clerk or an equivalently supported OIDC provider). Must support Expo native PKCE in a system browser, web HttpOnly cookie sessions, API token verification, MFA/passkeys and safe recovery, organization separation, auditing and data protection. SILA always owns its own OrganizationMembership/GuardianLink/CapabilityGrant policy. Do not pick a provider based on marketing speed alone.
+
+**Payments:** Initial evaluated integration is server-side Stripe SDK with hosted Checkout. Confirm local organization eligibility and fees. Signature-verification of raw webhook payload, duplicate/out-of-order handling, full and partial refunds, immutable receipts, balanced ledger, settlement reconciliation and maker/checker controls are required. Browser redirect NEVER means payment paid.
+
+**Email:** choose ONE reviewed transactional provider such as Resend or SES behind a notification adapter; verify sender domain and real delivery receipts. **Push:** expo-notifications with user consent and safe previews. **Files:** private S3-compatible store with malware scanning, encrypted objects and signed URLs. **Search:** begin with PostgreSQL indexes / pg_trgm and explicit Arabic normalization tests; only introduce a second search engine when measured recall or performance warrants it. **Analytics:** privacy-safe aggregate metrics, not session recording on care, child or treasury screens.
+
+### 37.5 Testing, build and supply-chain libraries
+
+| Tool | Status | Rule |
+| --- | --- | --- |
+| pnpm workspaces + Turborepo | Adopt | One lockfile and simple deterministic workspace task graph |
+| TypeScript strict + ESLint + Prettier | Adopt | Type-check boundaries, formatting, React hooks, no floating promises |
+| Vitest | Adopt | Pure domain/API/web unit tests and deterministic mocks |
+| jest-expo + Jest + @testing-library/react-native | Adopt | Native component tests with Expo-supported compatibility matrix |
+| Playwright | Adopt | Real browser journeys for public, steward, accessibility and auth |
+| Maestro | Adopt | Mobile iOS/Android binary E2E, no injected production app test SDK |
+| Disposable PostgreSQL integration database | Adopt | Migrations, concurrency, foreign keys, ledger and tenant-scope tests |
+| MSW | Conditional | Network mocks for UI, never replaces a real API and DB test |
+| OpenAPI contract validation | Adopt | Versioned generated client/schema compatibility in CI |
+| GitHub Actions | Adopt | Frozen install, lint, types, migrations, integration, E2E, builds, scanning |
+| GitHub CodeQL + dependency/secret scanning | Conditional to repository entitlement | Findings triaged under explicit security policy |
+| EAS Build / Submit | Adopt for release | Signed real device builds, staged rollout and store submission |
+| Renovate OR Dependabot | Adopt one | Reviewed vulnerability/security updates, not two competing bots |
+| Storybook | Conditional | Shared web primitive review only after meaningful component reuse exists |
+
+Do not use Jest and Vitest for the same test target: pure Node/web tests can use Vitest; native uses the Expo-recommended Jest preset. Do not add Cypress alongside Playwright, or Redis/BullMQ alongside pg-boss, without a documented architectural need.
+
+---
+
+## 38. Engineering rules based on established standards
+
+### 38.1 Security and privacy
+- **OWASP ASVS 5.0.0** is the web/API security requirement baseline; **OWASP MASVS** and **MASTG** guide mobile review. Controls need mapped tests and independent review, not claimed certification.
+- **W3C WCAG 2.2 AA** is the web accessibility target; analogous native testing includes VoiceOver/TalkBack, dynamic type, keyboard, motor access, reduced motion and real Arabic RTL.
+- **NIST SSDF** informs secure code reviews, supply-chain checks, incident handling and release provenance.
+- Every private request validates identity, current assurance, active organization membership, capability grant, target resource and field-level scope; deny by default.
+- No private student, care or donor information in unapproved third-party telemetry or lock-screen notification payloads.
+- No unmanaged encryption key in Git, raw token logging, anonymous file bucket, custom cryptography or unsafe provider SDK in client bundles.
+- Guardian/teacher links, role revocation and org switch must invalidate server authorization, cached data, future worker deliveries and signed file URLs.
+- Finance journals are append-only; no balance from checkout attempts; every provider movement is reconciled, with a distinct approver when required.
+
+### 38.2 Design implementation
+- Use one semantic token scale for color/space/type, accessible contrast and real keyboard focus. Native components follow iOS/Android conventions rather than imitating web UI.
+- Every control has real success/pending/failure/disabled/denied and retry states. No dead buttons, fabricated metrics or fake financial/prayer data.
+- Locale catalogs contain all user-facing copy, form errors, notifications and accessibility labels. Dates/currency use Intl with venue time zones and bidi isolation.
+- Validate large text, RTL navigation transitions, Arabic text shaping, dark mode and offline/stale data on actual devices.
+- No manipulative engagement streaks, unapproved religious predictions or gamified donation pressure.
+
+### 38.3 Testing and release
+- Every protected domain has negative cross-tenant authorization tests; each financial API has amount/currency/idempotency tests; each RSVP/check-in capacity flow has concurrency tests.
+- CI sequence: frozen lockfile install, lint/format, typecheck, unit, migration apply, database integration, OpenAPI contract checks, API negative tests, web build, native compatibility and E2E where appropriate, security/license scan.
+- Staging must run a real provider sandbox integration, backup restore and native device build. A TypeScript build alone is NOT production-readiness.
+- Use low-risk feature flags, scoped logs/request IDs and rollback drills; audit sensitive actions separately from diagnostic logs.
+- Require independent approval from education/safeguarding for minors, finance for ledger/payment, and security for auth/provider infrastructure.
+- Document operations and costs, do not deploy a service without backup, monitoring, owner and on-call escalation.
+
+---
+
+## 39. Explicit choices versus rejected shortcuts
+
+| Candidate / habit | Decision | Rationale |
+| --- | --- | --- |
+| Expo Router vs separate React Navigation trees | Expo Router | Official Expo recommendation and deep-link support |
+| Next.js public + console + display as separate apps | ONE Next.js web | Fewer deployables and one shared design system, but distinct secure route groups |
+| NestJS + Fastify vs Next-only backend | NestJS + Fastify | High-trust domain modules need explicit service boundaries |
+| Drizzle vs Prisma | Drizzle preferred after POC | Auditable SQL and versioned migration control; Prisma remains valid alternative if Drizzle fails |
+| Zod and class-validator simultaneously | Zod alone | Native Nest Standard Schema support can avoid duplicate validation definitions |
+| PostgreSQL pg-boss vs Redis/BullMQ | pg-boss first | Reduce operational services; validate real job semantics |
+| TanStack Query vs Redux for API data | TanStack Query | Cache/invalidation for server state; local React or optional Zustand for UI state |
+| Tailwind/shadcn vs a large generic admin theme | Tokenized Tailwind + owned primitives | Original design, accessible ownership, easier maintenance |
+| Shared React Native and DOM components | Shared tokens/contracts, separate components | Better true-native semantics and web accessibility |
+| Flutter | Not initial baseline | Strong alternative, but TypeScript/React alignment lowers SILA team maintenance |
+| GraphQL and microservices | Do not add initially | No validated need for added complexity and failure domains |
+| Custom auth/password crypto | Reject | High security risk in school/finance system |
+| Custom payment/card storage | Reject | Hosted regulated provider is safer |
+| Real-time location/analytics SDK by default | Reject | Privacy cost without demonstrated value |
+| UI mocks counted as finished features | Reject | Every feature needs real end-to-end API and verified domain state |
+
+---
+
+## 40. Mandatory compatibility proof-of-concept gates
+
+### POC 1 — Expo RTL / native UI
+Create a new Expo Router app with a stable pinned SDK and native development build; install selected Expo libraries with compatibility checks. Run iOS and Android builds. Demonstrate EN/AR language switch, RTL navigation/gestures, large text, VoiceOver/TalkBack, native secure token storage, universal deep link and measured startup time.
+
+### POC 2 — NestJS Zod OpenAPI contract
+Create one Fastify-backed NestJS module with StandardSchemaValidationPipe, Zod input and output, @nestjs/swagger OpenAPI generation, generated TypeScript client and browser/mobile use. Verify the chosen version combination and compare generated spec against live contract responses.
+
+### POC 3 — Drizzle / tenant / concurrency
+Migrate a disposable PostgreSQL database from committed SQL. Seed two organizations, two guardians and a teacher; reject cross-org student, invoice and donor access. Simulate concurrent last-seat booking and transaction retries, ensure DB uniqueness and rollback/replay safety.
+
+### POC 4 — Checkout / ledger / webhook
+Run signed Stripe sandbox webhook tests, including different event order, replay, partial and full refund, chargeback, processor fees, receipt, balanced journal and payout reconciliation. Never treat redirect as paid. Verify maker/checker separation.
+
+### POC 5 — Identity and operations
+Validate managed OIDC native PKCE and web cookie sessions, MFA, access revocation, refresh token replay, real device sign-out. Prove pg-boss enqueue-with-transaction, killed worker recovery, idempotent side effects and DLQ redrive. Produce a signed EAS test build, CI test artifacts and database restore evidence.
+
+**Approval rule:** Create ADRs recording compatibility and measured results before adding major modules. If a tool fails a POC, replace it rather than accumulating a second workaround framework.
+
+---
+
+## 41. Official primary-source references reviewed
+
+These sources guide library and standards choices; they do not imply installed or audited compliance. Recheck exact API/version support at implementation time.
+
+- Expo Router: https://docs.expo.dev/router/introduction/
+- Expo native library compatibility: https://docs.expo.dev/workflow/using-libraries/
+- Expo localization and RTL: https://docs.expo.dev/guides/localization/
+- Expo SecureStore: https://docs.expo.dev/versions/latest/sdk/securestore/
+- Expo Jest testing: https://docs.expo.dev/develop/unit-testing/
+- Expo EAS Build: https://docs.expo.dev/build/introduction/
+- NestJS Fastify adapter: https://docs.nestjs.com/techniques/performance
+- NestJS Standard Schema validation: https://docs.nestjs.com/application/validation
+- NestJS Swagger + Zod schema conversion: https://docs.nestjs.com/openapi/introduction
+- Next.js backend-for-frontend boundary: https://nextjs.org/docs/app/guides/backend-for-frontend
+- Drizzle versioned migration generation: https://orm.drizzle.team/docs/drizzle-kit-generate
+- Drizzle production migration application: https://orm.drizzle.team/docs/drizzle-kit-migrate
+- TanStack Query cache identity: https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
+- React Hook Form Zod integration: https://react-hook-form.com/integrations
+- shadcn/ui owned primitives: https://ui.shadcn.com/docs
+- pg-boss queue: https://github.com/timgit/pg-boss
+- Maestro native E2E: https://docs.maestro.dev/get-started/supported-platform/react-native
+- Playwright QA: https://playwright.dev/docs/best-practices
+- OpenTelemetry Node: https://opentelemetry.io/docs/languages/js/getting-started/nodejs/
+- Stripe API idempotency: https://docs.stripe.com/api/idempotent_requests
+- Stripe webhooks: https://docs.stripe.com/webhooks
+- OWASP ASVS: https://asvs.owasp.org/
+- OWASP MASVS: https://mas.owasp.org/MASVS/
+- W3C WCAG 2.2: https://www.w3.org/TR/WCAG22/
+- NIST SSDF: https://csrc.nist.gov/Projects/ssdf
+
+---
+
+## 42. Final tool-selection rule
+
+**For SILA, the recommended architecture is a small TypeScript monorepo, Expo/React Native mobile app, a single Next.js web app, one NestJS/Fastify modular API, PostgreSQL with Drizzle versioned SQL migrations, a pg-boss worker, shared typed contracts, and a carefully tested native/web design system.**
+
+Install a library only when it solves an accepted feature, passes license/security/RTL/compatibility review, and reduces lifetime complexity. The five proofs of concept and release gates must pass before calling this technology choice final.
+
+**This is researched specification, NOT implemented application code. No package installation, migration or deployment is implied by this documentation update.**
+
 **End of SILA product blueprint.**
+
