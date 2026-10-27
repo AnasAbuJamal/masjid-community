@@ -2,7 +2,7 @@
 ## The complete product, experience, architecture and delivery blueprint
 
 **Document:** document.md  
-**Edition:** 1.1 — researched frameworks, libraries and engineering standards, 26 October 2026  
+**Edition:** 1.2 — Apple HIG-informed interface rules and researched engineering, 26 October 2026  
 **Working product name:** **SILA** (Arabic: **صِلَة**, connection or a meaningful bond)  
 **Brand status:** Provisional. Name, domains, translations, trademarks and app-store availability require clearance before public use.  
 **Status:** **Future product specification, NOT implemented code, certification, deployment or a declaration of production readiness.**  
@@ -313,7 +313,7 @@ The aesthetic must be **modern, beautifully restrained, confident and human**, n
 
 ### 09.4 Space, geometry and motion
 - Spacing steps in density-independent points: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64.
-- Minimum touch target: plan for 48×48 dp on Android and comfortable iOS accessibility targets; visually small icons may have larger hit areas.
+- Minimum touch target: **44×44 pt actionable hit region on iOS** (Apple guidance); **48×48 dp on Android** (SILA target). A visible icon may be smaller, with adequate non-overlapping hit slop.
 - Corner radii: control 12, card 20, sheet 28, full-pill for a very small subset of actions. Avoid 30 different radii.
 - Shadows: subtle elevation, only when needed to distinguish layer. Stronger borders in dark/high-contrast mode.
 - Motion: 120–180 ms state transitions, 200–300 ms navigation/layer transitions where platform-appropriate. Prefer opacity/transform. Respect Reduce Motion; no bouncing donation confirmations.
@@ -1777,5 +1777,241 @@ Install a library only when it solves an accepted feature, passes license/securi
 
 **This is researched specification, NOT implemented application code. No package installation, migration or deployment is implied by this documentation update.**
 
+
+---
+
+# PART VII — APPLE HUMAN INTERFACE GUIDELINES–INSPIRED DESIGN RULES
+
+## 43. Apple's public design principles and SILA's own design charter
+
+**Research date: 26 October 2026.** This part is based on Apple's **public** Human Interface Guidelines (HIG), especially the design principles reintroduced on 8 June 2026. It does not claim access to Apple's internal confidential design rules, mean that Apple endorses SILA, or authorize reuse of Apple logos, proprietary interface assets, or fonts on unsupported platforms.
+
+**Primary source:** https://developer.apple.com/design/human-interface-guidelines/design-principles
+
+The HIG defines eight fundamental design principles:
+
+| Official Apple principle | Meaning | Mandatory SILA application |
+| --- | --- | --- |
+| **Purpose** | Make something meaningful | Today immediately answers the next verified prayer question. Don't lead with promos or decorative data. |
+| **Agency** | Let people do things their own way | Public worship without login, discoverable choices, back navigation, safe cancellation and draft recovery. |
+| **Responsibility** | Act in people's best interest | Transparency about data collection, protection of children and care cases, no misleading payment completion. |
+| **Familiarity** | Build on what people know | Understandable bottom tabs, predictable push/back/sheet patterns and recognizable control states. |
+| **Flexibility** | Adapt to diverse contexts | Arabic/English, RTL, VoiceOver, Dark Mode, dynamic type, reduced motion and multiple device sizes. |
+| **Simplicity** | Be clear and direct | Put important content first. One dominant action per decision area and no meaningless controls. |
+| **Craft** | Care about every detail | Accurate values, baseline alignment, smooth handling of failure, consistent tokens and high-quality writing. |
+| **Delight** | Make it human | Warm, restrained response to meaningful achievement, never religious scoring, pushy giving or animation overload. |
+
+**Decision priority:** safety and factual correctness → understandable purpose → native familiarity → accessible adaptability → consistent visual execution → polish. A beautiful interface that gives incorrect payment, prayer or guardian information fails design review.
+
+### 43.1 Source-of-truth hierarchy
+1. Apple's HIG is the reference for **iPhone/iPad interaction design**.
+2. Android official design guidance governs platform-specific Android behavior: https://developer.android.com/design.
+3. W3C WCAG 2.2 AA is the applicable web accessibility target: https://www.w3.org/TR/WCAG22/.
+4. SILA's original brand/design tokens make the app visually distinctive, without copying Apple's UI composition.
+5. Domain rules, ethical safeguards and verified sources override aesthetic preferences for worship, school, care and finance.
+
+Apple HIG is not a universal mandate for the separate Android and web interfaces. The **4-point grid, colors and animation timings in SILA are design choices**, not secret or official Apple standards.
+
+---
+
+## 44. Native iOS design rules and interaction patterns
+
+### 44.1 Navigation and hierarchy
+**Apple references:** https://developer.apple.com/design/human-interface-guidelines/tab-bars and https://developer.apple.com/design/human-interface-guidelines/designing-for-ios.
+
+- Bottom tabs represent **destinations**, not commands. SILA's starting destinations are Today, Gather, Learn, Care and You; validate readability and discoverability across small devices, Arabic and large text. Reduce tab count if user research demonstrates excessive complexity.
+- Tabs use clear one-word labels and accessible icons. Keep each destination consistently available; if unavailable, show an honest empty or permission state rather than hiding a tab unpredictably.
+- Preserve navigation context per tab. Use push navigation for deep content, sheets for temporary focused tasks and a full screen for complex enrollment, financial or privacy workflows.
+- Use native system back behavior, plus a clearly identifiable Back action. Respect swipe-back gestures, keyboard dismissal, focus restoration and safe area insets.
+- Do not stack tabs inside tabs or make essential controls appear only on hover. Search should be easy to find where relevant.
+- On tablet or wider layouts, adapt navigation rather than mechanically magnifying the phone bottom bar.
+- The separate Steward mode is clearly labeled and secured; staff actions are not hidden in a consumer tab icon.
+
+### 44.2 Buttons and touch accessibility
+**Apple references:** https://developer.apple.com/design/tips/ and https://developer.apple.com/design/human-interface-guidelines/buttons.
+
+- On iOS, **at least 44 by 44 points of actionable hit area**, not necessarily icon artwork size. On Android, SILA sets **48 by 48 dp** as its target. Prevent overlapping hit areas and overly crowded controls.
+- Choose one visually prominent primary action in a task context. Secondary options should be quieter, and destructive commands should be descriptive and confirm genuinely irreversible consequences.
+- All interactive controls have pressed, disabled, loading, failure, focus (where relevant) and actual success states. A tap animation is never proof the server accepted a reservation/payment.
+- Prefer standard platform pickers, text input, switches, sheets and system interactions when supported. Custom components must reproduce their accessibility, feedback and failure handling.
+- Use explicit, stable field labels; do not rely on placeholders. Present concise errors beside the field and as an accessible summary.
+
+### 44.3 Typography, legibility and type scaling
+**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/typography.
+
+- Use system-supplied text metrics/faces when appropriate for iOS and Android, with an appropriately licensed Arabic typeface and correct native shaping.
+- Respect Dynamic Type and bold-text accessibility preferences. SILA's 16-pt-equivalent default body text is an internal starting size, **not an official Apple mandated body size**.
+- Use type hierarchy consistently: screen title, section label, card/item title, body, helper text. Do not create new typography styles for every feature.
+- Prayer times, money values, due dates, emergency notices and form errors must wrap or reflow; never hide a critical digit behind ellipsis.
+- Arabic and mixed English-Arabic paragraphs need script-aware line height, direction and font optical balance; validate on native devices.
+
+### 44.4 Layout, insets and content priority
+**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/layout.
+
+- Use a semantic spacing scale (SILA's proposed 4, 8, 12, 16, 20, 24, 32, 40, 48, 64 pt/dp) with consistent margins. These values are **SILA-specific**, not Apple-required.
+- Keep the primary task within the first visible hierarchy whenever possible; group related elements through alignment and whitespace before adding extra card borders.
+- Respect notches, system status area, home indicator, keyboards, tab bar, different widths, rotated orientation and large Dynamic Type.
+- Place controls close to the content they affect. Make primary call-to-action comfortable to reach without obscuring information or forcing horizontal scroll.
+- Preserve aspect ratio of photographs and illustrations; use high-resolution, licensed and consented imagery only. Avoid stock-photo/fake-community imagery masquerading as reality.
+
+### 44.5 Color, Dark Mode and Liquid Glass
+**Apple references:** https://developer.apple.com/design/human-interface-guidelines/color, https://developer.apple.com/design/human-interface-guidelines/dark-mode, https://developer.apple.com/design/human-interface-guidelines/materials.
+
+- Use semantic color roles and variants for light, dark and increased contrast. Prefer following the operating system's appearance on iOS, and adapt when system preference changes.
+- Meet appropriate WCAG 2.2 contrast targets (generally ≥4.5:1 normal text, ≥3:1 large text, ≥3:1 for applicable non-text UI). Test all token combinations in real context.
+- Do not rely on color alone: pending, verified, error and canceled states also have icon/text and screen-reader semantics.
+- **Liquid Glass** is Apple's system material for certain **navigation and controls**, not a mandate to make every content card transparent. Apple's HIG recommends avoiding Liquid Glass in the content layer and applying effects sparingly.
+- Use platform-provided navigation materials only when actually supported by pinned Expo/native versions and accessibility settings. Do not emulate Apple's proprietary material with blanket CSS blur.
+- For prayer schedules, school reports, receipts and other high-importance text, prefer opaque stable surfaces and excellent outdoor readability.
+- Use brand accent selectively; a screen full of colored buttons destroys action hierarchy.
+
+### 44.6 Motion, haptics and feedback
+**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/motion.
+
+- Animate only to clarify state changes, spatial relationships and consequences. Prefer standard platform motions for push, sheet, tab and common controls.
+- Custom motions should be brief and cancellable where possible, and never block someone from acting until decorative animation finishes.
+- SILA's tentative timings are internal motion tokens, **not Apple's specified fixed millisecond durations**.
+- Respect Reduce Motion and Reduce Transparency. Important results must remain understandable without motion, haptics or color.
+- No looping visual effects, artificial donation celebration or animations implying payment confirmation before a signed provider event.
+- Haptics are optional supplementary feedback on real user outcomes; never the sole success/error communication.
+
+### 44.7 Alerts, confirmations and interruption
+**Apple references:** https://developer.apple.com/design/human-interface-guidelines/alerts and https://developer.apple.com/design/human-interface-guidelines/action-sheets.
+
+- Use alerts **sparingly**, chiefly for critical information requiring attention and unexpected irreversible consequences.
+- Use action/confirmation sheets for contextual choices that someone deliberately initiated, such as save draft / discard / continue editing.
+- Show normal successes inline or unobtrusively. Don't interrupt with alerts after every button press.
+- Prefer consequence-oriented labels such as Cancel reservation, Submit application, Request refund, Revoke access. Avoid ambiguous Yes and OK for important decisions.
+- Offer safe Cancel/back paths and retain input after recoverable network errors. Keep private data out of generic alerts.
+- Use accessible live status messages for processing, errors, conflicts and confirmations.
+
+### 44.8 Notifications and privacy
+**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/notifications.
+
+- Notifications must be genuinely useful, concise, relevant and appropriately opted in; avoid sending repeated reminders that create noise.
+- No confidential care details, child records, payment amounts or custody information in ordinary lock-screen notifications.
+- If the app is foregrounded, update visible in-app state rather than issuing unnecessary intrusive banners.
+- Deep links must recheck current identity, membership, role and record access before showing any private detail.
+
+### 44.9 Arabic: direction-aware, not mirrored blindly
+**Apple reference:** https://developer.apple.com/design/human-interface-guidelines/right-to-left.
+
+- Reverse reading-direction elements, ordered progress, Back/Forward icons and relevant layout arrangement for RTL.
+- **Never mirror** a logo, real-world north/east direction, map orientation, clock, photograph, universal mark or individual numeral sequence.
+- Numbers inside an invoice or phone number preserve digit order regardless of surrounding Arabic text. Use locale-appropriate numeric formatting and bidi isolation for email, URLs and currencies.
+- English paragraphs embedded in Arabic UI may follow their own language's paragraph alignment; shorter labels align with the control context.
+- Use accurate native RTL APIs for the **pinned Expo/RN SDK**, and test navigation gestures, tab order, page headings, typography, form fields and VoiceOver/TalkBack on real devices.
+- Every Arabic interface requires a human linguistic/visual review; auto-translated authoritative mosque notices remain unpublished until approved.
+
+---
+
+## 45. SILA-specific Apple-quality screen recipes
+
+### 45.1 Today / public worship
+**Primary job:** Show the next **published** prayer and venue reliably.
+
+Layout:
+1. Current verified mosque/venue selector in safe header; guest can browse without an account.
+2. Local date; high-contrast next prayer name and **approved** time with iqamah and last-published source.
+3. A discoverable All prayers shortcut and Directions (user-initiated location/map).
+4. Priority urgent closure/schedule notices; then upcoming gatherings.
+5. Consistent Today/Gather/Learn/Care/You navigation.
+
+**Do not invent a prayer time.** If absent, show Schedule not published, contact details and a retry; stale offline records must be marked with source timestamp. Use a single clear action at a time, not many competing colored cards.
+
+### 45.2 Gathering detail and RSVP
+Show title, verified date/time and venue, audience and accessibility information, capacity/waitlist status, host, cancellation terms, then a dominant **Reserve place** or **Join waitlist** action. After tap: pending state → confirmed/waitlisted from server. Duplicate/network retries are idempotent. Present canceled/full/expired states truthfully.
+
+### 45.3 Guardian enrollment
+Show program summary → relationship and data consent → minimum child details → review screen → Submit request. Preserve draft safely on interruption. Initial response is **Awaiting verification**, not Enrolled. Error focus moves to correct field. Children's details never leak to unauthorized teachers/other organizations.
+
+### 45.4 Contribution and tuition
+Show purpose, exact formatted amount/currency, frequency and cancel/refund terms, clear Continue securely action and provider identity. Hosted checkout return shows **Awaiting payment verification** until provider-signed webhook confirms. Receipt screen uses actual transaction state, not celebratory visual guesses.
+
+### 45.5 Steward approvals
+Desktop design is work-queue-centered rather than iPhone-tab-inspired. Clear title and urgency, understandable compare/diff, named approver, review reason, confirmation and audit. Finance maker/checker and safeguarding role restrictions are server-enforced, with distinct review/decision states.
+
+---
+
+## 46. Component and token acceptance contract
+
+These are SILA implementation starting values, **not claimed Apple mandated values**:
+
+| Attribute | SILA baseline | Verification |
+| --- | --- | --- |
+| iOS touch region | 44×44 pt minimum | Actual hit area and adjacent spacing |
+| Android touch region | 48×48 dp minimum | Actual hit area and TalkBack |
+| Spacing | 4-point rhythm, named tokens | Screenshots at multiple device sizes |
+| Body | ~16 pt/sp with native scale and Arabic adjustments | Large Dynamic Type, no truncation |
+| Screen title | ~30–36 adaptive, never fixed-clipped | Small-device and RTL screenshots |
+| Radius | 12 controls, ~20 cards, 24–28 sheets | Optical consistency and native sheets |
+| Contrast | Appropriate WCAG 2.2 AA targets | Token tests + human evaluation |
+| Light/Dark | Follow system by default, dynamic token variants | Live theme switching, readability |
+| RTL | Semantic mirroring; no photo/logo/digit reversal | Arabic real-device tests |
+| Interaction | Pressed, pending, disabled, failure, confirmed | Functional E2E test per control |
+| Motion | Meaningful, reduced-motion alternative | System accessibility settings |
+| Safe areas | Respect hardware/system inset | Keyboard, notch and tab overlap testing |
+| Content accuracy | No invented prayer, invoices or payment success | Authoritative API and stale states |
+
+**Token convention:** use semantic names such as color.text.primary, color.surface.base, color.action.primary, color.status.warning, space.section, radius.control, type.body, type.screen and motion.feedback. Never scatter arbitrary hex codes or offsets inside feature files.
+
+### 46.1 Every interactive element must be documented
+For each shared component record: purpose, states, role/semantic label, touch target, disabled/loading behavior, error and retry, native gesture/back behavior, light/dark/contrast, Dynamic Type, RTL, reduced motion, screenshot evidence and test IDs.
+
+Use **original** brand assets. Native iOS SF Symbols are subject to Apple's usage rules; never copy Apple proprietary fonts or assets into Android/web without an appropriate license and supported use.
+
+---
+
+## 47. Design review scorecard and nonnegotiable QA
+
+### 47.1 Evaluate the experience, not just screenshots
+Score 1–5 across: task clarity, information hierarchy, navigation familiarity, typographic legibility, spacing/alignment, visual restraint, input ergonomics, accessibility, Arabic correctness, feedback/recovery, privacy and accurate statuses. Averages never cancel high-severity privacy, safeguarding, payment, prayer or access problems.
+
+### 47.2 Required test matrix
+- iPhone with small and large display; modern iOS and real native build; iPad if supported.
+- Small/midrange Android and large Android with real native build.
+- English and Arabic; device RTL and in-app switching; mixed-language dates, numbers, currency.
+- Light, Dark, increased contrast, reduced transparency and reduced motion.
+- Accessibility font scaling 200% and above where supported; VoiceOver, TalkBack, keyboard and switch access.
+- Guest, member, guardian, teacher, volunteer, finance and steward.
+- Empty, loading, offline, stale, error, unauthorized, expired session, processing and completed.
+- Notch/home indicator, keyboard visible, landscape where supported, interrupted/resumed app.
+- Outdoor sunlight legibility and real-device press feedback.
+
+### 47.3 Mandatory sign-off checklist
+- [ ] The user can identify the primary task/action immediately.
+- [ ] Screen flow, tabs, Back behavior and sheets feel natural on that platform.
+- [ ] Every actionable target meets that platform's size/accessibility expectations.
+- [ ] Layout has clear hierarchy, spacing, stable alignment and no clipped data.
+- [ ] Readable system-scale text, Arabic shaping and appropriate dark/high-contrast colors.
+- [ ] Navigation and symbols mirror only when semantic, preserving physical direction.
+- [ ] VoiceOver/TalkBack, focus order, motion-reduction and keyboard are verified.
+- [ ] Feedback represents **real** saved server/payment state.
+- [ ] No private information in general notification, cached public screen or unauthorized modal.
+- [ ] Every control has meaningful loading/error/empty/denied/confirmation behavior.
+- [ ] Brand is original and does not imitate Apple intellectual property.
+- [ ] Product, accessibility and affected domain owner approve the complete flow.
+
+### 47.4 Official Apple documentation (primary references)
+- Design principles: https://developer.apple.com/design/human-interface-guidelines/design-principles
+- Full HIG: https://developer.apple.com/design/human-interface-guidelines/
+- Designing for iOS: https://developer.apple.com/design/human-interface-guidelines/designing-for-ios
+- Layout: https://developer.apple.com/design/human-interface-guidelines/layout
+- Tab bars: https://developer.apple.com/design/human-interface-guidelines/tab-bars
+- Buttons and touch size: https://developer.apple.com/design/human-interface-guidelines/buttons
+- Typography: https://developer.apple.com/design/human-interface-guidelines/typography
+- Color: https://developer.apple.com/design/human-interface-guidelines/color
+- Dark Mode: https://developer.apple.com/design/human-interface-guidelines/dark-mode
+- Materials / Liquid Glass: https://developer.apple.com/design/human-interface-guidelines/materials
+- Motion: https://developer.apple.com/design/human-interface-guidelines/motion
+- Right-to-left: https://developer.apple.com/design/human-interface-guidelines/right-to-left
+- Alerts: https://developer.apple.com/design/human-interface-guidelines/alerts
+- Action sheets: https://developer.apple.com/design/human-interface-guidelines/action-sheets
+- Notifications: https://developer.apple.com/design/human-interface-guidelines/notifications
+- Apple UI design tips: https://developer.apple.com/design/tips/
+
+This is a **public-guideline-informed product specification**, not a certification by Apple or a claim that application code is completed. Recheck the appropriate HIG version and Expo/native integration on the devices actually targeted for release.
+
 **End of SILA product blueprint.**
+
 
