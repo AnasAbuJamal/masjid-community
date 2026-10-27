@@ -26,7 +26,7 @@ function dateLabel(date: Date, timeZone: string) {
 }
 function eventTime(date: Date, timeZone: string) {
   return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium", timeStyle: "short", timeZone, timeZoneName: "short",
+    year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone, timeZoneName: "short",
   }).format(date);
 }
 function localClockLabel(date: string) {
