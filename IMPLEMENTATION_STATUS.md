@@ -85,3 +85,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Member profile/preferences, session revocation, bounded account data export and account-deletion request workflows.
 - Dedicated native account settings and restricted admin privacy review screen.
 - **Important:** requesting deletion does not erase records; legal retention and child-data safeguards still need formal implementation. Marketing integrations are not activated by saving opt-ins.
+
+### Twelfth implementation pass
+- Staff scheduling, check-in and completion of approved volunteer shifts, with a private member shift history.
+- Shift relationships and status are persisted and covered by the disposable PostgreSQL fixture.
+- Further work needed: shift capacity across multiple venues, check-in identity proof, recurring shifts and canceled-event reconciliation.

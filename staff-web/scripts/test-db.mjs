@@ -44,6 +44,10 @@ try{
  assert.equal(prefs.newsletterOptIn,true);
  const deleteRequest=await db.deletionRequest.create({data:{userId:member.id}});
  assert.equal(deleteRequest.status,"pending");
+ const opp=await db.volunteerOpportunity.create({data:{organizationId:org.id,title:"Community support",description:"Test volunteering",startsAt:new Date(Date.now()+86400000),capacity:5,published:true}});
+ const volunteerApp=await db.volunteerApplication.create({data:{opportunityId:opp.id,userId:member.id,status:"approved"}});
+ const shift=await db.volunteerShift.create({data:{opportunityId:opp.id,applicationId:volunteerApp.id,userId:member.id,startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000)}});
+ assert.equal(shift.status,"scheduled");
  const prayer=await db.prayerDay.create({data:{venueId:venue.id,localDate:"2026-10-26",fajr:"06:00",sunrise:"07:00",dhuhr:"12:30",asr:"15:30",maghrib:"18:00",isha:"19:00",published:false}});
  assert.equal(prayer.published,false);
  const event=await db.event.create({data:{organizationId:org.id,title:"Example gathering",description:"Fixture",location:"Here",startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000),capacity:1,status:"published"}});

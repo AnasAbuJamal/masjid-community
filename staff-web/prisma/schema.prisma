@@ -114,6 +114,7 @@ model User {
   preferences UserPreference?
   deletionRequests DeletionRequest[] @relation("DeletionSubject")
   reviewedDeletions DeletionRequest[] @relation("DeletionReviewer")
+  volunteerShifts VolunteerShift[]
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -350,6 +351,7 @@ model VolunteerOpportunity {
   filled Int @default(0)
   published Boolean @default(false)
   applications VolunteerApplication[]
+  shifts VolunteerShift[]
 }
 model VolunteerApplication {
   id String @id @default(cuid())
@@ -358,6 +360,7 @@ model VolunteerApplication {
   userId String
   user User @relation(fields:[userId],references:[id])
   status ApplicationStatus @default(submitted)
+  shifts VolunteerShift[]
   @@unique([opportunityId,userId])
 }
 model Proposal {
@@ -597,4 +600,26 @@ model DeletionRequest {
   reviewedAt DateTime?
   createdAt DateTime @default(now())
   @@index([userId,status])
+}
+
+enum ShiftStatus {
+  scheduled
+  completed
+  cancelled
+}
+model VolunteerShift {
+  id String @id @default(cuid())
+  applicationId String
+  application VolunteerApplication @relation(fields:[applicationId],references:[id])
+  opportunityId String
+  opportunity VolunteerOpportunity @relation(fields:[opportunityId],references:[id])
+  userId String
+  volunteer User @relation(fields:[userId],references:[id])
+  startAt DateTime
+  endAt DateTime
+  checkedInAt DateTime?
+  status ShiftStatus @default(scheduled)
+  createdAt DateTime @default(now())
+  @@index([userId,startAt,status])
+  @@index([opportunityId,startAt])
 }

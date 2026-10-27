@@ -26,7 +26,8 @@ export default function Profile(){
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
  <View style={S.section}><Text style={S.headline}>Your account</Text><PressRow icon="account-cog-outline" title="Settings & privacy" subtitle="Profile, communications, sessions and data" onPress={()=>router.push("/settings")}/>
  <PressRow icon="lock-reset" title="Account security" subtitle="Reset your password if needed" onPress={()=>router.push("/recover")}/><PressRow icon="lightbulb-outline" title="My community proposals" subtitle="View your submitted ideas" onPress={()=>router.push("/community/proposal")}/>
- <PressRow icon="bell-outline" title="Notifications" subtitle="Your private inbox" onPress={()=>router.push("/notifications")}/><PressRow icon="school-outline" title="School and family" subtitle="Only verified linked records" onPress={()=>router.push("/school")}/><PressRow icon="heart-outline" title="Explore giving" subtitle="Donate to published campaigns" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:"campaigns",id:"all"}})}/><Action label="Sign out securely" secondary icon="logout" onPress={()=>void logout()}/></View>
+ <PressRow icon="bell-outline" title="Notifications" subtitle="Your private inbox" onPress={()=>router.push("/notifications")}/><PressRow icon="hand-heart-outline" title="My volunteer shifts" subtitle="Your schedule and attendance status" onPress={()=>router.push("/volunteer/shifts")}/>
+ <PressRow icon="school-outline" title="School and family" subtitle="Only verified linked records" onPress={()=>router.push("/school")}/><PressRow icon="heart-outline" title="Explore giving" subtitle="Donate to published campaigns" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:"campaigns",id:"all"}})}/><Action label="Sign out securely" secondary icon="logout" onPress={()=>void logout()}/></View>
  </>}
  </Shell>;
 }
