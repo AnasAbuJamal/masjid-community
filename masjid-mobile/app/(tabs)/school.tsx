@@ -23,6 +23,7 @@ export default function School(){
  {user?.isVerified?<Card style={{gap:11}}><Text style={S.headline}>Assignments & progress</Text><Text style={S.muted}>See published assignments and reports only for your authorized classes or linked children.</Text><Action label="Open learning center" secondary icon="book-open-page-variant-outline" onPress={()=>router.push("/school/work")}/></Card>:null}
  {user?.isVerified?<Card style={{gap:11}}><Text style={S.headline}>Family tuition</Text><Text style={S.muted}>Review invoices issued to your approved guardian account.</Text><Action label="View my invoices" secondary icon="receipt-text-outline" onPress={()=>router.push("/school/invoices")}/></Card>:null}
  <View style={S.section}><Text style={S.headline}>Explore programs</Text><Feedback loading={catalog.loading} error={catalog.error} empty={!catalog.data?.items?.length} refresh={catalog.refresh}/>
- {catalog.data?.items?.map(p=><Card key={p.id}><Text style={S.label}>{p.title}</Text><Text style={[S.bodyText,{marginTop:8}]}>{p.description}</Text>{p.classes.map(c=><Text style={[S.muted,{marginTop:6}]} key={c.id}>{c.name} · {c.schedule}</Text>)}</Card>)}</View>
+ {catalog.data?.items?.map(p=><Card key={p.id}><Text style={S.label}>{p.title}</Text><Text style={[S.bodyText,{marginTop:8}]}>{p.description}</Text>{p.classes.map(c=><Text style={[S.muted,{marginTop:6}]} key={c.id}>{c.name} · {c.schedule}</Text>)}
+ <View style={{marginTop:13}}><Action label="Apply for this program" secondary icon="application-edit-outline" onPress={()=>router.push({pathname:"/school/apply/[programId]",params:{programId:p.id}})}/></View></Card>)}</View>
  </Shell>;
 }

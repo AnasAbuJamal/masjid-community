@@ -109,6 +109,8 @@ model User {
   submittedProposals Proposal[] @relation("ProposalSubmitter")
   expensesSubmitted FinanceExpense[] @relation("ExpenseSubmitter")
   expensesApproved FinanceExpense[] @relation("ExpenseApprover")
+  enrollmentApplications EnrollmentApplication[] @relation("ApplicationParent")
+  reviewedApplications EnrollmentApplication[] @relation("ApplicationReviewer")
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -207,6 +209,7 @@ model SchoolProgram {
   description String
   published Boolean @default(false)
   classes ClassSection[]
+  applications EnrollmentApplication[]
 }
 model ClassSection {
   id String @id @default(cuid())
@@ -234,6 +237,7 @@ model Student {
   invoices SchoolInvoice[]
   submissions StudentSubmission[]
   reports StudentReport[]
+  applications EnrollmentApplication[] @relation("ApplicationStudent")
 }
 model GuardianLink {
   id String @id @default(cuid())
@@ -542,4 +546,26 @@ model FinanceExpense {
   reviewedAt DateTime?
   createdAt DateTime @default(now())
   @@index([organizationId,status,createdAt])
+}
+
+model EnrollmentApplication {
+  id String @id @default(cuid())
+  organizationId String
+  programId String
+  program SchoolProgram @relation(fields:[programId],references:[id])
+  applicantUserId String
+  applicant User @relation("ApplicationParent",fields:[applicantUserId],references:[id])
+  studentFirstName String
+  studentLastName String
+  notes String?
+  status ApplicationStatus @default(submitted)
+  reviewedById String?
+  reviewer User? @relation("ApplicationReviewer",fields:[reviewedById],references:[id])
+  approvedStudentId String?
+  approvedStudent Student? @relation("ApplicationStudent",fields:[approvedStudentId],references:[id])
+  decisionReason String?
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  @@index([organizationId,status,createdAt])
+  @@index([applicantUserId,createdAt])
 }

@@ -31,7 +31,7 @@ export default function SchoolAdmin(){
   }catch(e){setError(e instanceof Error?e.message:"Save failed.");}
   finally{setBusy(false);}
  }
- return <><header className="masthead"><span className="brand"><span className="mark">✧</span>School operations</span><div className="actions"><a className="secondary" href="/admin/schoolwork">Teaching workspace</a><a className="secondary" href="/admin/invoices">School invoices</a><a className="secondary" href="/admin">Control center</a></div></header>
+ return <><header className="masthead"><span className="brand"><span className="mark">✧</span>School operations</span><div className="actions"><a className="secondary" href="/admin/enrollment">Review applications</a><a className="secondary" href="/admin/schoolwork">Teaching workspace</a><a className="secondary" href="/admin/invoices">School invoices</a><a className="secondary" href="/admin">Control center</a></div></header>
  <main className="container"><div className="hero"><p className="eyebrow">EDUCATION · PROTECTED RECORDS</p><h1>Every learner matters.</h1><p>Verified relationships, assigned teachers, and explicit class enrollment.</p></div>
  {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
  <div className="split section"><section className="panel"><h2>School operations</h2>

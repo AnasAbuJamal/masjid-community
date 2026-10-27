@@ -75,3 +75,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Restricted finance control center; published budget allocations appear in the public transparency API.
 - Financial allocations and expense records included in disposable PostgreSQL integration tests.
 - **Not a reconciled ledger**: accounting journal lines, receipts, provider settlements, expense attachments and refund workflows require further engineering and finance approval.
+
+### Tenth implementation pass
+- Verified guardians can submit program applications; admins approve or decline with documented relationship-verification confirmation.
+- Approval creates a private student profile and approved guardian relationship with a recorded decision and notification.
+- Class enrollment remains a separate administrative action; student accounts are never automatically activated by acceptance.

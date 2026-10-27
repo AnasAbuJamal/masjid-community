@@ -15,6 +15,9 @@ try{
  const teacher=await db.user.create({data:{email:"teacher-"+suffix+"@example.test",firstName:"Teacher",lastName:"Fixture",passwordHash:hashes,role:"teacher",verifiedAt:new Date()}});
  const admin=await db.user.create({data:{email:"admin-"+suffix+"@example.test",firstName:"Admin",lastName:"Fixture",passwordHash:hashes,role:"admin",verifiedAt:new Date()}});
  const program=await db.schoolProgram.create({data:{organizationId:org.id,title:"Reading Skills",description:"Integration only",published:true}});
+ const application=await db.enrollmentApplication.create({data:{organizationId:org.id,programId:program.id,applicantUserId:member.id,
+  studentFirstName:"Child",studentLastName:"Fixture"}});
+ assert.equal(application.status,"submitted");
  const klass=await db.classSection.create({data:{programId:program.id,name:"Class A",schedule:"Mondays",capacity:25}});
  const student=await db.student.create({data:{studentNumber:"CI-"+suffix,firstName:"Student",lastName:"Fixture"}});
  await db.teacherAssignment.create({data:{teacherId:teacher.id,classId:klass.id}});
