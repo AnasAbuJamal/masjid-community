@@ -65,7 +65,7 @@ export default function Details(){
    {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
    {kind==="campaigns"?<Action label="Choose a donation" icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
-    :["events","volunteers","proposals","jobs","rentals"].includes(kind)?<Action label={!user?"Sign in to participate":kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&item.waitlistEnabled?"Join event waitlist":"RSVP to event"):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} icon={iconName} onPress={()=>void perform()}/>
+    :["events","volunteers","proposals","jobs","rentals"].includes(kind)?<Action label={!user?"Sign in to participate":kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(item.waitlistEnabled?"Join event waitlist":"Event full — no waitlist"):"RSVP to event"):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled} icon={iconName} onPress={()=>void perform()}/>
     :null}
   </Card>:null}
  </Shell>;
