@@ -153,5 +153,20 @@ try{
  assert.equal(detail.previous.maghrib,"17:20");
  assert.equal(detail.published.maghrib,"17:25");
  assert.equal(detail.reason,"Mosque-approved correction of Maghrib time.");
+ const withdrawnDraft=await request("admin/prayer-revisions","POST",{
+  ...draft,asr:"15:20",correctionReason:"Mosque staff reviewed a later Asr time."
+ },admin.data.token);
+ assert.equal(withdrawnDraft.status,201);
+ assert.equal(withdrawnDraft.data.revision,3);
+ const withdrawn=await request("admin/prayer-revisions","POST",{action:"withdraw",id:withdrawnDraft.data.id},admin.data.token);
+ assert.equal(withdrawn.status,200);
+ const recreated=await request("admin/prayer-revisions","POST",{
+  ...draft,asr:"15:20",correctionReason:"After withdrawal, a revised draft was recorded."
+ },admin.data.token);
+ assert.equal(recreated.status,201,"withdrawn candidates do not permanently block replacement drafts");
+ assert.equal(recreated.data.revision,4,"candidate revision numbers are never reused");
+ const afterDraft=await request("public/prayers?venueId="+venue.id+"&date="+day);
+ assert.equal(afterDraft.data.days[0].asr,"15:15","unpublished replacements never leak");
+ assert.equal((await request("admin/prayer-revisions","POST",{action:"withdraw",id:recreated.data.id},admin.data.token)).status,200);
  console.log("Verified private prayer drafts, independent reviewer grants, audited revision history and idempotent publication.");
 }finally{await worshipDb.$disconnect();}
