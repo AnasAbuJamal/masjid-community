@@ -43,7 +43,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
   const venues = organization
     ? await db.venue.findMany({
         where: { organizationId: organization.id },
-        orderBy: { name: "asc" },
+        orderBy: { id: "asc" },
         take: 50,
         select: { id: true, name: true, address: true, timeZone: true },
       })
