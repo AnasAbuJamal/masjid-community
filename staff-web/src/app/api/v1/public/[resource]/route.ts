@@ -23,7 +23,7 @@ export async function GET(req:NextRequest,{params}:Context){
     const [prayer,announcements,events]=await Promise.all([
       venue&&today?db.prayerDay.findFirst({where:{venueId:venue.id,localDate:today,published:true}}):null,
       db.announcement.findMany({where:{organizationId:org.id,status:"published",publishedAt:{lte:new Date()}},orderBy:{publishedAt:"desc"},take:3,select:{id:true,title:true,body:true,kind:true,publishedAt:true}}),
-      db.event.findMany({where:{organizationId:org.id,status:"published",startAt:{gte:new Date()}},orderBy:{startAt:"asc"},take:3,select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true}})
+      db.event.findMany({where:{organizationId:org.id,status:"published",startAt:{gte:new Date()}},orderBy:{startAt:"asc"},take:3,select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true,waitlistEnabled:true}})
     ]);
     return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone,address:org.address},venue:venue&&{id:venue.id,name:venue.name,timeZone:venue.timeZone},prayer,announcements,events});
   }
@@ -45,7 +45,7 @@ export async function GET(req:NextRequest,{params}:Context){
   }
   const where={organizationId:org.id};
   const data=resource==="announcements" ? await db.announcement.findMany({where:{...where,status:"published",publishedAt:{lte:new Date()}},take:limit,orderBy:{publishedAt:"desc"},select:{id:true,title:true,body:true,kind:true,publishedAt:true}})
-   :resource==="events" ? await db.event.findMany({where:{...where,status:"published"},take:limit,orderBy:{startAt:"asc"},select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true}})
+   :resource==="events" ? await db.event.findMany({where:{...where,status:"published"},take:limit,orderBy:{startAt:"asc"},select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true,waitlistEnabled:true}})
    :resource==="programs" ? await db.schoolProgram.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,description:true,classes:{select:{id:true,name:true,schedule:true}}}})
    :resource==="campaigns" ? await db.donationCampaign.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,purpose:true,currency:true,goalMinor:true}})
    :resource==="volunteers" ? await db.volunteerOpportunity.findMany({where:{...where,published:true},take:limit,orderBy:{startsAt:"asc"},select:{id:true,title:true,description:true,startsAt:true,capacity:true,filled:true}})
