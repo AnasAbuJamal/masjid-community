@@ -19,6 +19,8 @@ assert.equal(privateAdmin.status,401);
 const prayer=await get("public/prayers?date=2026-10-26");
 assert.equal(prayer.status,200);
 assert.deepEqual(prayer.data.data.days,[],"unpublished adhan times are not public");
+const impossibleDate=await get("public/prayers?date=2026-02-30");
+assert.equal(impossibleDate.status,422,"invalid civil dates are rejected");
 console.log("Verified published-only search, date-confirmed faith notices, admin denial and unpublished worship privacy.");
 
 
