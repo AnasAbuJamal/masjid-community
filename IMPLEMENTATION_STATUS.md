@@ -151,3 +151,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - A separately authenticated bounded delivery worker leases pending items, sends only privacy-safe generic email text via the configured provider, and records failures and retry state.
 - Worker is **disabled by default** without strong `CRON_SECRET`, `RESEND_API_KEY`, sender domain and origin; no external emails are claimed delivered without provider success.
 - Still missing: configured scheduler, production sender domain, locked-down recipient preferences, push notification device registration/delivery, provider reconciliation, multi-tenant source scoping and full lifecycle/integration tests.
+
+### Twenty-third implementation pass: versioned database migration for clean installations
+- Generated and retained a SQL baseline for the complete current PostgreSQL/Prisma schema, with 56 tables.
+- CI now performs `prisma migrate deploy` against a fresh database, followed by `migrate status` and the full domain/API smoke suite, instead of using development `db push`.
+- **Critical scope:** this migration is for newly created databases only. Existing installations need audited migration planning/backfill and restore testing; staging/production database changes were not run.

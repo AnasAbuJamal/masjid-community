@@ -39,14 +39,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx prisma validate
       - run: npx prisma generate
-      - name: Generate reviewed bootstrap SQL
-        run: |
-          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/masjid-initial.sql
-          echo MASJID_BASELINE_SQL_BEGIN
-          base64 -w0 /tmp/masjid-initial.sql
-          echo
-          echo MASJID_BASELINE_SQL_END
-      - run: npx prisma db push
+      - run: npx prisma migrate deploy
+      - run: npx prisma migrate status
       - run: node scripts/test-db.mjs
       - run: npm run check
       - run: npm run build

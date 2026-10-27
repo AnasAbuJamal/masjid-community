@@ -16,7 +16,7 @@ Node.js 22+, PostgreSQL 16+.
 
 1. For disposable local database: \`docker compose up -d db\`.
 2. \`cd staff-web && npm install && cp .env.example .env.local\`. Replace AUTH_SECRET with a strong random secret. Set local-only DATABASE_URL.
-3. \`npx prisma validate && npx prisma db push\` **only against your isolated local development database**.
+3. \`npx prisma validate && npx prisma migrate deploy\` **only against a new, isolated local development database**.
 4. Provision a **local** organization/admin with \`ADMIN_EMAIL=you@local.test ADMIN_PASSWORD=<unique-password-of-16-or-more> node --env-file=.env.local scripts/bootstrap.mjs\`. This script refuses production/Vercel execution.
 5. \`npm run dev\` in staff-web, then open http://localhost:3000 and sign in.
 6. \`cd ../masjid-mobile && npm install && cp .env.example .env && npm start\`. Set EXPO_PUBLIC_API_URL to your API server origin. On a device use your computer's LAN IP, not localhost.
@@ -61,3 +61,6 @@ The mobile app provides an English/Arabic language selector in Account Settings.
 
 ## Transactional notifications
 The server persists a private in-app notification and an `OutboxEvent` in the same transaction for selected workflows. The bounded delivery worker is `GET /api/internal/notifications`, requiring `Authorization: Bearer <CRON_SECRET>` (minimum 32 characters). Configure `CRON_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, and `NEXT_PUBLIC_APP_URL` privately before scheduling it through your deployment's authenticated scheduler. The worker delivers generic subject/body text without child or financial details. **No scheduler, sending domain, or push service is connected in this repository.** The provider integration is not production-tested.
+
+## Database migration baseline
+A generated, versioned SQL baseline lives at `staff-web/prisma/migrations/20261027000000_initial/migration.sql` (56 tables). The CI pipeline installs an **empty** PostgreSQL instance using `npx prisma migrate deploy`, verifies migration status, then runs integration tests. **Never apply this empty-database baseline directly to an existing production database containing records**. Existing databases need a separately reviewed backfill, migration-history baseline, backup and restore rehearsal before any schema deployment.
