@@ -163,3 +163,14 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Generated and retained a SQL baseline for the complete current PostgreSQL/Prisma schema, with 56 tables.
 - CI now performs `prisma migrate deploy` against a fresh database, followed by `migrate status` and the full domain/API smoke suite, instead of using development `db push`.
 - **Critical scope:** this migration is for newly created databases only. Existing installations need audited migration planning/backfill and restore testing; staging/production database changes were not run.
+
+
+### Twenty-fifth implementation pass: single-branch consolidation and SILA venue context
+- Merged the public SILA website slice into the default `development` branch after the full GitHub CI suite passed. Its guest-facing `/visit` pages render only published, mosque-scoped prayer, announcements, confirmed faith dates, gatherings and learning content.
+- Closed the unapproved alternate planning PR rather than overwriting the authoritative `document.md`; verified that `development` is the repository's only branch after one-time cleanup.
+- Reorganized the native primary navigation to the five documented areas: Today, Gather, Learn, Care, You, while retaining access to Salah and its separate worship utilities.
+- Added a real Care entry point for volunteering, published donation campaigns, the member's approved shifts and published financial allocations; confidential care case intake remains unavailable and is explicitly described as such.
+- Added guest `public/venues`, scoped `public/home?venueId=...` and `public/prayers?venueId=...`, with missing/foreign venue IDs rejected on the server.
+- Added a persisted, publicly validated mobile venue selector for Today and Salah and request-version invalidation to prevent earlier venue responses appearing after selection changes. No GPS or location permission is required.
+- Added public integration coverage for venue listing, selected-home timing, invalid IDs and published-content filtering.
+- Release gates still open: comprehensive Arabic/RTL and accessibility device QA, correctly authorized production multi-tenancy, guardian/teacher and care safeguarding audit, payment provider reconciliation, full account recovery, migrations/backups, true end-to-end suites, and reviewed deployment secrets.
