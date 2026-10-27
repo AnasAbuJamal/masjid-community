@@ -37,6 +37,10 @@ npx expo install --check
 
 No real database migration or external deployment is attempted by the GitHub Actions workflow.
 
+## Guest website
+
+Open `/visit` for the public SILA experience, with published prayer schedules, approved faith notices, announcements, upcoming gatherings and learning programs. A venue picker appears if more than one venue is configured. Guests do not sign in or share location; the page displays clear missing-data states and provides public detail links. The original `/` route remains the staff sign-in portal, and `/kiosk` remains a read-only display. Public web pages do not yet support the full requested Arabic/RTL, accessibility testing or offline flows.
+
 ## API overview
 
 \`GET /api/v1/public/home\`, \`/prayers\`, \`/events\`, \`/announcements\`, \`/programs\`, \`/campaigns\`, \`/volunteers\`, \`/jobs\`, \`/proposals\`, \`/rentals\`; \`POST /api/v1/auth/register|login|logout|verify\`; \`GET /api/v1/auth/me\`, \`/api/v1/me\`, \`/api/v1/students\`; \`POST /api/v1/actions\`, \`/api/v1/admin\`, \`/api/v1/donations/checkout\`, \`/api/v1/webhooks/stripe\`; \`GET /api/health\`.
