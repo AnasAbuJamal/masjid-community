@@ -1,9 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<string,number>;construction:{id:string;title:string;status:string}[];venues:{id:string;name:string}[];prayers:{id:string;localDate:string;fajr:string;dhuhr:string;asr:string;maghrib:string;isha:string;published:boolean}[];announcements:{id:string;title:string;status:string}[];events:{id:string;title:string;status:string;startAt:string}[];applications:{id:string;status:string;opportunity:{title:string};user:{firstName:string;lastName:string}}[]};
-type Kind="prayer"|"announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental"|"article"|"construction"|"milestone";
+type Kind="announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental"|"article"|"construction"|"milestone";
 const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
- prayer:[{key:"localDate",label:"Schedule date",type:"date"},...["fajr","sunrise","dhuhr","asr","maghrib","isha","fajrIqamah","dhuhrIqamah","asrIqamah","maghribIqamah","ishaIqamah"].map(x=>({key:x,label:x.replace("Iqamah"," iqamah"),type:"time"}))],
  announcement:[{key:"title",label:"Headline"},{key:"body",label:"Announcement",type:"textarea"}],
  event:[{key:"title",label:"Event title"},{key:"description",label:"Details",type:"textarea"},{key:"location",label:"Location"},{key:"startAt",label:"Start",type:"datetime-local"},{key:"endAt",label:"End",type:"datetime-local"},{key:"capacity",label:"Capacity",type:"number"}],
  program:[{key:"title",label:"Program"},{key:"description",label:"Description",type:"textarea"}],
@@ -16,10 +15,10 @@ const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
  construction:[{key:"title",label:"Project title"},{key:"description",label:"Project description",type:"textarea"},{key:"goalMinor",label:"Goal (minor units)",type:"number"}],
  milestone:[{key:"projectId",label:"Construction project"},{key:"title",label:"Milestone title"},{key:"description",label:"Milestone details",type:"textarea"},{key:"completedAt",label:"Completion time (optional)",type:"datetime-local"}],
 };
-const names:Record<Kind,string>={prayer:"Salah schedule",announcement:"Announcement",event:"Event",program:"School program",campaign:"Giving campaign",volunteer:"Volunteer opportunity",job:"Job",proposal:"Proposal",rental:"Rental resource",article:"Article",construction:"Construction project",milestone:"Construction milestone"};
+const names:Record<Kind,string>={announcement:"Announcement",event:"Event",program:"School program",campaign:"Giving campaign",volunteer:"Volunteer opportunity",job:"Job",proposal:"Proposal",rental:"Rental resource",article:"Article",construction:"Construction project",milestone:"Construction milestone"};
 export default function Admin(){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
- const [kind,setKind]=useState<Kind>("prayer"),[form,setForm]=useState<Record<string,string>>({}),[published,setPublished]=useState(false),[busy,setBusy]=useState(false);
+ const [kind,setKind]=useState<Kind>("announcement"),[form,setForm]=useState<Record<string,string>>({}),[published,setPublished]=useState(false),[busy,setBusy]=useState(false);
  const reload=useCallback(async()=>{
   try{const res=await fetch("/api/v1/admin",{cache:"no-store"});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Admin access required.");setData(json.data);setError("");}
   catch(e){setError(e instanceof Error?e.message:"Unable to connect.");}
@@ -33,7 +32,6 @@ export default function Admin(){
   for(const key of ["capacity","goalMinor"])if(raw[key]!==undefined&&raw[key]!=="")raw[key]=Number(raw[key]);
   for(const key of ["startAt","endAt","startsAt","completedAt"])if(raw[key])raw[key]=new Date(String(raw[key])).toISOString();
   if(raw.capacity==="")delete raw.capacity;if(raw.goalMinor==="")delete raw.goalMinor;if(raw.completedAt==="")delete raw.completedAt;
-  if(kind==="prayer"){raw.venueId=data.venues[0]?.id;}
   try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(raw)});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");setNotice(names[kind]+" saved successfully.");setForm({});setPublished(false);await reload();}
   catch(e){setError(e instanceof Error?e.message:"Save failed.");}
   finally{setBusy(false);}
@@ -47,6 +45,7 @@ export default function Admin(){
  async function logout(){await fetch("/api/v1/auth/logout",{method:"POST"});window.location.assign("/");}
  return <><header className="masthead"><div className="brand"><span className="mark">✧</span><span>Masjid Community · Control center</span></div><div className="actions"><a className="secondary" href="/admin/team">Team & permissions</a><a className="secondary" href="/admin/school">School</a><a className="secondary" href="/admin/schoolwork">Teaching</a><a className="secondary" href="/admin/invoices">Tuition</a><a className="secondary" href="/admin/finance">Verified giving</a><a className="secondary" href="/admin/finance/manage">Finance controls</a><a className="secondary" href="/admin/refunds">Refund requests</a><a className="secondary" href="/admin/operations">Facility requests</a><a className="secondary" href="/admin/volunteers">Volunteer shifts</a><a className="secondary" href="/admin/jobs">Job applications</a><a className="secondary" href="/admin/worship">Worship calendar</a><a className="secondary" href="/admin/community">Community desk</a><a className="secondary" href="/admin/privacy">Privacy requests</a><a className="secondary" href="/kiosk">Public kiosk</a><button onClick={()=>void reload()} className="secondary">Refresh</button><button onClick={()=>void logout()} className="secondary">Sign out</button></div></header>
  <main className="container">
+  <div className="section panel"><h2>Verified prayer schedules</h2><p>Prayer times must be prepared as drafts, reviewed by another authorized steward, and published as a numbered revision. Direct edits are disabled.</p><a className="primary" href="/admin/prayer-revisions">Open prayer schedule review</a></div>
   <div className="hero"><p className="eyebrow">AZURE SANCTUARY / OPERATIONS</p><h1>Carefully run. Beautifully connected.</h1><p>{data?.organization?.name||"Your mosque"} · Real data and published content only.</p></div>
   {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
   {!data?<section className="panel">{error?"Check your account permissions and connection.":"Loading administrative data…"}</section>:<>
@@ -57,7 +56,7 @@ export default function Admin(){
      {data.role!=="admin"?<p className="notice">Your staff role is read-only in this workspace.</p>:<div className="form">
       {fields[kind].map(f=><div className="field" key={f.key}><label htmlFor={f.key}>{f.label}</label>{f.key==="projectId"?<select id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}><option value="">Select project</option>{data.construction.map(p=><option key={p.id} value={p.id}>{p.title} · {p.status}</option>)}</select>:f.type==="textarea"?<textarea id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>:<input id={f.key} type={f.type||"text"} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>}</div>)}
       <div className="field"><label><input type="checkbox" checked={published} onChange={e=>setPublished(e.target.checked)}/> Publish for community</label></div>
-      <button className="primary" onClick={()=>void submit()} disabled={busy||(kind==="prayer"&&!data.venues.length)}>{busy?"Saving…":"Save "+names[kind]}</button>
+      <button className="primary" onClick={()=>void submit()} disabled={busy}>{busy?"Saving…":"Save "+names[kind]}</button>
      </div>}
     </div>
     <div className="panel"><h2>Current operations</h2><p className="small">Schedules and review queues are sourced from your database.</p>
