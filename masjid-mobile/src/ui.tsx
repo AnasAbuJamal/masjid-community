@@ -16,7 +16,6 @@ export function Head({eyebrow,title,subtitle}:{eyebrow:string;title:string;subti
  return <View style={{gap:8,marginBottom:5}}><Text style={[S.overline,{textAlign:align}]}>{eyebrow.toUpperCase()}</Text>
  <Text style={[S.title,{textAlign:align}]}>{title}</Text>{subtitle?<Text style={[S.bodyText,{textAlign:align}]}>{subtitle}</Text>:null}</View>;
 }
-}
 export function Card({children,style}:{children:React.ReactNode;style?:StyleProp<ViewStyle>}){
  return <View style={[S.glass,style]}>{children}</View>;
 }
