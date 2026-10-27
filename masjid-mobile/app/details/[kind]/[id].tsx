@@ -6,7 +6,7 @@ import {S,T} from "../../../src/theme";
 import {useResource} from "../../../src/useResource";
 import {apiPost} from "../../../src/api";
 import {useSession} from "../../../src/session";
-type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number;filled?:number;publishedAt?:string;currency?:string};
+type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;filled?:number;publishedAt?:string;currency?:string};
 type Result={items:RecordItem[]};
 const categories:{[key:string]:{label:string;subtitle:string}}={
  events:{label:"Events",subtitle:"Discover upcoming gatherings."},
@@ -42,7 +42,7 @@ export default function Details(){
     :kind==="rentals"?{kind:"rental",resourceId:item.id,startAt:new Date(from).toISOString(),endAt:new Date(to).toISOString()}
     :null;
    if(!input)return;
-   const response=await apiPost<{message?:string}>("actions",input);
+   const response=await apiPost<{message?:string;status?:string}>("actions",input);
    setMessage(response.message||"Your request was received and saved.");
   }catch(e){setError(e instanceof Error?e.message:"Request unsuccessful.");}
   finally{setBusy(false);}
@@ -56,6 +56,8 @@ export default function Details(){
   :item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
    {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
    {item.startAt||item.startsAt?<Text style={S.muted}>Date: {new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
+   {kind==="events"&&item.capacity!==null&&item.capacity!==undefined?
+    <Text style={S.muted}>{item.rsvpCount??0} of {item.capacity} places confirmed · {item.waitlistEnabled?"Waitlist available if full":"No waitlist"}</Text>:null}
    {item.company?<Text style={S.muted}>Organization: {item.company}</Text>:null}
    {item.milestones?.length?<View style={{gap:12}}><Text style={S.headline}>Project milestones</Text>{item.milestones.map(m=><Card key={m.id} style={{gap:6}}><Text style={S.label}>{m.title}</Text><Text style={S.bodyText}>{m.description}</Text><Text style={S.muted}>{m.completedAt?"Completed "+new Date(m.completedAt).toLocaleDateString():"In progress"}</Text></Card>)}</View>:null}
    {kind==="jobs"?<Field label="Cover letter (minimum 10 characters)" value={letter} onChange={setLetter} multiline/>:null}
@@ -63,7 +65,7 @@ export default function Details(){
    {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
    {kind==="campaigns"?<Action label="Choose a donation" icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
-    :["events","volunteers","proposals","jobs","rentals"].includes(kind)?<Action label={!user?"Sign in to participate":kind==="events"?"RSVP to event":kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} icon={iconName} onPress={()=>void perform()}/>
+    :["events","volunteers","proposals","jobs","rentals"].includes(kind)?<Action label={!user?"Sign in to participate":kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&item.waitlistEnabled?"Join event waitlist":"RSVP to event"):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} icon={iconName} onPress={()=>void perform()}/>
     :null}
   </Card>:null}
  </Shell>;
