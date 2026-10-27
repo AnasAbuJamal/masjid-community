@@ -1,6 +1,6 @@
-# Masjid Community · Azure Sanctuary
+# Masjid Community
 
-This is a **new implementation from zero** guided by [document.md](document.md). The current repository has one branch, \`development\`.
+This repository contains an in-progress Next.js web/API and Expo mobile implementation. [document.md](document.md) is the complete app plan: product scope, roles and permissions, functional workflows, technical decisions, delivery priorities and acceptance criteria. Its current direction is to complete and improve the existing foundation through phased releases.
 
 ## What's here
 
