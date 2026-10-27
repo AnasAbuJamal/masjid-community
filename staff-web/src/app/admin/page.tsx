@@ -18,7 +18,7 @@ const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
 const names:Record<Kind,string>={announcement:"Announcement",event:"Event",program:"School program",campaign:"Giving campaign",volunteer:"Volunteer opportunity",job:"Job",proposal:"Proposal",rental:"Rental resource",article:"Article",construction:"Construction project",milestone:"Construction milestone"};
 export default function Admin(){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
- const [kind,setKind]=useState<Kind>("announcement"),[form,setForm]=useState<Record<string,string>>({}),[published,setPublished]=useState(false),[busy,setBusy]=useState(false);
+ const [kind,setKind]=useState<Kind>("announcement"),[form,setForm]=useState<Record<string,string>>({}),[published,setPublished]=useState(false),[waitlistEnabled,setWaitlistEnabled]=useState(false),[busy,setBusy]=useState(false);
  const reload=useCallback(async()=>{
   try{const res=await fetch("/api/v1/admin",{cache:"no-store"});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Admin access required.");setData(json.data);setError("");}
   catch(e){setError(e instanceof Error?e.message:"Unable to connect.");}
@@ -28,11 +28,11 @@ export default function Admin(){
  async function submit(){
   if(!data||busy||data.role!=="admin")return;
   setBusy(true);setError("");setNotice("");
-  const raw:Record<string,unknown>={kind,published,...form};
+  const raw:Record<string,unknown>={kind,published,...form,...(kind==="event"?{waitlistEnabled}:{})};
   for(const key of ["capacity","goalMinor"])if(raw[key]!==undefined&&raw[key]!=="")raw[key]=Number(raw[key]);
   for(const key of ["startAt","endAt","startsAt","completedAt"])if(raw[key])raw[key]=new Date(String(raw[key])).toISOString();
   if(raw.capacity==="")delete raw.capacity;if(raw.goalMinor==="")delete raw.goalMinor;if(raw.completedAt==="")delete raw.completedAt;
-  try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(raw)});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");setNotice(names[kind]+" saved successfully.");setForm({});setPublished(false);await reload();}
+  try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(raw)});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");setNotice(names[kind]+" saved successfully.");setForm({});setPublished(false);setWaitlistEnabled(false);await reload();}
   catch(e){setError(e instanceof Error?e.message:"Save failed.");}
   finally{setBusy(false);}
  }
@@ -52,9 +52,13 @@ export default function Admin(){
    <section className="grid" aria-label="Operating overview">{Object.entries(data.counts).map(([key,value])=><div className="tile" key={key}><p>{key.charAt(0).toUpperCase()+key.slice(1)}</p><strong>{value.toLocaleString()}</strong><p>Verified database records</p></div>)}</section>
    <section className="section split">
     <div className="panel"><h2>Create & publish</h2><p className="small">Items saved as drafts are not shown publicly.</p>
-     <div className="tabs" role="group" aria-label="Content type">{(Object.keys(names) as Kind[]).map(k=><button key={k} type="button" className={kind===k?"primary":"secondary"} onClick={()=>{setKind(k);setForm({});setPublished(false)}}>{names[k]}</button>)}</div>
+     <div className="tabs" role="group" aria-label="Content type">{(Object.keys(names) as Kind[]).map(k=><button key={k} type="button" className={kind===k?"primary":"secondary"} onClick={()=>{setKind(k);setForm({});setPublished(false);setWaitlistEnabled(false)}}>{names[k]}</button>)}</div>
      {data.role!=="admin"?<p className="notice">Your staff role is read-only in this workspace.</p>:<div className="form">
       {fields[kind].map(f=><div className="field" key={f.key}><label htmlFor={f.key}>{f.label}</label>{f.key==="projectId"?<select id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}><option value="">Select project</option>{data.construction.map(p=><option key={p.id} value={p.id}>{p.title} · {p.status}</option>)}</select>:f.type==="textarea"?<textarea id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>:<input id={f.key} type={f.type||"text"} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>}</div>)}
+      {kind==="event"?<div className="field"><label><input type="checkbox" checked={waitlistEnabled}
+       onChange={e=>setWaitlistEnabled(e.target.checked)}/> Allow a waitlist when confirmed places are full</label>
+       <p className="small">Waitlisted members are not confirmed. When a confirmed attendee cancels, the earliest waitlisted member gets that place.</p>
+      </div>:null}
       <div className="field"><label><input type="checkbox" checked={published} onChange={e=>setPublished(e.target.checked)}/> Publish for community</label></div>
       <button className="primary" onClick={()=>void submit()} disabled={busy}>{busy?"Saving…":"Save "+names[kind]}</button>
      </div>}
