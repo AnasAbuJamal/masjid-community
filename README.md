@@ -8,7 +8,7 @@ This is a **new implementation from zero** guided by [document.md](document.md).
 - \`masjid-mobile/\`: Expo 54 / React Native mobile app with Home, Salah, Discover, School and Profile, plus detail actions, registration/login, giving, prayer calendar and Qibla bearing.
 - \`tests/\`: early repository verification. The CI workflow checks Prisma, TypeScript and app build.
 
-**Important: this is an in-progress platform, not a completed production system.** Every real schedule and receipt comes from the database/provider; never fabricate data to fill blank screens. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) before deploying.
+**Important: this is an in-progress platform, not a completed production system.** Staging/production setup and database-change gates are documented in [docs/deployment-runbook.md](docs/deployment-runbook.md). Every real schedule and receipt comes from the database/provider; never fabricate data to fill blank screens. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) before deploying.
 
 ## Development
 
@@ -36,6 +36,10 @@ npx expo install --check
 \`\`\`
 
 No real database migration or external deployment is attempted by the GitHub Actions workflow.
+
+## Reviewed prayer publication
+
+Steward users with the `worship_publish` capability can visit `/admin/prayer-revisions` to create venue-specific private schedule drafts, submit for review by a different authorized person, approve and atomically publish numbered revisions. An additive `PrayerScheduleRevision` migration preserves candidate history and audit snapshots; public readers continue to see only the previous published `PrayerDay` until a reviewed revision is published. See `document.md` §20.1 and §20.4.
 
 ## Guest website
 
