@@ -84,6 +84,7 @@ model Venue {
   address String?
   timeZone String @default("America/New_York")
   prayerDays PrayerDay[]
+  prayerRevisions PrayerScheduleRevision[]
   jummahSessions JummahSession[]
   @@index([organizationId])
 }
@@ -177,6 +178,41 @@ model PrayerDay {
   @@unique([venueId,localDate])
   @@index([venueId,published,localDate])
 }
+
+// Immutable candidate values per venue/date and revision. An approved candidate
+// is copied atomically to PrayerDay when published. Readers never see drafts.
+model PrayerScheduleRevision {
+  id String @id @default(cuid())
+  venueId String
+  venue Venue @relation(fields:[venueId],references:[id])
+  localDate String
+  revision Int
+  baseRevision Int @default(0)
+  fajr String
+  sunrise String
+  dhuhr String
+  asr String
+  maghrib String
+  isha String
+  fajrIqamah String?
+  dhuhrIqamah String?
+  asrIqamah String?
+  maghribIqamah String?
+  ishaIqamah String?
+  source String
+  correctionReason String?
+  status String @default("draft")
+  authoredById String
+  approvedById String?
+  submittedAt DateTime?
+  approvedAt DateTime?
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([venueId,localDate,revision])
+  @@index([venueId,status,localDate])
+}
+
 model JummahSession {
   id String @id @default(cuid())
   venueId String
