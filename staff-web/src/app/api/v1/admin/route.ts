@@ -4,14 +4,9 @@ import { db } from "@/lib/db";
 import { requireVerified, audit } from "@/lib/auth";
 import { assertSameOrigin, handled, HttpError, jsonBody, ok } from "@/lib/http";
 
-const clock=z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/,"Time must be HH:mm.");
 const name=z.string().trim().min(3).max(150);
 const description=z.string().trim().min(10).max(4000);
 const schema=z.discriminatedUnion("kind",[
- z.object({kind:z.literal("prayer"),venueId:z.string().min(8),localDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  fajr:clock,sunrise:clock,dhuhr:clock,asr:clock,maghrib:clock,isha:clock,
-  fajrIqamah:clock.optional(),dhuhrIqamah:clock.optional(),asrIqamah:clock.optional(),maghribIqamah:clock.optional(),ishaIqamah:clock.optional(),
-  published:z.boolean().default(false)}),
  z.object({kind:z.literal("announcement"),title:name,body:description,urgent:z.boolean().default(false),published:z.boolean().default(false)}),
  z.object({kind:z.literal("event"),title:name,description,location:z.string().trim().min(3).max(200),startAt:z.iso.datetime(),endAt:z.iso.datetime(),capacity:z.number().int().positive().optional(),published:z.boolean().default(false)}),
  z.object({kind:z.literal("program"),title:name,description,published:z.boolean().default(false)}),
@@ -46,16 +41,14 @@ export async function POST(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
   const user=await requireVerified(req,["admin"]);
-  const input=schema.parse(await jsonBody(req));
+  const body=await jsonBody(req);
+  if(body&&typeof body==="object"&&!Array.isArray(body)&&("kind" in body)&&body.kind==="prayer")
+   throw new HttpError(409,"PRAYER_REVIEW_REQUIRED","Use the prayer review workflow. Direct schedule publication is disabled.");
+  const input=schema.parse(body);
   const org=await db.organization.findFirst();
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   let result:{id:string};
-  if(input.kind==="prayer"){
-    const venue=await db.venue.findFirst({where:{id:input.venueId,organizationId:org.id}});
-    if(!venue)throw new HttpError(404,"NOT_FOUND","Venue unavailable.");
-    const {kind,venueId,localDate,published,...times}=input;
-    result=await db.prayerDay.upsert({where:{venueId_localDate:{venueId,localDate}},update:{...times,published,publishedAt:published?new Date():null,revision:{increment:1}},create:{venueId,localDate,...times,published,publishedAt:published?new Date():null}});
-  }else if(input.kind==="announcement"){
+  if(input.kind==="announcement"){
     result=await db.announcement.create({data:{organizationId:org.id,title:input.title,body:input.body,kind:input.urgent?"urgent":"general",status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});
   }else if(input.kind==="event"){
     if(new Date(input.endAt)<=new Date(input.startAt))throw new HttpError(422,"INVALID_TIME","End date must be after start date.");
