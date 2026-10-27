@@ -5,20 +5,25 @@ import {Action,Card,Feedback,Head,PressRow,Shell} from "../../src/ui";
 import {useResource} from "../../src/useResource";
 import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
+import {useVenue} from "../../src/venue";
+import {VenuePicker} from "../../src/VenuePicker";
 type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;localDate:string;source:string};
-type Home={organization:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string}[]};
+type Home={organization:{id:string;name:string;timeZone:string}|null;venue:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string}[]};
 export default function HomeScreen(){
  const {t}=useLanguage();
- const {data,loading,error,refresh}=useResource<Home>("public/home");
+ const {venue,ready}=useVenue();
+ const path=ready?(venue?`public/home?venueId=${encodeURIComponent(venue.id)}`:"public/home"):null;
+ const {data,loading,error,refresh}=useResource<Home>(path);
  const prayers:[keyof Prayer,string][]=[["fajr","Fajr"],["dhuhr","Dhuhr"],["asr","Asr"],["maghrib","Maghrib"],["isha","Isha"]];
  const next=data?.prayer?prayers.find(([k])=>{const v=data.prayer?.[k]||"";if(!/^\d{2}:\d{2}$/.test(v))return false;
-  const tz=data.organization?.timeZone||"America/New_York";
+  const tz=data.venue?.timeZone||data.organization?.timeZone||"America/New_York";
   const clock=new Intl.DateTimeFormat("en-US",{hour:"2-digit",minute:"2-digit",hourCycle:"h23",timeZone:tz}).format(new Date());
   return v>clock;
  }):null;
  return <Shell>
   <Head eyebrow={t("home.eyebrow")} title={t("home.title")} subtitle={t("home.subtitle")}/>
-  <Feedback loading={loading} error={error} empty={!data?.organization} refresh={refresh}/>
+  <Feedback loading={loading||!ready} error={error} empty={ready&&!data?.organization} refresh={refresh}/>
+  <VenuePicker/>
   {data?.organization?<Card style={{padding:0,overflow:"hidden"}}>
    <View style={{backgroundColor:T.deep,padding:25,gap:12}}>
     <Text style={{color:"#CFEAFE",fontSize:12,letterSpacing:1.7,fontWeight:"800"}}>{t("home.today")} · {data.organization.name}</Text>
