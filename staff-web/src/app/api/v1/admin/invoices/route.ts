@@ -9,7 +9,8 @@ const issue=z.object({studentId:z.string().min(8),payerGuardianId:z.string().min
 export async function GET(req:NextRequest){
  return handled(async()=>{
   await requireVerified(req,["admin","finance"]);
-  const invoices=await db.schoolInvoice.findMany({take:100,orderBy:{createdAt:"desc"},
+  const org=await db.organization.findFirst();
+  const invoices=await db.schoolInvoice.findMany({where:{organizationId:org?.id||"no_organization"},take:100,orderBy:{createdAt:"desc"},
    select:{id:true,description:true,amountMinor:true,currency:true,status:true,dueAt:true,createdAt:true,payerGuardianId:true,
      student:{select:{id:true,firstName:true,lastName:true,studentNumber:true}}}});
   return ok({invoices,scope:"Latest 100 invoices; internal records, not bank balances."});
@@ -23,8 +24,12 @@ export async function POST(req:NextRequest){
   const link=await db.guardianLink.findUnique({where:{guardianId_studentId:{guardianId:v.payerGuardianId,studentId:v.studentId}}});
   if(!link?.approvedAt||link.revokedAt)throw new HttpError(403,"GUARDIAN_NOT_LINKED","Choose an approved, active guardian for this student.");
   if(new Date(v.dueAt)<=new Date())throw new HttpError(422,"DUE_DATE","Due date must be in the future.");
+  const org=await db.organization.findFirst();
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization is not configured.");
+  const student=await db.student.findUnique({where:{id:v.studentId},include:{enrollments:{include:{classSection:{include:{program:true}}}}}});
+  if(!student?.enrollments.some(e=>e.classSection.program.organizationId===org.id))throw new HttpError(403,"WRONG_ORGANIZATION","Student is not enrolled in this organization's school.");
   const item=await db.schoolInvoice.create({data:{
-   studentId:v.studentId,payerGuardianId:v.payerGuardianId,description:v.description,
+   organizationId:org.id,studentId:v.studentId,payerGuardianId:v.payerGuardianId,description:v.description,
    amountMinor:v.amountMinor,currency:"usd",dueAt:new Date(v.dueAt)
   }});
   await audit(admin.id,"invoice.issue","SchoolInvoice",item.id);

@@ -49,3 +49,6 @@ Before any real use: rotate previously exposed historical credentials; reconcile
 
 ## Privileged sign-in (admin/finance)
 Admin and finance accounts must enroll and verify time-based one-time codes before accessing privileged APIs. Configure `MFA_ENCRYPTION_KEY` as **32 random bytes encoded in 64 hexadecimal characters**, stored in the deployment secret manager; never use the CI example in production. First privileged sign-in routes to `/mfa`; re-enter your password, store the displayed secret in a TOTP authenticator, then enter a fresh six-digit code. Subsequent sign-ins require a code. Losing the encryption key makes existing authenticator secrets unrecoverable; implement documented key custody, backup and rotation before release.
+
+## Financial integrity
+Only **signed** payment provider callbacks may mark a donation or tuition invoice paid. A paid charge creates a receipt and a balanced provider-clearing/revenue journal; a verified full refund reverses that journal while retaining a marked receipt. The CI suite signs synthetic Stripe webhook payloads using an isolated test secret; this is **not** the same as end-to-end validation against a real configured Stripe account. Do not treat the current financial screens as a certified/reconciled accounting system.

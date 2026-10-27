@@ -5,7 +5,7 @@ import {Action,Card,Feedback,Head,Shell} from "../../src/ui";
 import {useResource} from "../../src/useResource";
 import {apiPost} from "../../src/api";
 import {S,T} from "../../src/theme";
-type Invoice={id:string;description:string;amountMinor:number;currency:string;status:string;dueAt:string;student:{firstName:string;lastName:string}};
+type Invoice={id:string;description:string;amountMinor:number;currency:string;status:string;dueAt:string;student:{firstName:string;lastName:string};receipt:{id:string;receiptNumber:string}|null};
 export default function FamilyInvoices(){
  const data=useResource<{invoices:Invoice[]}>("invoices");
  const [busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState("");
@@ -27,6 +27,7 @@ export default function FamilyInvoices(){
   <Text style={S.value}>{(row.amountMinor/100).toLocaleString("en-US",{style:"currency",currency:row.currency.toUpperCase()})}</Text>
   <Text style={{color:row.status==="paid"?T.success:T.muted,fontWeight:"800"}}>{row.status.toUpperCase()}</Text>
   {row.status==="pending"?<Action label="Secure tuition checkout" loading={busy===row.id} onPress={()=>void pay(row.id)}/>:null}
+  {row.receipt?<Action label={"View receipt "+row.receipt.receiptNumber} secondary onPress={()=>router.push({pathname:"/receipt/[id]",params:{id:row.receipt!.id}})}/>:null}
  </Card>)}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
  {notice?<Text style={{color:T.success}}>{notice}</Text>:null}

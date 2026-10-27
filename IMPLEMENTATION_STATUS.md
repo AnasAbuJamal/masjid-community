@@ -102,3 +102,10 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Added web/native MFA setup and verification screens.
 - CI tests the **actual HTTP** privileged gate, enrollment, wrong code, replay prevention and member denial against a disposable Postgres database.
 - Operational blockers remain: production secret provisioning, account recovery/break-glass policy, privileged TOTP recovery, penetration testing, hardware-key/passkey options and authorization audits.
+
+### Fifteenth implementation pass: verified payment receipts and balanced accounting entries
+- Signed Stripe Checkout events now post a private payment receipt and a two-line balanced clearing/revenue journal transactionally for donations and school tuition.
+- Persist the provider payment intent ID; fully refunded charges produce a reversing journal and retain the receipt as refunded. Partial refunds **do not** pretend to be fully refunded.
+- Added private member/guardian receipt API and native viewing screens.
+- Synthetic signed provider events exercise amount mismatch, signature rejection, exact/different replay IDs, both payment types, privacy, full reversal and partial-refund behavior in CI.
+- **Remaining:** real provider test-mode end-to-end runs, formal refund approvals, partial-refund ledger postings, settlement reconciliation, receipt PDF/legal wording, provider failure retries and migration rehearsal.

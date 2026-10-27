@@ -10,7 +10,7 @@ export async function GET(req:NextRequest){
   const invoices=studentIds.length?await db.schoolInvoice.findMany({
    where:{studentId:{in:studentIds},payerGuardianId:actor.id},
    select:{id:true,studentId:true,description:true,amountMinor:true,currency:true,status:true,dueAt:true,paidAt:true,
-    student:{select:{firstName:true,lastName:true}}},
+    student:{select:{firstName:true,lastName:true}},receipt:{select:{id:true,receiptNumber:true,issuedAt:true,reversedAt:true}}},
    orderBy:{createdAt:"desc"},take:100
   }):[];
   return ok({invoices});

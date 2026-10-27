@@ -69,6 +69,9 @@ model Organization {
   constructionProjects ConstructionProject[]
   budgets FinanceBudget[]
   expenses FinanceExpense[]
+  invoices SchoolInvoice[]
+  ledgerAccounts LedgerAccount[]
+  journals JournalEntry[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -303,6 +306,10 @@ enum InvoiceStatus {
 }
 model SchoolInvoice {
   id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  receipt PaymentReceipt? @relation("InvoiceReceipt")
+  paymentIntentId String? @unique
   studentId String
   student Student @relation(fields:[studentId],references:[id])
   payerGuardianId String
@@ -330,6 +337,8 @@ model DonationCampaign {
 }
 model Donation {
   id String @id @default(cuid())
+  receipt PaymentReceipt? @relation("DonationReceipt")
+  paymentIntentId String? @unique
   campaignId String
   campaign DonationCampaign @relation(fields:[campaignId],references:[id])
   donorId String
@@ -669,4 +678,50 @@ model ConstructionMilestone {
   publishedAt DateTime?
   createdAt DateTime @default(now())
   @@index([projectId,status,createdAt])
+}
+
+model PaymentReceipt {
+  id String @id @default(cuid())
+  receiptNumber String @unique
+  sourceType String
+  sourceId String
+  donationId String? @unique
+  donation Donation? @relation("DonationReceipt",fields:[donationId],references:[id])
+  invoiceId String? @unique
+  invoice SchoolInvoice? @relation("InvoiceReceipt",fields:[invoiceId],references:[id])
+  amountMinor Int
+  currency String
+  issuedAt DateTime @default(now())
+  reversedAt DateTime?
+  @@unique([sourceType,sourceId])
+}
+model LedgerAccount {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  code String
+  name String
+  currency String
+  lines JournalLine[]
+  @@unique([organizationId,code,currency])
+}
+model JournalEntry {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  sourceType String
+  sourceId String
+  postedAt DateTime @default(now())
+  lines JournalLine[]
+  @@unique([sourceType,sourceId])
+  @@index([organizationId,postedAt])
+}
+model JournalLine {
+  id String @id @default(cuid())
+  entryId String
+  entry JournalEntry @relation(fields:[entryId],references:[id])
+  accountId String
+  account LedgerAccount @relation(fields:[accountId],references:[id])
+  debitMinor Int @default(0)
+  creditMinor Int @default(0)
 }

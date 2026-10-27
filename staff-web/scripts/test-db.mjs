@@ -34,7 +34,7 @@ try{
  assert.equal(submission.studentId,student.id);
  const report=await db.studentReport.create({data:{classId:klass.id,teacherId:teacher.id,studentId:student.id,summary:"Learning well in class.",status:"published",publishedAt:new Date()}});
  assert.equal(report.status,"published");
- const invoice=await db.schoolInvoice.create({data:{studentId:student.id,payerGuardianId:member.id,description:"Tuition test",amountMinor:2700,dueAt:new Date(Date.now()+86400000)}});
+ const invoice=await db.schoolInvoice.create({data:{organizationId:org.id,studentId:student.id,payerGuardianId:member.id,description:"Tuition test",amountMinor:2700,dueAt:new Date(Date.now()+86400000)}});
  assert.equal(invoice.amountMinor,2700);
  const budget=await db.financeBudget.create({data:{organizationId:org.id,category:"Community",periodMonth:"2026-10",amountMinor:50000,published:true}});
  assert.equal(budget.amountMinor,50000);
