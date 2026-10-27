@@ -41,6 +41,10 @@ No real database migration or external deployment is attempted by the GitHub Act
 
 Open `/visit` for the public SILA experience, with published prayer schedules, approved faith notices, announcements, upcoming gatherings and learning programs. A venue picker appears if more than one venue is configured. Guests do not sign in or share location; the page displays clear missing-data states and provides public detail links. The original `/` route remains the staff sign-in portal, and `/kiosk` remains a read-only display. Public web pages do not yet support the full requested Arabic/RTL, accessibility testing or offline flows.
 
+## Public venue selection
+
+Guests may request `GET /api/v1/public/venues` for the active mosque's published venue metadata, without using device location. `/api/v1/public/home?venueId=...` and `/api/v1/public/prayers?venueId=...` accept only venue IDs associated with the configured mosque and return 404 for invalid IDs. In the native app the selected venue ID is stored locally, checked against the current server list and shared by Today and Salah. Network responses from a previously selected venue are ignored after a switch. The app still assumes one operational mosque; this is **not** an audited multi-tenant identity context.
+
 ## API overview
 
 \`GET /api/v1/public/home\`, \`/prayers\`, \`/events\`, \`/announcements\`, \`/programs\`, \`/campaigns\`, \`/volunteers\`, \`/jobs\`, \`/proposals\`, \`/rentals\`; \`POST /api/v1/auth/register|login|logout|verify\`; \`GET /api/v1/auth/me\`, \`/api/v1/me\`, \`/api/v1/students\`; \`POST /api/v1/actions\`, \`/api/v1/admin\`, \`/api/v1/donations/checkout\`, \`/api/v1/webhooks/stripe\`; \`GET /api/health\`.
