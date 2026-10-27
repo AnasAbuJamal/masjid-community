@@ -2,6 +2,8 @@ name: Verify rebuilt apps
 on:
   push:
     branches: [development]
+  pull_request:
+    branches: [development]
   workflow_dispatch:
 permissions:
   contents: read
