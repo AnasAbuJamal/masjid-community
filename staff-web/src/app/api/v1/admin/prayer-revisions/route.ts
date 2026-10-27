@@ -18,10 +18,6 @@ const create=z.object({
  fajrIqamah:optionalClock,dhuhrIqamah:optionalClock,asrIqamah:optionalClock,
  maghribIqamah:optionalClock,ishaIqamah:optionalClock
 });
-const transition=z.object({
- action:z.enum(["submit","approve","publish","withdraw"]),
- id:z.string().min(8)
-});
 const command=z.discriminatedUnion("action",[
  create,
  z.object({action:z.literal("submit"),id:z.string().min(8)}),
@@ -103,13 +99,21 @@ export async function POST(req:NextRequest){
    if(!venue)throw new HttpError(404,"VENUE_NOT_FOUND","Venue is not part of this mosque.");
    const current=await db.prayerDay.findUnique({where:{venueId_localDate:{venueId:venue.id,localDate:input.localDate}}});
    const baseRevision=current?.published?current.revision:0;
+   const [active,latest]=await Promise.all([
+    db.prayerScheduleRevision.findFirst({where:{venueId:venue.id,localDate:input.localDate,
+     status:{in:["draft","pending","approved"]}}}),
+    db.prayerScheduleRevision.findFirst({where:{venueId:venue.id,localDate:input.localDate},
+     orderBy:{revision:"desc"},select:{revision:true}})
+   ]);
+   if(active)conflict("Finish or withdraw the existing candidate before drafting another.");
+   const nextRevision=Math.max(baseRevision+1,(latest?.revision||0)+1);
    const isPast=input.localDate<localDate(new Date(),venue.timeZone);
    if((baseRevision>0||isPast)&&(!input.correctionReason||input.correctionReason.length<10))
     throw new HttpError(422,"CORRECTION_REASON","Provide a reason of at least 10 characters for an existing or past schedule.");
    try{
     const result=await db.$transaction(async tx=>{
      const item=await tx.prayerScheduleRevision.create({data:{
-      venueId:venue.id,localDate:input.localDate,baseRevision,revision:baseRevision+1,
+      venueId:venue.id,localDate:input.localDate,baseRevision,revision:nextRevision,
       ...fields(input),correctionReason:input.correctionReason||null,authoredById:user.id
      }});
      await tx.auditEvent.create({data:{actorId:user.id,action:"worship.prayer.draft",entity:"PrayerScheduleRevision",
