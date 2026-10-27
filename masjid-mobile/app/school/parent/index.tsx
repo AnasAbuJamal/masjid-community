@@ -1,200 +1,218 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  RefreshControl, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, FloatingIcon } from '../../../components/common';
+import { ScreenWrapper } from '../../../components/common';
+import api from '../../../services/api-client';
+import { useAuthStore } from '../../../stores/authStore';
 import { COLORS, SPACING, RADIUS } from '../../../constants/theme';
 
 interface Child {
-  id: string;
-  firstName: string;
-  lastName: string;
-  gradeLevel: string;
-  avatar?: string;
-  attendance: { present: number; total: number };
-  averageGrade: number;
+  id: string; name: string; className: string; instructor: string; schedule: string;
+  assignments: { id: string; status: string; rating: string }[];
+  reports: { id: string; title: string }[];
 }
-
-interface Payment {
-  id: string;
-  description: string;
-  amount: number;
-  status: 'pending' | 'paid' | 'overdue';
-  dueDate: string;
+interface Invoice {
+  id: string; childName: string; amount: number; dueDate: string;
+  description: string; status: 'pending' | 'paid' | 'void' | 'refunded';
 }
-
-const MOCK_CHILDREN: Child[] = [
-  { id: '1', firstName: 'Ahmed', lastName: 'Ali', gradeLevel: '4th Grade', attendance: { present: 18, total: 20 }, averageGrade: 92 },
-  { id: '2', firstName: 'Fatima', lastName: 'Ali', gradeLevel: '1st Grade', attendance: { present: 15, total: 16 }, averageGrade: 88 },
-];
-
-const MOCK_PAYMENTS: Payment[] = [
-  { id: '1', description: 'Quran Class - Monthly Tuition', amount: 75, status: 'pending', dueDate: '2024-04-01' },
-  { id: '2', description: 'Arabic Language - Materials Fee', amount: 25, status: 'paid', dueDate: '2024-03-01' },
-];
-
-const QUICK_ACTIONS = [
-  { id: 'attendance', icon: 'clipboard-check', label: 'Attendance', color: COLORS.primary, route: '/school/parent/attendance' },
-  { id: 'grades', icon: 'grade', label: 'Grades', color: COLORS.success, route: '/school/parent/grades' },
-  { id: 'payments', icon: 'credit-card', label: 'Payments', color: COLORS.secondary, route: '/school/parent/payments' },
-  { id: 'report', icon: 'file-document', label: 'Report Card', color: COLORS.warning, route: '/school/parent/report-card' },
-  { id: 'resources', icon: 'library', label: 'Resources', color: '#9C27B0', route: '/school/resources' },
-  { id: 'contact', icon: 'message', label: 'Contact Teacher', color: '#FF9800', route: '/school/parent/contact' },
-];
+const ACTIONS = [
+  { title: 'Progress', description: 'Published assessments and reports', icon: 'chart-line', route: '/school/grades' },
+  { title: 'Payments', description: 'Review and pay invoices', icon: 'credit-card-outline', route: '/school/parent/payments' },
+  { title: 'Class Schedule', description: 'Published weekly classes', icon: 'calendar-clock-outline', route: '/school/schedule' },
+  { title: 'Resources', description: 'Learning material library', icon: 'book-open-outline', route: '/school/resources' },
+  { title: 'Enrollment', description: 'Apply for a school place', icon: 'school-outline', route: '/school/enroll' },
+] as const;
+const money = (amount: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
 export default function ParentPortalScreen() {
   const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
+  const { width } = useWindowDimensions();
+  const account = useAuthStore(state => state.user);
   const [children, setChildren] = useState<Child[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
+  const load = async () => {
+    try {
+      const [progress, billing] = await Promise.all([
+        api.instance.get<{ students: Child[] }>('/school/progress'),
+        api.instance.get<{ invoices: Invoice[] }>('/school/invoices'),
+      ]);
+      setChildren(progress.data.students);
+      setInvoices(billing.data.invoices);
+      setError('');
+    } catch (failure: unknown) {
+      setChildren([]); setInvoices([]);
+      const code = (failure as { response?: { status?: number } })?.response?.status;
+      setError(code === 403
+        ? 'Verify your email in Profile before viewing private family records.'
+        : code === 401 ? 'Sign in to see your family’s school records.'
+          : 'Family records are temporarily unavailable. Check your connection and retry.');
+    } finally { setLoading(false); setRefreshing(false); }
+  };
   useEffect(() => {
-    loadData();
-  }, []);
+    if (account) void load();
+    else setLoading(false);
+  }, [account?.id]);
 
-  const loadData = () => {
-    setChildren(MOCK_CHILDREN);
-    setPayments(MOCK_PAYMENTS);
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    loadData();
-    setRefreshing(false);
-  };
-
-  const pendingPayments = payments.filter(p => p.status === 'pending');
-  const totalPending = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
+  const refresh = () => { setRefreshing(true); void load(); };
+  const outstanding = invoices.filter(i => i.status === 'pending');
+  const unpaidTotal = outstanding.reduce((total, invoice) => total + invoice.amount, 0);
+  const widthBasis = width >= 760 ? '48%' : '100%';
 
   return (
     <ScreenWrapper contentPadding={false}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-      >
+      <ScrollView contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
         <View style={styles.header}>
-          <Text style={styles.welcomeText}>Parent Portal</Text>
-          <Text style={styles.subtitle}>Monitor your children's progress</Text>
+          <Text style={styles.title}>Parent Portal</Text>
+          <Text style={styles.subtitle}>Your family's private school information</Text>
         </View>
 
-        {totalPending > 0 && (
-          <TouchableOpacity style={styles.paymentAlert} onPress={() => router.push('/school/parent/payments' as any)}>
-            <MaterialCommunityIcons name="alert-circle" size={20} color={COLORS.white} />
-            <Text style={styles.paymentAlertText}>
-              {pendingPayments.length} pending payment{totalPending > 1 ? 's' : ''} totaling ${totalPending}
-            </Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.white} />
-          </TouchableOpacity>
-        )}
+        {!account ? (
+          <View style={styles.empty}>
+            <MaterialCommunityIcons name="account-lock-outline" size={38} color={COLORS.textSecondary} />
+            <Text style={styles.muted}>Sign in to view school records associated with your account.</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.primaryAction}
+              onPress={() => router.push('/(auth)/login')}>
+              <Text style={styles.primaryText}>Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        ) : loading ? <ActivityIndicator color={COLORS.primary} size="large" style={styles.loader} />
+        : error ? (
+          <View style={styles.empty}>
+            <MaterialCommunityIcons name="shield-lock-outline" size={38} color={COLORS.textSecondary} />
+            <Text style={styles.muted}>{error}</Text>
+            <View style={styles.errorActions}>
+              <TouchableOpacity accessibilityRole="button" style={styles.retry}
+                onPress={refresh}><Text style={styles.retryText}>Retry</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={styles.retry}
+                onPress={() => router.push('/(tabs)/profile')}>
+                <Text style={styles.retryText}>Open Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : <>
+          <Text style={styles.sectionTitle}>Your Students</Text>
+          {children.length === 0 ? (
+            <Text style={styles.emptyText}>No students are currently linked to your verified account.</Text>
+          ) : <View style={styles.grid}>
+            {children.map(child => (
+              <View key={child.id} style={[styles.card, { width: widthBasis }]}>
+                <View style={styles.row}>
+                  <MaterialCommunityIcons name="school-outline" size={25} color={COLORS.primary} />
+                  <Text style={styles.childName}>{child.name}</Text>
+                </View>
+                <Text style={styles.label}>{child.className}</Text>
+                <Text style={styles.meta}>Instructor: {child.instructor}</Text>
+                <Text style={styles.meta}>{child.schedule}</Text>
+                <Text style={styles.meta}>
+                  {child.assignments.length} recent assessments · {child.reports.length} reports
+                </Text>
+                <TouchableOpacity accessibilityRole="button" style={styles.cardLink}
+                  onPress={() => router.push('/school/grades')}>
+                  <Text style={styles.linkText}>View progress</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={19} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>}
+          <Text style={styles.sectionTitle}>Billing Summary</Text>
+          <View style={styles.bill}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Outstanding invoices</Text>
+              <Text style={styles.balance}>{money(unpaidTotal)}</Text>
+              <Text style={styles.meta}>{outstanding.length} unpaid invoices</Text>
+            </View>
+            <TouchableOpacity accessibilityRole="button" style={styles.smallAction}
+              onPress={() => router.push('/school/parent/payments')}>
+              <Text style={styles.smallText}>View Payments</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.note}>
+            Balances are based on invoices issued by the masjid office, not estimated tuition charges.
+          </Text>
+        </>}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Children</Text>
-          {children.map((child) => (
-            <TouchableOpacity
-              key={child.id}
-              onPress={() => router.push({ pathname: '/school/parent/child/[id]', params: { id: child.id } } as any)}
-              activeOpacity={0.7}
-            >
-              <GlassCard style={styles.childCard}>
-                <View style={styles.childHeader}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{child.firstName[0]}{child.lastName[0]}</Text>
-                  </View>
-                  <View style={styles.childInfo}>
-                    <Text style={styles.childName}>{child.firstName} {child.lastName}</Text>
-                    <Text style={styles.childGrade}>{child.gradeLevel}</Text>
-                  </View>
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.textSecondary} />
-                </View>
-                <View style={styles.childStats}>
-                  <View style={styles.childStat}>
-                    <MaterialCommunityIcons name="check-circle" size={16} color={COLORS.success} />
-                    <Text style={styles.childStatText}>
-                      {Math.round((child.attendance.present / child.attendance.total) * 100)}% Attendance
-                    </Text>
-                  </View>
-                  <View style={styles.childStat}>
-                    <MaterialCommunityIcons name="star" size={16} color={COLORS.warning} />
-                    <Text style={styles.childStatText}>{child.averageGrade}% Average</Text>
-                  </View>
-                </View>
-              </GlassCard>
+        <Text style={styles.sectionTitle}>School Services</Text>
+        <View style={styles.grid}>
+          {ACTIONS.map(action => (
+            <TouchableOpacity accessibilityRole="button" key={action.title}
+              style={[styles.actionCard, { width: widthBasis }]}
+              onPress={() => router.push(action.route)}>
+              <View style={styles.actionIcon}>
+                <MaterialCommunityIcons name={action.icon} size={24} color={COLORS.primary} />
+              </View>
+              <View style={styles.actionBody}>
+                <Text style={styles.actionTitle}>{action.title}</Text>
+                <Text style={styles.actionDesc}>{action.description}</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
           ))}
         </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionsGrid}>
-            {QUICK_ACTIONS.map((action) => (
-              <TouchableOpacity
-                key={action.id}
-                style={styles.actionCard}
-                onPress={() => router.push(action.route as any)}
-                activeOpacity={0.7}
-              >
-                <GlassCard style={styles.actionCardInner}>
-                  <FloatingIcon
-                    icon={<MaterialCommunityIcons name={action.icon as any} size={22} color={action.color} />}
-                    size="md"
-                    color={action.color}
-                    glow
-                  />
-                  <Text style={styles.actionLabel}>{action.label}</Text>
-                </GlassCard>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.bottomSpacer} />
       </ScrollView>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: SPACING.md, paddingTop: SPACING.lg },
-  welcomeText: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
-  paymentAlert: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.warning,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    gap: SPACING.sm,
-  },
-  paymentAlertText: { flex: 1, color: COLORS.white, fontWeight: '600', fontSize: 14 },
-
-  section: { padding: SPACING.md },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
-
-  childCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  childHeader: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { fontSize: 16, fontWeight: '700', color: COLORS.white },
-  childInfo: { flex: 1, marginLeft: SPACING.md },
-  childName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  childGrade: { fontSize: 13, color: COLORS.textSecondary },
-  childStats: { flexDirection: 'row', gap: SPACING.lg, marginTop: SPACING.sm, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border },
-  childStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  childStatText: { fontSize: 13, color: COLORS.textSecondary },
-
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  actionCard: { width: '31%' },
-  actionCardInner: { alignItems: 'center', padding: SPACING.sm },
-  actionLabel: { fontSize: 11, fontWeight: '600', color: COLORS.text, marginTop: SPACING.xs, textAlign: 'center' },
-
-  bottomSpacer: { height: 100 },
+  content: { width: '100%', maxWidth: 920, alignSelf: 'center', padding: SPACING.md,
+    paddingBottom: SPACING.xxl },
+  header: { marginBottom: SPACING.md },
+  title: { fontSize: 26, fontWeight: '700', color: COLORS.text },
+  subtitle: { color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.xs },
+  sectionTitle: { fontSize: 18, color: COLORS.text, fontWeight: '700',
+    marginTop: SPACING.lg, marginBottom: SPACING.md },
+  loader: { marginVertical: SPACING.xxl },
+  muted: { fontSize: 14, lineHeight: 22, color: COLORS.textSecondary, textAlign: 'center' },
+  empty: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center',
+    padding: SPACING.lg, gap: SPACING.md },
+  emptyText: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21,
+    paddingVertical: SPACING.md },
+  primaryAction: { minHeight: 48, paddingHorizontal: SPACING.lg,
+    justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: RADIUS.md },
+  primaryText: { color: COLORS.white, fontSize: 14, fontWeight: '700' },
+  errorActions: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  retry: { minHeight: 44, paddingHorizontal: SPACING.md,
+    justifyContent: 'center', backgroundColor: COLORS.primaryFaded, borderRadius: RADIUS.md },
+  retryText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
+    rowGap: SPACING.sm },
+  card: { borderColor: COLORS.border, borderWidth: 1,
+    borderRadius: RADIUS.lg, padding: SPACING.md, backgroundColor: COLORS.surface,
+    gap: SPACING.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  childName: { fontSize: 17, fontWeight: '700', color: COLORS.text, flex: 1 },
+  label: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  meta: { fontSize: 12, lineHeight: 19, color: COLORS.textSecondary },
+  cardLink: { alignSelf: 'flex-start', flexDirection: 'row', minHeight: 44,
+    alignItems: 'center', marginTop: SPACING.sm },
+  linkText: { color: COLORS.primary, fontWeight: '700', fontSize: 14 },
+  bill: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center',
+    padding: SPACING.lg, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.lg },
+  balance: { fontSize: 24, color: COLORS.text, fontWeight: '700', marginVertical: SPACING.xs },
+  smallAction: { minHeight: 44, paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.md, backgroundColor: COLORS.primaryFaded,
+    justifyContent: 'center', alignItems: 'center' },
+  smallText: { color: COLORS.primary, fontSize: 12, fontWeight: '700' },
+  note: { fontSize: 12, lineHeight: 19, color: COLORS.textSecondary,
+    marginTop: SPACING.sm },
+  actionCard: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    borderRadius: RADIUS.lg, borderColor: COLORS.border, borderWidth: 1,
+    padding: SPACING.md, backgroundColor: COLORS.surface },
+  actionIcon: { width: 43, height: 43, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryFaded, alignItems: 'center', justifyContent: 'center' },
+  actionBody: { flex: 1 },
+  actionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  actionDesc: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18, marginTop: 3 },
 });

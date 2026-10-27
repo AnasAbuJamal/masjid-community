@@ -8,36 +8,14 @@ import {
   TextInput,
   RefreshControl,
   Linking,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlassCard, ScreenWrapper, FloatingIcon } from '../../components/common';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
-import { Resource, ResourceType } from '../../services/resource-service';
-
-interface Category {
-  id: string;
-  name: string;
-  icon: string;
-  count: number;
-}
-
-const MOCK_CATEGORIES: Category[] = [
-  { id: '1', name: 'Quran', icon: 'book-open-variant', count: 15 },
-  { id: '2', name: 'Arabic', icon: 'translate', count: 12 },
-  { id: '3', name: 'Islamic Studies', icon: 'school', count: 20 },
-  { id: '4', name: 'Seerah', icon: 'history', count: 8 },
-  { id: '5', name: 'Duas', icon: 'hands-prayer', count: 10 },
-  { id: '6', name: 'Stories', icon: 'book-multiple', count: 6 },
-];
-
-const MOCK_RESOURCES: Resource[] = [
-  { id: '1', title: 'Learn Tajweed - Basic Rules', description: 'Introduction to Tajweed rules for beginners', type: 'video', category: 'Quran', url: 'https://youtube.com/watch?v=example1', thumbnailUrl: '', duration: 1200, tags: ['tajweed', 'beginner'], gradeLevels: ['all'], createdAt: '2024-03-01', createdBy: 'Ustad Ahmad', viewCount: 150, isFeatured: true },
-  { id: '2', title: 'Arabic Alphabet Flashcards', description: 'Printable flashcards for learning Arabic letters', type: 'document', category: 'Arabic', url: 'https://example.com/flashcards.pdf', fileSize: 2500000, tags: ['alphabet', 'printable'], gradeLevels: ['Kindergarten', '1st Grade'], createdAt: '2024-02-15', createdBy: 'Ustadah Sarah', viewCount: 89, isFeatured: false },
-  { id: '3', title: 'Prophetic Character Series', description: 'Videos about the beautiful character of Prophet Muhammad', type: 'video', category: 'Islamic Studies', url: 'https://youtube.com/watch?v=example2', thumbnailUrl: '', duration: 1800, tags: ['akhlak', 'character'], gradeLevels: ['all'], createdAt: '2024-03-10', createdBy: 'Ustad Omar', viewCount: 234, isFeatured: true },
-  { id: '4', title: 'Daily Duas Collection', description: 'Collection of duas for daily life', type: 'link', category: 'Duas', url: 'https://example.com/duas', tags: ['dua', 'daily'], gradeLevels: ['all'], createdAt: '2024-01-20', createdBy: 'Masjid', viewCount: 456, isFeatured: false },
-  { id: '5', title: 'Seerah of the Prophet - Part 1', description: 'The life of Prophet Muhammad (SAW)', type: 'audio', category: 'Seerah', url: 'https://example.com/seerah.mp3', duration: 3600, tags: ['seerah', 'prophet'], gradeLevels: ['5th Grade', '6th Grade'], createdAt: '2024-02-28', createdBy: 'Ustad Omar', viewCount: 67, isFeatured: false },
-];
+import resourceService, { Resource, ResourceType, ResourceCategory } from '../../services/resource-service';
 
 const TYPE_FILTERS = [
   { key: 'all', label: 'All', icon: 'view-grid' },
@@ -66,27 +44,75 @@ export default function ResourceLibraryScreen() {
   const [selectedType, setSelectedType] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]);
+  const [categories, setCategories] = useState<ResourceCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = () => {
-    setResources(MOCK_RESOURCES);
-  };
+    let active = true;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const data = await resourceService.list({
+          category: selectedCategory || undefined,
+          type: selectedType !== 'all' ? selectedType as ResourceType : undefined,
+          search: searchQuery || undefined, page: 1,
+        });
+        if (!active) return;
+        setResources(data.resources);
+        setCategories(data.categories);
+        setPage(1);
+        setHasMore(data.hasMore);
+        setError('');
+      } catch {
+        if (active) setError('Could not load published resources. Pull down to retry.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [searchQuery, selectedCategory, selectedType]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    loadData();
-    setRefreshing(false);
+    try {
+      const data = await resourceService.list({
+        category: selectedCategory || undefined,
+        type: selectedType !== 'all' ? selectedType as ResourceType : undefined,
+        search: searchQuery || undefined,
+      });
+      setResources(data.resources);
+      setCategories(data.categories);
+      setPage(1);
+      setHasMore(data.hasMore);
+      setError('');
+    } catch {
+      setError('Could not refresh resources. Please try again.');
+    } finally { setRefreshing(false); }
   };
 
-  const filteredResources = resources.filter(r => {
-    const matchesSearch = !searchQuery || r.title.toLowerCase().includes(searchQuery.toLowerCase()) || r.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !selectedCategory || r.category === selectedCategory;
-    const matchesType = selectedType === 'all' || r.type === selectedType;
-    return matchesSearch && matchesCategory && matchesType;
-  });
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const data = await resourceService.list({
+        page: page + 1,
+        category: selectedCategory || undefined,
+        type: selectedType !== 'all' ? selectedType as ResourceType : undefined,
+        search: searchQuery || undefined,
+      });
+      setResources(current => [...current, ...data.resources.filter(r => !current.some(existing => existing.id === r.id))]);
+      setPage(data.page);
+      setHasMore(data.hasMore);
+    } catch {
+      setError('Could not load more resources. Please try again.');
+    } finally { setLoadingMore(false); }
+  };
+
+  const filteredResources = resources;
 
   const getTypeIcon = (type: ResourceType) => {
     switch (type) {
@@ -111,12 +137,19 @@ export default function ResourceLibraryScreen() {
   };
 
   const handleResourcePress = async (resource: Resource) => {
-    if (resource.url) {
+    if (!resource.url.startsWith('https://')) {
+      Alert.alert('Invalid link', 'This resource link is not secure.');
+      return;
+    }
+    try {
       await Linking.openURL(resource.url);
+      void resourceService.recordView(resource.id).catch(() => undefined);
+    } catch {
+      Alert.alert('Cannot open resource', 'Please try again or contact the masjid office.');
     }
   };
 
-  const renderCategoryChip = ({ item }: { item: Category }) => (
+  const renderCategoryChip = ({ item }: { item: ResourceCategory }) => (
     <TouchableOpacity
       style={[styles.categoryChip, selectedCategory === item.name && styles.categoryChipActive]}
       onPress={() => setSelectedCategory(selectedCategory === item.name ? null : item.name)}
@@ -127,7 +160,7 @@ export default function ResourceLibraryScreen() {
         color={selectedCategory === item.name ? COLORS.white : COLORS.textSecondary}
       />
       <Text style={[styles.categoryChipText, selectedCategory === item.name && styles.categoryChipTextActive]}>
-        {item.name} ({item.count})
+        {item.name} ({item.resourceCount})
       </Text>
     </TouchableOpacity>
   );
@@ -203,7 +236,7 @@ export default function ResourceLibraryScreen() {
 
       <FlatList
         horizontal
-        data={MOCK_CATEGORIES}
+        data={categories}
         keyExtractor={item => item.id}
         renderItem={renderCategoryChip}
         showsHorizontalScrollIndicator={false}
@@ -229,7 +262,7 @@ export default function ResourceLibraryScreen() {
         ))}
       </View>
 
-      <Text style={styles.resultsText}>{filteredResources.length} resources found</Text>
+      <Text style={styles.resultsText}>{filteredResources.length} published resources shown</Text>
     </View>
   );
 
@@ -242,8 +275,8 @@ export default function ResourceLibraryScreen() {
             size="lg"
             color={COLORS.textSecondary}
           />
-          <Text style={styles.emptyTitle}>No resources found</Text>
-          <Text style={styles.emptySubtext}>Try adjusting your filters or search</Text>
+          <Text style={styles.emptyTitle}>{error || (loading ? "Loading resources…" : "No published resources")}</Text>
+          <Text style={styles.emptySubtext}>{error ? "Pull down to retry" : "Try adjusting your filters or search"}</Text>
         </View>
       </GlassCard>
     </View>
@@ -256,7 +289,12 @@ export default function ResourceLibraryScreen() {
         keyExtractor={item => item.id}
         renderItem={renderResource}
         ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmpty}
+        ListEmptyComponent={loading ? <ActivityIndicator color={COLORS.primary} /> : renderEmpty}
+        ListFooterComponent={hasMore ? (
+          <TouchableOpacity onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button" accessibilityLabel="Load more resources" style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: COLORS.primary, fontWeight: "600" }}>{loadingMore ? "Loading…" : "Load more"}</Text>
+          </TouchableOpacity>
+        ) : null}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
@@ -297,7 +335,7 @@ const styles = StyleSheet.create({
 
   resultsText: { fontSize: 13, color: COLORS.textSecondary, paddingHorizontal: SPACING.md, marginBottom: SPACING.xs },
 
-  listContent: { paddingBottom: 100 },
+  listContent: { maxWidth: 900, width: '100%', alignSelf: 'center', paddingBottom: 100 },
 
   resourceCard: { padding: SPACING.md },
   resourceHeader: { flexDirection: 'row', alignItems: 'center' },

@@ -1,0 +1,104 @@
+name: Deploy staff web to Vercel
+
+on:
+  # Safe repair-branch deployment; never promotes this branch to production.
+  push:
+    branches:
+      - fix/security-functionality-apple-ui-20261026
+    paths:
+      - 'staff-web/**'
+      - '.github/workflows/vercel-deploy.yml'
+  # Production can only be requested deliberately after this workflow is
+  # merged into the repository's default branch and the env has approvals.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-${{ github.ref }}-${{ inputs.target || 'preview' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Vercel ${{ inputs.target || 'preview' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target == 'production' && 'production' || 'preview' }}
+    # Only reviewed commits on the default branch can get a production token.
+    if: ${{ inputs.target != 'production' || github.ref == 'refs/heads/development' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: staff-web/package-lock.json
+      - name: Verify Vercel project connection
+        id: vercel_config
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          TARGET: ${{ inputs.target || 'preview' }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Vercel project secrets are not configured; no deployment was made."
+            echo "Deployment blocked: configure VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID for this GitHub environment." >> "$GITHUB_STEP_SUMMARY"
+            # Production must fail closed. Preview branches should not show
+            # a broken deployment check when GitHub secrets are not installed.
+            if [ "$TARGET" = "production" ]; then exit 1; fi
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build and validate web application
+        if: steps.vercel_config.outputs.enabled == 'true'
+        working-directory: staff-web
+        env:
+          # Static Prisma validation only; Vercel has its own encrypted DATABASE_URL.
+          DATABASE_URL: postgresql://unused:unused@localhost:5432/static_validation
+        run: |
+          npm ci
+          npx prisma validate
+          npx tsc --noEmit
+      - name: Deploy reviewed web revision
+        if: steps.vercel_config.outputs.enabled == 'true'
+        working-directory: staff-web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          TARGET: ${{ inputs.target || 'preview' }}
+        run: |
+          ARGS=(--yes --token="$VERCEL_TOKEN")
+          if [ "$TARGET" = "production" ]; then ARGS+=(--prod); fi
+          DEPLOYMENT_URL=$(npx --yes vercel@50 deploy "${ARGS[@]}")
+          if [[ "$DEPLOYMENT_URL" != https://* ]]; then
+            echo "::error::Vercel did not return a valid deployment URL"
+            exit 1
+          fi
+          echo "DEPLOYMENT_URL=$DEPLOYMENT_URL" >> "$GITHUB_ENV"
+          echo "Deployment: $DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify deployed database health
+        if: steps.vercel_config.outputs.enabled == 'true'
+        env:
+          URL: ${{ env.DEPLOYMENT_URL }}
+          TARGET: ${{ inputs.target || 'preview' }}
+        run: |
+          # Vercel preview URLs may have Deployment Protection enabled; do not
+          # misclassify an access-controlled preview as public production.
+          if [ "$TARGET" = "preview" ]; then
+            echo "Preview created. Verify the health endpoint with Vercel Deployment Protection credentials." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused \
+            "$URL/api/health" | tee -a "$GITHUB_STEP_SUMMARY" | grep '"status":"ok"'

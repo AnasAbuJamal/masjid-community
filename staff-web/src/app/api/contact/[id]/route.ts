@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         if (notes !== undefined) data.notes = notes;
 
         const submission = await prisma.contactSubmission.update({
-            where: { id },
+            where: { id: Number(id) },
             data,
         });
 
@@ -40,7 +40,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { id } = await params;
 
     try {
-        await prisma.contactSubmission.delete({ where: { id } });
+        await prisma.contactSubmission.delete({ where: { id: Number(id) } });
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("Contact delete error:", error);

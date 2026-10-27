@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { getMobileAuthUser } from "@/lib/mobile-auth";
 import bcrypt from "bcryptjs";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function POST(req: NextRequest) {
     const session = await auth();
-    if (!session || !session.user?.id) {
+    const mobileUser = await getMobileAuthUser(req);
+    const userId = mobileUser?.id ?? (session?.user?.id ? Number(session.user.id) : null);
+    if (!userId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     try {
-        const { currentPassword, newPassword, confirmPassword } = await req.json();
+        const { currentPassword, newPassword, confirmPassword = newPassword } = await req.json();
 
         if (!currentPassword || !newPassword || !confirmPassword) {
             return NextResponse.json({ error: "All fields are required" }, { status: 400 });
@@ -21,12 +24,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "New passwords do not match" }, { status: 400 });
         }
 
-        if (newPassword.length < 8) {
-            return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+        if (newPassword.length < 12) {
+            return NextResponse.json({ error: "Password must be at least 12 characters" }, { status: 400 });
         }
 
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: userId },
         });
 
         if (!user) {
@@ -37,7 +40,7 @@ export async function POST(req: NextRequest) {
         if (!isCurrentValid) {
             await logAudit({
                 action: "password_change_failed",
-                userId: session.user.id,
+                userId: String(userId),
                 details: "Invalid current password",
                 ipAddress: getClientIp(req),
                 success: false,
@@ -53,13 +56,13 @@ export async function POST(req: NextRequest) {
         const passwordHash = await bcrypt.hash(newPassword, 12);
 
         await prisma.user.update({
-            where: { id: session.user.id },
+            where: { id: userId },
             data: { passwordHash },
         });
 
         await logAudit({
             action: "password_changed",
-            userId: session.user.id,
+            userId: String(userId),
             details: "Password successfully changed",
             ipAddress: getClientIp(req),
             success: true,

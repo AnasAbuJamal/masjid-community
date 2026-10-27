@@ -82,10 +82,14 @@ export function GlassButton({
         onPress={onPress}
         disabled={disabled || loading}
         activeOpacity={0.85}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: disabled || loading, busy: loading }}
         style={[fullWidth && styles.fullWidth, style]}
       >
         <LinearGradient
-          colors={[COLORS.primary, COLORS.primaryLight]}
+          colors={['#287FCB', '#73BEF5']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
@@ -107,10 +111,14 @@ export function GlassButton({
         onPress={onPress}
         disabled={disabled || loading}
         activeOpacity={0.85}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: disabled || loading, busy: loading }}
         style={[fullWidth && styles.fullWidth, style]}
       >
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.94)', 'rgba(200, 233, 255, 0.76)']}
+          colors={['rgba(255,255,255,0.94)', 'rgba(200,233,255,0.78)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
@@ -131,6 +139,10 @@ export function GlassButton({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.7}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       style={buttonStyles}
     >
       {content}
@@ -163,13 +175,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '50%',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderBottomLeftRadius: RADIUS.lg,
     borderBottomRightRadius: RADIUS.lg,
   },
   secondary: {
-    backgroundColor: 'rgba(200, 233, 255, 0.32)',
-    borderColor: 'rgba(115, 190, 245, 0.45)',
+    backgroundColor: 'rgba(200, 233, 255, 0.3)',
+    borderColor: 'rgba(115, 190, 245, 0.5)',
   },
   content: {
     flexDirection: 'row',
@@ -187,7 +199,7 @@ const styles = StyleSheet.create({
   size_sm: {
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
-    minHeight: 40,
+    minHeight: 44,
   },
   size_md: {
     paddingVertical: SPACING.sm + 4,

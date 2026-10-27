@@ -13,7 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { message, isInternal } = await req.json();
 
     const comment = await prisma.proposalComment.update({
-        where: { id },
+        where: { id: Number(id) },
         data: {
             ...(message && { message }),
             ...(isInternal !== undefined && { isInternal }),
@@ -31,7 +31,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.proposalComment.delete({ where: { id } });
+    await prisma.proposalComment.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_proposal_comment", userId: session.user.id, details: `Deleted comment ${id}`, ipAddress: "" });
     return NextResponse.json({ success: true });
 }

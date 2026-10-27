@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const rsvp = await prisma.eventRSVP.findUnique({
-        where: { id },
+        where: { id: Number(id) },
         include: { event: { select: { id: true, title: true } } },
     });
 
@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json();
 
     const rsvp = await prisma.eventRSVP.update({
-        where: { id },
+        where: { id: Number(id) },
         data: {
             ...(body.status && { status: body.status }),
             ...(body.name && { name: body.name }),
@@ -46,7 +46,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.eventRSVP.delete({ where: { id } });
+    await prisma.eventRSVP.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_event_rsvp", userId: session.user.id, details: `Deleted RSVP ${id}`, ipAddress: "" });
     return NextResponse.json({ success: true });
 }

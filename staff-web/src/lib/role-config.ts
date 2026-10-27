@@ -26,7 +26,9 @@ export const navItems: NavItem[] = [
     { title: "Media Library", href: "/dashboard/media", icon: "HardDrive", roles: ["admin", "teacher"], section: "Content" },
     // School
     { title: "Classroom", href: "/dashboard/classroom", icon: "GraduationCap", roles: ["admin", "teacher"], section: "School" },
+    { title: "Education Resources", href: "/dashboard/resources", icon: "FileText", roles: ["admin", "teacher"], section: "School" },
     { title: "Student Applications", href: "/dashboard/applications", icon: "ClipboardCheck", roles: ["admin"], section: "School" },
+    { title: "School Billing", href: "/dashboard/school-billing", icon: "FileText", roles: ["admin"], section: "School" },
     { title: "Attendance", href: "/dashboard/attendance", icon: "Calendar", roles: ["admin", "teacher"], section: "School" },
     { title: "Assignments", href: "/dashboard/assignments", icon: "ClipboardList", roles: ["admin", "teacher"], section: "School" },
     { title: "Gamification", href: "/dashboard/gamification", icon: "Trophy", roles: ["admin", "teacher", "student"], section: "School" },
@@ -39,6 +41,7 @@ export const navItems: NavItem[] = [
     { title: "Rental Bookings", href: "/dashboard/rentals/bookings", icon: "ClipboardList", roles: ["admin"], section: "Operations" },
     // Finance
     { title: "Finances", href: "/dashboard/finances", icon: "DollarSign", roles: ["admin"], section: "Finance" },
+    { title: "Monthly Budgets", href: "/dashboard/finance-budgets", icon: "DollarSign", roles: ["admin"], section: "Finance" },
     { title: "Donations", href: "/dashboard/donations", icon: "Heart", roles: ["admin", "member"], section: "Finance" },
     // Community
     { title: "Jobs Board", href: "/dashboard/jobs", icon: "Briefcase", roles: ["admin", "member"], section: "Community" },

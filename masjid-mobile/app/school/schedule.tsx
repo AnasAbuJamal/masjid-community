@@ -1,179 +1,120 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import api from '../../services/api-client';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
-interface ScheduleItem {
+interface ClassSchedule {
   id: string;
-  className: string;
+  name: string;
   teacher: string;
-  time: string;
-  endTime: string;
-  room: string;
-  type: string;
-  day: string;
+  schedule: string;
+  dayOfWeek: string[];
 }
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-const WEEK_SCHEDULE: Record<string, ScheduleItem[]> = {
-  Saturday: [
-    { id: '1', className: 'Quran Recitation - Beginner', teacher: 'Ustad Ahmad', time: '9:00 AM', endTime: '10:00 AM', room: 'Room 1', type: 'quran', day: 'Saturday' },
-    { id: '2', className: 'Quran Tajweed', teacher: 'Ustadah Fatima', time: '10:30 AM', endTime: '11:30 AM', room: 'Room 2', type: 'quran', day: 'Saturday' },
-    { id: '3', className: 'Islamic Studies - Fiqh', teacher: 'Ustad Omar', time: '11:00 AM', endTime: '12:00 PM', room: 'Main Hall', type: 'islamic', day: 'Saturday' },
-    { id: '4', className: 'Arabic Language - Level 1', teacher: 'Ustadah Sarah', time: '1:00 PM', endTime: '2:00 PM', room: 'Room 3', type: 'arabic', day: 'Saturday' },
-  ],
-  Sunday: [
-    { id: '5', className: 'Quran Recitation - Beginner', teacher: 'Ustad Ahmad', time: '9:00 AM', endTime: '10:00 AM', room: 'Room 1', type: 'quran', day: 'Sunday' },
-    { id: '6', className: 'Quran Tajweed', teacher: 'Ustadah Fatima', time: '10:30 AM', endTime: '11:30 AM', room: 'Room 2', type: 'quran', day: 'Sunday' },
-    { id: '7', className: 'Youth Program - Ages 8-12', teacher: 'Br. Ahmed', time: '10:00 AM', endTime: '11:30 AM', room: 'Youth Center', type: 'youth', day: 'Sunday' },
-    { id: '8', className: 'Seerah & History', teacher: 'Ustad Omar', time: '11:00 AM', endTime: '12:00 PM', room: 'Room 4', type: 'islamic', day: 'Sunday' },
-    { id: '9', className: 'Arabic Conversation', teacher: 'Ustadah Sarah', time: '1:00 PM', endTime: '2:00 PM', room: 'Room 3', type: 'arabic', day: 'Sunday' },
-    { id: '10', className: 'Youth Program - Ages 13-17', teacher: 'Br. Ali', time: '12:00 PM', endTime: '1:30 PM', room: 'Youth Center', type: 'youth', day: 'Sunday' },
-  ],
-};
-
-const DAYS = ['Saturday', 'Sunday'];
-
-export default function ScheduleScreen() {
+export default function SchoolScheduleScreen() {
   const router = useRouter();
-  const [selectedDay, setSelectedDay] = useState('Saturday');
+  const [classes, setClasses] = useState<ClassSchedule[]>([]);
+  const [day, setDay] = useState(DAYS[(new Date().getDay() + 6) % 7]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'quran': return COLORS.primary;
-      case 'arabic': return COLORS.secondary;
-      case 'islamic': return COLORS.success;
-      case 'youth': return COLORS.warning;
-      default: return COLORS.textSecondary;
+  const load = async () => {
+    try {
+      const response = await api.instance.get<{ classes: ClassSchedule[] }>('/public/classes');
+      setClasses(response.data.classes || []);
+      setError('');
+    } catch {
+      setError('The class schedule is temporarily unavailable.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
-
-  const schedule = WEEK_SCHEDULE[selectedDay] || [];
+  useEffect(() => { void load(); }, []);
+  const visible = classes.filter(c => c.dayOfWeek.some(d =>
+    d.trim().toLowerCase() === day.toLowerCase() ||
+    d.trim().toLowerCase().startsWith(day.slice(0, 3).toLowerCase())
+  ));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity style={styles.back} onPress={() => router.back()}
+          accessibilityRole="button" accessibilityLabel="Go back">
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Weekly Class Schedule</Text>
-        <View style={{ width: 40 }} />
+        <Text style={styles.heading}>Class Schedule</Text>
+        <View style={styles.back} />
       </View>
-
-      {/* Day Selector */}
-      <View style={styles.daySelector}>
-        {DAYS.map(day => (
-          <TouchableOpacity
-            key={day}
-            style={[styles.dayTab, selectedDay === day && styles.dayTabActive]}
-            onPress={() => setSelectedDay(day)}
-          >
-            <Text style={[styles.dayTabText, selectedDay === day && styles.dayTabTextActive]}>
-              {day}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {schedule.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="calendar-blank" size={48} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>No classes on {selectedDay}</Text>
-          </View>
-        ) : (
-          schedule.map((item, index) => {
-            const typeColor = getTypeColor(item.type);
-            return (
-              <View key={item.id} style={styles.scheduleCard}>
-                <View style={[styles.timeIndicator, { backgroundColor: typeColor }]}>
-                  <Text style={styles.timeText}>{item.time}</Text>
-                  <Text style={styles.timeEnd}>{item.endTime}</Text>
-                </View>
-                <View style={styles.cardContent}>
-                  <View style={[styles.typeBadge, { backgroundColor: typeColor + '18' }]}>
-                    <Text style={[styles.typeText, { color: typeColor }]}>
-                      {item.type.toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={styles.className}>{item.className}</Text>
-                  <View style={styles.classInfo}>
-                    <View style={styles.infoItem}>
-                      <MaterialCommunityIcons name="account-tie" size={14} color={COLORS.textSecondary} />
-                      <Text style={styles.infoText}>{item.teacher}</Text>
-                    </View>
-                    <View style={styles.infoItem}>
-                      <MaterialCommunityIcons name="door" size={14} color={COLORS.textSecondary} />
-                      <Text style={styles.infoText}>{item.room}</Text>
-                    </View>
-                  </View>
-                </View>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
+      >
+        <Text style={styles.subtitle}>Schedules provided by the school administration</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
+          {DAYS.map(d => (
+            <TouchableOpacity key={d} style={[styles.day, day === d && styles.activeDay]}
+              onPress={() => setDay(d)} accessibilityRole="button" accessibilityState={{ selected: day === d }}>
+              <Text style={[styles.dayText, day === d && styles.activeDayText]}>{d.slice(0, 3)}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} /> :
+          visible.length === 0 ? (
+            <View style={styles.empty}>
+              <MaterialCommunityIcons name="calendar-blank-outline" size={40} color={COLORS.textSecondary} />
+              <Text style={styles.emptyText}>{error || `No classes are scheduled for ${day}.`}</Text>
+            </View>
+          ) : visible.map(item => (
+            <TouchableOpacity key={item.id} style={styles.card}
+              onPress={() => router.push({ pathname: '/school/classes/[id]', params: { id: item.id } })}
+              accessibilityRole="button" accessibilityLabel={`Details for ${item.name}`}>
+              <View style={styles.icon}>
+                <MaterialCommunityIcons name="book-open-outline" size={22} color={COLORS.primary} />
               </View>
-            );
-          })
-        )}
-
-        {/* Weekly Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Weekly Summary</Text>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>2</Text>
-              <Text style={styles.summaryLabel}>Days</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{Object.values(WEEK_SCHEDULE).flat().length}</Text>
-              <Text style={styles.summaryLabel}>Total Classes</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>8h</Text>
-              <Text style={styles.summaryLabel}>Instruction Time</Text>
-            </View>
-          </View>
-        </View>
+              <View style={styles.details}>
+                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.meta}>{item.teacher}</Text>
+                <Text style={styles.meta}>{item.schedule}</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          ))
+        }
       </ScrollView>
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-
-  daySelector: { flexDirection: 'row', padding: SPACING.md, gap: SPACING.sm },
-  dayTab: { flex: 1, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: COLORS.surface, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  dayTabActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  dayTabText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  dayTabTextActive: { color: COLORS.white },
-
-  content: { padding: SPACING.md, paddingBottom: SPACING.xxl },
-
-  scheduleCard: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, marginBottom: SPACING.sm, overflow: 'hidden', ...SHADOWS.sm },
-  timeIndicator: { width: 80, padding: SPACING.md, alignItems: 'center', justifyContent: 'center' },
-  timeText: { fontSize: 13, fontWeight: '700', color: COLORS.white },
-  timeEnd: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  cardContent: { flex: 1, padding: SPACING.md },
-  typeBadge: { alignSelf: 'flex-start', paddingHorizontal: SPACING.xs + 2, paddingVertical: 2, borderRadius: RADIUS.full, marginBottom: SPACING.xs },
-  typeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  className: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.xs },
-  classInfo: { flexDirection: 'row', gap: SPACING.md },
-  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  infoText: { fontSize: 12, color: COLORS.textSecondary },
-
-  emptyState: { alignItems: 'center', paddingVertical: SPACING.xxl },
-  emptyText: { fontSize: 16, color: COLORS.textSecondary, marginTop: SPACING.md },
-
-  summaryCard: { backgroundColor: COLORS.primary + '12', borderRadius: RADIUS.lg, padding: SPACING.md, marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.primary + '30' },
-  summaryTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.md },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  summaryItem: { alignItems: 'center' },
-  summaryValue: { fontSize: 20, fontWeight: '700', color: COLORS.primary },
-  summaryLabel: { fontSize: 11, color: COLORS.textSecondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  heading: { fontSize: 19, fontWeight: '700', color: COLORS.text },
+  back: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+  content: { width: '100%', maxWidth: 850, alignSelf: 'center', padding: SPACING.md,
+    paddingBottom: SPACING.xxl },
+  subtitle: { color: COLORS.textSecondary, fontSize: 14, marginBottom: SPACING.md },
+  days: { gap: SPACING.sm, paddingBottom: SPACING.lg },
+  day: { minWidth: 60, minHeight: 44, paddingHorizontal: SPACING.md,
+    alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.full,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  activeDay: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  dayText: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  activeDayText: { color: COLORS.white },
+  loader: { marginTop: SPACING.xxl },
+  card: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm,
+    flexDirection: 'row', alignItems: 'center', minHeight: 90, gap: SPACING.md },
+  icon: { backgroundColor: COLORS.primaryFaded, width: 44, height: 44, borderRadius: RADIUS.md,
+    alignItems: 'center', justifyContent: 'center' },
+  details: { flex: 1 },
+  name: { fontSize: 16, color: COLORS.text, fontWeight: '700' },
+  meta: { color: COLORS.textSecondary, fontSize: 13, marginTop: 3 },
+  empty: { alignItems: 'center', paddingTop: SPACING.xxl, gap: SPACING.md },
+  emptyText: { textAlign: 'center', color: COLORS.textSecondary, fontSize: 14 },
 });

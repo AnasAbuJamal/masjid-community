@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4A90D9",
+      "backgroundColor": "#F5F5F7",
       "dark": {
         "backgroundColor": "#0D1B2A"
       }
@@ -22,22 +22,20 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4A90D9"
+        "backgroundColor": "#F5F5F7"
       },
       "package": "org.almomineen.masjidmobile"
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/favicon.png"
+      "output": "static"
     },
     "plugins": [
       "expo-router",
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
-          "color": "#4A90D9"
+          "color": "#007AFF"
         }
       ]
     ],

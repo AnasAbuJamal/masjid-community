@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (userId) {
-    where.userId = userId;
+    where.userId = Number(userId);
   }
 
   if (success !== null && success !== undefined) {

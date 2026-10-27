@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
             users.forEach((user) => {
                 results.push({
                     type: "user",
-                    id: user.id,
+                    id: String(user.id),
                     title: `${user.firstName} ${user.lastName}`,
                     subtitle: `${user.email} • ${user.role}`,
                     link: `/dashboard/users?highlight=${user.id}`,
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
                     OR: [
                         { firstName: { contains: searchTerm } },
                         { lastName: { contains: searchTerm } },
-                        { studentId: { contains: searchTerm } },
+                        ...( /^\\d+$/.test(searchTerm) ? [{ studentId: Number(searchTerm) }] : [] ),
                         { parentName: { contains: searchTerm } },
                     ],
                 },
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
             students.forEach((student) => {
                 results.push({
                     type: "student",
-                    id: student.id,
+                    id: String(student.id),
                     title: `${student.firstName} ${student.lastName}`,
                     subtitle: `ID: ${student.studentId} • ${student.class?.name || "No class"}`,
                     link: `/dashboard/classroom?highlight=${student.id}`,
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
             posts.forEach((post) => {
                 results.push({
                     type: "blog",
-                    id: post.id,
+                    id: String(post.id),
                     title: post.title,
                     subtitle: `Status: ${post.status}`,
                     link: `/dashboard/blog?highlight=${post.id}`,
@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
             jobs.forEach((job) => {
                 results.push({
                     type: "job",
-                    id: job.id,
+                    id: String(job.id),
                     title: job.title,
                     subtitle: `${job.company} • ${job.status}`,
                     link: `/dashboard/jobs?highlight=${job.id}`,
@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
             workers.forEach((worker) => {
                 results.push({
                     type: "worker",
-                    id: worker.id,
+                    id: String(worker.id),
                     title: worker.fullName,
                     subtitle: `${worker.email} • ${worker.status}`,
                     link: `/dashboard/workers?highlight=${worker.id}`,
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
             proposals.forEach((proposal) => {
                 results.push({
                     type: "proposal",
-                    id: proposal.id,
+                    id: String(proposal.id),
                     title: proposal.title,
                     subtitle: `By ${proposal.submitterName} • ${proposal.status}`,
                     link: `/dashboard/proposals?highlight=${proposal.id}`,
@@ -184,7 +184,7 @@ export async function GET(req: NextRequest) {
             volunteers.forEach((vol) => {
                 results.push({
                     type: "volunteer",
-                    id: vol.id,
+                    id: String(vol.id),
                     title: vol.title,
                     subtitle: `${vol.status} • ${new Date(vol.eventDate).toLocaleDateString()}`,
                     link: `/dashboard/volunteers?highlight=${vol.id}`,
@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
             projects.forEach((project) => {
                 results.push({
                     type: "construction",
-                    id: project.id,
+                    id: String(project.id),
                     title: project.title,
                     subtitle: `${project.progressPercent}% complete${project.isUrgent ? " • URGENT" : ""}`,
                     link: `/dashboard/construction?highlight=${project.id}`,
@@ -228,7 +228,7 @@ export async function GET(req: NextRequest) {
             classes.forEach((cls) => {
                 results.push({
                     type: "class",
-                    id: cls.id,
+                    id: String(cls.id),
                     title: cls.name,
                     subtitle: `${cls.teacherName} • ${cls.schedule}`,
                     link: `/dashboard/classroom?highlight=${cls.id}`,

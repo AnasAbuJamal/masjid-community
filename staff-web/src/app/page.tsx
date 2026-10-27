@@ -26,8 +26,8 @@ export default function LoginPage() {
         redirect: false,
       });
 
-      if (result?.error) {
-        setError(result.error || "Invalid email or password");
+      if (!result?.ok || result?.error) {
+        setError("Invalid email or password");
       } else {
         window.location.href = "/dashboard";
       }
@@ -39,17 +39,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-5">
-      <div className="relative z-10 w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-transparent p-4 text-foreground">
+      <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-[22px] bg-gradient-to-br from-sky-700 to-sky-400 shadow-lg shadow-sky-200 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-[22px] bg-gradient-to-br from-sky-800 to-sky-400 mb-4 shadow-lg shadow-sky-500/20">
             <span className="text-2xl">🕌</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Masjid Al-Momineen</h1>
-          <p className="text-sm text-gray-500 mt-1">Staff Portal</p>
+          <h1 className="text-2xl font-semibold text-foreground">Masjid Al-Momineen</h1>
+          <p className="text-sm text-muted-foreground mt-1">Staff Portal</p>
         </div>
 
-        <Card className="rounded-[28px] border border-white/90 p-1 shadow-xl shadow-sky-100/60">
+        <Card className="rounded-[28px] border border-sky-100/70 p-1 shadow-xl shadow-sky-300/15">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl">Sign in</CardTitle>
             <CardDescription>Enter your credentials to access the portal</CardDescription>
@@ -57,7 +57,7 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+                <div role="alert" aria-live="assertive" className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200">
                   {error}
                 </div>
               )}
@@ -73,7 +73,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="glass-input h-12 rounded-xl border-sky-100 bg-white/75 pl-10"
+                    className="pl-10"
                   />
                 </div>
               </div>
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="h-12 w-full rounded-2xl"
+                className="w-full min-h-11 rounded-2xl"
                 disabled={loading}
               >
                 {loading ? (

@@ -13,7 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json();
 
     const category = await prisma.expenseCategory.update({
-        where: { id },
+        where: { id: Number(id) },
         data: body,
     });
 
@@ -28,7 +28,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.expenseCategory.delete({ where: { id } });
+    await prisma.expenseCategory.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_expense_category", userId: session.user.id, details: `Deleted expense category ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }

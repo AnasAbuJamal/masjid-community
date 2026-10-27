@@ -237,13 +237,13 @@ export default function KioskTVPage() {
             <Heart className="h-6 w-6 text-orange-400" />
             Construction Progress
           </h2>
-          {data?.projects?.length > 0 ? (
+          {(data?.projects?.length ?? 0) > 0 ? (
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-6xl font-bold text-orange-400">{avgProgress}%</p>
                 <p className="text-gray-400">Overall Progress</p>
               </div>
-              {data.projects.slice(0, 3).map((project) => (
+              {(data?.projects ?? []).slice(0, 3).map((project) => (
                 <div key={project.id}>
                   <div className="flex justify-between text-sm mb-1">
                     <span>{project.title}</span>

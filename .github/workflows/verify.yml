@@ -1,0 +1,100 @@
+name: Verify web and mobile
+on:
+  push:
+    branches: [development]
+  pull_request:
+    branches: [development]
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staff:
+    name: Staff web — tests, types, build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: staff-web
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+      AUTH_SECRET: ci-test-secret-not-for-production-0123456789
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: https://example.org
+      ADMIN_EMAIL: ci-admin@example.test
+      ADMIN_PASSWORD: ci-only-admin-password-not-for-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: staff-web/package-lock.json
+      - run: npm ci
+      - run: npx prisma validate
+      - name: Prepare isolated integration database
+        run: npx prisma db push
+      - run: npx tsx scripts/seed-ci.ts
+      - run: npm run test:run
+      - run: npx tsc --noEmit
+        if: always()
+      - run: npm run build
+        if: always()
+      - name: Install browser for responsive tests
+        if: success()
+        run: npx playwright install --with-deps chromium
+      - name: Verify authenticated APIs, navigation, and responsive viewports
+        if: success()
+        run: |
+          npm run start > /tmp/masjid-web-ci.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            if curl --silent --fail http://localhost:3000/ > /dev/null; then break; fi
+            sleep 1
+          done
+          if ! curl --silent --fail http://localhost:3000/ > /dev/null; then
+            echo "Server failed readiness check"
+            cat /tmp/masjid-web-ci.log
+            exit 1
+          fi
+          npx playwright test --reporter=line
+      - name: Show server diagnostics on failure
+        if: failure()
+        run: |
+          if test -f /tmp/masjid-web-ci.log; then tail -200 /tmp/masjid-web-ci.log; fi
+
+  mobile:
+    name: Mobile — tests and TypeScript
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: masjid-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: masjid-mobile/package-lock.json
+      - run: npm ci
+      - run: npm run test:run
+      - run: npx tsc --noEmit
+        if: always()

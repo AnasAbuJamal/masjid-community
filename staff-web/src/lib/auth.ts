@@ -81,7 +81,7 @@ export const authOptions: NextAuthOptions = {
                     await logAudit({
                         action: "login_failed",
                         email: email.toLowerCase(),
-                        userId: user.id,
+                        userId: String(user.id),
                         details: `Invalid password. ${MAX_LOGIN_ATTEMPTS - attempts} attempts remaining.`,
                         ipAddress: Array.isArray(ipAddress) ? ipAddress[0] : ipAddress,
                         success: false,
@@ -111,14 +111,14 @@ export const authOptions: NextAuthOptions = {
                 await logAudit({
                     action: "login",
                     email: user.email,
-                    userId: user.id,
+                    userId: String(user.id),
                     details: "Successful login",
                     ipAddress: Array.isArray(ipAddress) ? ipAddress[0] : ipAddress,
                     success: true,
                 });
 
                 return {
-                    id: user.id,
+                    id: String(user.id),
                     email: user.email,
                     name: `${user.firstName} ${user.lastName}`,
                     role: user.role,
@@ -157,5 +157,19 @@ export const authOptions: NextAuthOptions = {
  * Usage: `const session = await auth();`
  */
 export async function auth() {
-    return getServerSession(authOptions);
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return null;
+    const id = Number(session.user.id);
+    if (!Number.isSafeInteger(id) || id < 1) return null;
+
+    // Server authorization must use current database state, not an old JWT role.
+    // Disabling or demoting an account immediately revokes the old session's privileges.
+    const current = await prisma.user.findUnique({
+        where: { id },
+        select: { email: true, firstName: true, lastName: true, role: true, isActive: true },
+    });
+    if (!current?.isActive || current.email.toLowerCase() !== session.user.email?.toLowerCase()) return null;
+    session.user.role = current.role;
+    session.user.name = `${current.firstName} ${current.lastName}`;
+    return session;
 }

@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const upcoming = searchParams.get("upcoming") === "true";
 
-    const where: Prisma.EventWhereInput = {};
+    const session = await auth();
+    const canSeePrivate = session?.user?.role === "admin" || session?.user?.role === "staff";
+    const where: Prisma.EventWhereInput = canSeePrivate ? {} : { isPublic: true, status: { not: "cancelled" } };
 
     if (status) {
         where.status = status as Prisma.EnumEventStatusFilter;

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import apiService from '../../services/api-service';
 
 interface RecurringDonation {
   id: string;
@@ -14,24 +15,37 @@ interface RecurringDonation {
   active: boolean;
 }
 
-const MOCK_RECURRING: RecurringDonation[] = [
-  { id: '1', category: 'General Fund', amount: 50, frequency: 'monthly', nextDate: '2026-03-01', active: true },
-];
-
 export default function RecurringDonationsScreen() {
   const router = useRouter();
-  const [donations, setDonations] = useState<RecurringDonation[]>(MOCK_RECURRING);
+  const [donations, setDonations] = useState<RecurringDonation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const toggleActive = (id: string) => {
-    setDonations(prev => prev.map(d => 
-      d.id === id ? { ...d, active: !d.active } : d
-    ));
+  const load = async () => {
+    setLoading(true);
+    try {
+      const result = await apiService.donations.getRecurring();
+      setDonations(result.donations);
+      setError('');
+    } catch {
+      setError('Could not load your subscriptions. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
+  useEffect(() => { void load(); }, []);
 
   const deleteDonation = (id: string) => {
-    Alert.alert('Cancel Recurring', 'Are you sure you want to cancel this recurring donation?', [
-      { text: 'No', style: 'cancel' },
-      { text: 'Yes', style: 'destructive', onPress: () => setDonations(prev => prev.filter(d => d.id !== id)) },
+    Alert.alert('Cancel Recurring', 'Stop future payments after the current billing period?', [
+      { text: 'Keep Donation', style: 'cancel' },
+      { text: 'Cancel Future Payments', style: 'destructive', onPress: async () => {
+        try {
+          await apiService.donations.cancelRecurring(id);
+          await load();
+        } catch {
+          Alert.alert('Unable to cancel', 'The payment provider could not update this subscription.');
+        }
+      } },
     ]);
   };
 
@@ -58,7 +72,9 @@ export default function RecurringDonationsScreen() {
           </View>
         </View>
 
-        {donations.length > 0 ? (
+        {loading ? <ActivityIndicator color={COLORS.primary} /> : error ? (
+          <Text style={styles.emptyText}>{error}</Text>
+        ) : donations.length > 0 ? (
           donations.map((donation) => (
             <View key={donation.id} style={styles.donationCard}>
               <View style={styles.donationHeader}>
@@ -66,18 +82,15 @@ export default function RecurringDonationsScreen() {
                   <Text style={styles.donationCategory}>{donation.category}</Text>
                   <Text style={styles.donationAmount}>${donation.amount}/{donation.frequency === 'monthly' ? 'mo' : 'wk'}</Text>
                 </View>
-                <Switch
-                  value={donation.active}
-                  onValueChange={() => toggleActive(donation.id)}
-                  trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                  thumbColor={COLORS.white}
-                />
+                <Text style={{ color: donation.active ? COLORS.success : COLORS.warning, fontWeight: '600' }}>
+                  {donation.active ? 'Active' : 'Ending'}
+                </Text>
               </View>
               <View style={styles.donationFooter}>
                 <Text style={styles.nextDate}>Next: {formatDate(donation.nextDate)}</Text>
-                <TouchableOpacity onPress={() => deleteDonation(donation.id)}>
+                {donation.active && <TouchableOpacity onPress={() => deleteDonation(donation.id)} accessibilityRole="button" accessibilityLabel="Cancel recurring donation">
                   <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
+                </TouchableOpacity>}
               </View>
             </View>
           ))
@@ -104,7 +117,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  content: { padding: SPACING.md, flexGrow: 1 },
+  content: { padding: SPACING.md, flexGrow: 1, alignSelf: 'center', width: '100%', maxWidth: 760 },
   infoCard: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary + '12',
     padding: SPACING.md, borderRadius: RADIUS.lg, marginBottom: SPACING.lg, gap: SPACING.sm,

@@ -3,8 +3,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../constants/theme-provider';
 
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 84 : 70;
+const TAB_BAR_HEIGHT = 56;
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -20,29 +21,29 @@ const TABS: TabConfig[] = [
   { name: 'school', icon: 'school-outline', iconActive: 'school' },
   { name: 'community', icon: 'account-group-outline', iconActive: 'account-group' },
   { name: 'profile', icon: 'account-outline', iconActive: 'account' },
-  { name: 'settings', icon: 'cog-outline', iconActive: 'cog' },
 ];
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          height: TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : (Platform.OS === 'ios' ? 34 : 0)),
+          backgroundColor: colors.surface,
+          height: TAB_BAR_HEIGHT + insets.bottom,
           paddingTop: 8,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : (Platform.OS === 'ios' ? 28 : 8),
+          paddingBottom: Math.max(insets.bottom, 8),
           borderTopWidth: 1,
-          borderTopColor: COLORS.border,
+          borderTopColor: colors.border,
           elevation: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 10.5,
+          fontSize: 11,
           fontWeight: '600',
           marginTop: 2,
         },
@@ -62,6 +63,7 @@ export default function TabLayout() {
           }}
         />
       ))}
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

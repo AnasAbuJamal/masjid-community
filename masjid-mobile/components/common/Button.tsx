@@ -67,6 +67,10 @@ export const Button: React.FC<ButtonProps> = ({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.75}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       {loading ? (
         <ActivityIndicator color={loaderColor} size="small" />
@@ -109,9 +113,9 @@ const styles = StyleSheet.create({
   dangerLabel: { color: COLORS.white },
 
   // Size containers
-  smContainer: { paddingVertical: 8, paddingHorizontal: 16 },
-  mdContainer: { paddingVertical: 13, paddingHorizontal: 24 },
-  lgContainer: { paddingVertical: 16, paddingHorizontal: 32 },
+  smContainer: { minHeight: 44, paddingVertical: 8, paddingHorizontal: 16 },
+  mdContainer: { minHeight: 48, paddingVertical: 13, paddingHorizontal: 24 },
+  lgContainer: { minHeight: 56, paddingVertical: 16, paddingHorizontal: 32 },
 
   // Size labels
   smLabel: { fontSize: 13, fontWeight: '600' },

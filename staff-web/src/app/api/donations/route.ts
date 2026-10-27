@@ -83,7 +83,7 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: "ID required" }, { status: 400 });
     }
 
-    await prisma.donation.delete({ where: { id } });
+    await prisma.donation.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_donation", userId: session.user.id, details: `Deleted donation ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json({ success: true });
 }

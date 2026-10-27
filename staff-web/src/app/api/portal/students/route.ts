@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getApiIdentity, isStaff as hasStaffRole } from "@/lib/api-identity";
 
 export async function GET(req: NextRequest) {
+    const identity = await getApiIdentity(req);
+    if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const isStaff = hasStaffRole(identity.role);
+    if (!isStaff && !identity.isVerified) return NextResponse.json({ error: "Verify your email to access parent records" }, { status: 403 });
+    const callerEmail = identity.email;
+    if (!isStaff && !callerEmail) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
     const { searchParams } = req.nextUrl;
     const studentId = searchParams.get("studentId");
-    const parentEmail = searchParams.get("email");
+    const parentEmail = isStaff ? searchParams.get("email") : callerEmail;
 
     if (!studentId && !parentEmail) {
         return NextResponse.json({ error: "Student ID or parent email required" }, { status: 400 });
@@ -16,7 +23,7 @@ export async function GET(req: NextRequest) {
 
         if (studentId) {
             const student = await prisma.student.findUnique({
-                where: { id: studentId },
+                where: { id: Number(studentId) },
                 include: {
                     class: true,
                     assignments: {
@@ -25,7 +32,7 @@ export async function GET(req: NextRequest) {
                     },
                 },
             });
-            students = student ? [student] : [];
+            students = student && (isStaff || student.parentEmail?.toLowerCase() === callerEmail) ? [student] : [];
         } else {
             students = await prisma.student.findMany({
                 where: { parentEmail: parentEmail?.toLowerCase() },
@@ -87,8 +94,8 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
             students: result,
-            isParent: true,
-        });
+            isParent: !isStaff,
+        }, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
         console.error("Parent portal error:", error);
         return NextResponse.json({ error: "Failed to fetch student data" }, { status: 500 });

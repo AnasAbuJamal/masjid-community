@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = 'https://api.masjidalmomineen.com';
+import api from './api-client';
 
 export type ResourceType = 'video' | 'document' | 'link' | 'audio' | 'image';
 
@@ -30,10 +28,28 @@ export interface ResourceCategory {
   resourceCount: number;
 }
 
+interface ResourceCollection {
+  resources: Resource[];
+  categories: ResourceCategory[];
+  page: number;
+  total: number;
+  hasMore: boolean;
+}
+
 class ResourceService {
-  async getCategories(): Promise<ResourceCategory[]> {
-    const response = await axios.get(`${API_BASE}/resources/categories`);
+  async list(filters?: {
+    category?: string;
+    type?: ResourceType;
+    search?: string;
+    featured?: boolean;
+    page?: number;
+  }): Promise<ResourceCollection> {
+    const response = await api.instance.get<ResourceCollection>('/resources', { params: filters });
     return response.data;
+  }
+
+  async getCategories(): Promise<ResourceCategory[]> {
+    return (await this.list()).categories;
   }
 
   async getResources(filters?: {
@@ -42,50 +58,49 @@ class ResourceService {
     gradeLevel?: string;
     search?: string;
   }): Promise<Resource[]> {
-    const params = new URLSearchParams();
-    if (filters?.category) params.append('category', filters.category);
-    if (filters?.type) params.append('type', filters.type);
-    if (filters?.gradeLevel) params.append('gradeLevel', filters.gradeLevel);
-    if (filters?.search) params.append('search', filters.search);
-    
-    const response = await axios.get(`${API_BASE}/resources?${params}`);
-    return response.data;
+    const response = await this.list({
+      category: filters?.category,
+      type: filters?.type,
+      search: filters?.search,
+    });
+    return filters?.gradeLevel
+      ? response.resources.filter(r => r.gradeLevels.includes(filters.gradeLevel!))
+      : response.resources;
   }
 
   async getFeaturedResources(): Promise<Resource[]> {
-    const response = await axios.get(`${API_BASE}/resources/featured`);
-    return response.data;
+    return (await this.list({ featured: true })).resources;
   }
 
   async getResource(resourceId: string): Promise<Resource> {
-    const response = await axios.get(`${API_BASE}/resources/${resourceId}`);
+    const response = await api.instance.get<Resource>(`/resources/${encodeURIComponent(resourceId)}`);
     return response.data;
   }
 
   async recordView(resourceId: string): Promise<void> {
-    await axios.post(`${API_BASE}/resources/${resourceId}/view`);
+    await api.instance.post(`/resources/${encodeURIComponent(resourceId)}/view`);
   }
 
   async getRelatedResources(resourceId: string): Promise<Resource[]> {
-    const response = await axios.get(`${API_BASE}/resources/${resourceId}/related`);
-    return response.data;
+    const resource = await this.getResource(resourceId);
+    const matches = await this.getResources({ category: resource.category });
+    return matches.filter(candidate => candidate.id !== resourceId).slice(0, 8);
   }
 
-  async downloadResource(resourceId: string): Promise<Blob> {
-    const response = await axios.get(`${API_BASE}/resources/${resourceId}/download`, {
-      responseType: 'blob',
-    });
-    return response.data;
+  // Downloadable materials are stored as HTTPS links; React Native's Linking or
+  // a native sharing library should open them, not an unauthenticated proxy.
+  async getDownloadUrl(resourceId: string): Promise<string> {
+    const resource = await this.getResource(resourceId);
+    return resource.url;
   }
 
-  async getResourcesByClass(classId: string): Promise<Resource[]> {
-    const response = await axios.get(`${API_BASE}/classes/${classId}/resources`);
-    return response.data;
+  async getResourcesByClass(_classId: string): Promise<Resource[]> {
+    // Class-specific publishing is not yet part of the database schema.
+    return [];
   }
 
   async searchResources(query: string): Promise<Resource[]> {
-    const response = await axios.get(`${API_BASE}/resources/search?q=${encodeURIComponent(query)}`);
-    return response.data;
+    return (await this.list({ search: query })).resources;
   }
 }
 

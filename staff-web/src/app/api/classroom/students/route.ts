@@ -8,12 +8,13 @@ export async function GET(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    if (!["admin", "teacher"].includes(session.user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const { searchParams } = req.nextUrl;
     const classId = searchParams.get("classId");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    const where = classId ? { classId: parseInt(classId), isActive: true } : { isActive: true };
+    const where = { isActive: true, ...(classId ? { classId: Number(classId) } : {}), ...(session.user.role === "admin" ? {} : { class: { teacherId: Number(session.user.id) } }) };
 
     const [students, total] = await Promise.all([
         prisma.student.findMany({
@@ -26,12 +27,13 @@ export async function GET(req: NextRequest) {
         prisma.student.count({ where }),
     ]);
 
-    return NextResponse.json({ students, total, page, totalPages: Math.ceil(total / limit) });
+    return NextResponse.json({ students, total, page, totalPages: Math.ceil(total / limit) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (session.user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
     if (body.classId !== undefined) body.classId = parseInt(String(body.classId));

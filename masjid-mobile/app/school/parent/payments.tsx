@@ -1,237 +1,208 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl,
+  ActivityIndicator, Alert, Linking, AppState,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, Button } from '../../../components/common';
+import api from '../../../services/api-client';
 import { COLORS, SPACING, RADIUS } from '../../../constants/theme';
 
-interface Payment {
+interface SchoolInvoice {
   id: string;
+  studentId: string;
   description: string;
   amount: number;
-  status: 'pending' | 'paid' | 'overdue';
+  currency: string;
   dueDate: string;
-  paidDate?: string;
+  paidDate: string | null;
   childName: string;
+  status: 'pending' | 'paid' | 'refunded' | 'void';
 }
 
-const MOCK_PAYMENTS: Payment[] = [
-  { id: '1', description: 'Quran Class - Monthly Tuition (April)', amount: 75, status: 'pending', dueDate: '2024-04-01', childName: 'Ahmed Ali' },
-  { id: '2', description: 'Arabic Language - Materials Fee', amount: 25, status: 'paid', dueDate: '2024-03-01', paidDate: '2024-03-01', childName: 'Ahmed Ali' },
-  { id: '3', description: 'Islamic Studies - Book Purchase', amount: 30, status: 'overdue', dueDate: '2024-02-15', childName: 'Fatima Ali' },
-  { id: '4', description: 'Quran Class - Monthly Tuition (March)', amount: 75, status: 'paid', dueDate: '2024-03-01', paidDate: '2024-02-28', childName: 'Fatima Ali' },
-];
+const money = (amount: number) => `$${amount.toFixed(2)}`;
+const readableDate = (date: string) => new Date(date).toLocaleDateString('en-US', {
+  year: 'numeric', month: 'short', day: 'numeric',
+});
 
-export default function PaymentsScreen() {
-  const [payments, setPayments] = useState<Payment[]>([]);
+export default function ParentPaymentsScreen() {
+  const router = useRouter();
+  const [invoices, setInvoices] = useState<SchoolInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [paying, setPaying] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    try {
+      const response = await api.instance.get<{ invoices: SchoolInvoice[] }>('/school/invoices');
+      setInvoices(response.data.invoices);
+      setError('');
+    } catch (failure: unknown) {
+      const code = (failure as { response?: { status?: number } })?.response?.status;
+      setError(code === 403 ? 'Verify your email in Profile to view family billing.'
+        : 'Unable to load invoices. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    setPayments(MOCK_PAYMENTS);
+    void load();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') void load();
+    });
+    return () => subscription.remove();
   }, []);
 
-  const pendingPayments = payments.filter(p => p.status === 'pending' || p.status === 'overdue');
-  const totalPending = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
-  const paidPayments = payments.filter(p => p.status === 'paid');
-  const totalPaid = paidPayments.reduce((sum, p) => sum + p.amount, 0);
+  const refresh = () => { setRefreshing(true); void load(); };
 
-  const handlePayNow = (payment: Payment) => {
-    Alert.alert(
-      'Make Payment',
-      `Pay $${payment.amount} for ${payment.description}?`,
+  const pay = (invoice: SchoolInvoice) => {
+    if (paying) return;
+    Alert.alert('Secure checkout',
+      `Pay ${money(invoice.amount)} for ${invoice.description}? Payments are only confirmed after Stripe processes them.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Pay Now',
-          onPress: () => {
-            setPayments(prev => prev.map(p =>
-              p.id === payment.id
-                ? { ...p, status: 'paid' as const, paidDate: new Date().toISOString().split('T')[0] }
-                : p
-            ));
-            Alert.alert('Success', 'Payment processed successfully!');
-          },
-        },
-      ]
-    );
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Continue', onPress: async () => {
+          setPaying(invoice.id);
+          try {
+            const response = await api.instance.post<{ url: string }>(
+              `/school/invoices/${encodeURIComponent(invoice.id)}/checkout`
+            );
+            if (!response.data.url?.startsWith('https://checkout.stripe.com/')) {
+              throw new Error('Unexpected checkout URL');
+            }
+            await Linking.openURL(response.data.url);
+          } catch {
+            Alert.alert('Checkout unavailable', 'Could not start secure payment. No charge was made from this action.');
+          } finally { setPaying(null); }
+        } },
+      ]);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid': return COLORS.success;
-      case 'pending': return COLORS.warning;
-      case 'overdue': return COLORS.error;
-      default: return COLORS.textSecondary;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid': return 'check-circle';
-      case 'pending': return 'clock-outline';
-      case 'overdue': return 'alert-circle';
-      default: return 'help-circle';
-    }
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+  const outstanding = invoices.filter(i => i.status === 'pending');
+  const balance = outstanding.reduce((sum, i) => sum + i.amount, 0);
+  const completed = invoices.filter(i => i.status === 'paid');
+  const paidTotal = completed.reduce((sum, i) => sum + i.amount, 0);
 
   return (
-    <ScreenWrapper contentPadding={false}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Payments</Text>
-          <Text style={styles.subtitle}>Manage tuition and fees</Text>
-        </View>
-
-        <View style={styles.summaryCards}>
-          <GlassCard style={styles.summaryCard}>
-            <View style={[styles.summaryIcon, { backgroundColor: COLORS.warning + '15' }]}>
-              <MaterialCommunityIcons name="clock-outline" size={20} color={COLORS.warning} />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
+          style={styles.back}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>School Payments</Text>
+        <View style={styles.back} />
+      </View>
+      {loading ? <ActivityIndicator size="large" style={styles.loader} color={COLORS.primary} /> : (
+        <ScrollView contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+          {error ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>{error}</Text>
+              <TouchableOpacity onPress={refresh} accessibilityRole="button" style={styles.retry}>
+                <Text style={styles.actionText}>Retry</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.summaryAmount}>${totalPending}</Text>
-            <Text style={styles.summaryLabel}>Due / Overdue</Text>
-          </GlassCard>
-          <GlassCard style={styles.summaryCard}>
-            <View style={[styles.summaryIcon, { backgroundColor: COLORS.success + '15' }]}>
-              <MaterialCommunityIcons name="check-circle" size={20} color={COLORS.success} />
-            </View>
-            <Text style={styles.summaryAmount}>${totalPaid}</Text>
-            <Text style={styles.summaryLabel}>Paid This Year</Text>
-          </GlassCard>
-        </View>
-
-        {totalPending > 0 && (
-          <View style={styles.alertBanner}>
-            <MaterialCommunityIcons name="alert-circle" size={20} color={COLORS.white} />
-            <Text style={styles.alertText}>
-              You have {pendingPayments.length} pending payment{pendingPayments.length > 1 ? 's' : ''} totaling ${totalPending}
-            </Text>
-          </View>
-        )}
-
-        {pendingPayments.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Due Payments</Text>
-            {pendingPayments.map(payment => (
-              <GlassCard key={payment.id} style={styles.paymentCard}>
-                <View style={styles.paymentHeader}>
-                  <View style={styles.paymentInfo}>
-                    <Text style={styles.paymentDescription}>{payment.description}</Text>
-                    <Text style={styles.paymentChild}>{payment.childName}</Text>
-                  </View>
-                  <View style={styles.paymentAmount}>
-                    <Text style={styles.amountText}>${payment.amount}</Text>
-                  </View>
-                </View>
-                <View style={styles.paymentMeta}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(payment.status) + '15' }]}>
-                    <MaterialCommunityIcons name={getStatusIcon(payment.status) as any} size={14} color={getStatusColor(payment.status)} />
-                    <Text style={[styles.statusText, { color: getStatusColor(payment.status) }]}>
-                      {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                    </Text>
-                  </View>
-                  <Text style={styles.dueDate}>Due: {formatDate(payment.dueDate)}</Text>
-                </View>
-                {payment.status !== 'paid' && (
-                  <Button
-                    title={payment.status === 'overdue' ? 'Pay Now (Overdue)' : 'Pay Now'}
-                    onPress={() => handlePayNow(payment)}
-                    style={styles.payButton}
-                    textStyle={styles.payButtonText}
-                  />
-                )}
-              </GlassCard>
-            ))}
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment History</Text>
-          {paidPayments.length === 0 ? (
-            <GlassCard>
-              <Text style={styles.emptyText}>No payment history yet</Text>
-            </GlassCard>
           ) : (
-            paidPayments.map(payment => (
-              <GlassCard key={payment.id} style={styles.paymentCard}>
-                <View style={styles.paymentHeader}>
-                  <View style={styles.paymentInfo}>
-                    <Text style={styles.paymentDescription}>{payment.description}</Text>
-                    <Text style={styles.paymentChild}>{payment.childName}</Text>
-                  </View>
-                  <View style={styles.paymentAmount}>
-                    <Text style={[styles.amountText, { color: COLORS.success }]}>${payment.amount}</Text>
-                  </View>
+            <>
+              <View style={styles.summary}>
+                <View style={styles.summaryPart}>
+                  <Text style={styles.summaryLabel}>Outstanding</Text>
+                  <Text style={styles.summaryValue}>{money(balance)}</Text>
+                  <Text style={styles.summaryNote}>{outstanding.length} unpaid invoices</Text>
                 </View>
-                <View style={styles.paymentMeta}>
-                  <View style={[styles.statusBadge, { backgroundColor: COLORS.success + '15' }]}>
-                    <MaterialCommunityIcons name="check-circle" size={14} color={COLORS.success} />
-                    <Text style={[styles.statusText, { color: COLORS.success }]}>Paid</Text>
-                  </View>
-                  <Text style={styles.dueDate}>Paid: {payment.paidDate && formatDate(payment.paidDate)}</Text>
+                <View style={styles.summaryPart}>
+                  <Text style={styles.summaryLabel}>Paid</Text>
+                  <Text style={styles.summaryValue}>{money(paidTotal)}</Text>
+                  <Text style={styles.summaryNote}>{completed.length} confirmed payments</Text>
                 </View>
-              </GlassCard>
-            ))
+              </View>
+              {invoices.length === 0 ? (
+                <View style={styles.empty}>
+                  <MaterialCommunityIcons name="receipt-text-outline" size={46} color={COLORS.textSecondary} />
+                  <Text style={styles.emptyText}>No school invoices are associated with your account.</Text>
+                </View>
+              ) : invoices.map(invoice => {
+                const overdue = invoice.status === 'pending' && new Date(invoice.dueDate).getTime() < Date.now();
+                const statusText = overdue ? 'Overdue' : invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1);
+                return (
+                  <View key={invoice.id} style={styles.card}>
+                    <View style={styles.line}>
+                      <View style={styles.cardBody}>
+                        <Text style={styles.cardTitle}>{invoice.description}</Text>
+                        <Text style={styles.secondary}>{invoice.childName}</Text>
+                      </View>
+                      <Text style={styles.amount}>{money(invoice.amount)}</Text>
+                    </View>
+                    <View style={styles.line}>
+                      <Text style={styles.secondary}>Due {readableDate(invoice.dueDate)}</Text>
+                      <Text style={[styles.status, {
+                        color: invoice.status === 'paid' ? COLORS.success
+                          : overdue ? COLORS.error : COLORS.textSecondary,
+                      }]}>{statusText}</Text>
+                    </View>
+                    {invoice.paidDate && (
+                      <Text style={styles.secondary}>Paid {readableDate(invoice.paidDate)}</Text>
+                    )}
+                    {invoice.status === 'pending' && (
+                      <TouchableOpacity style={styles.payButton} accessibilityRole="button"
+                        accessibilityLabel={`Pay ${money(invoice.amount)} for ${invoice.description}`}
+                        disabled={paying !== null} onPress={() => pay(invoice)}>
+                        <Text style={styles.payText}>{paying === invoice.id ? 'Opening checkout…' : 'Pay securely'}</Text>
+                        <MaterialCommunityIcons name="lock-outline" size={18} color={COLORS.white} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </>
           )}
-        </View>
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
-    </ScreenWrapper>
+          <Text style={styles.footerNote}>
+            This page shows invoices issued by the masjid office. Payment status updates only after verified provider confirmation.
+          </Text>
+        </ScrollView>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: SPACING.md, paddingTop: SPACING.lg },
-  welcomeText: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
-  summaryCards: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm },
-  summaryCard: { flex: 1, alignItems: 'center', padding: SPACING.md },
-  summaryIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.xs },
-  summaryAmount: { fontSize: 22, fontWeight: '700', color: COLORS.text },
-  summaryLabel: { fontSize: 12, color: COLORS.textSecondary },
-
-  alertBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.error,
-    marginHorizontal: SPACING.md,
-    marginVertical: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    gap: SPACING.sm,
-  },
-  alertText: { flex: 1, color: COLORS.white, fontWeight: '600', fontSize: 14 },
-
-  section: { padding: SPACING.md },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
-
-  paymentCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  paymentHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  paymentInfo: { flex: 1 },
-  paymentDescription: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  paymentChild: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  paymentAmount: {},
-  amountText: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-
-  paymentMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SPACING.sm },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, gap: 4 },
-  statusText: { fontSize: 12, fontWeight: '600' },
-  dueDate: { fontSize: 12, color: COLORS.textSecondary },
-
-  payButton: { marginTop: SPACING.sm, paddingVertical: SPACING.xs },
-  payButtonText: { fontSize: 14 },
-
-  emptyText: { color: COLORS.textSecondary, textAlign: 'center' },
-  bottomSpacer: { height: 100 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.surface, paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
+  loader: { flex: 1 },
+  content: { maxWidth: 800, width: '100%', alignSelf: 'center',
+    padding: SPACING.md, paddingBottom: SPACING.xxl },
+  summary: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
+  summaryPart: { flex: 1, minWidth: 0, borderRadius: RADIUS.lg, borderColor: COLORS.border,
+    borderWidth: 1, backgroundColor: COLORS.surface, padding: SPACING.md },
+  summaryLabel: { color: COLORS.textSecondary, fontSize: 13 },
+  summaryValue: { color: COLORS.text, fontSize: 24, fontWeight: '700', marginVertical: SPACING.xs },
+  summaryNote: { color: COLORS.textSecondary, fontSize: 11 },
+  card: { padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1,
+    borderColor: COLORS.border, backgroundColor: COLORS.surface,
+    marginBottom: SPACING.sm, gap: SPACING.sm },
+  line: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
+    justifyContent: 'space-between' },
+  cardBody: { flex: 1 },
+  cardTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  secondary: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 19 },
+  amount: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
+  status: { fontWeight: '600', fontSize: 13, textTransform: 'capitalize' },
+  payButton: { flexDirection: 'row', minHeight: 48, justifyContent: 'center', alignItems: 'center',
+    gap: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md, marginTop: SPACING.xs },
+  payText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
+  empty: { alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.xxl },
+  emptyText: { textAlign: 'center', color: COLORS.textSecondary, fontSize: 14, lineHeight: 21 },
+  retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: SPACING.md },
+  actionText: { color: COLORS.primary, fontWeight: '600' },
+  footerNote: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 19, marginTop: SPACING.lg },
 });

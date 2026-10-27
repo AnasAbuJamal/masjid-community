@@ -20,13 +20,13 @@ interface DonationData {
   id: number;
   donorName: string | null;
   amount: number;
-  createdAt: string;
+  createdAt: string | Date;
   status: string;
 }
 
 export function DonationChart({ data }: { data: MonthlyData[] }) {
   return (
-    <Card className="col-span-2 border-0 shadow-sm">
+    <Card className="col-span-1 lg:col-span-2 border-0 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Revenue Overview</CardTitle>
       </CardHeader>
@@ -243,7 +243,7 @@ interface NotificationItem {
   type: string;
   title: string;
   message: string;
-  createdAt: string;
+  createdAt: string | Date;
   isRead: boolean;
 }
 

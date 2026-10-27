@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid assignment" }, { status: 400 });
+    for (const key of Object.keys(body)) if (!["studentId", "teacherId", "date", "type", "location", "description", "status", "rating"].includes(key)) delete body[key];
     body.date = new Date(body.date);
     if (!body.teacherId) body.teacherId = session.user.id;
 

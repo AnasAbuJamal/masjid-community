@@ -118,7 +118,7 @@ export default function VolunteersPage() {
                       <div className="flex items-center gap-2">
                         <Badge className={oppStatusColors[opp.status]}>{opp.status}</Badge>
                         <Button variant="ghost" size="sm" onClick={() => openEdit(opp)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(opp.id)}><Trash2 className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setDeleteId(String(opp.id))}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </div>
                     <p className="text-sm text-gray-500 mb-2">{opp.description}</p>
@@ -150,8 +150,8 @@ export default function VolunteersPage() {
                       <TableCell>
                         {app.status === "pending" && (
                           <div className="flex gap-1">
-                            <Button size="sm" variant="ghost" className="text-green-600" onClick={() => updateAppStatus(app.id, "approved")}><CheckCircle className="h-4 w-4" /></Button>
-                            <Button size="sm" variant="ghost" className="text-red-600" onClick={() => updateAppStatus(app.id, "rejected")}><XCircle className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" className="text-green-600" onClick={() => updateAppStatus(String(app.id), "approved")}><CheckCircle className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" className="text-red-600" onClick={() => updateAppStatus(String(app.id), "rejected")}><XCircle className="h-4 w-4" /></Button>
                           </div>
                         )}
                       </TableCell>

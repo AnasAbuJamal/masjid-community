@@ -49,6 +49,26 @@ export function rateLimit(
   };
 }
 
+/**
+ * Inspect a failed-attempt bucket without incrementing it.
+ * Successful sign-ins must not exhaust a shared-NAT failed-login allowance.
+ */
+export function checkRateLimit(
+  identifier: string,
+  maxRequests: number = RATE_LIMIT_MAX_REQUESTS,
+): { success: boolean; remaining: number; resetTime: number } {
+  const now = Date.now();
+  const entry = rateLimitStore.get(`rate_limit_${identifier}`);
+  if (!entry || entry.resetTime <= now) {
+    return { success: true, remaining: maxRequests, resetTime: now };
+  }
+  return {
+    success: entry.count < maxRequests,
+    remaining: Math.max(0, maxRequests - entry.count),
+    resetTime: entry.resetTime,
+  };
+}
+
 export function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
   const realIp = req.headers.get("x-real-ip");

@@ -1,263 +1,168 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
+  ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { qiblaBearing, cardinalDirection } from '../../utils/qibla';
 
-const QIBLA_DIRECTION = 45; // Approximate direction to Mecca from Atlanta
+const SAVED_COORDINATES = '@masjid:qibla:observer-coordinates';
+interface Coordinates { latitude: number; longitude: number }
 
 export default function QiblaScreen() {
   const router = useRouter();
-  const [heading, setHeading] = useState(0);
-  const [rotation] = useState(new Animated.Value(0));
+  const { width } = useWindowDimensions();
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [location, setLocation] = useState<Coordinates | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setHeading(prev => (prev + 1) % 360);
-    }, 100);
-    return () => clearInterval(timer);
+    let active = true;
+    AsyncStorage.getItem(SAVED_COORDINATES).then(saved => {
+      if (!active || !saved) return;
+      const coords = JSON.parse(saved) as Coordinates;
+      qiblaBearing(coords.latitude, coords.longitude);
+      setLatitude(String(coords.latitude));
+      setLongitude(String(coords.longitude));
+      setLocation(coords);
+    }).catch(() => undefined).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    const diff = heading - QIBLA_DIRECTION;
-    Animated.timing(rotation, {
-      toValue: -diff,
-      duration: 300,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  }, [heading]);
-
-  const rotate = rotation.interpolate({
-    inputRange: [-360, 360],
-    outputRange: ['-360deg', '360deg'],
-  });
-
-  const getCompassDirection = (deg: number) => {
-    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-    const index = Math.round(deg / 45) % 8;
-    return directions[index];
+  const saveLocation = async () => {
+    const lat = Number(latitude.trim());
+    const lon = Number(longitude.trim());
+    if (!latitude.trim() || !longitude.trim()) {
+      Alert.alert('Enter your coordinates', 'Enter your latitude and longitude from your device maps.');
+      return;
+    }
+    try {
+      qiblaBearing(lat, lon);
+      const coords = { latitude: lat, longitude: lon };
+      setLocation(coords);
+      await AsyncStorage.setItem(SAVED_COORDINATES, JSON.stringify(coords));
+    } catch {
+      Alert.alert('Invalid coordinates', 'Latitude must be between −90° and 90°; longitude between −180° and 180°.');
+    }
   };
+
+  let bearing: number | null = null;
+  if (location) {
+    try { bearing = qiblaBearing(location.latitude, location.longitude); }
+    catch { bearing = null; }
+  }
+  const compassSize = Math.min(300, Math.max(210, width - 90));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.back} accessibilityRole="button" accessibilityLabel="Go back"
+          onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Qibla Direction</Text>
-        <View style={styles.placeholder} />
+        <View style={styles.back} />
       </View>
+      {loading ? <ActivityIndicator color={COLORS.primary} style={styles.loader} size="large" /> : (
+        <ScrollView contentContainerStyle={styles.content}>
+          <MaterialCommunityIcons name="compass-outline" size={38} color={COLORS.primary} />
+          <Text style={styles.title}>Find the Qibla</Text>
+          <Text style={styles.description}>
+            Enter your current latitude and longitude to calculate the direction of the Kaaba.
+            Your coordinates stay on this device.
+          </Text>
 
-      <View style={styles.content}>
-        <Text style={styles.instruction}>
-          Point your phone towards the Kaaba
-        </Text>
-
-        <View style={styles.compassContainer}>
-          <Animated.View style={[styles.compass, { transform: [{ rotate }] }]}>
-            <View style={styles.compassRing}>
-              <View style={styles.compassNorth}>
-                <Text style={styles.compassLetter}>N</Text>
-              </View>
-              <View style={[styles.compassEast, styles.compassCardinal]}>
-                <Text style={styles.compassLetter}>E</Text>
-              </View>
-              <View style={[styles.compassSouth, styles.compassCardinal]}>
-                <Text style={styles.compassLetter}>S</Text>
-              </View>
-              <View style={[styles.compassWest, styles.compassCardinal]}>
-                <Text style={styles.compassLetter}>W</Text>
-              </View>
-              
-              {/* Kaaba indicator */}
-              <View style={styles.kaabaIndicator}>
-                <MaterialCommunityIcons name="mosque" size={32} color={COLORS.secondary} />
-              </View>
+          <View style={styles.form}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Latitude (degrees)</Text>
+              <TextInput accessibilityLabel="Latitude" style={styles.input}
+                value={latitude} onChangeText={setLatitude}
+                keyboardType="numbers-and-punctuation" autoCapitalize="none"
+                placeholder="e.g. 40.7128" placeholderTextColor={COLORS.textSecondary} />
             </View>
-          </Animated.View>
-
-          {/* Center info */}
-          <View style={styles.centerInfo}>
-            <Text style={styles.degreeText}>{heading}°</Text>
-            <Text style={styles.directionText}>{getCompassDirection(heading)}</Text>
+            <View style={styles.field}>
+              <Text style={styles.label}>Longitude (degrees)</Text>
+              <TextInput accessibilityLabel="Longitude" style={styles.input}
+                value={longitude} onChangeText={setLongitude}
+                keyboardType="numbers-and-punctuation" autoCapitalize="none"
+                placeholder="e.g. −74.0060" placeholderTextColor={COLORS.textSecondary} />
+            </View>
+            <TouchableOpacity accessibilityRole="button" style={styles.calculate}
+              onPress={() => { void saveLocation(); }}>
+              <Text style={styles.calculateText}>Calculate Qibla</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        <View style={styles.qiblaInfo}>
-          <View style={styles.infoCard}>
-            <MaterialCommunityIcons name="compass" size={24} color={COLORS.primary} />
-            <Text style={styles.infoLabel}>Qibla</Text>
-            <Text style={styles.infoValue}>{QIBLA_DIRECTION}° NE</Text>
-          </View>
-          <View style={styles.infoCard}>
-            <MaterialCommunityIcons name="map-marker" size={24} color={COLORS.secondary} />
-            <Text style={styles.infoLabel}>Location</Text>
-            <Text style={styles.infoValue}>Atlanta, GA</Text>
-          </View>
-        </View>
-
-        <Text style={styles.note}>
-          Note: Enable location services for accurate direction
-        </Text>
-      </View>
+          {bearing !== null ? (
+            <View style={styles.result}>
+              <Text style={styles.resultTitle}>Qibla from geographic north</Text>
+              <Text style={styles.degrees}>{bearing.toFixed(1)}°</Text>
+              <Text style={styles.cardinal}>{cardinalDirection(bearing)}</Text>
+              <View style={[styles.compass, { width: compassSize, height: compassSize,
+                borderRadius: compassSize / 2 }]}>
+                <Text style={styles.north}>N</Text>
+                <Text style={styles.south}>S</Text>
+                <Text style={styles.east}>E</Text>
+                <Text style={styles.west}>W</Text>
+                <View style={{ transform: [{ rotate: `${bearing}deg` }] }}>
+                  <MaterialCommunityIcons name="arrow-up-bold" size={96} color={COLORS.primary} />
+                </View>
+              </View>
+              <Text style={styles.note}>
+                The arrow is fixed relative to true north; it is not a live compass. Use a physical
+                compass, map, or your device compass (adjusted for true north) to orient yourself.
+                This app does not have access to live location or compass sensors.
+              </Text>
+            </View>
+          ) : <Text style={styles.note}>
+            You can find your coordinates in a map app by selecting your current location.
+            No location permission or continuous tracking is required.
+          </Text>}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  placeholder: { width: 40 },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  content: {
-    flex: 1,
-    padding: SPACING.md,
-    alignItems: 'center',
-  },
-  instruction: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.xl,
-  },
-  compassContainer: {
-    width: 280,
-    height: 280,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compass: {
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...SHADOWS.lg,
-    borderWidth: 8,
-    borderColor: COLORS.primary + '30',
-  },
-  compassRing: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    position: 'relative',
-  },
-  compassNorth: {
-    position: 'absolute',
-    top: 8,
-    left: '50%',
-    marginLeft: -10,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compassEast: {
-    position: 'absolute',
-    right: 8,
-    top: '50%',
-    marginTop: -10,
-  },
-  compassSouth: {
-    position: 'absolute',
-    bottom: 8,
-    left: '50%',
-    marginLeft: -10,
-  },
-  compassWest: {
-    position: 'absolute',
-    left: 8,
-    top: '50%',
-    marginTop: -10,
-  },
-  compassCardinal: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compassLetter: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-  },
-  kaabaIndicator: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginTop: -16,
-    marginLeft: -16,
-    width: 32,
-    height: 32,
-  },
-  centerInfo: {
-    position: 'absolute',
-    alignItems: 'center',
-  },
-  degreeText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  directionText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  qiblaInfo: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    marginTop: SPACING.xl,
-  },
-  infoCard: {
-    backgroundColor: COLORS.surface,
-    padding: SPACING.md,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    width: 140,
-    ...SHADOWS.sm,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginTop: 2,
-  },
-  note: {
-    fontSize: 12,
-    color: COLORS.textLight,
-    marginTop: SPACING.xl,
-    textAlign: 'center',
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { padding: SPACING.sm, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', backgroundColor: COLORS.surface,
+    borderBottomColor: COLORS.border, borderBottomWidth: 1 },
+  back: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: COLORS.text, fontWeight: '700', fontSize: 18 },
+  loader: { flex: 1 },
+  content: { alignItems: 'center', maxWidth: 680, width: '100%',
+    alignSelf: 'center', padding: SPACING.md, paddingBottom: SPACING.xxl },
+  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginTop: SPACING.sm },
+  description: { fontSize: 14, lineHeight: 22, color: COLORS.textSecondary,
+    textAlign: 'center', marginTop: SPACING.sm, marginBottom: SPACING.lg },
+  form: { width: '100%', backgroundColor: COLORS.surface, padding: SPACING.md,
+    borderRadius: RADIUS.xl, borderWidth: 1, borderColor: COLORS.border,
+    gap: SPACING.md },
+  field: { gap: 6 },
+  label: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  input: { minHeight: 48, borderColor: COLORS.border, borderWidth: 1,
+    paddingHorizontal: SPACING.md, borderRadius: RADIUS.md, backgroundColor: COLORS.background,
+    fontSize: 16, color: COLORS.text },
+  calculate: { minHeight: 52, borderRadius: RADIUS.lg, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center' },
+  calculateText: { fontSize: 16, fontWeight: '700', color: COLORS.white },
+  result: { alignItems: 'center', width: '100%', marginTop: SPACING.xl },
+  resultTitle: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
+  degrees: { fontSize: 46, fontWeight: '700', color: COLORS.primary, marginTop: 4 },
+  cardinal: { fontSize: 17, fontWeight: '600', color: COLORS.text, marginBottom: SPACING.lg },
+  compass: { backgroundColor: COLORS.surface, borderWidth: 4,
+    borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
+  north: { position: 'absolute', top: 10, fontSize: 17, fontWeight: '700', color: COLORS.text },
+  south: { position: 'absolute', bottom: 10, fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
+  east: { position: 'absolute', right: 12, fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
+  west: { position: 'absolute', left: 12, fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
+  note: { fontSize: 13, lineHeight: 21, textAlign: 'center', color: COLORS.textSecondary,
+    marginTop: SPACING.lg, maxWidth: 550 },
 });

@@ -19,9 +19,9 @@ describe('audit', () => {
   describe('logAudit', () => {
     it('creates audit log entry', async () => {
       vi.mocked(prisma.auditLog.create).mockResolvedValue({
-        id: '1',
+        id: 1,
         action: 'test_action',
-        userId: 'user123',
+        userId: 123,
         email: 'test@example.com',
         details: 'Test details',
         ipAddress: '192.168.1.1',
@@ -33,7 +33,7 @@ describe('audit', () => {
 
       await logAudit({
         action: 'test_action',
-        userId: 'user123',
+        userId: '123',
         email: 'test@example.com',
         details: 'Test details',
         ipAddress: '192.168.1.1',
@@ -43,18 +43,20 @@ describe('audit', () => {
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: {
           action: 'test_action',
-          userId: 'user123',
+          userId: 123,
           email: 'test@example.com',
           details: 'Test details',
           ipAddress: '192.168.1.1',
           success: true,
+          entity: undefined,
+          entityId: undefined,
         },
       });
     });
 
     it('handles optional fields', async () => {
       vi.mocked(prisma.auditLog.create).mockResolvedValue({
-        id: '1',
+        id: 1,
         action: 'test_action',
         userId: null,
         email: null,
@@ -76,13 +78,15 @@ describe('audit', () => {
           details: undefined,
           ipAddress: undefined,
           success: true,
+          entity: undefined,
+          entityId: undefined,
         },
       });
     });
 
     it('defaults success to true', async () => {
       vi.mocked(prisma.auditLog.create).mockResolvedValue({
-        id: '1',
+        id: 1,
         action: 'test_action',
         success: true,
         createdAt: new Date(),

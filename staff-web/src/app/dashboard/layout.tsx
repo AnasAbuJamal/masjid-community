@@ -8,15 +8,15 @@ import NotificationBell from "@/components/notification-bell";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     return (
         <SessionProvider>
-            <div className="flex min-h-screen bg-transparent">
+            <div className="flex min-h-screen bg-background text-foreground">
                 <AppSidebar />
                 <main className="min-w-0 flex-1 overflow-auto">
-                    <header className="glass-navigation sticky top-0 z-20 border-b px-6 py-3">
+                    <header className="glass-navigation sticky top-0 z-20 border-b px-4 py-3 sm:px-6">
                         <div className="flex justify-end">
                             <NotificationBell />
                         </div>
                     </header>
-                    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+                    <div className="p-4 sm:p-6 lg:p-8">
                         <RoleGuard>
                             {children}
                         </RoleGuard>

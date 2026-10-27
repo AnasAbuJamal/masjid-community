@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         await logAudit({
             action: "password_reset_completed",
             email: resetToken.email,
-            userId: user.id,
+            userId: String(user.id),
             details: "Password successfully reset",
             ipAddress: getClientIp(req),
             success: true,

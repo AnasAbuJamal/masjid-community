@@ -1,289 +1,209 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  FlatList,
-  TextInput,
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  TextInput, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard, ScreenWrapper, FloatingIcon } from '../../components/common';
+import { ScreenWrapper } from '../../components/common';
+import api from '../../services/api-client';
+import { useAuthStore } from '../../stores/authStore';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
 interface Donor {
   id: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
-  phone: string;
   totalDonated: number;
   donationCount: number;
-  lastDonationDate: string;
-  donorLevel: 'bronze' | 'silver' | 'gold' | 'platinum';
+  lastDonationDate: string | null;
 }
-
-interface Pledge {
-  id: string;
-  campaignName: string;
-  amount: number;
-  pledgeDate: string;
-  status: 'active' | 'fulfilled' | 'cancelled';
+interface DonorPage {
+  donors: Donor[];
+  page: number;
+  hasMore: boolean;
+  totals: {
+    amount: number;
+    count: number;
+    anonymousAmount: number;
+    anonymousCount: number;
+  };
 }
-
-const MOCK_DONORS: Donor[] = [
-  { id: '1', firstName: 'Ahmad', lastName: 'Ali', email: 'ahmad@example.com', phone: '555-1234', totalDonated: 15000, donationCount: 24, lastDonationDate: '2026-03-15', donorLevel: 'platinum' },
-  { id: '2', firstName: 'Fatima', lastName: 'Hassan', email: 'fatima@example.com', phone: '555-2345', totalDonated: 8500, donationCount: 12, lastDonationDate: '2026-03-10', donorLevel: 'gold' },
-  { id: '3', firstName: 'Omar', lastName: 'Malik', email: 'omar@example.com', phone: '555-3456', totalDonated: 5200, donationCount: 8, lastDonationDate: '2026-03-01', donorLevel: 'silver' },
-  { id: '4', firstName: 'Sarah', lastName: 'Ahmed', email: 'sarah@example.com', phone: '555-4567', totalDonated: 2100, donationCount: 6, lastDonationDate: '2026-02-28', donorLevel: 'bronze' },
-  { id: '5', firstName: 'Yusuf', lastName: 'Rahman', email: 'yusuf@example.com', phone: '555-5678', totalDonated: 1200, donationCount: 3, lastDonationDate: '2026-02-15', donorLevel: 'bronze' },
-];
-
-const MOCK_PLEDGES: Pledge[] = [
-  { id: '1', campaignName: 'Expansion Project', amount: 10000, pledgeDate: '2026-01-15', status: 'active' },
-  { id: '2', campaignName: 'Ramadan Fund', amount: 2500, pledgeDate: '2026-02-01', status: 'fulfilled' },
-  { id: '3', campaignName: 'Youth Program', amount: 5000, pledgeDate: '2026-02-20', status: 'active' },
-];
-
-const LEVEL_COLORS: Record<string, string> = {
-  bronze: '#CD7F32',
-  silver: '#C0C0C0',
-  gold: '#FFD700',
-  platinum: '#E5E4E2',
-};
-
-const LEVEL_THRESHOLDS = [
-  { level: 'platinum', min: 10000, label: 'Platinum', benefits: ['VIP Seating', 'Name Recognition', 'Private Events'] },
-  { level: 'gold', min: 5000, label: 'Gold', benefits: ['Priority Seating', 'Quarterly Reports'] },
-  { level: 'silver', min: 2500, label: 'Silver', benefits: ['Monthly Newsletter'] },
-  { level: 'bronze', min: 0, label: 'Bronze', benefits: ['Tax Receipts'] },
-];
+const money = (value: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 
 export default function DonationsCrmScreen() {
   const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
+  const role = useAuthStore(state => state.user?.role);
   const [donors, setDonors] = useState<Donor[]>([]);
-  const [pledges, setPledges] = useState<Pledge[]>([]);
-  const [selectedTab, setSelectedTab] = useState<'donors' | 'pledges' | 'levels'>('donors');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [totals, setTotals] = useState<DonorPage['totals'] | null>(null);
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchPage = async (number: number, append = false) => {
+    const response = await api.instance.get<DonorPage>('/mobile/admin/donors', {
+      params: { q: query.trim() || undefined, page: number },
+    });
+    setDonors(previous => append
+      ? [...previous, ...response.data.donors.filter(item => !previous.some(existing => existing.id === item.id))]
+      : response.data.donors);
+    setTotals(response.data.totals);
+    setHasMore(response.data.hasMore);
+    setPage(response.data.page);
+    setError('');
+  };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (role !== 'admin') { setLoading(false); return; }
+    let active = true;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.instance.get<DonorPage>('/mobile/admin/donors', {
+          params: { q: query.trim() || undefined, page: 1 },
+        });
+        if (!active) return;
+        setDonors(result.data.donors); setTotals(result.data.totals);
+        setPage(1); setHasMore(result.data.hasMore); setError('');
+      } catch {
+        if (active) setError('Unable to retrieve donor history. Please try again.');
+      } finally { if (active) setLoading(false); }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [query, role]);
 
-  const loadData = () => {
-    setDonors(MOCK_DONORS);
-    setPledges(MOCK_PLEDGES);
-  };
-
-  const onRefresh = async () => {
+  const refresh = async () => {
     setRefreshing(true);
-    loadData();
-    setRefreshing(false);
+    try { await fetchPage(1); }
+    catch { setError('Unable to refresh donors.'); }
+    finally { setRefreshing(false); }
   };
-
-  const filteredDonors = donors.filter(d => 
-    !searchQuery || 
-    `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const totalPledged = pledges.filter(p => p.status === 'active').reduce((sum, p) => sum + p.amount, 0);
-  const fulfilledPledges = pledges.filter(p => p.status === 'fulfilled').reduce((sum, p) => sum + p.amount, 0);
-
-  const renderDonorsTab = () => (
-    <View>
-      <View style={styles.searchBar}>
-        <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textSecondary} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search donors..."
-          placeholderTextColor={COLORS.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      {filteredDonors.map(donor => (
-        <TouchableOpacity key={donor.id} onPress={() => {}}>
-          <GlassCard style={styles.donorCard}>
-            <View style={styles.donorHeader}>
-              <View style={styles.donorAvatar}>
-                <Text style={styles.donorAvatarText}>{donor.firstName[0]}{donor.lastName[0]}</Text>
-              </View>
-              <View style={styles.donorInfo}>
-                <Text style={styles.donorName}>{donor.firstName} {donor.lastName}</Text>
-                <Text style={styles.donorEmail}>{donor.email}</Text>
-              </View>
-              <View style={[styles.levelBadge, { backgroundColor: LEVEL_COLORS[donor.donorLevel] + '20' }]}>
-                <MaterialCommunityIcons name="star" size={12} color={LEVEL_COLORS[donor.donorLevel]} />
-                <Text style={[styles.levelText, { color: LEVEL_COLORS[donor.donorLevel] }]}>{donor.donorLevel}</Text>
-              </View>
-            </View>
-            <View style={styles.donorStats}>
-              <View style={styles.donorStat}>
-                <Text style={styles.donorStatValue}>${donor.totalDonated.toLocaleString()}</Text>
-                <Text style={styles.donorStatLabel}>Total Given</Text>
-              </View>
-              <View style={styles.donorStat}>
-                <Text style={styles.donorStatValue}>{donor.donationCount}</Text>
-                <Text style={styles.donorStatLabel}>Donations</Text>
-              </View>
-              <View style={styles.donorStat}>
-                <Text style={styles.donorStatValue}>{donor.lastDonationDate}</Text>
-                <Text style={styles.donorStatLabel}>Last Date</Text>
-              </View>
-            </View>
-          </GlassCard>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
-  const renderPledgesTab = () => (
-    <View>
-      <View style={styles.pledgeSummary}>
-        <GlassCard style={styles.pledgeSummaryCard}>
-          <Text style={styles.pledgeSummaryLabel}>Active Pledges</Text>
-          <Text style={styles.pledgeSummaryValue}>${totalPledged.toLocaleString()}</Text>
-        </GlassCard>
-        <GlassCard style={styles.pledgeSummaryCard}>
-          <Text style={styles.pledgeSummaryLabel}>Fulfilled</Text>
-          <Text style={[styles.pledgeSummaryValue, { color: COLORS.success }]}>${fulfilledPledges.toLocaleString()}</Text>
-        </GlassCard>
-      </View>
-
-      {pledges.map(pledge => (
-        <GlassCard key={pledge.id} style={styles.pledgeCard}>
-          <View style={styles.pledgeHeader}>
-            <Text style={styles.pledgeCampaign}>{pledge.campaignName}</Text>
-            <View style={[styles.pledgeStatus, { backgroundColor: pledge.status === 'active' ? COLORS.warning + '15' : COLORS.success + '15' }]}>
-              <Text style={[styles.pledgeStatusText, { color: pledge.status === 'active' ? COLORS.warning : COLORS.success }]}>
-                {pledge.status.charAt(0).toUpperCase() + pledge.status.slice(1)}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.pledgeAmount}>${pledge.amount.toLocaleString()}</Text>
-          <Text style={styles.pledgeDate}>Pledged: {pledge.pledgeDate}</Text>
-        </GlassCard>
-      ))}
-    </View>
-  );
-
-  const renderLevelsTab = () => (
-    <View>
-      {LEVEL_THRESHOLDS.map(level => (
-        <GlassCard key={level.level} style={styles.levelCard}>
-          <View style={styles.levelHeader}>
-            <View style={[styles.levelIcon, { backgroundColor: LEVEL_COLORS[level.level] + '20' }]}>
-              <MaterialCommunityIcons name="star" size={20} color={LEVEL_COLORS[level.level]} />
-            </View>
-            <View style={styles.levelInfo}>
-              <Text style={styles.levelName}>{level.label}</Text>
-              <Text style={styles.levelMin}>${level.min.toLocaleString()}+</Text>
-            </View>
-          </View>
-          <View style={styles.levelBenefits}>
-            {level.benefits.map((benefit, idx) => (
-              <View key={idx} style={styles.benefitItem}>
-                <MaterialCommunityIcons name="check" size={14} color={COLORS.success} />
-                <Text style={styles.benefitText}>{benefit}</Text>
-              </View>
-            ))}
-          </View>
-        </GlassCard>
-      ))}
-    </View>
-  );
+  const more = async () => {
+    if (!hasMore || loadingMore || loading) return;
+    setLoadingMore(true);
+    try { await fetchPage(page + 1, true); }
+    catch { setError('Could not load more donor records.'); }
+    finally { setLoadingMore(false); }
+  };
 
   return (
     <ScreenWrapper contentPadding={false}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-      >
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Donations CRM</Text>
-          <Text style={styles.subtitle}>Manage donors, pledges & recognition</Text>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.back} accessibilityRole="button"
+          accessibilityLabel="Go back" onPress={() => router.back()}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Donations CRM</Text>
+          <Text style={styles.subtitle}>Verified completed payments</Text>
         </View>
-
-        <View style={styles.tabs}>
-          {(['donors', 'pledges', 'levels'] as const).map(tab => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, selectedTab === tab && styles.tabActive]}
-              onPress={() => setSelectedTab(tab)}
-            >
-              <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      </View>
+      {role !== 'admin' ? <View style={styles.center}>
+        <Text style={styles.muted}>Administrator access is required.</Text>
+      </View> : <>
+        <View style={styles.search}>
+          <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textSecondary} />
+          <TextInput style={styles.searchInput} value={query}
+            accessibilityLabel="Search donors" onChangeText={setQuery}
+            placeholder="Search non-anonymous donor records"
+            placeholderTextColor={COLORS.textSecondary}
+            autoCapitalize="none" />
         </View>
-
-        <View style={styles.content}>
-          {selectedTab === 'donors' && renderDonorsTab()}
-          {selectedTab === 'pledges' && renderPledgesTab()}
-          {selectedTab === 'levels' && renderLevelsTab()}
-        </View>
-      </ScrollView>
+        {loading ? <ActivityIndicator color={COLORS.primary} style={styles.loader} /> : (
+          <FlatList
+            data={donors}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.content}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void refresh(); }} />}
+            ListHeaderComponent={totals ? (
+              <View>
+                <View style={styles.metrics}>
+                  <View style={styles.metric}>
+                    <Text style={styles.metricValue}>{money(totals.amount)}</Text>
+                    <Text style={styles.metricLabel}>Confirmed donations · All time</Text>
+                  </View>
+                  <View style={styles.metric}>
+                    <Text style={styles.metricValue}>{totals.count.toLocaleString()}</Text>
+                    <Text style={styles.metricLabel}>Completed payments</Text>
+                  </View>
+                  <View style={styles.metric}>
+                    <Text style={styles.metricValue}>{money(totals.anonymousAmount)}</Text>
+                    <Text style={styles.metricLabel}>Anonymous contributions</Text>
+                  </View>
+                </View>
+                <Text style={styles.heading}>Non-anonymous donors</Text>
+              </View>
+            ) : null}
+            ListEmptyComponent={<View style={styles.center}>
+              <MaterialCommunityIcons name="account-search-outline" size={43} color={COLORS.textSecondary} />
+              <Text style={styles.muted}>{error || 'No matching donor records are available.'}</Text>
+            </View>}
+            ListFooterComponent={hasMore ? (
+              <TouchableOpacity accessibilityRole="button" style={styles.more}
+                disabled={loadingMore} onPress={() => { void more(); }}>
+                <Text style={styles.actionText}>{loadingMore ? 'Loading…' : 'Load more donors'}</Text>
+              </TouchableOpacity>
+            ) : <Text style={styles.note}>
+              Anonymous donor identities are never displayed. Donations are linked by supplied email,
+              so contact details may not be independently verified.
+            </Text>}
+            renderItem={({ item }) => (
+              <View style={styles.card}>
+                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.email}>{item.email}</Text>
+                <View style={styles.row}>
+                  <Text style={styles.amount}>{money(item.totalDonated)}</Text>
+                  <Text style={styles.muted}>{item.donationCount} completed gifts</Text>
+                </View>
+                {item.lastDonationDate && <Text style={styles.date}>
+                  Last gift: {new Date(item.lastDonationDate).toLocaleDateString()}
+                </Text>}
+              </View>
+            )}
+          />
+        )}
+        {!!error && donors.length > 0 && <Text style={styles.error}>{error}</Text>}
+      </>}
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: SPACING.md, paddingTop: SPACING.lg },
-  welcomeText: { fontSize: 24, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
-  tabs: { flexDirection: 'row', paddingHorizontal: SPACING.md, gap: SPACING.sm, marginBottom: SPACING.md },
-  tab: { flex: 1, paddingVertical: SPACING.sm, alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.md },
-  tabActive: { backgroundColor: COLORS.primary },
-  tabText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.white },
-
-  content: { paddingHorizontal: SPACING.md },
-
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, marginBottom: SPACING.md, gap: SPACING.sm },
-  searchInput: { flex: 1, fontSize: 15, color: COLORS.text },
-
-  donorCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  donorHeader: { flexDirection: 'row', alignItems: 'center' },
-  donorAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  donorAvatarText: { fontSize: 14, fontWeight: '700', color: COLORS.white },
-  donorInfo: { flex: 1, marginLeft: SPACING.sm },
-  donorName: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  donorEmail: { fontSize: 12, color: COLORS.textSecondary },
-  levelBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, gap: 4 },
-  levelText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  donorStats: { flexDirection: 'row', marginTop: SPACING.sm, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border },
-  donorStat: { flex: 1, alignItems: 'center' },
-  donorStatValue: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  donorStatLabel: { fontSize: 10, color: COLORS.textSecondary },
-
-  pledgeSummary: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
-  pledgeSummaryCard: { flex: 1, alignItems: 'center', padding: SPACING.md },
-  pledgeSummaryLabel: { fontSize: 12, color: COLORS.textSecondary },
-  pledgeSummaryValue: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginTop: 4 },
-
-  pledgeCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  pledgeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pledgeCampaign: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  pledgeStatus: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full },
-  pledgeStatusText: { fontSize: 11, fontWeight: '700' },
-  pledgeAmount: { fontSize: 22, fontWeight: '800', color: COLORS.text, marginVertical: SPACING.xs },
-  pledgeDate: { fontSize: 12, color: COLORS.textSecondary },
-
-  levelCard: { marginBottom: SPACING.sm, padding: SPACING.md },
-  levelHeader: { flexDirection: 'row', alignItems: 'center' },
-  levelIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  levelInfo: { flex: 1, marginLeft: SPACING.sm },
-  levelName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  levelMin: { fontSize: 13, color: COLORS.textSecondary },
-  levelBenefits: { marginTop: SPACING.sm, gap: SPACING.xs },
-  benefitItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-  benefitText: { fontSize: 13, color: COLORS.textSecondary },
+  header: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center', padding: SPACING.sm,
+    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderColor: COLORS.border },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { color: COLORS.text, fontWeight: '700', fontSize: 21 },
+  subtitle: { color: COLORS.textSecondary, fontSize: 12, marginTop: 3 },
+  search: { minHeight: 48, margin: SPACING.md, flexDirection: 'row', gap: SPACING.sm,
+    alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: SPACING.md },
+  searchInput: { color: COLORS.text, fontSize: 16, minHeight: 46, flex: 1 },
+  loader: { flex: 1 },
+  content: { maxWidth: 850, width: '100%', alignSelf: 'center',
+    padding: SPACING.md, paddingBottom: SPACING.xxl },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
+  metric: { flexGrow: 1, flexBasis: '45%', minWidth: 150, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.lg, padding: SPACING.md },
+  metricValue: { color: COLORS.text, fontSize: 19, fontWeight: '700' },
+  metricLabel: { color: COLORS.textSecondary, fontSize: 12, marginTop: SPACING.sm, lineHeight: 18 },
+  heading: { color: COLORS.text, fontWeight: '700', fontSize: 17, marginBottom: SPACING.md },
+  card: { borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface, padding: SPACING.md, marginBottom: SPACING.sm, gap: SPACING.sm },
+  name: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  email: { color: COLORS.textSecondary, fontSize: 13 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexWrap: 'wrap', gap: SPACING.sm },
+  amount: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  muted: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  date: { color: COLORS.textSecondary, fontSize: 12 },
+  note: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 19, marginTop: SPACING.lg },
+  more: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  actionText: { color: COLORS.primary, fontWeight: '700' },
+  center: { alignItems: 'center', paddingVertical: SPACING.xxl, gap: SPACING.md },
+  error: { color: COLORS.error, textAlign: 'center', padding: SPACING.md },
 });

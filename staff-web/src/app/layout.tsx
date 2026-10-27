@@ -15,19 +15,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                localStorage.setItem('theme', 'light');
-                document.documentElement.classList.remove('dark');
-              } catch(e) {}
-            `,
-          }}
-        />
-      </head>
-      <body className="min-h-screen antialiased" style={{ backgroundColor: '#ffffff', color: '#111827' }}>
+      <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
           {children}
           <Toaster />

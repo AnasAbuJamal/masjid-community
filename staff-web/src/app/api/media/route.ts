@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
             size,
             url,
             folder: folder || null,
-            uploadedBy: session.user.id,
+            uploadedBy: Number(session.user.id),
         },
     });
 

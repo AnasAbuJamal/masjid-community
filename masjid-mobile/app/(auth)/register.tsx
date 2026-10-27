@@ -42,7 +42,7 @@ export default function RegisterScreen() {
     if (!form.email.trim()) e.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Invalid email';
     if (!form.password) e.password = 'Password is required';
-    else if (form.password.length < 6) e.password = 'Min 6 characters';
+    else if (form.password.length < 12) e.password = 'Minimum 12 characters';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -58,8 +58,14 @@ export default function RegisterScreen() {
         lastName: form.lastName.trim(),
       });
       const user: User = response.user;
-      setUser(user);
-      router.replace('/(tabs)');
+      await setUser(user);
+      Alert.alert(
+        'Verify your email',
+        response.verificationEmailSent
+          ? 'We sent a verification link to your email. Confirm your address to access private family records.'
+          : 'Your account was created. Email verification is not currently available. Contact the masjid office for assistance.',
+        [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
+      );
     } catch (error: unknown) {
       let message = 'Unable to create account. Please try again.';
       if (error instanceof Error && error.message) {
@@ -140,7 +146,7 @@ export default function RegisterScreen() {
                   secureTextEntry
                   containerStyle={styles.fullInput}
                 />
-                <Text style={styles.hintText}>Minimum 6 characters</Text>
+                <Text style={styles.hintText}>Minimum 12 characters</Text>
                 {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
               </View>
 

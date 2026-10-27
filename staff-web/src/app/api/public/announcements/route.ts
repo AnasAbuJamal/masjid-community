@@ -7,6 +7,7 @@ export async function GET() {
   const announcements = await prisma.kioskAnnouncement.findMany({
     where: {
       isActive: true,
+      startsAt: { lte: now },
       OR: [
         { expiresAt: null },
         { expiresAt: { gte: now } },

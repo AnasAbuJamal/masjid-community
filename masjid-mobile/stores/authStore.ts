@@ -10,9 +10,10 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'staff' | 'member' | 'student';
+  role: 'admin' | 'staff' | 'teacher' | 'member' | 'student';
   phone?: string;
   avatar?: string;
+  isVerified?: boolean;
 }
 
 interface AuthState {
@@ -39,38 +40,47 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   initialize: async () => {
     try {
       const userStr = await AsyncStorage.getItem(USER_STORAGE_KEY);
-      if (userStr) {
-        const user: User = JSON.parse(userStr);
+      const token = await api.getToken();
+      if (userStr && token) {
+        // Never trust cached user data without checking the signed server session.
+        const user = await apiService.auth.me();
+        await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
         set({ user, isAuthenticated: true, isLoading: false });
+        // Associate this physical device with the newly verified account.
+        void import('../services/notification-service')
+          .then(module => module.notificationService.syncRegistration()).catch(() => undefined);
       } else {
-        set({ isLoading: false });
+        await api.clearToken();
+        await AsyncStorage.removeItem(USER_STORAGE_KEY);
+        set({ user: null, isAuthenticated: false, isLoading: false });
       }
     } catch {
-      set({ isLoading: false });
+      await api.clearToken();
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
 
   login: async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('[Auth] Attempting login for:', email);
       const response = await apiService.auth.login(email, password);
-      console.log('[Auth] Login response:', response);
       const user: User = response.user;
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
       set({ user, isAuthenticated: true });
-      console.log('[Auth] Login successful, user set');
+      void import('../services/notification-service')
+        .then(module => module.notificationService.syncRegistration()).catch(() => undefined);
       return true;
     } catch (error: unknown) {
-      console.log('[Auth] Login failed with error:', error);
-      if (error instanceof Error) {
-        console.log('[Auth] Error message:', error.message);
-      }
       return false;
     }
   },
 
   logout: async () => {
     try {
+      // Revoke only this authenticated account's device registration before
+      // clearing its session, so another user will not get private pushes.
+      await import('../services/notification-service')
+        .then(module => module.notificationService.revokeRegistration()).catch(() => undefined);
       await apiService.auth.logout();
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
     } catch {

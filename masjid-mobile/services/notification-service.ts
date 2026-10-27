@@ -76,15 +76,27 @@ class NotificationService {
       const { data: token } = await Notifications.getExpoPushTokenAsync();
       this.expoPushToken = token;
       
-      if (apiService && apiService.notifications) {
-        await apiService.notifications.registerDevice(token);
-      }
-      
+      // Token acquisition is still successful if the user has not logged in.
+      // Registration is retried after authentication, not silently dropped.
+      await this.syncRegistration().catch(() => undefined);
       return token;
-    } catch (error) {
-      console.log('Error getting push token:', error);
+    } catch {
       return null;
     }
+  }
+
+  async syncRegistration(): Promise<void> {
+    if (!this.expoPushToken) return;
+    await apiService.notifications.registerDevice(this.expoPushToken);
+  }
+
+  async revokeRegistration(): Promise<void> {
+    if (!this.expoPushToken) return;
+    const token = this.expoPushToken;
+    const api = (await import('./api-client')).default;
+    await api.instance.delete('/notifications/register', { data: { token } });
+    // A device can register for a different account after it is signed out.
+    this.expoPushToken = token;
   }
 
   async schedulePrayerNotifications(prayerTimes: {
@@ -94,6 +106,8 @@ class NotificationService {
     maghrib: string;
     isha: string;
   }): Promise<void> {
+    // Replace only our own prayer schedules instead of piling up duplicates.
+    await this.cancelAllPrayerNotifications();
     const prayers = [
       { name: 'Fajr', time: prayerTimes.fajr },
       { name: 'Dhuhr', time: prayerTimes.dhuhr },
@@ -104,7 +118,9 @@ class NotificationService {
 
     for (const prayer of prayers) {
       const [hours, minutes] = prayer.time.split(':').map(Number);
-      
+      if (!Number.isInteger(hours) || !Number.isInteger(minutes) ||
+          hours < 0 || hours > 23 || minutes < 0 || minutes > 59) continue;
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: `Time for ${prayer.name} Prayer`,
@@ -123,7 +139,14 @@ class NotificationService {
   }
 
   async cancelAllPrayerNotifications(): Promise<void> {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    // Disabling prayer alerts must not delete unrelated event, school or
+    // announcement reminders created by the same device.
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const item of scheduled) {
+      if (item.content.data?.type === 'prayer') {
+        await Notifications.cancelScheduledNotificationAsync(item.identifier);
+      }
+    }
   }
 
   async sendLocalNotification(config: NotificationConfig): Promise<string> {

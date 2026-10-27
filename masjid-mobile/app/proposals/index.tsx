@@ -42,6 +42,8 @@ export default function ProposalsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [requestError, setRequestError] = useState('');
+  const [votingId, setVotingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -64,9 +66,10 @@ export default function ProposalsScreen() {
     setLoading(true);
     try {
       const data = await apiService.proposals.getAll();
-      setProposals(data.length > 0 ? data : getMockProposals());
+      setProposals(data);
+      setRequestError('');
     } catch {
-      setProposals(getMockProposals());
+      setRequestError('Unable to load proposals. Pull down to retry.');
     }
     setLoading(false);
   };
@@ -78,14 +81,15 @@ export default function ProposalsScreen() {
   };
 
   const handleVote = async (id: string) => {
-    const prev = [...proposals];
-    setProposals(prev => prev.map(p => p.id === id ? { ...p, votes: p.votes + 1 } : p));
+    if (votingId) return;
+    setVotingId(id);
     try {
       await apiService.proposals.vote(id);
+      await loadProposals();
+      Alert.alert('Vote recorded', 'Your support is now saved.');
     } catch {
-      setProposals(prev);
-      Alert.alert('Vote Added', 'Thank you for supporting this proposal!');
-    }
+      Alert.alert('Unable to vote', 'Your vote was not recorded. Sign in or try again later.');
+    } finally { setVotingId(null); }
   };
 
   const handleSubmit = async () => {
@@ -100,19 +104,7 @@ export default function ProposalsScreen() {
       setShowForm(false);
       loadProposals();
     } catch {
-      const newProposal: Proposal = {
-        id: Date.now().toString(),
-        title: form.title.trim(),
-        description: form.description.trim(),
-        author: 'You',
-        status: 'pending',
-        votes: 0,
-        createdAt: new Date().toISOString(),
-      };
-      setProposals(prev => [newProposal, ...prev]);
-      setForm({ title: '', description: '', category: 'Other' });
-      setShowForm(false);
-      Alert.alert('Submitted!', 'Your proposal has been submitted.');
+      Alert.alert('Submission failed', 'Your proposal was not saved. Please check your connection and retry.');
     } finally {
       setSubmitting(false);
     }
@@ -130,6 +122,7 @@ export default function ProposalsScreen() {
 
   const renderHeader = () => (
     <View>
+      {!!requestError && <Text accessibilityRole="alert" style={{ color: COLORS.error, padding: SPACING.md }}>{requestError}</Text>}
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.newButton, showForm && styles.newButtonCancel]}
@@ -305,14 +298,6 @@ export default function ProposalsScreen() {
       </ScrollView>
     </ScreenWrapper>
   );
-}
-
-function getMockProposals(): Proposal[] {
-  return [
-    { id: '1', title: 'New Parking Lot Expansion', description: 'Propose expanding the parking lot to accommodate 50 more vehicles during Jummah prayers. This would greatly reduce congestion on adjacent streets and improve accessibility for elderly and disabled community members.', author: 'Ahmad Hassan', votes: 24, status: 'approved', createdAt: '2026-02-15T00:00:00Z' },
-    { id: '2', title: "Sister's Halaqa Program", description: 'Weekly Islamic study circle for sisters on Saturday mornings. This program would provide a dedicated space for sisters to learn, discuss, and grow together in a comfortable environment.', author: 'Fatima Al-Rashid', votes: 38, status: 'in_progress', createdAt: '2026-02-10T00:00:00Z' },
-    { id: '3', title: 'Youth Soccer League', description: 'Establish a weekend soccer league for youth ages 8-16. Sports programs help build character, teamwork, and physical fitness while building community bonds among families.', author: 'Omar Malik', votes: 15, status: 'pending', createdAt: '2026-03-01T00:00:00Z' },
-  ];
 }
 
 const styles = StyleSheet.create({

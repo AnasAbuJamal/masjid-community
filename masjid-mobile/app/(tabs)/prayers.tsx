@@ -1,172 +1,195 @@
-import React from 'react';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, RefreshControl, useWindowDimensions,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { GlassCard, ScreenWrapper, TAB_BAR_HEIGHT } from '../../components/common';
+import { ScreenWrapper, TAB_BAR_HEIGHT } from '../../components/common';
+import api from '../../services/api-client';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
-interface PrayerTimes { fajr: string; sunrise: string; dhuhr: string; asr: string; maghrib: string; isha: string; jummah1: string; jummah2: string; }
-interface PrayerRow { name: string; key: keyof PrayerTimes; icon: string; iqamah?: string; }
+interface PrayerTimes {
+  date: string; fajr: string; sunrise: string; dhuhr: string; asr: string;
+  maghrib: string; isha: string; jummah1: string; jummah2: string;
+}
+const TIMES = [
+  { key: 'fajr', name: 'Fajr', icon: 'weather-night' },
+  { key: 'sunrise', name: 'Sunrise', icon: 'weather-sunset-up' },
+  { key: 'dhuhr', name: 'Dhuhr', icon: 'weather-sunny' },
+  { key: 'asr', name: 'Asr', icon: 'weather-partly-cloudy' },
+  { key: 'maghrib', name: 'Maghrib', icon: 'weather-sunset' },
+  { key: 'isha', name: 'Isha', icon: 'weather-night' },
+] as const;
 
-const PRAYER_ROWS: PrayerRow[] = [
-  { name: 'Fajr', key: 'fajr', icon: 'weather-night', iqamah: '+20 min' },
-  { name: 'Sunrise', key: 'sunrise', icon: 'weather-sunset-up' },
-  { name: 'Dhuhr', key: 'dhuhr', icon: 'weather-sunny', iqamah: '+15 min' },
-  { name: 'Asr', key: 'asr', icon: 'weather-partly-cloudy', iqamah: '+15 min' },
-  { name: 'Maghrib', key: 'maghrib', icon: 'weather-sunset', iqamah: '+5 min' },
-  { name: 'Isha', key: 'isha', icon: 'weather-night', iqamah: '+15 min' },
-];
-
-function getNextPrayerKey(p: PrayerTimes): keyof PrayerTimes | null {
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const order: (keyof PrayerTimes)[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
-  for (const key of order) {
-    const [h, m] = (p[key] || '00:00').split(':').map(Number);
-    if (h * 60 + m > nowMins) return key;
+function parseMinutes(value: string): number | null {
+  if (!/^\d{1,2}:\d{2}$/.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+function getUpcoming(times: PrayerTimes, now: Date): string | null {
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  for (const key of ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'] as const) {
+    const minutes = parseMinutes(times[key]);
+    if (minutes !== null && minutes > minutesNow) return key;
   }
   return null;
 }
 
-function addMinutes(time: string, mins: number): string {
-  const [h, m] = time.split(':').map(Number);
-  const total = h * 60 + m + mins;
-  const nh = Math.floor(total / 60) % 24;
-  const nm = total % 60;
-  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
-}
-
 export default function PrayersScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const [times, setTimes] = useState<PrayerTimes | null>(null);
+  const [clock, setClock] = useState(new Date());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  const p: PrayerTimes = { fajr: '05:45', sunrise: '07:10', dhuhr: '12:30', asr: '15:45', maghrib: '18:00', isha: '19:30', jummah1: '13:00', jummah2: '14:00' };
-  const nextKey = getNextPrayerKey(p);
+  const load = async () => {
+    try {
+      const response = await api.instance.get<PrayerTimes>('/prayers/today');
+      setTimes(response.data);
+      setError('');
+    } catch (failure: unknown) {
+      setTimes(null); // Do not keep stale prayer times after a failed refresh.
+      const status = (failure as { response?: { status?: number } })?.response?.status;
+      setError(status === 404
+        ? 'Prayer times have not been published for today.'
+        : 'Unable to load today’s prayer times. Check your connection.');
+    } finally {
+      setLoading(false); setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    const clockTimer = setInterval(() => setClock(new Date()), 60_000);
+    const update = setInterval(() => { void load(); }, 120_000);
+    return () => { clearInterval(clockTimer); clearInterval(update); };
+  }, []);
+
+  const refresh = () => { setRefreshing(true); void load(); };
+  const upcoming = times ? getUpcoming(times, clock) : null;
+  const columns = width >= 790 ? 3 : 2;
 
   return (
     <ScreenWrapper contentPadding={false} bottomPadding={false}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
->
-
-        {/* Column Layout: Jummah Card Section */}
-        <View style={styles.cardSection}>
-          <GlassCard style={styles.jummahCard} variant="floating">
-            <LinearGradient colors={['#4A90D9', '#6DD5ED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.jummahGradient}>
-              <View style={styles.jummahShine} />
-              <View style={styles.jummahHeader}>
-                <MaterialCommunityIcons name="mosque" size={24} color={COLORS.white} />
-                <Text style={styles.jummahTitle}>Friday Prayers (Jummah)</Text>
-              </View>
-              <View style={styles.jummahRow}>
-                {[{ label: '1st Jummah', time: p.jummah1 }, { label: '2nd Jummah', time: p.jummah2 }].map(({ label, time }) => (
-                  <View key={label} style={styles.jummahItem}><Text style={styles.jummahLabel}>{label}</Text><Text style={styles.jummahTime}>{time}</Text></View>
-                ))}
-              </View>
-            </LinearGradient>
-          </GlassCard>
+      <ScrollView contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh}
+          tintColor={COLORS.primary} />}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Prayer Times</Text>
+          <Text style={styles.subtitle}>
+            {clock.toLocaleDateString(undefined, {
+              weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+            })}
+          </Text>
         </View>
 
-        {/* Column Layout: Table Header */}
-        <View style={styles.tableSection}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Prayer</Text>
-            <Text style={[styles.headerCell, { flex: 1.5 }]}>Adhan</Text>
-            <Text style={[styles.headerCell, { flex: 1.5 }]}>Iqamah</Text>
+        <View style={styles.actions}>
+          <TouchableOpacity accessibilityRole="button" style={styles.navButton}
+            onPress={() => router.push('/prayers/calendar')}>
+            <MaterialCommunityIcons name="calendar-month-outline" size={23} color={COLORS.primary} />
+            <Text style={styles.navText}>Prayer Calendar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={styles.navButton}
+            onPress={() => router.push('/prayers/qibla')}>
+            <MaterialCommunityIcons name="compass-outline" size={23} color={COLORS.primary} />
+            <Text style={styles.navText}>Qibla</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading ? <ActivityIndicator style={styles.loader} color={COLORS.primary} size="large" />
+          : error ? <View style={styles.empty}>
+            <MaterialCommunityIcons name="calendar-clock" size={42} color={COLORS.textSecondary} />
+            <Text style={styles.emptyText}>{error}</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.retry}
+              onPress={refresh}><Text style={styles.retryText}>Try Again</Text></TouchableOpacity>
           </View>
-        </View>
-
-        {/* Column Layout: Prayer Rows */}
-        <View style={styles.prayersSection}>
-          {PRAYER_ROWS.map((row) => {
-            const isNext = row.key === nextKey;
-            const iqamahTime = row.iqamah ? addMinutes(p[row.key], parseInt(row.iqamah)) : null;
-            return (
-              <GlassCard key={row.key} style={styles.prayerRow} variant={isNext ? 'floating' : 'default'}>
-                <View style={[styles.prayerNameCell, { flex: 2 }]}>
-                  <View style={[styles.iconBox, isNext && styles.iconBoxActive]}>
-                    <MaterialCommunityIcons name={row.icon as any} size={18} color={isNext ? COLORS.white : COLORS.primary} />
-                  </View>
-                  <View><Text style={styles.prayerLabel}>{row.name}</Text>
-                    {isNext && <View style={styles.nextBadge}><Text style={styles.nextBadgeText}>NEXT</Text></View>}
-                  </View>
+          : times ? <>
+            {upcoming && (
+              <View style={styles.upcoming}>
+                <MaterialCommunityIcons name="clock-outline" size={22} color={COLORS.white} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.upcomingHint}>Next prayer today</Text>
+                  <Text style={styles.upcomingTitle}>
+                    {TIMES.find(item => item.key === upcoming)?.name} · {times[upcoming as keyof PrayerTimes]}
+                  </Text>
                 </View>
-                <Text style={[styles.timeCell, { flex: 1.5 }]}>{p[row.key]}</Text>
-                <Text style={[styles.timeCell, { flex: 1.5 }, !iqamahTime && styles.noIqamah]}>{iqamahTime ?? '—'}</Text>
-              </GlassCard>
-            );
-          })}
-        </View>
+              </View>
+            )}
 
-        {/* Navigate to existing screens with accessible, functional actions. */}
-        <View style={styles.actionRow}>
-          <GlassCard style={styles.actionCard} onPress={() => router.push('/prayers/qibla')}>
-            <MaterialCommunityIcons name="compass-outline" size={24} color={COLORS.primary} />
-            <Text style={styles.actionLabel}>Qibla direction</Text>
-            <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.primary} />
-          </GlassCard>
-          <GlassCard style={styles.actionCard} onPress={() => router.push('/prayers/calendar')}>
-            <MaterialCommunityIcons name="calendar-month-outline" size={24} color={COLORS.primary} />
-            <Text style={styles.actionLabel}>Prayer calendar</Text>
-            <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.primary} />
-          </GlassCard>
-        </View>
+            <Text style={styles.sectionTitle}>Published adhan times</Text>
+            <View style={styles.grid}>
+              {TIMES.map(item => (
+                <View key={item.key} style={[styles.card, {
+                  width: `${(100 / columns) - 1.8}%`,
+                }]}>
+                  <MaterialCommunityIcons name={item.icon} color={COLORS.primary} size={24} />
+                  <Text style={styles.prayerName}>{item.name}</Text>
+                  <Text style={styles.prayerTime}>{times[item.key] || 'Not set'}</Text>
+                </View>
+              ))}
+            </View>
 
-        {/* Note */}
-        <View style={styles.noteSection}>
-          <Text style={styles.note}>* The displayed prayer times are examples. Please confirm the mosque’s current schedule.</Text>
-        </View>
-
-        <View style={styles.bottomSpacer} />
+            {(times.jummah1 || times.jummah2) && (
+              <View style={styles.jummah}>
+                <View style={styles.jummahTitle}>
+                  <MaterialCommunityIcons name="mosque" size={22} color={COLORS.primary} />
+                  <Text style={styles.sectionTitle}>Friday Jumu’ah</Text>
+                </View>
+                {times.jummah1 ? <Text style={styles.jummahTime}>First: {times.jummah1}</Text> : null}
+                {times.jummah2 ? <Text style={styles.jummahTime}>Second: {times.jummah2}</Text> : null}
+              </View>
+            )}
+            <Text style={styles.note}>
+              These times are published by the masjid office. Iqamah times are not currently
+              recorded separately, so none are estimated. Please confirm any last-minute
+              changes with the masjid.
+            </Text>
+          </> : null}
       </ScrollView>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: TAB_BAR_HEIGHT + SPACING.lg },
-
-  // Card Section
-  cardSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md },
-  jummahCard: { borderRadius: RADIUS.xxl, overflow: 'hidden' },
-  jummahGradient: { borderRadius: RADIUS.xxl, padding: SPACING.lg, overflow: 'hidden' },
-  jummahShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 60, backgroundColor: 'rgba(255, 255, 255, 0.25)', borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl },
-  jummahHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
-  jummahTitle: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
-  jummahRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  jummahItem: { alignItems: 'center' },
-  jummahLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 4 },
-  jummahTime: { color: COLORS.white, fontSize: 24, fontWeight: '800' },
-
-  // Table Section
-  tableSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg },
-  tableHeader: { flexDirection: 'row', paddingVertical: SPACING.sm },
-  headerCell: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-
-  // Prayers Section
-  prayersSection: { paddingHorizontal: SPACING.md, gap: SPACING.sm },
-  prayerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 4, minHeight: 60 },
-  prayerNameCell: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  iconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primaryFaded, justifyContent: 'center', alignItems: 'center' },
-  iconBoxActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
-  prayerLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  nextBadge: { backgroundColor: COLORS.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginTop: 2 },
-  nextBadgeText: { fontSize: 8, fontWeight: '800', color: COLORS.white, letterSpacing: 0.5 },
-  timeCell: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  noIqamah: { color: COLORS.textSecondary, fontWeight: '400' },
-
-  actionRow: { paddingHorizontal: SPACING.md, gap: SPACING.sm, marginTop: SPACING.lg },
-  actionCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(115,190,245,0.45)' },
-  actionLabel: { flex: 1, fontWeight: '700', fontSize: 14, color: COLORS.text },
-
-  // Note Section
-  noteSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg },
-  note: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', fontStyle: 'italic' },
-
-  bottomSpacer: { height: SPACING.lg },
+  content: { maxWidth: 870, width: '100%', alignSelf: 'center', padding: SPACING.md,
+    paddingBottom: TAB_BAR_HEIGHT + SPACING.xxl },
+  header: { paddingVertical: SPACING.sm },
+  title: { color: COLORS.text, fontSize: 27, fontWeight: '700' },
+  subtitle: { color: COLORS.textSecondary, fontSize: 14, marginTop: 4 },
+  actions: { flexDirection: 'row', gap: SPACING.sm, marginVertical: SPACING.lg },
+  navButton: { flex: 1, flexDirection: 'row', minHeight: 54, alignItems: 'center',
+    justifyContent: 'center', gap: SPACING.sm, padding: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg },
+  navText: { color: COLORS.text, fontSize: 13, fontWeight: '600' },
+  loader: { marginTop: SPACING.xxl },
+  empty: { padding: SPACING.xl, alignItems: 'center', gap: SPACING.md },
+  emptyText: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 22, textAlign: 'center' },
+  retry: { minHeight: 44, paddingHorizontal: SPACING.md, justifyContent: 'center' },
+  retryText: { color: COLORS.primary, fontWeight: '700' },
+  upcoming: { backgroundColor: COLORS.primary, padding: SPACING.lg,
+    borderRadius: RADIUS.xl, flexDirection: 'row', alignItems: 'center',
+    gap: SPACING.md, marginBottom: SPACING.lg },
+  upcomingHint: { fontSize: 13, color: COLORS.white, opacity: 0.85 },
+  upcomingTitle: { fontSize: 20, color: COLORS.white, fontWeight: '700', marginTop: 3 },
+  sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: '700',
+    marginTop: SPACING.sm, marginBottom: SPACING.md },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
+    rowGap: SPACING.sm },
+  card: { minHeight: 132, borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface, borderColor: COLORS.border,
+    borderWidth: 1, padding: SPACING.md, alignItems: 'center', justifyContent: 'center' },
+  prayerName: { fontSize: 14, color: COLORS.textSecondary, marginTop: SPACING.sm },
+  prayerTime: { color: COLORS.text, fontWeight: '700', fontSize: 21, marginTop: SPACING.xs },
+  jummah: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border,
+    padding: SPACING.md, marginTop: SPACING.lg },
+  jummahTitle: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  jummahTime: { color: COLORS.text, fontSize: 16, marginVertical: SPACING.xs },
+  note: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 20,
+    marginTop: SPACING.lg, textAlign: 'center' },
 });

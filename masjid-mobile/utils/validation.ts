@@ -12,7 +12,8 @@ export const nameSchema = z
   .string()
   .min(1, 'Name is required')
   .min(2, 'Name must be at least 2 characters')
-  .max(100, 'Name must be less than 100 characters');
+  .max(100, 'Name must be less than 100 characters')
+  .regex(/^[\p{L}\p{M}]+(?:[ '\u2019-][\p{L}\p{M}]+)*$/u, 'Names can contain letters, spaces, apostrophes and hyphens');
 
 export const optionalNameSchema = z
   .string()

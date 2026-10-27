@@ -365,18 +365,18 @@ export default function MediaLibraryPage() {
                     </div>
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                       <button
-                        onClick={() => copyToClipboard(file.url, file.id)}
+                        onClick={() => copyToClipboard(file.url, String(file.id))}
                         className="p-1.5 bg-white rounded-full shadow-sm hover:bg-gray-100"
                         title="Copy URL"
                       >
-                        {copiedId === file.id ? (
+                        {copiedId === String(file.id) ? (
                           <CheckCircle className="h-4 w-4 text-green-600" />
                         ) : (
                           <Copy className="h-4 w-4" />
                         )}
                       </button>
                       <button
-                        onClick={() => handleDelete(file.id)}
+                        onClick={() => handleDelete(String(file.id))}
                         className="p-1.5 bg-white rounded-full shadow-sm hover:bg-red-50"
                         title="Delete"
                       >
@@ -405,10 +405,10 @@ export default function MediaLibraryPage() {
                     <div className="text-sm text-gray-500">{formatFileSize(file.size)}</div>
                     <div className="text-sm text-gray-400">{new Date(file.createdAt).toLocaleDateString()}</div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(file.url, file.id)}>
-                        {copiedId === file.id ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(file.url, String(file.id))}>
+                        {copiedId === String(file.id) ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(file.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(String(file.id))}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>

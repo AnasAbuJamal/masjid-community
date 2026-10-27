@@ -37,14 +37,14 @@ export default function AppSidebar() {
 
     const sidebarContent = (
         <div className="glass-navigation flex h-full flex-col border-r">
-            <div className={cn("flex items-center gap-3 p-4 border-b border-gray-200", collapsed && "justify-center px-2")}>
-                <div className="flex items-center justify-center w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-700 to-sky-400 shadow-md shadow-sky-200 flex-shrink-0">
+            <div className={cn("flex items-center gap-3 p-4 border-b border-border", collapsed && "justify-center px-2")}>
+                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-sky-800 to-sky-400 flex-shrink-0 shadow-sm">
                     <span className="text-lg">🕌</span>
                 </div>
                 {!collapsed && (
                     <div className="overflow-hidden">
-                        <h2 className="text-sm font-semibold text-gray-900 truncate leading-tight">Al-Momineen</h2>
-                        <p className="text-xs text-gray-500 truncate">Staff Portal</p>
+                        <h2 className="text-sm font-semibold text-foreground truncate leading-tight">Al-Momineen</h2>
+                        <p className="text-xs text-muted-foreground truncate">Staff Portal</p>
                     </div>
                 )}
             </div>
@@ -53,7 +53,7 @@ export default function AppSidebar() {
                 {sections.map((section) => (
                     <div key={section} className="mb-4">
                         {!collapsed && (
-                            <p className="px-3 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            <p className="px-3 mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                 {section}
                             </p>
                         )}
@@ -70,10 +70,10 @@ export default function AppSidebar() {
                                                 href={item.href}
                                                 onClick={() => setMobileOpen(false)}
                                                 className={cn(
-                                                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500",
+                                                    "flex items-center gap-3 px-3 py-2 min-h-11 rounded-xl text-sm font-medium transition-colors",
                                                     isActive
-                                                        ? "bg-sky-100/90 text-sky-900 shadow-sm ring-1 ring-sky-200/70"
-                                                        : "text-slate-600 hover:bg-white/80 hover:text-sky-800",
+                                                        ? "bg-sky-100/90 text-sky-950 ring-1 ring-sky-200/60 dark:bg-sky-900/40 dark:text-sky-100"
+                                                        : "text-muted-foreground hover:bg-sky-100/60 hover:text-foreground dark:hover:bg-sky-900/30",
                                                     collapsed && "justify-center px-2"
                                                 )}
                                                 title={collapsed ? item.title : undefined}
@@ -89,15 +89,15 @@ export default function AppSidebar() {
                 ))}
             </nav>
 
-            <div className={cn("border-t border-gray-200 p-3", collapsed && "px-2")}>
+            <div className={cn("border-t border-border p-3", collapsed && "px-2")}>
                 <div className={cn("flex items-center gap-3 mb-3", collapsed && "justify-center")}>
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-700 text-sm font-semibold flex-shrink-0">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-foreground text-sm font-semibold flex-shrink-0">
                         {userName.charAt(0).toUpperCase()}
                     </div>
                     {!collapsed && (
                         <div className="overflow-hidden">
-                            <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
-                            <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                            <p className="text-sm font-medium text-foreground truncate">{userName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
                         </div>
                     )}
                 </div>
@@ -107,7 +107,7 @@ export default function AppSidebar() {
                         size="sm"
                         onClick={toggleTheme}
                         className={cn(
-                            "w-full justify-start gap-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50",
+                            "w-full justify-start gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted",
                             collapsed && "justify-center px-2"
                         )}
                     >
@@ -119,7 +119,7 @@ export default function AppSidebar() {
                         size="sm"
                         onClick={() => signOut({ callbackUrl: "/" })}
                         className={cn(
-                            "w-full justify-start gap-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50",
+                            "w-full justify-start gap-2 text-sm text-muted-foreground hover:text-red-600 hover:bg-red-50",
                             collapsed && "justify-center px-2"
                         )}
                     >
@@ -134,37 +134,37 @@ export default function AppSidebar() {
     return (
         <>
             <button
-                type="button"
-                aria-label="Open navigation"
                 onClick={() => setMobileOpen(true)}
-                className="glass-secondary lg:hidden fixed top-4 left-4 z-50 rounded-xl p-2 shadow-sm"
+                aria-label="Open navigation"
+                aria-controls="mobile-navigation"
+                aria-expanded={mobileOpen}
+                className={cn("lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card text-foreground shadow-sm border border-border", mobileOpen && "hidden")}
             >
                 <Menu className="h-5 w-5" />
             </button>
 
             {mobileOpen && (
-                <div className="lg:hidden fixed inset-0 z-40 bg-gray-900/30" onClick={() => setMobileOpen(false)} />
+                <div className="lg:hidden fixed inset-0 z-40 bg-primary/30" onClick={() => setMobileOpen(false)} />
             )}
 
-            <aside className={cn(
+            <aside id="mobile-navigation" aria-label="Mobile navigation" className={cn(
                 "lg:hidden fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200",
                 mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                <button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 rounded-lg bg-sky-100 p-1.5 text-sky-700">
+                <button onClick={() => setMobileOpen(false)} aria-label="Close navigation" className="absolute top-4 right-4 p-1.5 rounded-lg bg-muted text-muted-foreground">
                     <X className="h-4 w-4" />
                 </button>
                 {sidebarContent}
             </aside>
 
-            <aside className={cn(
+            <aside aria-label="Desktop navigation" className={cn(
                 "hidden lg:flex flex-col h-screen sticky top-0 z-30",
                 collapsed ? "w-16" : "w-56"
             )}>
                 <button
-                    type="button"
-                    aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                     onClick={() => setCollapsed(!collapsed)}
-                    className="absolute -right-3 top-6 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-white text-gray-400 hover:text-gray-600 shadow-sm border border-gray-200"
+                    aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+                    className="absolute -right-3 top-6 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-card text-muted-foreground hover:text-muted-foreground shadow-sm border border-border"
                 >
                     <ChevronRight className={cn("h-3 w-3 transition-transform", collapsed ? "" : "rotate-180")} />
                 </button>

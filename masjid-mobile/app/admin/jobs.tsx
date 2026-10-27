@@ -1,278 +1,302 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Alert,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
+  ActivityIndicator, RefreshControl, Modal, ScrollView, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlassCard } from '../../components/common';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import api from '../../services/api-client';
+import { useAuthStore } from '../../stores/authStore';
+import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 
-interface Job {
-  id: string;
-  title: string;
-  type: 'full-time' | 'part-time' | 'contract' | 'volunteer';
-  department: string;
-  salary: string;
-  location: string;
-  status: 'active' | 'closed' | 'draft';
-  applicants: number;
-  postedDate: string;
+type Status = 'pending_review' | 'active' | 'paused' | 'expired' | 'closed' | 'rejected';
+type Employment = 'full_time' | 'part_time' | 'contract' | 'temporary' | 'internship';
+interface JobEntry {
+  id: string; title: string; company: string; description: string;
+  location: string; status: Status; employmentType: Employment;
+  applicationCount: number; postedAt: string;
 }
-
-const MOCK_JOBS: Job[] = [
-  { id: '1', title: 'Arabic Language Teacher', type: 'part-time', department: 'Education', salary: '$25-35/hr', location: 'On-site', status: 'active', applicants: 8, postedDate: '2026-03-10' },
-  { id: '2', title: 'Administrative Assistant', type: 'full-time', department: 'Operations', salary: '$40,000-50,000', location: 'On-site', status: 'active', applicants: 12, postedDate: '2026-03-05' },
-  { id: '3', title: 'Maintenance Technician', type: 'full-time', department: 'Facilities', salary: '$45,000-55,000', location: 'On-site', status: 'active', applicants: 5, postedDate: '2026-02-28' },
-  { id: '4', title: 'Youth Program Coordinator', type: 'part-time', department: 'Youth', salary: '$20-25/hr', location: 'Hybrid', status: 'closed', applicants: 15, postedDate: '2026-02-15' },
-  { id: '5', title: 'Weekend Security Guard', type: 'contract', department: 'Security', salary: '$18/hr', location: 'On-site', status: 'draft', applicants: 0, postedDate: '2026-03-18' },
+interface JobsPage { jobs: JobEntry[]; page: number; total: number; hasMore: boolean }
+const FILTERS: { value: string; title: string }[] = [
+  { value: '', title: 'All' }, { value: 'active', title: 'Active' },
+  { value: 'paused', title: 'Paused' }, { value: 'closed', title: 'Closed' },
+  { value: 'pending_review', title: 'Pending' },
+];
+const INITIAL = {
+  title: '', company: '', contactName: '', contactEmail: '',
+  description: '', location: '', category: '', employmentType: 'part_time' as Employment,
+};
+const LABELS: { value: Employment; title: string }[] = [
+  { value: 'full_time', title: 'Full-time' }, { value: 'part_time', title: 'Part-time' },
+  { value: 'contract', title: 'Contract' }, { value: 'temporary', title: 'Temporary' },
+  { value: 'internship', title: 'Internship' },
 ];
 
-const JOB_TYPES = ['All', 'full-time', 'part-time', 'contract', 'volunteer'];
-const STATUSES = ['All', 'active', 'closed', 'draft'];
-
-export default function JobManagementScreen() {
+export default function JobsAdminScreen() {
   const router = useRouter();
+  const role = useAuthStore(state => state.user?.role);
+  const [jobs, setJobs] = useState<JobEntry[]>([]);
+  const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [selectedType, setSelectedType] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(INITIAL);
 
-  const filteredJobs = MOCK_JOBS.filter(job => {
-    const matchesSearch = job.title.toLowerCase().includes(search.toLowerCase()) || 
-                          job.department.toLowerCase().includes(search.toLowerCase());
-    const matchesType = selectedType === 'All' || job.type === selectedType;
-    const matchesStatus = selectedStatus === 'All' || job.status === selectedStatus;
-    return matchesSearch && matchesType && matchesStatus;
-  });
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'full-time': return COLORS.success;
-      case 'part-time': return COLORS.primary;
-      case 'contract': return COLORS.warning;
-      case 'volunteer': return COLORS.secondary;
-      default: return COLORS.textSecondary;
-    }
+  const fetchPage = async (number: number, append = false) => {
+    const result = await api.instance.get<JobsPage>('/mobile/admin/jobs', {
+      params: { page: number, status: filter || undefined, q: search.trim() || undefined },
+    });
+    setJobs(old => append
+      ? [...old, ...result.data.jobs.filter(j => !old.some(previous => previous.id === j.id))]
+      : result.data.jobs);
+    setPage(result.data.page); setTotal(result.data.total);
+    setHasMore(result.data.hasMore); setError('');
   };
+  useEffect(() => {
+    if (role !== 'admin') { setLoading(false); return; }
+    let active = true;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.instance.get<JobsPage>('/mobile/admin/jobs', {
+          params: { page: 1, status: filter || undefined, q: search.trim() || undefined },
+        });
+        if (active) {
+          setJobs(result.data.jobs); setTotal(result.data.total);
+          setHasMore(result.data.hasMore); setPage(1); setError('');
+        }
+      } catch {
+        if (active) setError('Job postings could not be loaded.');
+      } finally { if (active) setLoading(false); }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [role, filter, search]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return COLORS.success;
-      case 'closed': return COLORS.error;
-      case 'draft': return COLORS.textSecondary;
-      default: return COLORS.textSecondary;
-    }
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await fetchPage(1); }
+    catch { setError('Unable to refresh job postings.'); }
+    finally { setRefreshing(false); }
   };
-
-  const handleCreateJob = () => {
-    Alert.alert(
-      'Create New Job',
-      'This would open a form to create a new job posting.',
-      [{ text: 'OK' }]
-    );
+  const more = async () => {
+    if (loadingMore || !hasMore || loading) return;
+    setLoadingMore(true);
+    try { await fetchPage(page + 1, true); }
+    catch { setError('Unable to load more postings.'); }
+    finally { setLoadingMore(false); }
   };
-
-  const handleEditJob = (job: Job) => {
-    Alert.alert('Edit Job', `Edit "${job.title}"?`, [{ text: 'OK' }]);
+  const changeStatus = (job: JobEntry, status: 'active' | 'paused' | 'closed') => {
+    Alert.alert('Update job?', `Set "${job.title}" to ${status}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Update', onPress: async () => {
+        setSaving(true);
+        try {
+          await api.instance.patch(`/mobile/admin/jobs/${encodeURIComponent(job.id)}`, { status });
+          await fetchPage(1);
+        } catch {
+          Alert.alert('Unable to update', 'The posting could not be changed. Please try again.');
+        } finally { setSaving(false); }
+      } },
+    ]);
   };
-
-  const handleDeleteJob = (job: Job) => {
-    Alert.alert(
-      'Delete Job',
-      `Are you sure you want to delete "${job.title}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => {} },
-      ]
-    );
+  const create = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const response = await api.instance.post('/mobile/admin/jobs', form);
+      if (response.status !== 201) throw new Error('Unexpected response');
+      setEditing(false); setForm(INITIAL);
+      await fetchPage(1);
+      Alert.alert('Job published', 'The posting is now available in the community jobs list.');
+    } catch (failure: unknown) {
+      const reason = (failure as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      Alert.alert('Unable to publish', reason || 'Complete all required job fields and try again.');
+    } finally { setSaving(false); }
   };
-
-  const renderJob = ({ item }: { item: Job }) => {
-    const typeColor = getTypeColor(item.type);
-    const statusColor = getStatusColor(item.status);
-    
-    return (
-      <GlassCard style={styles.jobCard}>
-        <View style={styles.jobHeader}>
-          <View style={styles.jobTitleRow}>
-            <Text style={styles.jobTitle}>{item.title}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor + '18' }]}>
-              <Text style={[styles.statusText, { color: statusColor }]}>{item.status}</Text>
-            </View>
-          </View>
-          <View style={styles.jobMeta}>
-            <View style={[styles.typeBadge, { backgroundColor: typeColor + '18' }]}>
-              <Text style={[styles.typeText, { color: typeColor }]}>{item.type.replace('-', ' ')}</Text>
-            </View>
-            <Text style={styles.departmentText}>{item.department}</Text>
-          </View>
-        </View>
-
-        <View style={styles.jobDetails}>
-          <View style={styles.detailItem}>
-            <MaterialCommunityIcons name="currency-usd" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.detailText}>{item.salary}</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <MaterialCommunityIcons name="map-marker" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.detailText}>{item.location}</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <MaterialCommunityIcons name="account-group" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.detailText}>{item.applicants} applicants</Text>
-          </View>
-        </View>
-
-        <View style={styles.jobFooter}>
-          <Text style={styles.postedDate}>Posted {item.postedDate}</Text>
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.actionButton} onPress={() => handleEditJob(item)}>
-              <MaterialCommunityIcons name="pencil" size={16} color={COLORS.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => {}}>
-              <MaterialCommunityIcons name="eye" size={16} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => handleDeleteJob(item)}>
-              <MaterialCommunityIcons name="delete" size={16} color={COLORS.error} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </GlassCard>
-    );
-  };
+  const update = (key: keyof typeof INITIAL, value: string) =>
+    setForm(previous => ({ ...previous, [key]: value }));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back"
+          onPress={() => router.back()} style={styles.back}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Management</Text>
-        <TouchableOpacity style={styles.addButton} onPress={handleCreateJob}>
-          <MaterialCommunityIcons name="plus" size={20} color={COLORS.white} />
-        </TouchableOpacity>
+        {role === 'admin' ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Publish job"
+          onPress={() => setEditing(true)} style={styles.back}>
+          <MaterialCommunityIcons name="plus" size={26} color={COLORS.primary} />
+        </TouchableOpacity> : <View style={styles.back} />}
       </View>
-
-      {/* Stats */}
-      <View style={styles.statsBar}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{MOCK_JOBS.filter(j => j.status === 'active').length}</Text>
-          <Text style={styles.statLabel}>Active</Text>
+      {role !== 'admin' ? <View style={styles.center}><Text style={styles.muted}>Administrator access is required.</Text></View> : <>
+        <View style={styles.search}>
+          <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textSecondary} />
+          <TextInput style={styles.searchInput} accessibilityLabel="Search jobs" value={search}
+            onChangeText={setSearch} placeholder="Search job or company"
+            placeholderTextColor={COLORS.textSecondary} />
         </View>
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.error }]}>{MOCK_JOBS.filter(j => j.status === 'closed').length}</Text>
-          <Text style={styles.statLabel}>Closed</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.textSecondary }]}>{MOCK_JOBS.filter(j => j.status === 'draft').length}</Text>
-          <Text style={styles.statLabel}>Draft</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{MOCK_JOBS.reduce((a, j) => a + j.applicants, 0)}</Text>
-          <Text style={styles.statLabel}>Total Applicants</Text>
-        </View>
-      </View>
-
-      {/* Filters */}
-      <View style={styles.filterSection}>
-        <View style={styles.searchBar}>
-          <MaterialCommunityIcons name="magnify" size={18} color={COLORS.textSecondary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search jobs..."
-            placeholderTextColor={COLORS.textSecondary}
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
-
-        <FlatList
-          horizontal
-          data={STATUSES}
-          keyExtractor={item => item}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterList}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.filterChip, selectedStatus === item && styles.filterChipActive]}
-              onPress={() => setSelectedStatus(item)}
-            >
-              <Text style={[styles.filterChipText, selectedStatus === item && styles.filterChipTextActive]}>{item}</Text>
+        <ScrollView horizontal contentContainerStyle={styles.filters} showsHorizontalScrollIndicator={false}>
+          {FILTERS.map(item => (
+            <TouchableOpacity key={item.value} accessibilityRole="tab"
+              accessibilityState={{ selected: filter === item.value }}
+              onPress={() => setFilter(item.value)}
+              style={[styles.filter, filter === item.value && styles.activeFilter]}>
+              <Text style={[styles.filterText, filter === item.value && styles.activeFilterText]}>
+                {item.title}
+              </Text>
             </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      {/* Jobs List */}
-      <FlatList
-        data={filteredJobs}
-        keyExtractor={item => item.id}
-        renderItem={renderJob}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="briefcase-search" size={48} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>No jobs found</Text>
+          ))}
+        </ScrollView>
+        <Text style={styles.count}>{total} postings</Text>
+        {loading ? <ActivityIndicator style={styles.loader} color={COLORS.primary} /> : (
+          <FlatList data={jobs} keyExtractor={item => item.id}
+            contentContainerStyle={styles.list}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void refresh(); }} />}
+            ListEmptyComponent={<View style={styles.center}>
+              <Text style={styles.muted}>{error || 'No postings match this search.'}</Text>
+            </View>}
+            ListFooterComponent={hasMore ? (
+              <TouchableOpacity style={styles.more} disabled={loadingMore}
+                accessibilityRole="button" onPress={() => { void more(); }}>
+                <Text style={styles.actionText}>{loadingMore ? 'Loading…' : 'Load more'}</Text>
+              </TouchableOpacity>
+            ) : null}
+            renderItem={({ item }) => (
+              <View style={styles.card}>
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.jobName}>{item.title}</Text>
+                    <Text style={styles.muted}>{item.company} · {item.location}</Text>
+                  </View>
+                  <Text style={styles.status}>{item.status.replaceAll('_', ' ')}</Text>
+                </View>
+                <Text style={styles.muted}>{item.applicationCount} applications · Published {new Date(item.postedAt).toLocaleDateString()}</Text>
+                <View style={styles.actions}>
+                  {item.status !== 'active' && <TouchableOpacity accessibilityRole="button"
+                    disabled={saving} style={styles.action} onPress={() => changeStatus(item, 'active')}>
+                    <Text style={styles.actionText}>Activate</Text>
+                  </TouchableOpacity>}
+                  {item.status === 'active' && <TouchableOpacity accessibilityRole="button"
+                    disabled={saving} style={styles.action} onPress={() => changeStatus(item, 'paused')}>
+                    <Text style={styles.actionText}>Pause</Text>
+                  </TouchableOpacity>}
+                  {item.status !== 'closed' && <TouchableOpacity accessibilityRole="button"
+                    disabled={saving} style={styles.action} onPress={() => changeStatus(item, 'closed')}>
+                    <Text style={[styles.actionText, { color: COLORS.error }]}>Close</Text>
+                  </TouchableOpacity>}
+                </View>
+              </View>
+            )}
+          />
+        )}
+        {!!error && jobs.length > 0 && <Text style={styles.error}>{error}</Text>}
+      </>}
+      <Modal visible={editing} animationType="slide" onRequestClose={() => setEditing(false)}>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setEditing(false)}
+              style={styles.back} accessibilityLabel="Close new job form">
+              <MaterialCommunityIcons name="close" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Publish Job</Text>
+            <View style={styles.back} />
           </View>
-        }
-        ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
-      />
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView contentContainerStyle={styles.form}>
+              {([
+                ['title', 'Job title'], ['company', 'Organization'],
+                ['contactName', 'Contact name'], ['contactEmail', 'Contact email'],
+                ['location', 'Location'], ['category', 'Category'],
+              ] as const).map(([key, title]) => (
+                <View style={styles.field} key={key}>
+                  <Text style={styles.label}>{title}</Text>
+                  <TextInput value={form[key]} onChangeText={value => update(key, value)}
+                    style={styles.input} placeholder={title} placeholderTextColor={COLORS.textSecondary}
+                    autoCapitalize={key === 'contactEmail' ? 'none' : 'sentences'}
+                    keyboardType={key === 'contactEmail' ? 'email-address' : 'default'} />
+                </View>
+              ))}
+              <View style={styles.field}>
+                <Text style={styles.label}>Description</Text>
+                <TextInput multiline value={form.description} onChangeText={value => update('description', value)}
+                  textAlignVertical="top" style={[styles.input, { minHeight: 120 }]}
+                  placeholder="Describe the role" placeholderTextColor={COLORS.textSecondary} />
+              </View>
+              <Text style={styles.label}>Employment type</Text>
+              <View style={styles.actions}>
+                {LABELS.map(item => (
+                  <TouchableOpacity accessibilityRole="radio"
+                    accessibilityState={{ checked: form.employmentType === item.value }}
+                    key={item.value} onPress={() => update('employmentType', item.value)}
+                    style={[styles.action, form.employmentType === item.value && styles.activeFilter]}>
+                    <Text style={styles.actionText}>{item.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity accessibilityRole="button" style={styles.submit}
+                disabled={saving} onPress={() => { void create(); }}>
+                <Text style={styles.submitText}>{saving ? 'Publishing…' : 'Publish Job'}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: SPACING.sm, borderBottomWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
   headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  addButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-
-  statsBar: { flexDirection: 'row', padding: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SPACING.md },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  statLabel: { fontSize: 10, color: COLORS.textSecondary },
-
-  filterSection: { padding: SPACING.md, backgroundColor: COLORS.surface },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
-  searchInput: { flex: 1, fontSize: 14, color: COLORS.text, marginLeft: SPACING.sm },
-  filterList: { gap: SPACING.xs },
-  filterChip: { paddingHorizontal: SPACING.sm + 4, paddingVertical: SPACING.xs, backgroundColor: COLORS.background, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border },
-  filterChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  filterChipText: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'capitalize' },
-  filterChipTextActive: { color: COLORS.white },
-
-  listContent: { padding: SPACING.md, paddingBottom: SPACING.xxl },
-  jobCard: { padding: SPACING.md },
-  jobHeader: { marginBottom: SPACING.sm },
-  jobTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.xs },
-  jobTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1, marginRight: SPACING.sm },
-  statusBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full },
-  statusText: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  jobMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  typeBadge: { paddingHorizontal: SPACING.xs + 2, paddingVertical: 2, borderRadius: RADIUS.full },
-  typeText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
-  departmentText: { fontSize: 12, color: COLORS.textSecondary },
-
-  jobDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginBottom: SPACING.sm },
-  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  detailText: { fontSize: 12, color: COLORS.textSecondary },
-
-  jobFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: SPACING.sm },
-  postedDate: { fontSize: 11, color: COLORS.textSecondary },
-  actions: { flexDirection: 'row', gap: SPACING.xs },
-  actionButton: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
-
-  emptyState: { alignItems: 'center', paddingVertical: SPACING.xxl },
-  emptyText: { fontSize: 15, color: COLORS.textSecondary, marginTop: SPACING.md },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  search: { flexDirection: 'row', minHeight: 48, alignItems: 'center',
+    borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border,
+    margin: SPACING.md, backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md, gap: SPACING.sm },
+  searchInput: { fontSize: 16, color: COLORS.text, flex: 1, minHeight: 46 },
+  filters: { paddingHorizontal: SPACING.md, gap: SPACING.sm },
+  filter: { minHeight: 44, paddingHorizontal: SPACING.md, alignItems: 'center',
+    justifyContent: 'center', borderRadius: RADIUS.full, backgroundColor: COLORS.surface },
+  activeFilter: { backgroundColor: COLORS.primaryFaded },
+  filterText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+  activeFilterText: { color: COLORS.primary },
+  count: { color: COLORS.textSecondary, fontSize: 12, marginHorizontal: SPACING.md,
+    marginVertical: SPACING.sm },
+  loader: { flex: 1 },
+  list: { width: '100%', maxWidth: 860, alignSelf: 'center',
+    paddingHorizontal: SPACING.md, paddingBottom: SPACING.xxl },
+  card: { backgroundColor: COLORS.surface, borderColor: COLORS.border, borderWidth: 1,
+    borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, gap: SPACING.sm },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: SPACING.sm },
+  jobName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  muted: { fontSize: 13, lineHeight: 19, color: COLORS.textSecondary },
+  status: { fontSize: 12, fontWeight: '700', color: COLORS.primary, textTransform: 'capitalize' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  action: { minHeight: 44, justifyContent: 'center',
+    paddingHorizontal: SPACING.md, backgroundColor: COLORS.primaryFaded, borderRadius: RADIUS.md },
+  actionText: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
+  more: { minHeight: 48, justifyContent: 'center', alignItems: 'center' },
+  center: { alignItems: 'center', padding: SPACING.xxl },
+  error: { color: COLORS.error, textAlign: 'center', margin: SPACING.md },
+  form: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: SPACING.md,
+    paddingBottom: SPACING.xxl, gap: SPACING.md },
+  field: { gap: 5 },
+  label: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  input: { minHeight: 48, backgroundColor: COLORS.surface, color: COLORS.text,
+    borderColor: COLORS.border, borderWidth: 1, borderRadius: RADIUS.md,
+    padding: SPACING.md, fontSize: 16 },
+  submit: { minHeight: 52, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg,
+    alignItems: 'center', justifyContent: 'center', marginTop: SPACING.sm },
+  submitText: { color: COLORS.white, fontWeight: '700', fontSize: 16 },
 });

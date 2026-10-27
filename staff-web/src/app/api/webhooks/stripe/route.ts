@@ -31,13 +31,52 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        
+        // School tuition is never a donation. Reconcile only a fully paid Stripe session
+        // against the exact invoice and amount reserved before redirecting to Stripe.
+        if (session.metadata?.type === "school_invoice") {
+          const invoiceId = Number(session.metadata.invoiceId);
+          if (Number.isSafeInteger(invoiceId) && invoiceId > 0 &&
+              session.payment_status === "paid" &&
+              typeof session.payment_intent === "string") {
+            const updated = await prisma.schoolInvoice.updateMany({
+              where: {
+                id: invoiceId,
+                stripeSessionId: session.id,
+                status: "pending",
+                amountCents: session.amount_total ?? -1,
+                currency: session.currency || "usd",
+              },
+              data: {
+                status: "paid", stripePaymentId: session.payment_intent,
+                paidAt: new Date(),
+              },
+            });
+            if (updated.count === 0) {
+              // Stripe retries completed events. A previously recorded matching payment
+              // is already successful and must not cause indefinite webhook retries.
+              const alreadyRecorded = await prisma.schoolInvoice.findFirst({
+                where: {
+                  id: invoiceId, stripeSessionId: session.id,
+                  stripePaymentId: session.payment_intent, status: "paid",
+                  amountCents: session.amount_total ?? -1,
+                },
+                select: { id: true },
+              });
+              if (!alreadyRecorded) {
+                console.error("School invoice checkout did not match expected payment");
+                return NextResponse.json({ error: "Payment reconciliation requires review" }, { status: 409 });
+              }
+            }
+          }
+          break;
+        }
+
         const donationData = {
           stripeSessionId: session.id,
           stripePaymentId: session.payment_intent as string,
           amount: session.amount_total || 0,
           currency: session.currency || "usd",
-          status: "completed" as const,
+          status: session.payment_status === "paid" ? ("completed" as const) : ("pending" as const),
           donorName: session.customer_details?.name || null,
           donorEmail: session.customer_details?.email || null,
           isAnonymous: session.metadata?.isAnonymous === "true",
@@ -46,7 +85,7 @@ export async function POST(req: NextRequest) {
           stripeSubId: session.subscription as string || null,
           receiptUrl: session.customer_details?.email ? 
             `https://dashboard.stripe.com/payments/${session.payment_intent}` : null,
-          metadata: session.metadata || null,
+          metadata: session.metadata ? { ...session.metadata } : undefined,
         };
 
         await prisma.donation.upsert({
@@ -55,7 +94,7 @@ export async function POST(req: NextRequest) {
           create: donationData,
         });
 
-        console.log(`Donation completed: ${session.id}`);
+        console.log(`Donation checkout recorded: ${session.id}`);
         break;
       }
 
@@ -72,8 +111,10 @@ export async function POST(req: NextRequest) {
 
           const subscriptionDetails = invoice.lines?.data[0];
           
-          await prisma.donation.create({
-            data: {
+          await prisma.donation.upsert({
+            where: { stripeSessionId: `sub_${invoice.id}` },
+            update: { status: "completed" },
+            create: {
               stripeSessionId: `sub_${invoice.id}`,
               stripePaymentId: invoice.payment_intent as string,
               amount: subscriptionDetails?.amount || 0,
@@ -93,8 +134,15 @@ export async function POST(req: NextRequest) {
 
       case "checkout.session.expired": {
         const session = event.data.object as Stripe.Checkout.Session;
-        
-        await prisma.donation.update({
+        if (session.metadata?.type === "school_invoice") {
+          await prisma.schoolInvoice.updateMany({
+            where: { stripeSessionId: session.id, status: "pending" },
+            data: { stripeSessionId: null },
+          });
+          break;
+        }
+
+        await prisma.donation.updateMany({
           where: { stripeSessionId: session.id },
           data: { status: "failed" as const },
         });
@@ -105,7 +153,14 @@ export async function POST(req: NextRequest) {
 
       case "charge.refunded": {
         const charge = event.data.object as Stripe.Charge;
-        
+
+        if (typeof charge.payment_intent === "string" && charge.amount_refunded >= charge.amount) {
+          await prisma.schoolInvoice.updateMany({
+            where: { stripePaymentId: charge.payment_intent, status: "paid" },
+            data: { status: "refunded" },
+          });
+        }
+
         if (charge.payment_intent) {
           await prisma.donation.updateMany({
             where: { stripePaymentId: charge.payment_intent as string },

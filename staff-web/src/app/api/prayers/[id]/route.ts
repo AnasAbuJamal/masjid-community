@@ -13,7 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json();
     if (body.date) body.date = new Date(body.date);
 
-    const prayer = await prisma.prayerTime.update({ where: { id }, data: body });
+    const prayer = await prisma.prayerTime.update({ where: { id: Number(id) }, data: body });
     await logAudit({ action: "update_prayer", userId: session.user.id, details: `Updated prayer ${id}`, ipAddress: getClientIp(req) });
     return NextResponse.json(prayer);
 }
@@ -25,7 +25,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.prayerTime.delete({ where: { id } });
+    await prisma.prayerTime.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_prayer", userId: session.user.id, details: `Deleted prayer ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }

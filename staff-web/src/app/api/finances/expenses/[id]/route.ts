@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const expense = await prisma.financialExpense.findUnique({
-        where: { id },
+        where: { id: Number(id) },
         include: { category: { select: { id: true, name: true, color: true, icon: true } } },
     });
 
@@ -32,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.date) data.date = new Date(body.date);
 
     const expense = await prisma.financialExpense.update({
-        where: { id },
+        where: { id: Number(id) },
         data,
         include: { category: { select: { id: true, name: true, color: true } } },
     });
@@ -48,7 +48,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-    await prisma.financialExpense.delete({ where: { id } });
+    await prisma.financialExpense.delete({ where: { id: Number(id) } });
     await logAudit({ action: "delete_expense", userId: session.user.id, details: `Deleted expense ${id}`, ipAddress: getClientIp(_req) });
     return NextResponse.json({ success: true });
 }

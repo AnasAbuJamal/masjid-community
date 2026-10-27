@@ -3,6 +3,10 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session || !["admin", "teacher", "staff"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { searchParams } = req.nextUrl;
     const studentId = searchParams.get("studentId");

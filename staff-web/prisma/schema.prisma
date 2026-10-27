@@ -13,6 +13,18 @@ datasource db {
 //  USERS & AUTH
 // ──────────────────────────────────────
 
+// Store only a one-way hash of each short-lived email verification secret.
+model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model User {
   id            Int       @id @default(autoincrement())
   email         String    @unique
@@ -31,11 +43,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  teachingClasses Class[] @relation("AssignedClassTeacher")
   blogPosts     BlogPost[]
   assignments   Assignment[]  @relation("AssignmentTeacher")
   auditLogs     AuditLog[]
   notifications Notification[]
   reports       StudentReport[] @relation("ReportTeacher")
+  pushTokens    PushToken[]
 }
 
 enum UserRole {
@@ -115,7 +129,60 @@ enum PostStatus {
 //  SCHOOL: CLASSES, STUDENTS, ASSIGNMENTS
 // ──────────────────────────────────────
 
+enum SchoolInvoiceStatus {
+  pending
+  paid
+  refunded
+  void
+}
+
+model SchoolInvoice {
+  id              Int                 @id @default(autoincrement())
+  studentId       Int
+  student         Student             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  description     String
+  amountCents     Int
+  currency        String              @default("usd")
+  dueDate         DateTime
+  status          SchoolInvoiceStatus @default(pending)
+  stripeSessionId String?             @unique
+  stripePaymentId String?             @unique
+  paidAt          DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([studentId, status])
+  @@index([dueDate])
+}
+
+// Curated public school materials. Only approved staff may publish links.
+model EducationalResource {
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String   @default("")
+  type         String
+  category     String
+  url          String
+  tags         String[] @default([])
+  gradeLevels  String[] @default([])
+  thumbnailUrl String?
+  duration     Int?
+  fileSize     Int?
+  createdBy    String?
+  viewCount    Int      @default(0)
+  isFeatured   Boolean  @default(false)
+  isPublished  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished, category])
+  @@index([createdAt])
+}
+
 model Class {
+  teacherId Int?
+  teacher User? @relation("AssignedClassTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  @@index([teacherId])
   id Int @id @default(autoincrement())
   name         String
   teacherName  String
@@ -152,6 +219,8 @@ model Student {
   reports          StudentReport[]
 
   @@index([firstName, lastName])
+  invoices      SchoolInvoice[]
+
 }
 
 enum ApplicationStatus {
@@ -331,6 +400,16 @@ model VolunteerApplication {
 //  COMMUNITY PROJECT PROPOSALS (Enhanced)
 // ──────────────────────────────────────
 
+model ProposalVote {
+  id         Int      @id @default(autoincrement())
+  proposalId Int
+  userId     Int
+  createdAt  DateTime @default(now())
+
+  @@unique([proposalId, userId])
+  @@index([userId])
+}
+
 model ProjectProposal {
   id Int @id @default(autoincrement())
   title             String
@@ -434,6 +513,7 @@ enum ProposalCategory {
 model Donation {
   id Int @id @default(autoincrement())
   stripeSessionId   String         @unique
+  userId            Int?
   stripePaymentId   String?        @unique
   donorName         String?
   donorEmail        String?
@@ -446,6 +526,7 @@ model Donation {
   isAnonymous       Boolean        @default(false)
   receiptUrl        String?
   metadata          Json?
+  @@index([userId])
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 }
@@ -522,6 +603,22 @@ model ExpenseCategory {
   createdAt   DateTime @default(now())
 
   expenses    FinancialExpense[]
+  budgets FinancialBudget[]
+}
+
+model FinancialBudget {
+  id Int @id @default(autoincrement())
+  categoryId Int
+  category ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  year Int
+  month Int
+  allocated Float
+  isPublished Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([categoryId, year, month])
+  @@index([year, month, isPublished])
 }
 
 model FinancialExpense {
@@ -683,6 +780,34 @@ enum ProfileStatus {
 // ──────────────────────────────────────
 //  AUDIT LOGS
 // ──────────────────────────────────────
+
+enum CrmTaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+enum CrmTaskStatus {
+  pending
+  in_progress
+  completed
+}
+
+model CrmTask {
+  id Int @id @default(autoincrement())
+  title String
+  description String @default("")
+  assignedTo String?
+  dueDate DateTime?
+  priority CrmTaskPriority @default(medium)
+  status CrmTaskStatus @default(pending)
+  category String @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, dueDate])
+  @@index([category])
+}
 
 model AuditLog {
   id        Int       @id @default(autoincrement())
@@ -1003,5 +1128,9 @@ model StudentReport {
 model PushToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }

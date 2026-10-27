@@ -1,4 +1,6 @@
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { DonationChart, DonationBarChart, RecentDonations, StatCard, QuickActions, ActivityFeed } from "./dashboard-charts";
 
@@ -69,15 +71,19 @@ async function getStats() {
 }
 
 export default async function DashboardPage() {
+  const session = await auth();
+  if (!session || !["admin", "teacher", "staff"].includes(session.user.role)) {
+    redirect("/");
+  }
   const stats = await getStats();
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Overview of your masjid operations</p>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Overview of your masjid operations</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
@@ -103,7 +109,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3">
         <DonationChart data={stats.monthlyData} />
         <RecentDonations donations={stats.recentDonations} />
       </div>
