@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: masjid
+      POSTGRES_PASSWORD: local_dev_only
+      POSTGRES_DB: masjid
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - masjid_pg:/var/lib/postgresql/data
+volumes:
+  masjid_pg:

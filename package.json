@@ -1,0 +1,9 @@
+{
+  "name": "masjid-community",
+  "private": true,
+  "scripts": {
+    "dev:web": "npm run dev --prefix staff-web",
+    "dev:mobile": "npm run start --prefix masjid-mobile",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

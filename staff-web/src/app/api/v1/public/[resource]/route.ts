@@ -1,0 +1,46 @@
+import { NextRequest } from "next/server";
+import { db } from "@/lib/db";
+import { handled, HttpError, localDate, ok } from "@/lib/http";
+type Context={params:Promise<{resource:string}>};
+const limit=25;
+export async function GET(req:NextRequest,{params}:Context){
+ return handled(async()=>{
+  const {resource}=await params;
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
+  if(!org) return ok({organization:null,items:[],message:"This community has not been configured yet."});
+  if(resource==="home"){
+    const venue=await db.venue.findFirst({where:{organizationId:org.id},orderBy:{id:"asc"}});
+    const today=venue ? localDate(new Date(),venue.timeZone) : null;
+    const [prayer,announcements,events]=await Promise.all([
+      venue&&today?db.prayerDay.findFirst({where:{venueId:venue.id,localDate:today,published:true}}):null,
+      db.announcement.findMany({where:{organizationId:org.id,status:"published",publishedAt:{lte:new Date()}},orderBy:{publishedAt:"desc"},take:3,select:{id:true,title:true,body:true,kind:true,publishedAt:true}}),
+      db.event.findMany({where:{organizationId:org.id,status:"published",startAt:{gte:new Date()}},orderBy:{startAt:"asc"},take:3,select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true}})
+    ]);
+    return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone,address:org.address},venue:venue&&{id:venue.id,name:venue.name,timeZone:venue.timeZone},prayer,announcements,events});
+  }
+  if(resource==="prayers"){
+    const venueId=req.nextUrl.searchParams.get("venueId");
+    const venue=venueId ? await db.venue.findFirst({where:{id:venueId,organizationId:org.id}}) : await db.venue.findFirst({where:{organizationId:org.id}});
+    if(!venue) return ok({venue:null,days:[],jummah:[]});
+    const date=req.nextUrl.searchParams.get("date")||localDate(new Date(),venue.timeZone);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new HttpError(422,"BAD_DATE","Use YYYY-MM-DD.");
+    const [days,jummah]=await Promise.all([
+      db.prayerDay.findMany({where:{venueId:venue.id,published:true,localDate:date},take:1}),
+      db.jummahSession.findMany({where:{venueId:venue.id,localDate:date},orderBy:{ordinal:"asc"}})
+    ]);
+    return ok({venue:{id:venue.id,name:venue.name,timeZone:venue.timeZone},localDate:date,days,jummah});
+  }
+  const where={organizationId:org.id};
+  const data=resource==="announcements" ? await db.announcement.findMany({where:{...where,status:"published",publishedAt:{lte:new Date()}},take:limit,orderBy:{publishedAt:"desc"},select:{id:true,title:true,body:true,kind:true,publishedAt:true}})
+   :resource==="events" ? await db.event.findMany({where:{...where,status:"published"},take:limit,orderBy:{startAt:"asc"},select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true}})
+   :resource==="programs" ? await db.schoolProgram.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,description:true,classes:{select:{id:true,name:true,schedule:true}}}})
+   :resource==="campaigns" ? await db.donationCampaign.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,purpose:true,currency:true,goalMinor:true}})
+   :resource==="volunteers" ? await db.volunteerOpportunity.findMany({where:{...where,published:true},take:limit,orderBy:{startsAt:"asc"},select:{id:true,title:true,description:true,startsAt:true,capacity:true,filled:true}})
+   :resource==="proposals" ? await db.proposal.findMany({where:{...where,status:"published"},take:limit,select:{id:true,title:true,description:true,_count:{select:{votes:true}}}})
+   :resource==="jobs" ? await db.jobPosting.findMany({where:{...where,status:"published"},take:limit,select:{id:true,title:true,description:true,company:true}})
+   :resource==="rentals" ? await db.rentalResource.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,description:true}})
+   :null;
+  if(data===null)throw new HttpError(404,"NOT_FOUND","Unknown resource.");
+  return ok({organization:{id:org.id,name:org.name},items:data});
+ });
+}

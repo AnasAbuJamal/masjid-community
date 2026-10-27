@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Masjid Community",
+    "slug": "masjid-community",
+    "scheme": "masjidcommunity",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.masjidcommunity.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Optional location access for showing the Qibla direction. Your location is not uploaded."
+      }
+    },
+    "android": {
+      "package": "org.masjidcommunity.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F7FBFF"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow optional location access to calculate Qibla direction."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

@@ -1,0 +1,395 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum UserRole {
+member
+teacher
+staff
+finance
+admin
+student
+}
+enum AccountStatus {
+active
+suspended
+disabled
+}
+enum ContentStatus {
+draft
+published
+archived
+}
+enum ApplicationStatus {
+submitted
+approved
+declined
+withdrawn
+}
+enum PaymentStatus {
+pending
+paid
+failed
+refunded
+}
+enum BookingStatus {
+requested
+approved
+cancelled
+rejected
+}
+enum AttendanceStatus {
+present
+absent
+late
+excused
+}
+
+model Organization {
+  id String @id @default(cuid())
+  slug String @unique
+  name String
+  timeZone String @default("America/New_York")
+  address String?
+  createdAt DateTime @default(now())
+  venues Venue[]
+  announcements Announcement[]
+  events Event[]
+  programs SchoolProgram[]
+  campaigns DonationCampaign[]
+  proposals Proposal[]
+  rentals RentalResource[]
+  opportunities VolunteerOpportunity[]
+  jobs JobPosting[]
+}
+model Venue {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  name String
+  address String?
+  timeZone String @default("America/New_York")
+  prayerDays PrayerDay[]
+  jummahSessions JummahSession[]
+  @@index([organizationId])
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  firstName String
+  lastName String
+  status AccountStatus @default(active)
+  role UserRole @default(member)
+  verifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions AuthSession[]
+  emailTokens EmailToken[]
+  rsvps EventRSVP[]
+  volunteerApplications VolunteerApplication[]
+  studentAccount Student? @relation("StudentAccount")
+  guardianLinks GuardianLink[]
+  teacherAssignments TeacherAssignment[]
+  donations Donation[]
+  votes ProposalVote[]
+  jobApplications JobApplication[]
+  bookings RentalBooking[]
+  notifications Notification[]
+  auditEvents AuditEvent[]
+}
+model AuthSession {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId,expiresAt])
+}
+model EmailToken {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  tokenHash String @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+}
+model PrayerDay {
+  id String @id @default(cuid())
+  venueId String
+  venue Venue @relation(fields:[venueId],references:[id])
+  localDate String
+  fajr String
+  sunrise String
+  dhuhr String
+  asr String
+  maghrib String
+  isha String
+  fajrIqamah String?
+  dhuhrIqamah String?
+  asrIqamah String?
+  maghribIqamah String?
+  ishaIqamah String?
+  source String @default("mosque")
+  published Boolean @default(false)
+  revision Int @default(1)
+  publishedAt DateTime?
+  updatedAt DateTime @updatedAt
+  @@unique([venueId,localDate])
+  @@index([venueId,published,localDate])
+}
+model JummahSession {
+  id String @id @default(cuid())
+  venueId String
+  venue Venue @relation(fields:[venueId],references:[id])
+  localDate String
+  ordinal Int
+  khutbahAt String?
+  iqamahAt String
+  language String?
+  @@unique([venueId,localDate,ordinal])
+}
+model Announcement {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  body String
+  kind String @default("general")
+  status ContentStatus @default(draft)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId,status,publishedAt])
+}
+model Event {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  description String
+  location String
+  startAt DateTime
+  endAt DateTime
+  capacity Int?
+  rsvpCount Int @default(0)
+  status ContentStatus @default(draft)
+  rsvps EventRSVP[]
+  @@index([organizationId,status,startAt])
+}
+model EventRSVP {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  eventId String
+  event Event @relation(fields:[eventId],references:[id])
+  createdAt DateTime @default(now())
+  @@unique([eventId,userId])
+}
+model SchoolProgram {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  description String
+  published Boolean @default(false)
+  classes ClassSection[]
+}
+model ClassSection {
+  id String @id @default(cuid())
+  programId String
+  program SchoolProgram @relation(fields:[programId],references:[id])
+  name String
+  schedule String
+  capacity Int?
+  teachers TeacherAssignment[]
+  enrollments Enrollment[]
+  sessions ClassSession[]
+}
+model Student {
+  id String @id @default(cuid())
+  studentNumber String @unique
+  firstName String
+  lastName String
+  userId String? @unique
+  user User? @relation("StudentAccount",fields:[userId],references:[id])
+  guardians GuardianLink[]
+  enrollments Enrollment[]
+  attendance Attendance[]
+}
+model GuardianLink {
+  id String @id @default(cuid())
+  guardianId String
+  guardian User @relation(fields:[guardianId],references:[id])
+  studentId String
+  student Student @relation(fields:[studentId],references:[id])
+  approvedAt DateTime?
+  revokedAt DateTime?
+  @@unique([guardianId,studentId])
+}
+model TeacherAssignment {
+  id String @id @default(cuid())
+  teacherId String
+  teacher User @relation(fields:[teacherId],references:[id])
+  classId String
+  classSection ClassSection @relation(fields:[classId],references:[id])
+  @@unique([teacherId,classId])
+}
+model Enrollment {
+  id String @id @default(cuid())
+  studentId String
+  student Student @relation(fields:[studentId],references:[id])
+  classId String
+  classSection ClassSection @relation(fields:[classId],references:[id])
+  status String @default("active")
+  @@unique([studentId,classId])
+}
+model ClassSession {
+  id String @id @default(cuid())
+  classId String
+  classSection ClassSection @relation(fields:[classId],references:[id])
+  startsAt DateTime
+  attendance Attendance[]
+  @@index([classId,startsAt])
+}
+model Attendance {
+  id String @id @default(cuid())
+  sessionId String
+  session ClassSession @relation(fields:[sessionId],references:[id])
+  studentId String
+  student Student @relation(fields:[studentId],references:[id])
+  markedById String
+  status AttendanceStatus
+  @@unique([sessionId,studentId])
+}
+model DonationCampaign {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  purpose String
+  goalMinor Int?
+  currency String @default("usd")
+  published Boolean @default(false)
+  donations Donation[]
+}
+model Donation {
+  id String @id @default(cuid())
+  campaignId String
+  campaign DonationCampaign @relation(fields:[campaignId],references:[id])
+  donorId String
+  donor User @relation(fields:[donorId],references:[id])
+  amountMinor Int
+  currency String @default("usd")
+  anonymous Boolean @default(false)
+  status PaymentStatus @default(pending)
+  stripeSessionId String? @unique
+  createdAt DateTime @default(now())
+}
+model PaymentEvent {
+  id String @id @default(cuid())
+  providerEventId String @unique
+  type String
+  processedAt DateTime @default(now())
+}
+model VolunteerOpportunity {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  description String
+  startsAt DateTime
+  capacity Int
+  filled Int @default(0)
+  published Boolean @default(false)
+  applications VolunteerApplication[]
+}
+model VolunteerApplication {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity VolunteerOpportunity @relation(fields:[opportunityId],references:[id])
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  status ApplicationStatus @default(submitted)
+  @@unique([opportunityId,userId])
+}
+model Proposal {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  description String
+  status ContentStatus @default(draft)
+  votes ProposalVote[]
+}
+model ProposalVote {
+  id String @id @default(cuid())
+  proposalId String
+  proposal Proposal @relation(fields:[proposalId],references:[id])
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  @@unique([proposalId,userId])
+}
+model JobPosting {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  description String
+  company String
+  status ContentStatus @default(draft)
+  applications JobApplication[]
+}
+model JobApplication {
+  id String @id @default(cuid())
+  jobId String
+  job JobPosting @relation(fields:[jobId],references:[id])
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  coverLetter String
+  @@unique([jobId,userId])
+}
+model RentalResource {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  description String
+  published Boolean @default(false)
+  bookings RentalBooking[]
+}
+model RentalBooking {
+  id String @id @default(cuid())
+  resourceId String
+  resource RentalResource @relation(fields:[resourceId],references:[id])
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  startAt DateTime
+  endAt DateTime
+  status BookingStatus @default(requested)
+  @@index([resourceId,startAt,endAt])
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  title String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+}
+model AuditEvent {
+  id String @id @default(cuid())
+  actorId String
+  actor User @relation(fields:[actorId],references:[id])
+  action String
+  entity String
+  entityId String
+  detail String?
+  occurredAt DateTime @default(now())
+  @@index([actorId,occurredAt])
+}

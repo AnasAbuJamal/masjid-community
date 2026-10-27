@@ -1,0 +1,25 @@
+import React from "react";
+import {Text,View} from "react-native";
+import {router} from "expo-router";
+import {Action,Card,Feedback,Head,PressRow,Shell} from "../../src/ui";
+import {S} from "../../src/theme";
+import {useResource} from "../../src/useResource";
+import {useSession} from "../../src/session";
+type Program={id:string;title:string;description:string;classes:{id:string;name:string;schedule:string}[]};
+type Public={items:Program[]};
+type Private={children:{id:string;firstName:string;lastName:string;enrollments:{classSection:{name:string;schedule:string}}[]}[];student?:{id:string;firstName:string;lastName:string}|null;teaching:{id:string;name:string;schedule:string}[]};
+export default function School(){
+ const {user}=useSession();
+ const catalog=useResource<Public>("public/programs");
+ const privateData=useResource<Private>(user?.isVerified?"students":"public/programs");
+ return <Shell><Head eyebrow="EDUCATION · SCHOOL" title="Learning together." subtitle="A nurturing place for students, families and teachers."/>
+ {!user?<Card style={{gap:14}}><Text style={S.headline}>Your family's learning space</Text><Text style={S.bodyText}>Sign in to view your own linked children, classes and teacher assignments.</Text><Action label="Sign in to view private records" onPress={()=>router.push("/auth")}/></Card>:null}
+ {user&&!user.isVerified?<Card><Text style={S.bodyText}>Verify your email and complete any required school linking with the school office to view private records.</Text></Card>:null}
+ {user?.isVerified?<><Feedback loading={privateData.loading} error={privateData.error} empty={false} refresh={privateData.refresh}/>
+ {privateData.data?.children?.length?<View style={S.section}><Text style={S.headline}>Your linked children</Text>{privateData.data.children.map(child=><Card key={child.id}><Text style={S.label}>{child.firstName} {child.lastName}</Text><Text style={S.muted}>{child.enrollments.length} current classes</Text>{child.enrollments.map((entry,i)=><Text key={i} style={S.bodyText}>{entry.classSection.name} · {entry.classSection.schedule}</Text>)}</Card>)}</View>:null}
+ {privateData.data?.teaching?.length?<View style={S.section}><Text style={S.headline}>Assigned teaching</Text>{privateData.data.teaching.map(c=><Card key={c.id}><Text style={S.label}>{c.name}</Text><Text style={S.muted}>{c.schedule}</Text></Card>)}</View>:null}
+ </>:null}
+ <View style={S.section}><Text style={S.headline}>Explore programs</Text><Feedback loading={catalog.loading} error={catalog.error} empty={!catalog.data?.items?.length} refresh={catalog.refresh}/>
+ {catalog.data?.items?.map(p=><Card key={p.id}><Text style={S.label}>{p.title}</Text><Text style={[S.bodyText,{marginTop:8}]}>{p.description}</Text>{p.classes.map(c=><Text style={[S.muted,{marginTop:6}]} key={c.id}>{c.name} · {c.schedule}</Text>)}</Card>)}</View>
+ </Shell>;
+}
