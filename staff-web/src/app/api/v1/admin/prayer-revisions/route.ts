@@ -134,28 +134,34 @@ export async function POST(req:NextRequest){
   if(input.action==="submit"){
    if(item.authoredById!==user.id)throw new HttpError(403,"NOT_AUTHOR","Only the named author can submit this draft.");
    if(item.status!=="draft")conflict("Only drafts can be submitted.");
-   const changed=await db.prayerScheduleRevision.updateMany({where:{id:item.id,status:"draft",authoredById:user.id},
-    data:{status:"pending",submittedAt:new Date()}});
-   if(!changed.count)conflict("The draft was changed. Reload before submitting.");
-   await db.auditEvent.create({data:{actorId:user.id,action:"worship.prayer.submit",entity:"PrayerScheduleRevision",entityId:item.id}});
+   await db.$transaction(async tx=>{
+    const changed=await tx.prayerScheduleRevision.updateMany({where:{id:item.id,status:"draft",authoredById:user.id},
+     data:{status:"pending",submittedAt:new Date()}});
+    if(!changed.count)conflict("The draft was changed. Reload before submitting.");
+    await tx.auditEvent.create({data:{actorId:user.id,action:"worship.prayer.submit",entity:"PrayerScheduleRevision",entityId:item.id}});
+   });
    return ok({id:item.id,status:"pending"});
   }
   if(input.action==="withdraw"){
    if(item.authoredById!==user.id)throw new HttpError(403,"NOT_AUTHOR","Only the named author may withdraw their draft.");
    if(!["draft","pending"].includes(item.status))conflict("Only unpublished drafts may be withdrawn.");
-   const changed=await db.prayerScheduleRevision.updateMany({where:{id:item.id,status:item.status},data:{status:"withdrawn"}});
-   if(!changed.count)conflict("The draft was changed before it could be withdrawn.");
-   await db.auditEvent.create({data:{actorId:user.id,action:"worship.prayer.withdraw",entity:"PrayerScheduleRevision",entityId:item.id}});
+   await db.$transaction(async tx=>{
+    const changed=await tx.prayerScheduleRevision.updateMany({where:{id:item.id,status:item.status},data:{status:"withdrawn"}});
+    if(!changed.count)conflict("The draft was changed before it could be withdrawn.");
+    await tx.auditEvent.create({data:{actorId:user.id,action:"worship.prayer.withdraw",entity:"PrayerScheduleRevision",entityId:item.id}});
+   });
    return ok({id:item.id,status:"withdrawn"});
   }
   if(input.action==="approve"){
    if(item.authoredById===user.id)throw new HttpError(403,"SEPARATION_REQUIRED","A different authorized reviewer must approve this schedule.");
    if(item.status!=="pending")conflict("Only submitted schedules may be approved.");
-   const changed=await db.prayerScheduleRevision.updateMany({where:{id:item.id,status:"pending",approvedById:null},
-    data:{status:"approved",approvedById:user.id,approvedAt:new Date()}});
-   if(!changed.count)conflict("Another reviewer already changed this schedule.");
-   await db.auditEvent.create({data:{actorId:user.id,action:"worship.prayer.approve",entity:"PrayerScheduleRevision",
-    entityId:item.id,detail:JSON.stringify({author:item.authoredById,revision:item.revision})}});
+   await db.$transaction(async tx=>{
+    const changed=await tx.prayerScheduleRevision.updateMany({where:{id:item.id,status:"pending",approvedById:null},
+     data:{status:"approved",approvedById:user.id,approvedAt:new Date()}});
+    if(!changed.count)conflict("Another reviewer already changed this schedule.");
+    await tx.auditEvent.create({data:{actorId:user.id,action:"worship.prayer.approve",entity:"PrayerScheduleRevision",
+     entityId:item.id,detail:JSON.stringify({author:item.authoredById,revision:item.revision})}});
+   });
    return ok({id:item.id,status:"approved"});
   }
 
