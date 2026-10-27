@@ -53,6 +53,14 @@ try{
  assert.equal(count.rsvpCount,1,"waitlist does not consume a seat");
  assert.equal(await db.eventRSVP.count({where:{eventId,status:"confirmed"}}),1);
  assert.equal(await db.eventRSVP.count({where:{eventId,status:"waitlisted"}}),1);
+ const leaveWaitlist=await request("events/rsvp","DELETE",{eventId},staffToken);
+ assert.equal(leaveWaitlist.status,200);
+ assert.equal(leaveWaitlist.data.promotedWaitlist,false);
+ assert.equal((await db.event.findUnique({where:{id:eventId}})).rsvpCount,1,
+  "leaving a waitlist never changes confirmed capacity");
+ const rejoined=await request("actions","POST",{kind:"rsvp",eventId},staffToken);
+ assert.equal(rejoined.status,201);
+ assert.equal(rejoined.data.status,"waitlisted");
  const memberCancellation=await request("events/rsvp","DELETE",{eventId},memberToken);
  assert.equal(memberCancellation.status,200);
  assert.equal(memberCancellation.data.cancelled,true);
