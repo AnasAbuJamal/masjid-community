@@ -30,6 +30,22 @@ const db=new PrismaClient();
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org,"CI must provision a mosque before guest web tests");
+ const unapproved=await db.faithNotice.create({data:{
+  organizationId:org.id,kind:"other",localDate:"2032-11-06",title:"Unapproved public candidate",
+  body:"This announcement was deliberately not reviewed by an eligible mosque approver.",
+  status:"published",approvedById:null,publishedAt:new Date()
+ }});
+ try{
+  const feed=await get("public/faith");
+  assert.equal(feed.status,200);
+  assert.ok(!feed.data.data.notices.some(n=>n.id===unapproved.id),
+   "a published flag without named mosque approval is not sufficient for the public faith feed");
+  const detail=await fetch("http://127.0.0.1:3000/visit/content/faith/"+unapproved.id);
+  assert.equal(detail.status,404,"unapproved notices have no public canonical detail page");
+ }finally{
+  await db.faithNotice.delete({where:{id:unapproved.id}});
+ }
+
  const initial=await fetch("http://127.0.0.1:3000/visit");
  assert.equal(initial.status,200,"public web page must work without login");
  const initialHtml=await initial.text();
