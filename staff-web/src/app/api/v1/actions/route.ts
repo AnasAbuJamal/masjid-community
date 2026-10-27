@@ -20,12 +20,27 @@ export async function POST(req:NextRequest){
   if(input.kind==="rsvp"){
     const output=await db.$transaction(async tx=>{
       const event=await tx.event.findUnique({where:{id:input.eventId}});
-      if(!event||event.status!=="published"||event.startAt<=new Date())throw new HttpError(404,"UNAVAILABLE","Event unavailable.");
-      if(await tx.eventRSVP.findUnique({where:{eventId_userId:{eventId:event.id,userId:user.id}}}))return {joined:true,alreadyJoined:true};
-      const claimed=await tx.event.updateMany({where:{id:event.id,...(event.capacity===null?{}:{rsvpCount:{lt:event.capacity}})},data:{rsvpCount:{increment:1}}});
-      if(!claimed.count)throw new HttpError(409,"EVENT_FULL","Event capacity reached.");
-      await tx.eventRSVP.create({data:{eventId:event.id,userId:user.id}});
-      return {joined:true,alreadyJoined:false};
+      if(!event||event.status!=="published"||event.startAt<=new Date())
+        throw new HttpError(404,"UNAVAILABLE","Event unavailable.");
+      const existing=await tx.eventRSVP.findUnique({where:{eventId_userId:{eventId:event.id,userId:user.id}}});
+      if(existing)return {
+        joined:existing.status==="confirmed",alreadyJoined:true,status:existing.status,
+        message:existing.status==="confirmed"?"You already have a confirmed place.":"You are already on the waitlist."
+      };
+      const claimed=await tx.event.updateMany({
+        where:{id:event.id,status:"published",startAt:{gt:new Date()},
+          ...(event.capacity===null?{}:{rsvpCount:{lt:event.capacity}})},
+        data:{rsvpCount:{increment:1}}
+      });
+      if(claimed.count){
+        await tx.eventRSVP.create({data:{eventId:event.id,userId:user.id,status:"confirmed"}});
+        return {joined:true,alreadyJoined:false,status:"confirmed",message:"Your event reservation is confirmed."};
+      }
+      if(!event.waitlistEnabled)
+        throw new HttpError(409,"EVENT_FULL","This gathering is full and has no waitlist.");
+      await tx.eventRSVP.create({data:{eventId:event.id,userId:user.id,status:"waitlisted"}});
+      return {joined:false,alreadyJoined:false,status:"waitlisted",
+        message:"You are on the waitlist. This is not a confirmed reservation."};
     },{isolationLevel:"Serializable"});
     return ok(output,201);
   }
