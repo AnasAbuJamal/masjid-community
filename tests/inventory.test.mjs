@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync,existsSync} from "node:fs";
 const read=(p)=>readFileSync(p,"utf8");
 test("the product specification and both apps exist",()=>{
- for(const path of ["document.md","staff-web/prisma/schema.prisma","staff-web/src/app/api/v1/public/[resource]/route.ts",
+ for(const path of ["document.md","staff-web/prisma/schema.prisma","staff-web/src/app/api/v1/public/[resource]/route.ts","staff-web/src/app/visit/page.tsx","staff-web/src/app/visit/content/[kind]/[id]/page.tsx",
    "masjid-mobile/app/(tabs)/index.tsx","masjid-mobile/app/(tabs)/salah.tsx","masjid-mobile/app/(tabs)/discover.tsx",
    "masjid-mobile/app/(tabs)/school.tsx","masjid-mobile/app/(tabs)/profile.tsx"])
   assert.ok(existsSync(path),path);
