@@ -1,7 +1,7 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireVerified} from "@/lib/auth";
+import {requireCapability} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const command=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("schedule"),applicationId:z.string().min(8),startAt:z.iso.datetime(),endAt:z.iso.datetime()}),
@@ -9,7 +9,7 @@ const command=z.discriminatedUnion("kind",[
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  await requireVerified(req,["admin","staff"]);
+  await requireCapability(req,"volunteers_manage");
   const [applications,shifts]=await Promise.all([
    db.volunteerApplication.findMany({where:{status:"approved"},take:100,include:{
      user:{select:{firstName:true,lastName:true,email:true}},opportunity:{select:{title:true,startsAt:true}}}}),
@@ -22,7 +22,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
-  const actor=await requireVerified(req,["admin","staff"]);
+  const actor=await requireCapability(req,"volunteers_manage");
   const input=command.parse(await jsonBody(req));
   if(input.kind==="schedule"){
    const start=new Date(input.startAt),end=new Date(input.endAt);

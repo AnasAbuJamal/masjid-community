@@ -26,7 +26,11 @@ export async function POST(req:NextRequest,{params}:Context) {
     const values=register.parse(await jsonBody(req));
     const email=values.email.trim().toLowerCase();
     if(await db.user.findUnique({where:{email}})) throw new HttpError(409,"ALREADY_REGISTERED","This email is already registered.");
-    const user=await db.user.create({data:{email,firstName:values.firstName,lastName:values.lastName,passwordHash:await bcrypt.hash(values.password,12),role:"member"}});
+    const organization=await db.organization.findFirst();
+    if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Community registration is not configured.");
+    const user=await db.user.create({data:{email,firstName:values.firstName,lastName:values.lastName,
+      passwordHash:await bcrypt.hash(values.password,12),role:"member",
+      memberships:{create:{organizationId:organization.id}}}});
     const verificationSent=await requestVerification(user).catch(()=>false);
     return ok({registered:true,verificationSent,message:verificationSent?"Check your email to verify your account.":"Account created; email delivery is not yet configured. Contact the organization."},201);
   }

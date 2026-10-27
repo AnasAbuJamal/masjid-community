@@ -1,7 +1,7 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireVerified} from "@/lib/auth";
+import {requireCapability} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok,localDate} from "@/lib/http";
 const isoDate=z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -19,7 +19,7 @@ function validLocalDate(date:string){
 }
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  await requireVerified(req,["admin","staff"]);
+  await requireCapability(req,"worship_publish");
   const org=await db.organization.findFirst();
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization is not configured.");
   const today=localDate(new Date(),org.timeZone);
@@ -35,7 +35,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
-  const user=await requireVerified(req,["admin"]);
+  const user=await requireCapability(req,"worship_publish");
   const input=command.parse(await jsonBody(req));
   const org=await db.organization.findFirst();
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization is not configured.");
@@ -62,7 +62,7 @@ export async function POST(req:NextRequest){
 export async function DELETE(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
-  const user=await requireVerified(req,["admin"]);
+  const user=await requireCapability(req,"worship_publish");
   const {kind,id}=z.object({kind:z.enum(["jummah","faith"]),id:z.string().min(8)}).parse(await jsonBody(req));
   const org=await db.organization.findFirst();
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization is not configured.");

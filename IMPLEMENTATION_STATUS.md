@@ -122,3 +122,10 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Editable Friday Jummah sessions by venue, with admin date/clock validation.
 - CI verifies published-only search, faith notice privacy, and private admin access denial.
 - Next work still needed: full Arabic translations/RTL across every screen, accessibility/device testing, automated notifications, and detailed faith schedule review workflow.
+
+### Eighteenth implementation pass: scoped staff delegation
+- Explicit organization memberships, active/suspended states, expirations, and capability grants for worship publishing, facilities, volunteering and community moderation.
+- Privileged administrators may provision a verified member's staff/teacher/finance primary role, suspend membership, grant/revoke staff responsibilities, and revoke affected sessions; all operations are audited.
+- Staff receive a restricted workspaces page instead of global admin aggregates. Scoped capability enforcement is checked at each delegated API.
+- CI checks ungranted staff denial, allowed community moderation, expired grants and admin MFA gating.
+- **Still required:** a migration/backfill plan for any existing database, fine-grained multi-organization/class/venue scoping of every remaining API, multi-role identity beyond the legacy primary role, and independent security review.

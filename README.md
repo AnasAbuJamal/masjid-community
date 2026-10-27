@@ -52,3 +52,6 @@ Admin and finance accounts must enroll and verify time-based one-time codes befo
 
 ## Financial integrity
 Only **signed** payment provider callbacks may mark a donation or tuition invoice paid. A paid charge creates a receipt and a balanced provider-clearing/revenue journal; a verified full refund reverses that journal while retaining a marked receipt. The CI suite signs synthetic Stripe webhook payloads using an isolated test secret; this is **not** the same as end-to-end validation against a real configured Stripe account. Do not treat the current financial screens as a certified/reconciled accounting system.
+
+## Staff roles and organization memberships
+The local bootstrap creates an admin membership, and new accounts are linked to the configured mosque. An MFA-verified administrator uses `/admin/team` to grant staff/teacher/finance primary roles or time-bound staff capabilities. Privilege updates revoke active sessions; delegated staff use `/staff`. **This version assumes a single operational mosque** and is not yet a safe multi-tenant platform; do not create multiple live organizations until all API paths are tenant-scoped and backed by migration tests. Preexisting data must be backfilled into `OrganizationMembership` before enforcing the new membership gate in a nonempty environment.

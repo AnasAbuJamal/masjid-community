@@ -13,7 +13,7 @@ export default function LoginPage(){
    if(!res.ok)throw new Error(value.error?.message||"Could not sign in.");
    if(!["admin","staff","finance","teacher"].includes(value.data.user.role)){setError("This portal is reserved for authorized mosque staff.");return;}
    if(value.data.user.mfaRequired){window.location.assign("/mfa");return;}
-   window.location.assign(value.data.user.role==="finance"?"/admin/finance":value.data.user.role==="teacher"?"/admin/schoolwork":"/admin");
+   window.location.assign(value.data.user.role==="finance"?"/admin/finance":value.data.user.role==="teacher"?"/admin/schoolwork":value.data.user.role==="staff"?"/staff":"/admin");
   }catch(e){setError(e instanceof Error?e.message:"Network unavailable.");}
   finally{setBusy(false);}
  }

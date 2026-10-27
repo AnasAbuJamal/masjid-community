@@ -12,10 +12,17 @@ try{
   venues:{create:{name:"CI Venue",timeZone:"America/New_York"}}},include:{venues:true}});
  const venue=org.venues[0];
  const hashes=await bcrypt.hash("sample-development-password",10);
- const member=await db.user.create({data:{email:"member-"+suffix+"@example.test",firstName:"Member",lastName:"Fixture",passwordHash:hashes,verifiedAt:new Date()}});
- const teacher=await db.user.create({data:{email:"teacher-"+suffix+"@example.test",firstName:"Teacher",lastName:"Fixture",passwordHash:hashes,role:"teacher",verifiedAt:new Date()}});
- const admin=await db.user.create({data:{email:"admin-"+suffix+"@example.test",firstName:"Admin",lastName:"Fixture",passwordHash:hashes,role:"admin",verifiedAt:new Date()}});
- writeFileSync("/tmp/masjid-ci-accounts.json",JSON.stringify({adminEmail:admin.email,memberEmail:member.email,password:"sample-development-password"}),{mode:0o600});
+ const member=await db.user.create({data:{email:"member-"+suffix+"@example.test",firstName:"Member",lastName:"Fixture",passwordHash:hashes,verifiedAt:new Date(),memberships:{create:{organizationId:org.id}}}});
+ const teacher=await db.user.create({data:{email:"teacher-"+suffix+"@example.test",firstName:"Teacher",lastName:"Fixture",passwordHash:hashes,role:"teacher",verifiedAt:new Date(),memberships:{create:{organizationId:org.id}}}});
+ const admin=await db.user.create({data:{email:"admin-"+suffix+"@example.test",firstName:"Admin",lastName:"Fixture",passwordHash:hashes,role:"admin",verifiedAt:new Date(),memberships:{create:{organizationId:org.id}}}});
+ const staff=await db.user.create({data:{email:"staff-"+suffix+"@example.test",firstName:"Staff",lastName:"Fixture",
+  passwordHash:hashes,role:"staff",verifiedAt:new Date(),memberships:{create:{organizationId:org.id}}}});
+ const staffMembership=await db.organizationMembership.findUniqueOrThrow({where:{organizationId_userId:{organizationId:org.id,userId:staff.id}}});
+ const grant=await db.roleGrant.create({data:{membershipId:staffMembership.id,capability:"community_moderate",grantedById:admin.id}});
+ assert.equal(grant.capability,"community_moderate");
+ await db.roleGrant.create({data:{membershipId:staffMembership.id,capability:"facilities_manage",
+  expiresAt:new Date(Date.now()-60000),grantedById:admin.id}});
+ writeFileSync("/tmp/masjid-ci-accounts.json",JSON.stringify({adminEmail:admin.email,memberEmail:member.email,staffEmail:staff.email,password:"sample-development-password"}),{mode:0o600});
  const program=await db.schoolProgram.create({data:{organizationId:org.id,title:"Reading Skills",description:"Integration only",published:true}});
  const application=await db.enrollmentApplication.create({data:{organizationId:org.id,programId:program.id,applicantUserId:member.id,
   studentFirstName:"Child",studentLastName:"Fixture"}});

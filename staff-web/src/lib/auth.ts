@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
-import { UserRole } from "@prisma/client";
+import { UserRole, RoleCapability } from "@prisma/client";
 import { db } from "./db";
 import { HttpError } from "./http";
 
@@ -32,6 +32,10 @@ export async function requireVerified(req: NextRequest, roles?: UserRole[]) {
   const user = await requireActor(req, roles);
   if (!user.verifiedAt) throw new HttpError(403, "EMAIL_NOT_VERIFIED", "Verify your email first.");
   if (["admin","finance"].includes(user.role) && !user.mfaVerified) throw new HttpError(403, "MFA_REQUIRED", "Complete multi-factor authentication before continuing.");
+  const organization=await db.organization.findFirst();
+  if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Community organization is unavailable.");
+  const member=await db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:organization.id,userId:user.id}}});
+  if(!member||member.status!=="active")throw new HttpError(403,"MEMBERSHIP_REQUIRED","Your organization membership is not active.");
   return user;
 }
 export async function startSession(userId: string): Promise<string> {
@@ -84,4 +88,19 @@ export async function recordFailedLogin(email: string) {
 }
 export async function clearLoginThrottle(email:string){
   await db.authThrottle.deleteMany({where:{keyHash:hash("login:"+email.toLowerCase())}});
+}
+
+export async function requireCapability(req:NextRequest,capability:RoleCapability):Promise<Actor>{
+ const user=await requireVerified(req);
+ if(user.role==="admin")return user;
+ // Delegation is limited to verified staff within their own active organization membership.
+ if(user.role!=="staff")throw new HttpError(403,"FORBIDDEN","This operation requires a scoped staff permission.");
+ const org=await db.organization.findFirst();
+ if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+ const granted=await db.roleGrant.findFirst({where:{
+  membership:{organizationId:org.id,userId:user.id,status:"active"},
+  capability,revokedAt:null,OR:[{expiresAt:null},{expiresAt:{gt:new Date()}}]
+ }});
+ if(!granted)throw new HttpError(403,"FORBIDDEN","This staff capability has not been granted or has expired.");
+ return user;
 }

@@ -74,6 +74,7 @@ model Organization {
   journals JournalEntry[]
   refundRequests RefundRequest[]
   faithNotices FaithNotice[]
+  memberships OrganizationMembership[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -129,6 +130,8 @@ model User {
   refundsSubmitted RefundRequest[] @relation("RefundRequester")
   refundsReviewed RefundRequest[] @relation("RefundReviewer")
   approvedFaithNotices FaithNotice[]
+  memberships OrganizationMembership[]
+  grantedRoles RoleGrant[]
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -788,4 +791,41 @@ model FaithNotice {
   updatedAt DateTime @updatedAt
   @@unique([organizationId,kind,localDate])
   @@index([organizationId,status,localDate])
+}
+
+enum MembershipStatus {
+  active
+  suspended
+  left
+}
+enum RoleCapability {
+  worship_publish
+  facilities_manage
+  volunteers_manage
+  community_moderate
+}
+model OrganizationMembership {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  status MembershipStatus @default(active)
+  joinedAt DateTime @default(now())
+  grants RoleGrant[]
+  @@unique([organizationId,userId])
+  @@index([userId,status])
+}
+model RoleGrant {
+  id String @id @default(cuid())
+  membershipId String
+  membership OrganizationMembership @relation(fields:[membershipId],references:[id])
+  capability RoleCapability
+  grantedById String
+  grantedBy User @relation(fields:[grantedById],references:[id])
+  grantedAt DateTime @default(now())
+  expiresAt DateTime?
+  revokedAt DateTime?
+  @@unique([membershipId,capability])
+  @@index([membershipId,revokedAt,expiresAt])
 }

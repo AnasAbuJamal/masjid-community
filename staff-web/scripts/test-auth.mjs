@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import {createHmac} from "node:crypto";
 if(process.env.NODE_ENV==="production"||!process.env.DATABASE_URL?.includes("masjid_ci"))
  throw Error("Refusing auth integration test outside isolated CI database.");
-const {adminEmail,memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
+const {adminEmail,memberEmail,staffEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
 const host="http://127.0.0.1:3000/api/v1/";
 async function request(path,method="GET",body,token){
  const response=await fetch(host+path,{method,headers:{...(token?{Authorization:"Bearer "+token}:{}),...(body?{"Content-Type":"application/json"}:{})},
@@ -37,8 +37,13 @@ const invalid=await request("auth/mfa-enable","POST",{code:otp.slice(0,5)+(otp[5
 assert.equal(invalid.status,422,"wrong authenticator code rejected");
 const enabled=await request("auth/mfa-enable","POST",{code:otp},admin.data.token);
 assert.equal(enabled.status,200,"valid authenticator enrolled");
+const teamBlocked=await request("admin/team","GET",null,admin.data.token);
+ assert.equal(teamBlocked.status,403,"team management requires MFA");
 const allowed=await request("admin","GET",null,admin.data.token);
 assert.equal(allowed.status,200,"MFA-verified session can enter admin");
+const team=await request("admin/team","GET",null,admin.data.token);
+assert.equal(team.status,200,"verified admin can inspect scoped organization access");
+assert.ok(team.data.memberships.some(m=>m.user.email===staffEmail));
 const another=await request("auth/login","POST",{email:adminEmail,password});
 assert.equal(another.status,200);
 assert.equal(another.data.user.mfaSetupRequired,false);
@@ -51,4 +56,17 @@ assert.equal(member.status,200);
 assert.equal(member.data.user.mfaRequired,false,"ordinary members can sign in without privileged MFA");
 const memberForbidden=await request("admin","GET",null,member.data.token);
 assert.equal(memberForbidden.status,403,"member must not be able to read admin data");
-console.log("Verified admin MFA setup, privileged gate, replay rejection, independent sessions, member role denial.");
+const staff=await request("auth/login","POST",{email:staffEmail,password});
+assert.equal(staff.status,200);
+assert.equal(staff.data.user.role,"staff");
+const staffHome=await request("staff/capabilities","GET",null,staff.data.token);
+assert.equal(staffHome.status,200);
+assert.ok(staffHome.data.capabilities.some(c=>c.capability==="community_moderate"));
+assert.ok(!staffHome.data.capabilities.some(c=>c.capability==="facilities_manage"),"expired capabilities are excluded");
+const noFacilities=await request("admin/operations","GET",null,staff.data.token);
+assert.equal(noFacilities.status,403,"staff lacking facilities grant denied");
+const allowedCommunity=await request("admin/contact","GET",null,staff.data.token);
+assert.equal(allowedCommunity.status,200,"staff's live community grant permits moderation");
+const forbiddenDashboard=await request("admin","GET",null,staff.data.token);
+assert.equal(forbiddenDashboard.status,403,"staff cannot read admin-wide private data");
+console.log("Verified admin MFA, team access, role separation, staff grant allow/deny and expired capability checks.");

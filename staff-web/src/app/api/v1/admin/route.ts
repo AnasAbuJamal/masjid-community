@@ -28,7 +28,7 @@ const schema=z.discriminatedUnion("kind",[
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  const user=await requireVerified(req,["admin","staff"]);
+  const user=await requireVerified(req,["admin"]);
   const [org,counts,venues,prayers,announcements,events,applications,construction]=await Promise.all([
     db.organization.findFirst(),
     Promise.all([db.user.count(),db.event.count(),db.announcement.count(),db.schoolProgram.count(),db.donation.count()]),

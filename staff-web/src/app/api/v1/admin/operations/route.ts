@@ -1,12 +1,12 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireVerified} from "@/lib/auth";
+import {requireCapability} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const schema=z.object({kind:z.literal("rental-decision"),bookingId:z.string().min(8),decision:z.enum(["approved","rejected"])});
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  await requireVerified(req,["admin","staff"]);
+  await requireCapability(req,"facilities_manage");
   const bookings=await db.rentalBooking.findMany({where:{status:"requested"},take:100,orderBy:{startAt:"asc"},
    select:{id:true,startAt:true,endAt:true,status:true,
     resource:{select:{id:true,title:true}},
@@ -17,7 +17,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
-  const user=await requireVerified(req,["admin","staff"]);
+  const user=await requireCapability(req,"facilities_manage");
   const value=schema.parse(await jsonBody(req));
   const result=await db.$transaction(async tx=>{
    const booking=await tx.rentalBooking.findUnique({where:{id:value.bookingId}});
