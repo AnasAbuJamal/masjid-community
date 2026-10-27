@@ -220,6 +220,7 @@ model Student {
   guardians GuardianLink[]
   enrollments Enrollment[]
   attendance Attendance[]
+  invoices SchoolInvoice[]
 }
 model GuardianLink {
   id String @id @default(cuid())
@@ -265,6 +266,28 @@ model Attendance {
   markedById String
   status AttendanceStatus
   @@unique([sessionId,studentId])
+}
+enum InvoiceStatus {
+  pending
+  paid
+  void
+  refunded
+}
+model SchoolInvoice {
+  id String @id @default(cuid())
+  studentId String
+  student Student @relation(fields:[studentId],references:[id])
+  payerGuardianId String
+  description String
+  amountMinor Int
+  currency String @default("usd")
+  dueAt DateTime
+  status InvoiceStatus @default(pending)
+  stripeSessionId String? @unique
+  paidAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([studentId,status])
+  @@index([payerGuardianId,status])
 }
 model DonationCampaign {
   id String @id @default(cuid())
