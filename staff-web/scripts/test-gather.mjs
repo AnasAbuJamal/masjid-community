@@ -32,6 +32,14 @@ try{
  };
  const event=await db.event.create({data:fixture});
  eventId=event.id;
+ const calendarResponse=await fetch(base+"events/"+eventId+"/calendar");
+ assert.equal(calendarResponse.status,200,"published public gathering has a calendar export");
+ assert.match(calendarResponse.headers.get("content-type"),/text\/calendar/);
+ const calendarText=await calendarResponse.text();
+ assert.match(calendarText,/DTSTART:20321105T150000Z/);
+ assert.match(calendarText,/DTEND:20321105T160000Z/);
+ assert.match(calendarText,/This does not reserve a place/,"download cannot claim registration");
+ assert.doesNotMatch(calendarText,/ATTENDEE:/,"calendar export contains no attendee details");
  const listing=await request("public/events");
  assert.equal(listing.status,200);
  assert.ok(listing.data.items.some(x=>x.id===eventId&&x.waitlistEnabled&&x.capacity===1),"public event shows waitlist policy");
@@ -108,6 +116,8 @@ try{
  assert.equal(foreignCancel.status,404,"foreign event cancellation must not leak its existence");
  const foreignRegistration=await request("events/registration?eventId="+otherEventId,"GET",null,memberToken);
  assert.equal(foreignRegistration.status,404,"member cannot read foreign event registration state");
+ const foreignCalendar=await fetch(base+"events/"+otherEventId+"/calendar");
+ assert.equal(foreignCalendar.status,404,"public calendar rejects events from other mosques");
  console.log("Verified confirmed seats, honest waitlist, cancellation promotion, notices, idempotency, capacity and organization isolation.");
 }finally{
  for(const id of [eventId,closedId,otherEventId].filter(Boolean)){
