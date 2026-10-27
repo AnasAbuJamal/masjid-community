@@ -64,6 +64,7 @@ model Organization {
   rentals RentalResource[]
   opportunities VolunteerOpportunity[]
   jobs JobPosting[]
+  contactRequests ContactSubmission[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -103,6 +104,7 @@ model User {
   auditEvents AuditEvent[]
   authoredAssignments SchoolAssignment[] @relation("AssignmentAuthor")
   authoredReports StudentReport[] @relation("ReportAuthor")
+  submittedProposals Proposal[] @relation("ProposalSubmitter")
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -349,6 +351,8 @@ model VolunteerApplication {
 }
 model Proposal {
   id String @id @default(cuid())
+  submittedById String?
+  submitter User? @relation("ProposalSubmitter",fields:[submittedById],references:[id])
   organizationId String
   organization Organization @relation(fields:[organizationId],references:[id])
   title String
@@ -478,4 +482,24 @@ model StudentReport {
   publishedAt DateTime?
   createdAt DateTime @default(now())
   @@index([studentId,status,publishedAt])
+}
+
+enum ContactStatus {
+  new
+  in_review
+  closed
+}
+model ContactSubmission {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  name String
+  email String
+  subject String
+  message String
+  status ContactStatus @default(new)
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  @@index([organizationId,status,createdAt])
+  @@index([email,createdAt])
 }

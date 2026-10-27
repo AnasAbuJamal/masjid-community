@@ -59,3 +59,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Teacher-authored assignments and progress reports with explicit publication state, own-student submission, and verified guardian/student read views.
 - Dedicated teacher web workspace and native learning center.
 - Still missing grading rubrics, full enrollment decision workflow, safeguarding review and broad cross-role E2E tests.
+
+### Seventh implementation pass
+- Database-backed member proposals with moderation and an owned submission history.
+- Public contact form with basic cooldown, admin inbox and review/close actions.
+- Public read-only mosque kiosk showing only published daily Salah, announcements, and events.
+- **Not yet complete:** network-level anti-spam, full content revision workflow, moderated attachments, CRM contact consents and safe automated alerts.
