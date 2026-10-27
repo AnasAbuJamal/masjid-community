@@ -25,14 +25,18 @@ export default async function PublicDetail({ params }: Props) {
   if (kind === "gatherings") {
     const item = await db.event.findFirst({
       where: { id, organizationId, status: "published" },
-      select: { title: true, description: true, location: true, startAt: true, endAt: true },
+      select: { title: true, description: true, location: true, startAt: true, endAt: true, capacity: true, rsvpCount: true, waitlistEnabled: true },
     });
     if (!item) notFound();
     title = item.title; body = item.description; label = "PUBLIC GATHERING";
     const format = (date: Date) => new Intl.DateTimeFormat("en-US", {
       weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: organization.timeZone, timeZoneName: "short",
     }).format(date);
-    facts = [format(item.startAt), "Ends " + format(item.endAt), item.location];
+    facts = [format(item.startAt), "Ends " + format(item.endAt), item.location,
+      ...(item.capacity===null?[]:[
+        String(item.rsvpCount)+" of "+String(item.capacity)+" places confirmed",
+        item.waitlistEnabled?"Waitlist available if full":"No waitlist for this gathering"
+      ])];
   } else if (kind === "updates") {
     const item = await db.announcement.findFirst({
       where: { id, organizationId, status: "published", publishedAt: { lte: now } },
