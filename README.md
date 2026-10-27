@@ -55,3 +55,6 @@ Only **signed** payment provider callbacks may mark a donation or tuition invoic
 
 ## Staff roles and organization memberships
 The local bootstrap creates an admin membership, and new accounts are linked to the configured mosque. An MFA-verified administrator uses `/admin/team` to grant staff/teacher/finance primary roles or time-bound staff capabilities. Privilege updates revoke active sessions; delegated staff use `/staff`. **This version assumes a single operational mosque** and is not yet a safe multi-tenant platform; do not create multiple live organizations until all API paths are tenant-scoped and backed by migration tests. Preexisting data must be backfilled into `OrganizationMembership` before enforcing the new membership gate in a nonempty environment.
+
+## Native language support
+The mobile app provides an English/Arabic language selector in Account Settings. The primary tabs, key worship and community copy, common feedback states and shared components have localized labels and directional styling. Translation coverage across deeper screens is **in progress** and requires native-device Arabic/RTL review before release.

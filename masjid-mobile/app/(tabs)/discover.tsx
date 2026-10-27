@@ -3,6 +3,7 @@ import {Text,View} from "react-native";
 import {router} from "expo-router";
 import {Head,PressRow,Shell,Card} from "../../src/ui";
 import {S,T} from "../../src/theme";
+import {useLanguage} from "../../src/i18n";
 type Tile={kind:string;title:string;subtitle:string;icon:React.ComponentProps<typeof import("@expo/vector-icons").MaterialCommunityIcons>["name"]};
 const categories:Tile[]=[
  {kind:"events",title:"Events & gatherings",subtitle:"Meet, learn and celebrate together",icon:"calendar-heart"},
@@ -17,12 +18,13 @@ const categories:Tile[]=[
  {kind:"construction",title:"Construction progress",subtitle:"Updates on community building projects",icon:"hard-hat"},
 ];
 export default function Discover(){
- return <Shell><Head eyebrow="COMMUNITY · DISCOVER" title="Belong. Contribute. Grow." subtitle="All the ways your community comes together, in one thoughtful place."/>
- <Card style={{backgroundColor:T.ice,gap:8}}><Text style={S.overline}>ONE COMMUNITY</Text><Text style={S.headline}>Good things happen together.</Text><Text style={S.bodyText}>Browse the mosque's published events, programs and opportunities.</Text></Card>
- <View style={S.section}><PressRow icon="magnify" title="Search the community" subtitle="Find published events, programs, articles and more" onPress={()=>router.push("/search")}/>
- <PressRow icon="lightbulb-outline" title="Submit a community proposal" subtitle="Share an idea for moderator review" onPress={()=>router.push("/community/proposal")}/>
- <PressRow icon="chart-box-outline" title="Financial transparency" subtitle="Published community budget allocations" onPress={()=>router.push("/finance/transparency")}/>
- <PressRow icon="email-outline" title="Contact mosque staff" subtitle="Ask questions and share feedback" onPress={()=>router.push("/contact")}/>
+ const {t}=useLanguage();
+ return <Shell><Head eyebrow={t("discover.eyebrow")} title={t("discover.title")} subtitle={t("discover.subtitle")}/>
+ <Card style={{backgroundColor:T.ice,gap:8}}><Text style={S.overline}>{t("discover.one")}</Text><Text style={S.headline}>{t("discover.good")}</Text><Text style={S.bodyText}>{t("discover.browse")}</Text></Card>
+ <View style={S.section}><PressRow icon="magnify" title={t("discover.search")} subtitle={t("discover.searchSubtitle")} onPress={()=>router.push("/search")}/>
+ <PressRow icon="lightbulb-outline" title={t("discover.proposal")} subtitle={t("discover.proposalSubtitle")} onPress={()=>router.push("/community/proposal")}/>
+ <PressRow icon="chart-box-outline" title={t("discover.financial")} subtitle="Published community budget allocations" onPress={()=>router.push("/finance/transparency")}/>
+ <PressRow icon="email-outline" title={t("discover.contact")} subtitle="Ask questions and share feedback" onPress={()=>router.push("/contact")}/>
  {categories.map(c=><PressRow key={c.kind} title={c.title} subtitle={c.subtitle} icon={c.icon} onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:c.kind,id:"all"}})}/>)}</View>
  </Shell>;
 }

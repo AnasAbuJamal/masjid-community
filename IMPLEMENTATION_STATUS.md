@@ -129,3 +129,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Staff receive a restricted workspaces page instead of global admin aggregates. Scoped capability enforcement is checked at each delegated API.
 - CI checks ungranted staff denial, allowed community moderation, expired grants and admin MFA gating.
 - **Still required:** a migration/backfill plan for any existing database, fine-grained multi-organization/class/venue scoping of every remaining API, multi-role identity beyond the legacy primary role, and independent security review.
+
+### Nineteenth implementation pass: bilingual core navigation and RTL-aware primitives
+- Added a durable user-selected English/Arabic preference on the native app without storing private server data.
+- Primary navigation labels, Home/Salah/Discover/School/Profile headers, prayer names, common loading/error/retry states and prominent actions now use bilingual resources.
+- Shared press rows, headings, action layouts and form text alignment mirror appropriately for Arabic.
+- **Not yet complete:** exhaustive Arabic translations on all secondary/detail screens, localized server-provided editorial data, translated error catalog and testing on real Arabic RTL devices.

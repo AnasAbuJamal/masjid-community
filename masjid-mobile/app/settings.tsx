@@ -6,10 +6,12 @@ import {useSession} from "../src/session";
 import {Action,Card,Feedback,Field,Head,Shell} from "../src/ui";
 import {useResource} from "../src/useResource";
 import {S,T} from "../src/theme";
+import {useLanguage} from "../src/i18n";
 type Session={id:string;createdAt:string;expiresAt:string};
 type Data={profile:{firstName:string;lastName:string;email:string;role:string};preferences:{newsletterOptIn:boolean;eventEmailOptIn:boolean;quietHoursEnabled:boolean};
  sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
 export default function Settings(){
+ const {language,setLanguage,t}=useLanguage();
  const {refresh:refreshUser,logout}=useSession();
  const result=useResource<Data>("account");
  const [first,setFirst]=useState(""),[last,setLast]=useState("");
@@ -52,7 +54,11 @@ export default function Settings(){
  return <Shell><Action label="Back to profile" secondary icon="arrow-left" onPress={()=>router.back()}/>
  <Head eyebrow="ACCOUNT · PRIVACY" title="Your account, your choice." subtitle="Manage your identity, communication preferences, and active device sessions."/>
  <Feedback loading={result.loading} error={result.error} empty={false} refresh={result.refresh}/>
- {result.data?<><Card style={{gap:14}}><Text style={S.headline}>Profile</Text>
+ {result.data?<><Card style={{gap:14}}><Text style={S.headline}>{t("settings.language")}</Text>
+ <View style={{flexDirection:"row",gap:10}}><View style={{flex:1}}><Action label={t("settings.english")} secondary={language!=="en"} onPress={()=>void setLanguage("en")}/></View>
+ <View style={{flex:1}}><Action label={t("settings.arabic")} secondary={language!=="ar"} onPress={()=>void setLanguage("ar")}/></View></View>
+ <Text style={S.muted}>Arabic labels and layout are being introduced progressively. Financial records stay unchanged.</Text>
+ <Text style={S.headline}>Profile</Text>
  <Text style={S.muted}>{result.data.profile.email}</Text>
  <Field label="First name" value={first} onChange={setFirst}/><Field label="Last name" value={last} onChange={setLast}/>
  <Text style={S.headline}>Communication choices</Text>

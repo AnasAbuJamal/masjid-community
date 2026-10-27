@@ -1,0 +1,109 @@
+import React,{createContext,useCallback,useContext,useEffect,useMemo,useState} from "react";
+import * as SecureStore from "expo-secure-store";
+export type Language="en"|"ar";
+const storageKey="masjid.community.language";
+const words={
+ "tabs.home":{en:"Home",ar:"الرئيسية"},
+ "tabs.salah":{en:"Salah",ar:"الصلاة"},
+ "tabs.discover":{en:"Discover",ar:"استكشف"},
+ "tabs.school":{en:"School",ar:"المدرسة"},
+ "tabs.profile":{en:"Profile",ar:"حسابي"},
+ "home.eyebrow":{en:"MASJID COMMUNITY",ar:"مجتمع المسجد"},
+ "home.title":{en:"Assalamu alaikum.",ar:"السلام عليكم"},
+ "home.subtitle":{en:"A thoughtful space to stay close to your mosque, wherever you are.",ar:"مساحة للتواصل مع مسجدك ومجتمعك أينما كنت."},
+ "home.today":{en:"TODAY AT THE MOSQUE",ar:"اليوم في المسجد"},
+ "home.prayerSchedule":{en:"Prayer schedule",ar:"مواقيت الصلاة"},
+ "home.noPrayers":{en:"No published times for today",ar:"لم تُنشر مواقيت الصلاة لهذا اليوم"},
+ "home.explore":{en:"Explore Salah",ar:"استكشف مواقيت الصلاة"},
+ "home.quick":{en:"Quickly get involved",ar:"شارك في مجتمعك"},
+ "home.events":{en:"Community events",ar:"فعاليات المجتمع"},
+ "home.eventsSubtitle":{en:"Gatherings, classes and opportunities",ar:"اللقاءات والدروس والفرص"},
+ "home.give":{en:"Support your community",ar:"ادعم مجتمعك"},
+ "home.giveSubtitle":{en:"Giving campaigns and real receipts",ar:"حملات التبرع والإيصالات المعتمدة"},
+ "home.qibla":{en:"Salah and Qibla",ar:"الصلاة والقبلة"},
+ "home.qiblaSubtitle":{en:"Published prayer times and direction",ar:"المواقيت المنشورة واتجاه القبلة"},
+ "home.announcements":{en:"From the mosque",ar:"من المسجد"},
+ "home.upcoming":{en:"Coming together",ar:"لقاءات قادمة"},
+ "salah.eyebrow":{en:"WORSHIP · SALAH",ar:"العبادة · الصلاة"},
+ "salah.title":{en:"A moment of peace.",ar:"لحظة سكينة"},
+ "salah.subtitle":{en:"Mosque-published timings, designed for clarity.",ar:"مواقيت الصلاة المعتمدة من المسجد بوضوح."},
+ "salah.mosque":{en:"YOUR MOSQUE",ar:"مسجدك"},
+ "salah.noVenue":{en:"No venue configured",ar:"لم يُحدد المسجد بعد"},
+ "salah.local":{en:"Timings are venue-local",ar:"المواقيت حسب توقيت المسجد"},
+ "salah.adhan":{en:"Adhan · Iqamah",ar:"الأذان · الإقامة"},
+ "salah.sunrise":{en:"Sunrise",ar:"الشروق"},
+ "salah.jummah":{en:"Jummah",ar:"صلاة الجمعة"},
+ "salah.qibla":{en:"Find the Qibla",ar:"اعرف اتجاه القبلة"},
+ "salah.qiblaSubtitle":{en:"Optional location-based direction",ar:"اتجاه القبلة باستخدام الموقع اختياريًا"},
+ "salah.calendar":{en:"Prayer calendar",ar:"تقويم الصلاة"},
+ "salah.calendarSubtitle":{en:"Check another date's published schedule",ar:"عرض المواقيت المنشورة ليوم آخر"},
+ "salah.faith":{en:"Ramadan & Eid announcements",ar:"إعلانات رمضان والعيد"},
+ "salah.faithSubtitle":{en:"Dates confirmed by mosque leadership",ar:"مواعيد يؤكدها المسجد"},
+ "salah.refresh":{en:"Refresh schedule",ar:"تحديث المواقيت"},
+ "discover.eyebrow":{en:"COMMUNITY · DISCOVER",ar:"المجتمع · استكشف"},
+ "discover.title":{en:"Belong. Contribute. Grow.",ar:"انتماء وعطاء ونماء"},
+ "discover.subtitle":{en:"All the ways your community comes together, in one thoughtful place.",ar:"كل ما يجمع مجتمعك في مكان واحد."},
+ "discover.one":{en:"ONE COMMUNITY",ar:"مجتمع واحد"},
+ "discover.good":{en:"Good things happen together.",ar:"معًا نصنع الخير"},
+ "discover.browse":{en:"Browse the mosque's published events, programs and opportunities.",ar:"تصفح فعاليات المسجد وبرامجه وفرصه المنشورة."},
+ "discover.search":{en:"Search the community",ar:"البحث في المجتمع"},
+ "discover.searchSubtitle":{en:"Find published events, programs, articles and more",ar:"ابحث في الفعاليات والبرامج والمقالات المنشورة"},
+ "discover.proposal":{en:"Submit a community proposal",ar:"قدّم اقتراحًا للمجتمع"},
+ "discover.proposalSubtitle":{en:"Share an idea for moderator review",ar:"شارك فكرة لمراجعتها"},
+ "discover.financial":{en:"Financial transparency",ar:"الشفافية المالية"},
+ "discover.contact":{en:"Contact mosque staff",ar:"تواصل مع إدارة المسجد"},
+ "school.eyebrow":{en:"EDUCATION · SCHOOL",ar:"التعليم · المدرسة"},
+ "school.title":{en:"Learning together.",ar:"نتعلّم معًا"},
+ "school.subtitle":{en:"A nurturing place for students, families and teachers.",ar:"بيئة داعمة للطلاب والأهالي والمعلمين."},
+ "school.explore":{en:"Explore programs",ar:"استكشف البرامج"},
+ "school.family":{en:"Your family's learning space",ar:"مساحة تعلم الأسرة"},
+ "school.signin":{en:"Sign in to view private records",ar:"سجل الدخول للاطلاع على السجلات الخاصة"},
+ "school.linked":{en:"Your linked children",ar:"الأطفال المرتبطون بحسابك"},
+ "school.teaching":{en:"Assigned teaching",ar:"صفوفك التعليمية"},
+ "profile.eyebrow":{en:"ACCOUNT · PROFILE",ar:"الحساب · الملف الشخصي"},
+ "profile.guest":{en:"Make yourself at home.",ar:"أهلًا وسهلًا"},
+ "profile.subtitle":{en:"Sign in to save your participation and manage your records.",ar:"سجّل الدخول لمتابعة مشاركاتك وإدارة سجلاتك."},
+ "profile.member":{en:"Your information, your choices, your community.",ar:"بياناتك وخياراتك ومجتمعك."},
+ "profile.connect":{en:"Connect with your mosque",ar:"تواصل مع مسجدك"},
+ "profile.login":{en:"Sign in or register",ar:"تسجيل الدخول أو إنشاء حساب"},
+ "profile.account":{en:"Your account",ar:"حسابك"},
+ "profile.signout":{en:"Sign out securely",ar:"تسجيل الخروج بأمان"},
+ "profile.giving":{en:"Your giving history",ar:"سجل تبرعاتك"},
+ "profile.events":{en:"Your event registrations",ar:"تسجيلات فعالياتك"},
+ "profile.bookings":{en:"Facility requests",ar:"طلبات حجز المرافق"},
+ "profile.jobs":{en:"Your job applications",ar:"طلبات العمل"},
+ "profile.volunteer":{en:"Volunteering",ar:"التطوع"},
+ "settings.language":{en:"App language",ar:"لغة التطبيق"},
+ "settings.english":{en:"English",ar:"الإنجليزية"},
+ "settings.arabic":{en:"Arabic",ar:"العربية"},
+ "feedback.loading":{en:"Loading verified community information…",ar:"جارٍ تحميل المعلومات المعتمدة…"},
+ "feedback.failed":{en:"Unable to load right now",ar:"تعذر تحميل البيانات الآن"},
+ "feedback.retry":{en:"Try again",ar:"حاول مرة أخرى"},
+ "feedback.empty":{en:"Nothing published here yet",ar:"لا توجد منشورات هنا بعد"},
+ "feedback.emptyDesc":{en:"The mosque will share verified information here once it is ready.",ar:"سينشر المسجد المعلومات المعتمدة هنا عند توفرها."},
+ "common.back":{en:"Back",ar:"رجوع"},
+ "common.refresh":{en:"Refresh",ar:"تحديث"},
+ "common.verified":{en:"Verified account",ar:"حساب موثّق"},
+ "common.unverified":{en:"Email not yet verified",ar:"البريد الإلكتروني غير موثّق"},
+ "prayer.fajr":{en:"Fajr",ar:"الفجر"},
+ "prayer.dhuhr":{en:"Dhuhr",ar:"الظهر"},
+ "prayer.asr":{en:"Asr",ar:"العصر"},
+ "prayer.maghrib":{en:"Maghrib",ar:"المغرب"},
+ "prayer.isha":{en:"Isha",ar:"العشاء"},
+} as const;
+export type TranslationKey=keyof typeof words;
+type ContextValue={language:Language;setLanguage:(language:Language)=>Promise<void>;isRTL:boolean;t:(key:TranslationKey)=>string};
+const Context=createContext<ContextValue|null>(null);
+export function LanguageProvider({children}:{children:React.ReactNode}){
+ const [language,setCurrent]=useState<Language>("en");
+ useEffect(()=>{let live=true;void SecureStore.getItemAsync(storageKey).then(value=>{
+  if(live&&(value==="en"||value==="ar"))setCurrent(value);
+ }).catch(()=>{});return()=>{live=false};},[]);
+ const setLanguage=useCallback(async(next:Language)=>{
+  setCurrent(next);
+  try{await SecureStore.setItemAsync(storageKey,next);}catch{/* Keep the in-memory preference for this session. */}
+ },[]);
+ const value=useMemo<ContextValue>(()=>({language,setLanguage,isRTL:language==="ar",t:(key)=>words[key][language]}),[language,setLanguage]);
+ return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+export function useLanguage(){const value=useContext(Context);if(!value)throw new Error("LanguageProvider missing.");return value;}
