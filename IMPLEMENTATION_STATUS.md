@@ -31,3 +31,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 3. Fix account safety gaps (durable throttling, privileged MFA, access-token rotation/revocation).
 4. Complete reliable money/webhook reconciliation, actual receipts and provider setup.
 5. Finish mobile/design accessibility, Arabic/RTL, native device tests and production runbooks.
+
+### Second implementation pass
+- Dedicated school operations portal for classes, student records, verified guardian links, teacher assignments, enrollments and scheduled class sessions.
+- Scoped teacher classes API and native teacher attendance screen, with persisted marks.
+- Separate restricted finance overview displaying **only** latest paid Stripe-verified donation records, explicitly not a financial reconciliation or bank balance.
+- Role-specific links from admin portal and school mobile tab.
