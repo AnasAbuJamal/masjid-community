@@ -41,10 +41,19 @@ try{
  assert.equal(first.status,201);
  assert.equal(first.data.status,"confirmed");
  assert.equal(first.data.joined,true);
+ const guestRegistration=await request("events/registration?eventId="+eventId);
+ assert.equal(guestRegistration.status,401,"guest cannot read member reservation state");
+ const ownConfirmed=await request("events/registration?eventId="+eventId,"GET",null,memberToken);
+ assert.equal(ownConfirmed.status,200);
+ assert.equal(ownConfirmed.data.registration.status,"confirmed");
  const second=await request("actions","POST",{kind:"rsvp",eventId},staffToken);
  assert.equal(second.status,201);
  assert.equal(second.data.status,"waitlisted");
  assert.equal(second.data.joined,false,"waitlist may not masquerade as confirmed");
+ const ownWaitlisted=await request("events/registration?eventId="+eventId,"GET",null,staffToken);
+ assert.equal(ownWaitlisted.status,200);
+ assert.equal(ownWaitlisted.data.registration.status,"waitlisted");
+ assert.ok(!Object.hasOwn(ownWaitlisted.data,"attendees"),"own status never exposes event roster");
  const duplicate=await request("actions","POST",{kind:"rsvp",eventId},staffToken);
  assert.equal(duplicate.status,201);
  assert.equal(duplicate.data.alreadyJoined,true);
@@ -67,6 +76,8 @@ try{
  assert.equal(memberCancellation.data.promotedWaitlist,true);
  const promoted=await db.eventRSVP.findUnique({where:{eventId_userId:{eventId,userId:staff.data.user.id}}});
  assert.equal(promoted.status,"confirmed","FIFO waiter becomes confirmed");
+ const ownPromoted=await request("events/registration?eventId="+eventId,"GET",null,staffToken);
+ assert.equal(ownPromoted.data.registration.status,"confirmed");
  assert.equal((await db.event.findUnique({where:{id:eventId}})).rsvpCount,1,"promotion retains seat count");
  assert.equal(await db.notification.count({where:{userId:staff.data.user.id,title:"Your event place is confirmed"}}),1);
  const idempotentCancellation=await request("events/rsvp","DELETE",{eventId},memberToken);
@@ -76,6 +87,8 @@ try{
  assert.equal(leave.status,200);
  assert.equal(leave.data.promotedWaitlist,false);
  assert.equal((await db.event.findUnique({where:{id:eventId}})).rsvpCount,0);
+ const ownCancelled=await request("events/registration?eventId="+eventId,"GET",null,staffToken);
+ assert.equal(ownCancelled.data.registration,null);
  const deniedEvent=await db.event.create({data:{...fixture,title:"CI gathering without waitlist",waitlistEnabled:false}});
  closedId=deniedEvent.id;
  const accepted=await request("actions","POST",{kind:"rsvp",eventId:closedId},memberToken);
@@ -93,6 +106,8 @@ try{
  assert.equal(foreign.status,404,"a foreign organization's published event cannot be reserved");
  const foreignCancel=await request("events/rsvp","DELETE",{eventId:otherEventId},memberToken);
  assert.equal(foreignCancel.status,404,"foreign event cancellation must not leak its existence");
+ const foreignRegistration=await request("events/registration?eventId="+otherEventId,"GET",null,memberToken);
+ assert.equal(foreignRegistration.status,404,"member cannot read foreign event registration state");
  console.log("Verified confirmed seats, honest waitlist, cancellation promotion, notices, idempotency, capacity and organization isolation.");
 }finally{
  for(const id of [eventId,closedId,otherEventId].filter(Boolean)){
