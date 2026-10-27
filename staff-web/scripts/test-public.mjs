@@ -35,6 +35,16 @@ try{
  assert.match(initialHtml,/Example gathering/,"published gathering is discoverable without login");
  assert.doesNotMatch(initialHtml,/Unpublished fixture/,"draft mosque notices must remain private");
  assert.doesNotMatch(initialHtml,/password.*required/i,"guest should not encounter an authentication wall");
+ const publishedEvent=await db.event.findFirst({where:{organizationId:org.id,status:"published",title:"Example gathering"}});
+ assert.ok(publishedEvent);
+ const eventPage=await fetch("http://127.0.0.1:3000/visit/content/gatherings/"+publishedEvent.id);
+ assert.equal(eventPage.status,200,"published event has a guest-accessible canonical URL");
+ assert.match(await eventPage.text(),/Example gathering/);
+ const draftFaith=await db.faithNotice.findFirst({where:{organizationId:org.id,status:"draft",title:"Unpublished fixture"}});
+ assert.ok(draftFaith);
+ const privatePage=await fetch("http://127.0.0.1:3000/visit/content/faith/"+draftFaith.id);
+ assert.equal(privatePage.status,404,"guessed ID must not expose unpublished faith notices");
+
  const marker="CI SECOND VENUE";
  const other=await db.venue.create({data:{organizationId:org.id,name:marker,timeZone:"America/New_York"}});
  try{
