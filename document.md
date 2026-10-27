@@ -1,6 +1,6 @@
 # Masjid Community / SILA — Complete App Plan
 
-**Edition:** 2.0 · 27 October 2026  
+**Edition:** 2.1 · 27 October 2026  
 **Repository:** AnasAbuJamal/masjid-community  
 **Baseline reviewed:** development at `27e428a067ce9ea8d31e660c465d7baadeaa5d94`  
 **Status:** Proposed product and engineering plan. Features below are requirements, not claims of implementation or production readiness.  
@@ -32,6 +32,14 @@ This edition replaces the previous build-from-zero blueprint with a practical pl
 18. [Acceptance tests and definition of done](#18-acceptance-tests-and-definition-of-done)
 19. [Owners, decisions and success measures](#19-owners-decisions-and-success-measures)
 20. [Evidence and technical references](#20-evidence-and-technical-references)
+21. [System connections and canonical ownership](#21-system-connections-and-canonical-ownership)
+22. [Screen and form implementation contracts](#22-screen-and-form-implementation-contracts)
+23. [Detailed command and transaction contracts](#23-detailed-command-and-transaction-contracts)
+24. [Data invariants, migration and information lifecycle](#24-data-invariants-migration-and-information-lifecycle)
+25. [Failure handling and operational handoffs](#25-failure-handling-and-operational-handoffs)
+26. [Delivery sizing, cost and decision register](#26-delivery-sizing-cost-and-decision-register)
+27. [Traceability and completeness coverage](#27-traceability-and-completeness-coverage)
+28. [Build-ready handoff and change control](#28-build-ready-handoff-and-change-control)
 
 ## 1. Product decisions and launch scope
 
@@ -69,6 +77,8 @@ The public website must remain useful without downloading an app. Public informa
 **R3 — Managed services:** circles, recurring giving, appointments, care intake, rooms and maintenance. Enable each only when its operating team and full workflow are ready.
 
 **R4 — Optional growth:** jobs, proposals, construction updates, resource library, additional integrations and additional organizations.
+
+In R1, school catalogs and giving information may be public, but private enrollment and live checkout remain unavailable until R2 gates pass. Shared resource allocation is an R1 dependency for events and later classes/appointments; the full facilities management and rental product remains R3. One-time giving in the pilot requires a verified member account; guest checkout is a separately reviewed extension.
 
 These are release groups, not calendar promises. A feature can be implemented earlier in test environments; production enablement follows its gate. Existing optional features remain available for engineering evaluation, but are not automatically included in the pilot.
 
@@ -295,7 +305,7 @@ Checkout intent → provider pending → paid/failed/expired. Only verified prov
 
 Persist a verified webhook inbox before acknowledging durable acceptance. Deduplicate provider event IDs and business transaction IDs. Verify organization/provider account, source, exact amount and currency. Handle delayed, repeated and out-of-order events through state guards and provider reconciliation.
 
-A confirmed payment creates the payment record, immutable receipt, balanced journal and notification outbox once. Every journal balances within one currency; corrections are new entries, never edits to posted history.
+A confirmed payment creates the payment record, immutable receipt, balanced journal and notification outbox once. Every journal balances within one currency; corrections are new entries, never edits to posted history. Tuition receivable/revenue recognition and payment allocation follow the approved finance policy; the existing donation posting pattern is not automatically correct for all school invoices.
 
 Refund: requested → approved/rejected → submitting → provider pending → confirmed/failed. The approver differs from requester. Partial refunds cannot exceed remaining refundable value. Record each confirmed refund delta once; do not turn a partial refund into a full reversal. Track chargebacks and payout fees independently.
 
@@ -521,7 +531,7 @@ Private cache identity includes actor, organization and applicable scope; clear 
 
 Track request errors, p95 latency, publication freshness, outbox age, provider failure rate, reconciliation exceptions and crash-free sessions. Use request IDs for support without copying sensitive narratives.
 
-Set provisional targets, validate during the pilot: public schedule availability 99.9%; critical schedule correction visible within 60 seconds; healthy ordinary API reads p95 under 750 ms; transactional notification queued immediately and provider submission within five minutes at pilot load. These are design targets, not current measurements or guaranteed external delivery.
+Set provisional targets, validate during the pilot and record actual measurement conditions: public schedule availability 99.9%; critical schedule correction visible within 60 seconds; healthy ordinary API reads p95 under 750 ms; transactional notification queued immediately and provider submission within five minutes at pilot load. These are design targets, not current measurements or guaranteed external delivery.
 
 Agree recovery targets in R0; starting proposals are database RPO 24 hours and RTO four hours, tightened if school/finance operations require it. Restore a backup to an isolated environment and reconcile external provider transactions after recovery. Test key custody/rotation, worker crash recovery and incident communications. Assign primary and backup incident owners.
 
@@ -692,3 +702,428 @@ Primary technical references checked for this planning revision:
 - [Prisma migration documentation](https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production) — current documentation redirects to a newer migration workflow; use version-matched guidance for this repository's existing Prisma major.
 
 The plan's product choices, role templates, milestones and service targets are recommendations for this project. They are not certifications, legal conclusions, measured performance claims or evidence that unimplemented features already work.
+
+## 21. System connections and canonical ownership
+
+This section makes the feature catalog operational. A module must not create its own competing person, room, payment, consent or notification record. The owner below controls the record; other modules call its service or consume a versioned event.
+
+### 21.1 Shared records and boundaries
+
+| Canonical owner | Record / responsibility | Consumers | Boundary |
+| --- | --- | --- | --- |
+| Identity and access | Account, membership, assignment, session assurance | Every private module | Domain modules never grant access by editing a role string |
+| People and safeguarding | Person, guardian link, approved pickup contact | School, eligible household registration | Household membership is not proof of guardianship |
+| Venue and facilities | Venue, room, availability and resource reservation | Events, school, appointments, rentals, maintenance | One conflict engine; no separate departmental booking truth |
+| Worship | Schedule revision and official faith notice | Public, mobile, display, communications | Only published revision is authoritative |
+| Events | Occurrence, reservation, waitlist, attendance | Account, communications, facilities, reporting | Attendance is a factual record, not a payment or eligibility decision |
+| School | Application, class placement, enrollment and progress | Guardian/student views, finance, communications | School supplies an approved billing obligation; finance owns collection |
+| Finance | Invoice, payment, allocation, refund, journal and reconciliation | Giving, tuition, paid events/rentals, reports | No other module can declare money paid or refunded |
+| Service/care | Request, appointment purpose and case assignment | Private requester view, facilities, permitted finance instruction | Room calendar receives busy time, not confidential narrative |
+| Content and communication | Published content, consent, outbox and delivery | All domain workflows | Notification failure never rolls back a confirmed enrollment/payment |
+| Operations and privacy | Support assignment, retention, audit and incident | All modules | Operational access remains scoped; reports are projections |
+
+**Person and household model:** one account can act for itself and for verified relationships. A household groups convenient contacts and participants, but grants no automatic access to another adult, child, invoice or receipt. Invitations require each adult's consent. Suspected duplicates go to a review queue; never merge accounts automatically because names, emails or addresses resemble each other.
+
+**Initial organization context:** during the single-mosque pilot, resolve a configured organization ID and validate it. Reject a different submitted context. Future switching must reauthorize membership and reset private client state. A venue change within an organization must still enforce venue-specific permissions.
+
+### 21.2 Cross-module effects
+
+| Trigger | Atomic authoritative change | Required follow-up | Failure / recovery |
+| --- | --- | --- | --- |
+| Publish worship correction | New published revision + audit + outbox | Invalidate projections; refresh display; notify affected subscriptions | Refresh rechecks revision; failed fan-out retries without duplicate publication |
+| Publish event | Event/occurrence state and confirmed resource allocation | Catalog/search projection and opted-in announcement | Conflict prevents publication; no notice for failed publication |
+| Cancel event occurrence | Canceled occurrence, reservation transitions and resource release | Stop reminders; inform attendees; create eligible refund review items | Retry per recipient/payment; cancellation stays true even if notification/refund is pending |
+| Change event time/venue | Versioned change and new resource allocation | Cancel stale reminders; notify participants; offer cancellation per policy | If new room conflicts, retain old allocation; never leave half-moved event |
+| Accept enrollment application | Decision and relationship evidence reference | Class placement queue | Acceptance is not a seat, invoice, charge or login |
+| Place student in class | Enrollment + capacity claim + allocation reference | Generate approved invoice obligation and class notice once | Invoice failure goes to billing exception queue; enrollment status does not lie about payment |
+| Withdraw or transfer student | Enrollment end/transfer, seat release and revised class authorization | Cancel future reminders; review tuition credit/refund under policy | Never delete attendance/history or automatically refund all tuition |
+| Revoke guardian relationship | Effective revocation + authorization version + audit | Suppress ineligible future delivery; expire grants/downloads; review payer continuity | Outstanding invoices remain; staff assigns lawful payer access separately |
+| Approve volunteer shift | Eligibility and capacity checks + assignment | Reserve resources if needed; enqueue reminders | Expired eligibility prevents protected duty; coordinator gets action item |
+| Disable staff membership | Grants/session access revoked; ownership-transfer tasks | Reassign teaching, cases, approvals and delivery exceptions | Service-owned reconciliation continues; revoked actor cannot execute a queued privileged command |
+| Approve refund | Versioned decision tied to amount/source + audit/outbox | Provider submission and reconciliation | Worker acts on still-valid organizational approval, not a reusable staff session |
+| Receive confirmed payment | Verified inbox processed + payment/allocation/journal/receipt | Notify payer; update invoice balance and approved aggregates | Projection failure retries; ledger is not duplicated |
+| Cancel appointment | Appointment state + resource release | Stop reminders; private acknowledgment | No care narrative in general calendar |
+| Disable a module | Block new intake/writes except approved wind-down commands | Resolve existing obligations; notify operators | Never strand refunds, active enrollments, case follow-up or retention obligations |
+| Complete privacy request | Approved erasure/anonymization with retained references | Expire exports; apply deletion manifest to restored backups | Preserve required accounting/audit continuity; explain exceptions |
+
+**Dependency rule:** a module cannot be enabled until its required connections pass integration tests. “Screen works” does not satisfy a workflow whose billing, room allocation, access revocation or cancellation effects are incomplete.
+
+### 21.3 Event and job contract
+
+An internal event contains `eventId`, `eventType`, `schemaVersion`, `organizationId`, `aggregateType`, `aggregateId`, `aggregateVersion`, `occurredAt`, `correlationId`, and a minimal payload or protected reference. Do not put raw child/care narratives in job payloads.
+
+Consumers keep a unique processed key of consumer plus event ID, record attempts/outcome, and tolerate out-of-order delivery. A projection ignores older versions; commands re-read the authoritative state. Transactions use the same database for authoritative changes and outbox insertion. No network call is held inside a long database transaction.
+
+Distinguish two job classes:
+
+1. **Acting for a person:** exports, privileged commands and audience sends recheck current authority and consent before execution.
+2. **Completing an organizational obligation:** payment reconciliation, already-authorized provider operations and retention tasks use a restricted service identity. Staff departure does not cancel the obligation; canceled/revoked approvals still prevent unsubmitted execution.
+
+An operator can inspect, retry, suppress or resolve a failed job only with the appropriate domain permission. Replaying a job never bypasses current invariants.
+
+## 22. Screen and form implementation contracts
+
+These screen families cover the required routes without duplicating the same form for every entry point. Each actual route must be registered under one family with a named owner and acceptance test before its ticket is accepted.
+
+### 22.1 Shared screen contract
+
+Every form defines required/optional fields, data type, permitted values, validation, maximum input/file size, source of defaults, sensitivity and retention. Every action defines capability, target record, expected state/version, idempotency, visible outcome and recovery.
+
+Shared behavior:
+
+- Show current organization/venue where relevant and the record's real status.
+- Preserve valid input after validation/network failure; prevent accidental double submission without treating a disabled button as server idempotency.
+- On stale version, show a comparison and require a fresh decision; never silently overwrite a review.
+- Public screens may cache published projections; private screens use authorization-aware queries and no shared public cache.
+- Provide an accessible empty state, retry, back/cancel, field-level errors, loading and confirmation.
+- A timeout means outcome unknown until status lookup succeeds; it does not mean payment/registration failed.
+- For sensitive forms, server-side drafts are preferred. Local drafts require explicit sensitivity review, encryption where necessary and expiry.
+- Display money with currency, dates with venue timezone, and publication timestamps with source context.
+- Sensitive access denial does not reveal another person's identity or whether a guessed record exists.
+
+### 22.2 Screen registry
+
+| ID | Screen / actors | Required content and inputs | Actions and functional result |
+| --- | --- | --- | --- |
+| SC-01 | Public home / guest | Venue, local date, published next prayer, urgent notice, visit information | Change venue, view prayers, directions; no compulsory account |
+| SC-02 | Prayer/day calendar / guest | Date, venue, adhan/iqamah/Jummah, source/revision, freshness | Browse dates, accessible print/export, report incorrect information |
+| SC-03 | Catalog / guest/member | Type, date range, venue, language, audience, accessibility, publication state | Filter/search and open actual record; no private roster snippets |
+| SC-04 | Event detail/reservation / member | Occurrence, capacity status, permitted participants, terms version, optional accommodation request | Reserve, join/leave waitlist, accept offer, cancel; show confirmation ID and actual state |
+| SC-05 | Personal commitments / member | Events, shifts, classes and appointments as permission-filtered projections | Open source record, cancel/reschedule when permitted; no duplicate editable calendar copy |
+| SC-06 | Sign-in/recovery/MFA / account holder | Verified contact, password or selected provider, challenge/recovery flow | Register, verify, authenticate, recover, challenge; generic account-existence responses |
+| SC-07 | Account/security/preferences / member | Profile, language, own devices, channel/purpose consent and policy versions | Save, revoke session, change verified contact, request export/deletion |
+| SC-08 | Staff dashboard / scoped staff | Assigned queues, due times, blocked items, domain health | Claim/reassign within scope, open source record; no all-data dashboard shortcut |
+| SC-09 | Staff invitation/grant / access administrator | Verified recipient, template, scope, capability list, effective/expiry dates, reason | Submit approval, accept invite, approve/revoke assignment; show effective permissions |
+| SC-10 | Worship editor/reviewer | Venue/local dates, times, source, revision diff, reason and import row errors | Save draft, preview, request review, publish/urgent override; audit final revision |
+| SC-11 | Event editor/check-in / coordinator | Series/occurrence, duration, venue/resources, audience, capacity, registration cutoff, cancellation policy | Publish/change/cancel, review waitlist, scan opaque token/manual lookup, correct attendance |
+| SC-12 | Volunteer application/shift / member/coordinator | Opportunity, availability, minimal eligibility fields, slot and status | Apply, review, assign/accept/swap/withdraw, check in/out, correct hours |
+| SC-13 | School catalog/application / guardian | Program, term, child minimum profile, relationship request, consent, optional approved accommodation fields | Save/submit application, provide requested evidence, withdraw; no automatic enrollment |
+| SC-14 | Guardian verification / safeguarding officer | Applicant, child, evidence reference, permitted access, effective dates and reason | Verify/decline/freeze/revoke; require another authorized reviewer for own family |
+| SC-15 | School management / school administrator | Terms, cohorts, teachers/substitutes, room/calendar, capacity and placement requests | Create sessions, assign teacher, place/waitlist/transfer/withdraw; reject conflicts |
+| SC-16 | Teacher classroom / assigned teacher | Current session, roster field subset, attendance states, assignments and drafts | Mark/correct attendance, publish task/report, review private submissions |
+| SC-17 | Family/student learning / guardian/student | Authorized timetable, attendance, published reports/tasks and own submissions | Submit work, read feedback, open authorized invoice; no other payer transaction exposure |
+| SC-18 | Giving/checkout / verified member in pilot | Campaign/fund, exact amount/currency, one-time/recurring if enabled, terms, optional public anonymity | Start hosted checkout, poll status, open receipt; never accept arbitrary client fund totals |
+| SC-19 | Invoice/receipt / authorized payer | Number, obligation/allocations, amounts, currency, due date, credits, payment/refund history | Pay outstanding amount, download authorized receipt, request correction |
+| SC-20 | Finance workbench / finance staff | Funds, invoices, expenses, refund amount/source, evidence, journal and exceptions | Prepare/approve within limits, reconcile, export; lock approved request against mutation |
+| SC-21 | Service request/appointment / requester | Service scope/hours, safe contact preference, minimal description, consent and requested slot | Submit, track, supply requested information, reschedule/withdraw; generic notifications |
+| SC-22 | Care/service desk / assigned coordinator | Named owner, permitted case details, appointment and follow-up dates, decision reasons | Assign/restrict/review/escalate/close; no automatic clinical/religious/eligibility decision |
+| SC-23 | Resource/maintenance / facilities staff | Resource, time/buffer, availability, maintenance priority and safe evidence | Approve/cancel booking, block resource, assign/complete work order |
+| SC-24 | Content/campaign / communications editor | Locale, title/body, audience, consent purpose, publish/expiry times, revision, approved media | Preview, request review, publish/unpublish, send approved campaign; recipient count preview |
+| SC-25 | Delivery/support/audit / authorized operator | Source reference, status, attempts, request ID, responsible owner, redacted history | Retry/resolve under domain policy; no raw secrets or private payload dumps |
+| SC-26 | Circle/community extension / authorized actor | Module-specific published summary, submission/request status and moderation rules | Join, review, report, withdraw/archive; audited eligibility and visibility |
+| SC-27 | Reports/import/export / scoped staff | Dataset, scope, period, fields, purpose, batch checksum and preview errors | Dry run, apply reviewed batch, generate expiring export, reconcile totals |
+| SC-28 | Setup/health/feature settings / owner/operator | Verified organization/venue, locale, timezone, policy versions, integration state and module gates | Configure/review, test safely, enable or wind down; never show raw secret values |
+| SC-29 | Read-only display / public | Venue, current published schedule, approved notices, source and last refresh | Automatic bounded refresh, stale/unavailable state; no privileged controls or private records |
+
+Detailed copy and visual layout may evolve through testing. Fields that change ownership, scope, money, consent or state are contract changes and need domain review.
+
+### 22.3 Form policy defaults
+
+Implementation starting limits, subject to explicit module review: public search 2–100 characters; standard title 1–160; ordinary description up to 5,000; page size 20 with maximum 100; timezone from a validated IANA list. Do not apply arbitrary free-text limits to uploaded evidence without an approved upload policy.
+
+Email change requires verification of the new address, current-session reauthentication and notification to the old address. Prevent role or guardian changes through profile editing. Account deletion, financial approval and relationship revocation require a review screen with consequences and an explicit action label.
+
+Avoid collecting date of birth when an age band is enough. Emergency contacts, accessibility needs and pickup permissions have separate purpose and access rules. Attachments are optional unless a documented service policy requires them.
+
+## 23. Detailed command and transaction contracts
+
+Section 14 lists route families. This section specifies the common command semantics and critical operations. The paths are proposed additions under `/api/v1`; existing clients use compatibility adapters until migration is verified.
+
+### 23.1 Common wire contract
+
+Authentication comes from the verified web session or native token, never a submitted actor ID. An explicit organization route/header is a requested context that the server validates, not proof of authority.
+
+Mutations accept `Idempotency-Key` for retryable create/transition operations and `expectedVersion` for edits/decisions. The server stores the key, request hash and result in the same transaction as the change. A duplicate key with changed intent returns `IDEMPOTENCY_CONFLICT`. Reads by operation ID let a client resolve a timeout.
+
+Success envelope: `{ data, meta: { requestId, operationId?, version? } }`. Error envelope: `{ error: { code, fieldErrors?, retryable, requestId } }`. Stable codes are translated by clients; sensitive evidence is never echoed. Codes include `AUTH_REQUIRED`, `ASSURANCE_REQUIRED`, `SCOPE_DENIED`, `STALE_VERSION`, `CAPACITY_FULL`, `RESOURCE_CONFLICT`, `POLICY_NOT_CONFIGURED`, `DEPENDENCY_UNAVAILABLE` and `OPERATION_PENDING`.
+
+A committed command returns its actual state. External work can return accepted/pending with an operation ID. All private operation-status lookups enforce ownership or domain permission.
+
+### 23.2 Critical command catalog
+
+| ID / command | Required input beyond authenticated context | Transaction and result | Conflict / failure rule |
+| --- | --- | --- | --- |
+| CMD-01 POST /events/:id/reservations | occurrenceId, authorized participant IDs, termsVersion | Lock occurrence; validate audience and window; create confirmed or waitlisted reservation; audit/outbox | Full without waitlist returns CAPACITY_FULL; no partial party booking unless user explicitly chose it |
+| CMD-02 POST /reservations/:id/cancel | expectedVersion, optional reasonCode | Own reservation; release occupied seat once; cancel reminder version; emit waitlist job | Already canceled returns existing result; deadline/policy can require review |
+| CMD-03 POST /waitlist-offers/:id/accept | expectedVersion | Validate owner and unexpired held capacity; convert hold to confirmed reservation | Expired offer never steals another reservation; return current waitlist state |
+| CMD-04 POST /events/:id/change | expectedVersion, permitted field patch, reason | Validate policy and new resource allocation; update revision atomically | Stale edit/conflict leaves previous event and room intact |
+| CMD-05 POST /publications/:id/approve | expectedVersion, decision, reason | Compare immutable draft hash, reviewer scope and distinct author where required | Any later edit invalidates approval |
+| CMD-06 POST /enrollment-applications | programId, child/new profile reference, relationship request, consentVersion | Minimal application and acknowledgment; dedupe repeated submission | Does not create active guardian, class placement, invoice or student login |
+| CMD-07 POST /guardian-links/:id/decision | expectedVersion, decision, evidenceRef, permittedAccess, effectiveDates, reason | Authorized independent verifier; relationship state + policy version + audit | Own-family approval denied; conflicting custody information goes to manual review |
+| CMD-08 POST /classes/:id/enrollments | applicationId, studentId, expectedClassVersion, effectiveDate, feePolicyVersion | Validate verified relationship, capacity and eligibility; enrollment and unique billing obligation | Duplicate placement returns existing enrollment; invoice issuance handled idempotently from obligation |
+| CMD-09 PUT /sessions/:id/attendance/:studentId | expectedVersion if updating, status, correctionReason if changed | Assigned teacher/session/enrollment check; mark with append-only correction history | Closed session or stale mark needs authorized correction workflow |
+| CMD-10 POST /invoices/:id/checkout | expectedVersion, selected allowed payment amount | Check payer, balance and active payment attempt; create immutable intent | Concurrent/replayed attempts cannot intentionally collect more than outstanding balance; overpayment goes to reconciliation |
+| CMD-11 POST /donations/checkout | campaignId, amountMinor, currency, frequency, termsVersion, anonymousPublicly | Validate published cause, org/provider account and limits; persist intent; submit to provider idempotently | Provider timeout returns pending, not permission to charge again |
+| CMD-12 POST /refunds | paymentId, amountMinor, reason, evidenceRef if required | Validate refundable amount; create immutable review request | Reserve pending refund amount so concurrent requests cannot exceed balance |
+| CMD-13 POST /refunds/:id/approve | expectedVersion, decision, reason | Distinct authorized checker, amount limits, fresh MFA; freeze reviewed payload and create submission job | Edited request requires new approval; unclear provider result enters reconciliation |
+| CMD-14 POST /role-assignments | recipientMembershipId, template/capabilities, scope, validity, reason | Validate delegation ceiling and independent approval policy; pending assignment | Creator cannot approve own elevation; no implicit administrator bypass |
+| CMD-15 POST /service-requests | enabledServiceId, consentVersion, safeContactPreference, minimal intake | Restricted request and owner queue reference; generic acknowledgment | Unstaffed/disabled service returns unavailable without accepting sensitive narrative |
+| CMD-16 POST /appointments | serviceRequestId, slotId, expectedSlotVersion | Check requester/case access and capacity; reserve slot and room in transaction | Conflict preserves request and offers safe alternatives |
+| CMD-17 POST /privacy-requests/:id/complete | expectedVersion, reviewed action manifest, retention exceptions, reason | Validate identity and approved scope; apply erasure/anonymization; retain completion evidence | Incomplete downstream deletion remains in progress; no false completion |
+| CMD-18 POST /imports/:id/apply | reviewedChecksum, mappingVersion, expectedVersion | Apply validated batch with stable source keys and audit; bounded chunks if large | Changed file/mapping invalidates approval; resume from recorded checkpoint |
+| CMD-19 POST /events/:id/cancel | expectedVersion, occurrence scope, reason, policyVersion | Cancel selected occurrence(s), release resources/capacity, invalidate reminders, create refund-review obligations | Pending refund is visible separately; cancellation is not rolled back by provider outage |
+| CMD-20 POST /memberships/:id/suspend | expectedVersion, reason, reassignment plan | Suspend access, revoke sessions/grants, record handover work | Organizational obligations keep service-owned processing; unexecuted actor commands reauthorize |
+
+### 23.3 Transaction examples
+
+**Last-seat reservation:** lock occurrence capacity and participant constraints → check idempotency result → validate current state/window → allocate entire requested party or waitlist → insert reservation/audit/outbox → commit. Use bounded retries for serialization conflicts. Do not count a pending payment as a paid event booking; paid event holds have an explicit expiry and verified-payment transition.
+
+**Enrollment and billing:** placement transaction creates enrollment and a uniquely keyed billing obligation. Finance consumes it to issue at most one invoice for enrollment, term and fee-policy version. School can display enrolled/awaiting payment only if that is an approved policy; “payment required before attendance” requires an explicit conditional enrollment state and grace period.
+
+**Provider callback:** verify signature and configured account → durably store inbox row → process under payment lock → validate amount/currency/source → apply permitted transition and unique journal/receipt → commit → acknowledge or schedule durable processing. Out-of-order unknown sources enter an exception queue. A duplicate event is safe; a conflicting event is not silently ignored.
+
+### 23.4 Approval records
+
+Every review binds to target ID, target version/hash, request amount/scope where relevant, requester, reviewer, assurance level/time, decision, reason and timestamp. A role revocation prevents new approvals; an already committed organizational decision remains attributable to its historical actor.
+
+For a pending approval edited by its author, invalidate the decision and request review again. For a queued provider submission, cancellation is allowed only before an irreversible provider request; later reversal follows the financial lifecycle. There is no “undo” that merely changes a local paid/refunded flag.
+
+## 24. Data invariants, migration and information lifecycle
+
+### 24.1 Logical relationship contract
+
+This is the target relationship model. Physical schema changes must be generated from the pinned toolchain and reviewed against real data; a planning document cannot safely invent production migration SQL.
+
+| Record | Required key/relationship | Integrity rule |
+| --- | --- | --- |
+| Membership | organization + account unique | Suspension denies grants without deleting history |
+| Role assignment | membership + template + resource scope + validity | Scope belongs to the same organization; approval references immutable |
+| Household participant | household + person + consent/relationship reference | Grouping alone grants no private data access |
+| Student | organization + local student number | Shared account identity never silently merges two organizations' school records |
+| Guardian relationship | guardian + student + access category + effective interval | Explicit evidence/decision; revocation supersedes otherwise valid dates |
+| Occurrence | parent event/class/service + start/end + timezone | Explicit canceled/version state; recurrence expands to bounded instances |
+| Resource reservation | resource + half-open interval + state + source reference | Active holds/confirmed intervals cannot overlap; cleanup buffers included |
+| Event reservation | occurrence + participant + status/history | No duplicate active participant; party seat count matches child rows |
+| Waitlist offer | waitlist entry + seat hold + expiry | Held capacity counted once; promotion has stable order and idempotency |
+| Enrollment | student + class + term + effective interval | One active placement where policy requires; capacity claim atomic |
+| Billing obligation | source enrollment/booking + period + policy version | Unique issuance key; approved adjustments create new obligations/credits |
+| Invoice allocation | invoice + payment/credit + amount/currency | Sum cannot silently exceed collectible balance; overpayment is explicit |
+| Provider inbox | configured account + provider event ID | Immutable received event/hash; processed outcome recorded separately |
+| Payment | provider account + transaction ID | One canonical money movement, independent of notification replay |
+| Refund | payment + request ID + provider refund ID when known | Confirmed plus reserved pending amount bounded by refundable balance |
+| Journal | source transaction/event + posting purpose | Unique posting; debit equals credit per currency; no delete/update of posted lines |
+| Resource attachment | org + owner record + storage key + scan state | Only clean released object can be downloaded; purpose/scope rechecked |
+| Delivery | source event + recipient + channel + template version | Stable retry identity; suppression and uncertain-send state explicit |
+| Work item | source record + action type + workflow version | One active operational task per source/action, linked to authoritative state |
+| Privacy action | request + category/source + decision + result | Completion requires all required actions done or documented retained exception |
+
+### 24.2 Time, money and state edge cases
+
+Resource intervals use [start, end): back-to-back bookings are permitted only after setup/cleanup buffers. Recurring schedules retain the intended local time and timezone, with explicit handling of ambiguous/nonexistent DST instants. Changing one occurrence does not rewrite past occurrences or all future dates silently.
+
+For money, use the currency's actual minor-unit exponent; do not assume every currency has two decimals. Pilot supports one configured operating currency. No foreign-exchange conversion until separately designed. Validate safe integer bounds or use a suitable database/serialization type for larger sums.
+
+Invoice state is calculated from issued amount, credits, allocations and refunds under an approved accounting policy. Payment refund is not automatically an invoice void, enrollment withdrawal or event cancellation. Revenue/receivable recognition and scholarship treatment require finance review; the existing clearing/revenue example is not a complete tuition accounting policy.
+
+Use explicit enums/transitions for new workflows. Historical corrections preserve source, reason and actor. Deleted/archived parents cannot leave active children, future reminders or orphaned permissions.
+
+### 24.3 Migration sequence from the current code
+
+1. Inventory all global-role checks and first-organization lookups; record route, policy, data scope and corresponding test.
+2. Add organization ownership and scoped assignments without removing legacy columns. Produce a reviewed mapping from each current user to approved memberships/grants; ambiguous ownership is quarantined.
+3. Backfill in bounded, restartable batches with source checksum and before/after counts. Compare old and new authorization decisions in a non-authorizing shadow check.
+4. Switch reads/writes per module only after negative tests pass. Prevent dual-write drift; one service owns both compatibility mapping and authoritative policy.
+5. Reconcile counts, balances, foreign keys, session revocation and membership coverage. Do not grant broad access merely to make a backfill pass.
+6. Cut over with a rollback-compatible application release. Remove legacy authority only after all consumers and supported mobile clients no longer depend on it.
+7. Preserve the old schema/history as required, then retire with an explicit migration and recovery plan.
+
+R0 deliverables include database inventory, backup evidence, migration ownership, rollout order and a go/no-go report. The current empty-database baseline must not be treated as a migration for populated deployments.
+
+### 24.4 Files, exports, retention and restoration
+
+Uploads require allowlisted content, verified type rather than extension alone, per-file/account quotas, quarantine, malware scan, encrypted storage and a named owning record. Disable active content where feasible; sanitize displayed content; never render untrusted HTML as trusted mosque content. Failed/abandoned uploads expire.
+
+Private download URLs are short-lived and are not a substitute for authorization at issuance. Extremely sensitive files can require authenticated streaming rather than reusable links. Revocation cannot erase copies someone has already saved.
+
+Exports record scope, requester, reauthentication, purpose, fields, expiry and download audit. Sanitize spreadsheet formula prefixes. Search indexes, analytics, outboxes, storage objects and backup restoration are included in privacy decisions.
+
+Restore procedures replay a separately retained deletion/suppression manifest before restored data becomes user-accessible. Financial provider reconciliation can recover some external transactions, but cannot recover lost guardian changes, consent or internal records. Therefore the provisional 24-hour RPO in section 15 is acceptable only for an approved low-risk pilot; R2 requires tighter recovery targets appropriate to those records, demonstrated by the selected database backup/PITR capability. A backup is not evidence of recoverability until restoration has been tested.
+
+## 25. Failure handling and operational handoffs
+
+### 25.1 Failure matrix
+
+| Failure | User experience | Operator action and durable recovery |
+| --- | --- | --- |
+| Database unavailable | Public last-known approved schedule marked stale; private writes unavailable | Alert; restore service; never queue unverified financial/role approvals locally |
+| Identity/email provider unavailable | Generic retry; existing valid sessions follow policy | Monitor backlog; do not bypass verification or privileged recovery |
+| Payment provider timeout | Processing/unknown outcome with operation reference | Lookup original idempotent operation; reconcile before retrying charge/refund |
+| Duplicate/out-of-order webhook | No duplicate receipt or status regression | Inbox replay under state guards; exception queue for unexplained transitions |
+| Worker crash after sending | Generic notification may be pending | Reconcile provider message if possible; track uncertainty and duplicate risk |
+| Display loses connectivity | Last update/source/date visible; outdated-day warning | Remote health signal when available; on-site fallback timetable |
+| Resource becomes unusable | Affected event/class/appointment marked needs review | Facilities blocks new bookings; domain owners relocate/cancel and notify |
+| Teacher/host/case owner leaves | Relevant activity shows reassignment needed | Access revoked immediately; backup operator receives handover queue |
+| Guardian relationship contested | Restricted data temporarily unavailable with safe explanation | Safeguarding human review; no automated restoration from old cache |
+| Incorrect prayer publication | Clear corrected revision | Urgent publishing procedure, propagation verification and incident record |
+| Email bounce/push token invalid | In-app record remains accessible | Suppress invalid channel, request contact update; do not claim user read message |
+| Import partially completes | Batch shows partial/checkpointed status | Resume idempotently or apply approved compensating changes; never reimport blindly |
+| Capacity or finance imbalance | Action paused, truthful pending/review state | Reconcile source records; correction with audit, not direct silent edits |
+| Suspected account compromise | Sessions restricted/revoked; verified recovery path | Incident triage, evidence preservation, scoped notification and key/token actions |
+| Module retirement | New intake closed; existing status/history still available where required | Finish obligations, exports and retention; deactivate integrations last |
+
+### 25.2 Escalation rules
+
+Each work item has source reference, owner/team, due time, sensitivity, status and escalation path. Suggested operational targets are planning defaults, not promises: critical schedule/service outage immediately alerts the on-call owner; finance exceptions reviewed each operating day; enrollment/support queues reviewed on published business days. Care response targets are set only by the actual staffed program.
+
+If an owner is absent, assign the named backup. If no safe operator exists, stop accepting that service. An organization cannot enable a module solely by setting a feature flag; its checklist must include policy version, primary/backup owners, required integration health and acceptance evidence.
+
+High-risk actions require independent people, not merely two roles on the same account. If two eligible people are unavailable, the action stays blocked and escalates; do not add a generic bypass.
+
+### 25.3 Initial setup and ownership recovery
+
+The initial organization owner is established through a controlled bootstrap with verified organizational authority and recorded handover. This one-time setup is distinct from ordinary in-app role delegation, which follows independent approval. Remove or disable bootstrap capability in production.
+
+Ownership transfer verifies the incoming owner, preserves at least one recoverable responsible owner and requires an independent approved reviewer. Loss of all owners uses documented exceptional recovery with organizational proof and two-person operational review, not a self-service “become admin” endpoint.
+
+## 26. Delivery sizing, cost and decision register
+
+### 26.1 Staffing and planning envelope
+
+These are rough effort estimates for planning, not delivery commitments. They assume the existing code is reusable, one mosque, English/Arabic, no payroll/full enterprise accounting, no custom payment processor and timely operator decisions. WP-01 must replace them with ticket-level estimates based on actual defects.
+
+| Release group | Indicative engineering/QA effort | Required expertise |
+| --- | --- | --- |
+| R0 foundations | 6–10 person-weeks | Backend/security, frontend/native, infrastructure and QA |
+| R1 complete community pilot | 10–16 person-weeks | Product engineering, design/localization, QA and mosque operations |
+| R2 school and finance | 14–24 person-weeks | Backend transactions, native/web, safeguarding/finance SMEs and QA |
+| R3 managed services | 8–16 person-weeks | Scheduling, workflow/privacy and relevant service operators |
+| R4 optional extensions | Estimate individually after demand validation | Depends on selected module; multi-org is a separate substantial effort |
+
+Person-weeks are work effort, not calendar weeks. For example, two engineers do not automatically halve delivery time because integration, reviews and staff acceptance are sequential constraints. Add explicit contingency after the inventory; do not advertise these ranges as a launch date.
+
+A practical delivery team needs a named product/operations owner, backend lead, web/mobile lead, QA owner and part-time design/localization support; security, finance and safeguarding reviewers participate at gates. One person may perform several jobs, but reviewer independence for high-risk decisions must remain.
+
+### 26.2 Cost model without invented provider prices
+
+Before selecting a paid plan, obtain current vendor quotes for the target region and usage. Track monthly base hosting/database/backup, compute/egress, private file storage/scanning, email/SMS volume, monitoring, native builds, domain/app-store charges and payment processing. Record one-time implementation/training and ongoing support separately.
+
+Budget calculation: fixed subscriptions + measured usage units × verified unit prices + external transaction fees + support allowance. Build a pilot and 10× load case using actual expected members, peak Friday/Ramadan reads, registrations, file size/retention and message frequency. Set alerts at agreed fractions of the approved budget; alerts must not unexpectedly disable essential worship information or reconciliation.
+
+No purchase, vendor subscription or infrastructure change is authorized merely by inclusion in this plan.
+
+### 26.3 Decision register
+
+The following unknowns are tracked as explicit delivery work. “Not decided” is a visible state, not permission to invent a policy.
+
+| ID | Decision / default recommendation | Owner | Blocks | Evidence to close |
+| --- | --- | --- | --- | --- |
+| DEC-01 | Pilot org/venues, contacts, timezone, legal identity | Leadership | R1 setup | Verified configuration and named owners |
+| DEC-02 | Prayer authority, publication and emergency policy | Religious lead | Worship publication | Approved source/reviewer/correction procedure |
+| DEC-03 | Membership, household and participant eligibility | Community lead | Registrations | Versioned terms and actor rules |
+| DEC-04 | Guardian evidence, pickup, student age/consent policy | Safeguarding/school | Private school | Approved relationship and revocation procedure |
+| DEC-05 | Fee policy, attendance conditional on payment, scholarships | School/finance | Tuition/enrollment coupling | Versioned fee and placement rules |
+| DEC-06 | Funds, receipts, recognition, refunds, chargebacks, limits | Finance | Real money | Accounting map and reconciled sandbox cases |
+| DEC-07 | Service staffing, scope, response and case retention | Service/privacy leads | Care/appointments | Named primary/backup and reviewed intake |
+| DEC-08 | Role delegation, initial owner and emergency recovery | Leadership/security | Privileged access | Bootstrap/recovery test and approval map |
+| DEC-09 | Auth provider/library versus hardened existing adapter | Engineering/security | R0 security exit | Threat review and native/web/recovery proof |
+| DEC-10 | Data geography, per-category retention, RPO/RTO | Privacy/operations | Production and R2 | Approved policy, provider capability and restore evidence |
+| DEC-11 | File store, scanning, quotas, private delivery | Engineering/privacy | Attachments | Scan/revocation/failure tests and cost estimate |
+| DEC-12 | Canonical Vercel project, runtime and isolated environments | Operations | Preview/production delivery | Verified binding/settings, clean build, isolation tests |
+| DEC-13 | Notification categories, consent and critical exceptions | Communications/privacy | Outbound delivery | Approved templates/preferences and delivery tests |
+| DEC-14 | Native signing, domains, deep links and supported clients | Operations/mobile lead | Native distribution | Ownership proof and signed device acceptance |
+| DEC-15 | Schedule, staffing and operating budget | Product/leadership | Release commitment | Ticket estimates, availability, quote-based budget |
+| DEC-16 | Optional module demand and wind-down policy | Relevant domain owner | R3/R4 enablement | Operator checklist and measurable need |
+
+Every decision record stores owner, status, due milestone, chosen option, rationale, evidence and affected requirements. Revisit affected tests when a policy changes. A required unresolved decision blocks its module's readiness assessment.
+
+## 27. Traceability and completeness coverage
+
+### 27.1 Requirement coverage register
+
+Each requirement connects a journey to screens, server contracts or domain rules, canonical records, owner, release and tests. Existing AT-01–AT-22 remain in force; AT-23–AT-40 below cover the added connections.
+
+| Requirement | Scope / release | Screens | Contract or rule | Owner | Acceptance |
+| --- | --- | --- | --- | --- | --- |
+| REQ-01 | Public worship / R1 | SC-01, SC-02, SC-10, SC-29 | CMD-05; publication revision | Religious lead | AT-01, AT-02, AT-23 |
+| REQ-02 | Identity/access / R0 | SC-06, SC-07, SC-09, SC-28 | CMD-14, CMD-20; section 4 | Access/security lead | AT-03, AT-04, AT-05, AT-32 |
+| REQ-03 | Events / R1 | SC-03, SC-04, SC-05, SC-11 | CMD-01–04, CMD-19 | Community lead | AT-06, AT-07, AT-24, AT-25 |
+| REQ-04 | Volunteer service / R1 | SC-05, SC-08, SC-12 | Section 6.3; shift capacity/eligibility | Volunteer lead | AT-04, AT-26 |
+| REQ-05 | School/families / R2 | SC-13–17 | CMD-06–09; student/relationship scope | School/safeguarding leads | AT-08, AT-09, AT-27, AT-28 |
+| REQ-06 | Giving/tuition / R2 | SC-18–20 | CMD-10–13; finance invariants | Finance lead | AT-10–13, AT-29 |
+| REQ-07 | Recurring/offline giving / R3 | SC-18–20 | Section 8.3; separate subscription/deposit lifecycle | Finance lead | AT-30 |
+| REQ-08 | Care/services / R3 | SC-21, SC-22 | CMD-15, CMD-16; restricted case access | Service lead | AT-17, AT-31 |
+| REQ-09 | Facilities / core R1, full R3 | SC-11, SC-15, SC-21, SC-23 | Shared resource reservation, section 24 | Facilities lead | AT-16, AT-25, AT-31 |
+| REQ-10 | Content/communications / R1 | SC-03, SC-24, SC-25 | Section 11; event/delivery contract | Communications lead | AT-14, AT-15, AT-23, AT-33 |
+| REQ-11 | Account/privacy / R1, expanded with modules | SC-07, SC-25, SC-27 | CMD-17; deletion/retention manifest | Privacy lead | AT-21, AT-28, AT-34 |
+| REQ-12 | Support/audit/operations / R1 | SC-08, SC-25, SC-28 | Work-item ownership and section 25 | Operations lead | AT-19, AT-32, AT-35 |
+| REQ-13 | Imports/exports/files / as needed by release | SC-13, SC-20, SC-23, SC-27 | CMD-18; section 24.4 | Data/privacy owner | AT-34, AT-36 |
+| REQ-14 | EN/AR and accessible design / all releases | SC-01–29 | Section 12 and shared screen contract | Design/localization/QA | AT-18 |
+| REQ-15 | Delivery/migration/API compatibility / R0 onward | SC-28 | Sections 16, 23 and 24.3 | Engineering/operations | AT-19, AT-20, AT-22, AT-37 |
+| REQ-16 | Circles / R3 | SC-03, SC-05, SC-26 | Section 6.2; moderated membership | Community lead | AT-38 |
+| REQ-17 | Jobs/proposals/resources/projects / R4 | SC-03, SC-24, SC-26 | Section 10; separate moderation/lifecycle | Respective module owner | AT-39 |
+| REQ-18 | Multi-organization / R4 gate | SC-07, SC-09, SC-28 | Tenant isolation across all canonical owners | Security/platform lead | AT-03, AT-40 |
+| REQ-19 | Feature retirement and obligations / every enabled module | SC-08, SC-25, SC-28 | Section 21.2 wind-down rules | Product/domain owner | AT-35 |
+
+### 27.2 Additional release-blocking scenarios
+
+| ID | Scenario | Required result |
+| --- | --- | --- |
+| AT-23 | Approved content changes, expires or is unpublished | Public/search/display projections converge to correct revision; old scheduled sends suppressed |
+| AT-24 | Event canceled after RSVPs, room hold and reminders exist | Seats/resources released exactly once; future reminders stopped; eligible refund-review obligations tracked |
+| AT-25 | Event moved while a class claims the target room; DST recurring occurrence | One valid allocation wins; old room retained on failed move; local time and buffers correct |
+| AT-26 | Volunteer eligibility expires; coordinator leaves; shift overlaps | Protected assignment blocked/reviewed, backup assigned, overlap rejected and history preserved |
+| AT-27 | Application accepted but placement/billing not finished | UI distinguishes all stages; no premature seat, invoice, charge or student login |
+| AT-28 | Guardian revoked while export/delivery is pending, invoice outstanding | Private access and ineligible work stop; payer continuity reviewed without child-data shortcut |
+| AT-29 | Concurrent refunds, invoice payments, stale financial approval | No intentional excess allocation/refund; edited approval invalidated; unknown provider outcome reconciled |
+| AT-30 | Recurring cancellation races renewal; check not yet banked | Past/new provider-confirmed movements recorded accurately; no invented refund/settlement |
+| AT-31 | Private appointment uses public room calendar; service unstaffed | Busy interval only exposed; conflict enforced; new confidential intake unavailable |
+| AT-32 | Owner bootstrap, privilege recovery, reassignment and expired MFA | Controlled initial authority; independent recovery; no self-elevation or stale assurance bypass |
+| AT-33 | Marketing opt-out, transactional need, invalid device and worker retry | Category policy respected; in-app fallback; stale/private content absent from notifications |
+| AT-34 | Export URL reused after expiry; malicious file; deleted record restored | Download denied, upload quarantined, deletion manifest reapplied before user access |
+| AT-35 | Module disabled with active cases, pending refund and failed delivery | New intake stops; existing obligations retain responsible service processing and owner |
+| AT-36 | Changed import after approval, partial run, duplicate source row | Checksum rejects stale approval; safe resume; no duplicate person/enrollment/payment |
+| AT-37 | Legacy-role migration produces ambiguous scope or old-client mismatch | Ambiguous records quarantined; no broad grant; backward compatibility or gated upgrade |
+| AT-38 | Circle host departs, member removed, youth content reported | Reassign/pause, revoke private view, audited moderation and safeguarding escalation |
+| AT-39 | Optional job/proposal/directory/project content closes or is withdrawn | Private applicant/opt-in data removed from discovery; audit/history and lawful retention preserved |
+| AT-40 | Same IDs/roles across two orgs in API, jobs, files and caches | No cross-tenant access, grant inheritance, delivery or provider-account mix-up |
+
+These scenarios specify required behavior; they are not statements that tests currently exist or pass. Each implementation ticket links concrete test files/results before its requirement is accepted.
+
+### 27.3 Completeness review method
+
+At each release review, start with a user action and follow it through screen → authorization → command → database → external side effect → notification → report → support/recovery. Check happy path, denied access, timeout, duplicate, concurrency, cancellation, correction, staff departure and retention.
+
+A requirement is incomplete if it lacks an owner, source record, policy, failure recovery, acceptance evidence or operating procedure. A screen without a requirement is an orphan. A requirement without a route/command or an explicit manual operating step is not build-ready. A pending decision must appear in DEC-01–DEC-16 or a newly registered decision.
+
+Do not use a percentage that averages away child privacy, financial integrity or access-control blockers. Report readiness by requirement and release, with links to evidence.
+
+## 28. Build-ready handoff and change control
+
+### 28.1 Required implementation packet per module
+
+Before coding a module, its ticket packet contains:
+
+1. Requirement IDs and release, named product/engineering/operating owners.
+2. Screen-family mapping, exact route list, field dictionary and bilingual copy.
+3. Actor/action/resource policy and negative-test matrix.
+4. State transition table including forbidden transitions, expiry and correction.
+5. Request/response schemas, examples, errors, idempotency and version rules.
+6. Physical schema diff, constraints/indexes, existing-data migration and rollback compatibility.
+7. Internal events and consumer effects, retry/reconciliation, sensitive-data exclusions.
+8. Provider configuration and sandbox validation if relevant; approved policy/version references.
+9. Automated tests, manual device/accessibility/operator checks and evidence location.
+10. Monitoring, backup/recovery implications, support runbook, rollout and wind-down plan.
+
+Sections 21–27 supply shared contracts and core examples. Exact migration SQL, exhaustive OpenAPI schemas and final screen copy must be produced against the implemented version in those packets. They must not be guessed or silently skipped. This plan is the integrated specification and gate system, not a claim that those engineering artifacts already exist.
+
+### 28.2 Change control
+
+Every change to a capability, shared record, policy, financial amount, state transition or release boundary lists affected requirements, screens, API clients, jobs, tests and documentation. Use an ADR for architectural/provider changes and a versioned policy record for operating rules.
+
+A newly proposed feature either maps to an existing requirement and lifecycle or receives a new requirement, owner, dependencies and acceptance tests. Do not append a standalone menu item without its backend and operating model.
+
+Breaking changes keep a supported client window, explicit deprecation and measured usage check. Do not remove an API because the current web client no longer calls it. Large data changes require rehearsal and domain sign-off before production execution.
+
+### 28.3 Review findings resolved in this revision
+
+- Clarified that shared room allocation is an R1 foundation, while full facilities/rentals is an R3 product.
+- Separated public school/giving information from gated private enrollment and live checkout.
+- Connected event cancellation/time changes to capacity, rooms, reminders and refund obligations.
+- Separated application acceptance, guardian verification, class placement, billing and payment.
+- Connected staff/guardian revocation to files, jobs, notifications and handover without abandoning organizational financial obligations.
+- Bound approvals to immutable request versions and added explicit setup/ownership recovery.
+- Added person/household boundaries, fee-policy dependencies, partial/import recovery and module retirement.
+- Added screen/command contracts, canonical record ownership, decision tracking, staffing/cost model and requirement-to-test traceability.
+- Tightened recovery expectations for school/finance and restoration of previously deleted data.
+
+**Readiness statement:** this revision addresses the identified planning gaps and makes outstanding decisions and implementation artifacts trackable. No responsible plan can guarantee that discovery, real users or implementation will reveal no additional requirements. Release readiness requires the evidence above, not a promise that the document is infallible.
