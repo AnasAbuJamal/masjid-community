@@ -20,6 +20,23 @@ test("worship approvals require distinct users and transactionally publish a can
  assert.match(api,/Prisma.TransactionIsolationLevel.Serializable/);
  assert.match(api,/worship.prayer.publish/);
 });
+test("legacy admin cannot bypass reviewed prayer publications",()=>{
+ const route=read("staff-web/src/app/api/v1/admin/route.ts");
+ assert.match(route,/PRAYER_REVIEW_REQUIRED/);
+ assert.doesNotMatch(route,/prayerDay\.upsert/);
+ const dashboard=read("staff-web/src/app/admin/page.tsx");
+ assert.match(dashboard,/\/admin\/prayer-revisions/);
+});
+test("gather reservations preserve confirmed vs waitlisted states",()=>{
+ const actions=read("staff-web/src/app/api/v1/actions/route.ts");
+ const cancel=read("staff-web/src/app/api/v1/events/rsvp/route.ts");
+ const me=read("staff-web/src/app/api/v1/events/registration/route.ts");
+ assert.match(actions,/status:"waitlisted"/);
+ assert.match(cancel,/Prisma\.TransactionIsolationLevel\.Serializable/);
+ assert.match(cancel,/notifyUser/);
+ assert.match(me,/user\.id/);
+ assert.match(read("staff-web/scripts/test-gather.mjs"),/promotedWaitlist/);
+});
 test("financial updates require signed webhooks",()=>{
  const checkout=read("staff-web/src/app/api/v1/donations/checkout/route.ts");
  const webhook=read("staff-web/src/app/api/v1/webhooks/stripe/route.ts");
