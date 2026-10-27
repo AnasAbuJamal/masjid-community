@@ -65,6 +65,8 @@ model Organization {
   opportunities VolunteerOpportunity[]
   jobs JobPosting[]
   contactRequests ContactSubmission[]
+  budgets FinanceBudget[]
+  expenses FinanceExpense[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -105,6 +107,8 @@ model User {
   authoredAssignments SchoolAssignment[] @relation("AssignmentAuthor")
   authoredReports StudentReport[] @relation("ReportAuthor")
   submittedProposals Proposal[] @relation("ProposalSubmitter")
+  expensesSubmitted FinanceExpense[] @relation("ExpenseSubmitter")
+  expensesApproved FinanceExpense[] @relation("ExpenseApprover")
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -502,4 +506,40 @@ model ContactSubmission {
   reviewedAt DateTime?
   @@index([organizationId,status,createdAt])
   @@index([email,createdAt])
+}
+
+enum ExpenseStatus {
+  pending
+  approved
+  rejected
+}
+model FinanceBudget {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  category String
+  periodMonth String
+  amountMinor Int
+  currency String @default("usd")
+  published Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@unique([organizationId,category,periodMonth])
+}
+model FinanceExpense {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  description String
+  category String
+  amountMinor Int
+  currency String @default("usd")
+  incurredOn DateTime
+  status ExpenseStatus @default(pending)
+  submittedById String
+  submitter User @relation("ExpenseSubmitter",fields:[submittedById],references:[id])
+  approvedById String?
+  approver User? @relation("ExpenseApprover",fields:[approvedById],references:[id])
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId,status,createdAt])
 }

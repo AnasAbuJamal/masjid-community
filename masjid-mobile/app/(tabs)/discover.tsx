@@ -18,6 +18,7 @@ export default function Discover(){
  return <Shell><Head eyebrow="COMMUNITY · DISCOVER" title="Belong. Contribute. Grow." subtitle="All the ways your community comes together, in one thoughtful place."/>
  <Card style={{backgroundColor:T.ice,gap:8}}><Text style={S.overline}>ONE COMMUNITY</Text><Text style={S.headline}>Good things happen together.</Text><Text style={S.bodyText}>Browse the mosque's published events, programs and opportunities.</Text></Card>
  <View style={S.section}><PressRow icon="lightbulb-outline" title="Submit a community proposal" subtitle="Share an idea for moderator review" onPress={()=>router.push("/community/proposal")}/>
+ <PressRow icon="chart-box-outline" title="Financial transparency" subtitle="Published community budget allocations" onPress={()=>router.push("/finance/transparency")}/>
  <PressRow icon="email-outline" title="Contact mosque staff" subtitle="Ask questions and share feedback" onPress={()=>router.push("/contact")}/>
  {categories.map(c=><PressRow key={c.kind} title={c.title} subtitle={c.subtitle} icon={c.icon} onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:c.kind,id:"all"}})}/>)}</View>
  </Shell>;

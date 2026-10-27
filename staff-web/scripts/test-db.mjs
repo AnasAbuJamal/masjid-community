@@ -31,6 +31,12 @@ try{
  assert.equal(report.status,"published");
  const invoice=await db.schoolInvoice.create({data:{studentId:student.id,payerGuardianId:member.id,description:"Tuition test",amountMinor:2700,dueAt:new Date(Date.now()+86400000)}});
  assert.equal(invoice.amountMinor,2700);
+ const budget=await db.financeBudget.create({data:{organizationId:org.id,category:"Community",periodMonth:"2026-10",amountMinor:50000,published:true}});
+ assert.equal(budget.amountMinor,50000);
+ const expense=await db.financeExpense.create({data:{organizationId:org.id,category:"Community",description:"Test materials",amountMinor:2200,
+  incurredOn:new Date(),submittedById:teacher.id}});
+ assert.equal(expense.status,"pending");
+ await db.financeExpense.update({where:{id:expense.id},data:{status:"approved",approvedById:admin.id,reviewedAt:new Date()}});
  const prayer=await db.prayerDay.create({data:{venueId:venue.id,localDate:"2026-10-26",fajr:"06:00",sunrise:"07:00",dhuhr:"12:30",asr:"15:30",maghrib:"18:00",isha:"19:00",published:false}});
  assert.equal(prayer.published,false);
  const event=await db.event.create({data:{organizationId:org.id,title:"Example gathering",description:"Fixture",location:"Here",startAt:new Date(Date.now()+86400000),endAt:new Date(Date.now()+90000000),capacity:1,status:"published"}});

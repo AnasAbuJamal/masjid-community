@@ -8,6 +8,11 @@ export async function GET(req:NextRequest,{params}:Context){
   const {resource}=await params;
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
   if(!org) return ok({organization:null,items:[],message:"This community has not been configured yet."});
+  if(resource==="financials"){
+    const budgets=await db.financeBudget.findMany({where:{organizationId:org.id,published:true},take:100,
+      orderBy:{periodMonth:"desc"},select:{id:true,category:true,periodMonth:true,amountMinor:true,currency:true}});
+    return ok({organization:{name:org.name},budgets,note:"Published budgets are planned allocations, not donations received or cash balances."});
+  }
   if(resource==="home"){
     const venue=await db.venue.findFirst({where:{organizationId:org.id},orderBy:{id:"asc"}});
     const today=venue ? localDate(new Date(),venue.timeZone) : null;

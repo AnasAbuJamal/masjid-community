@@ -69,3 +69,9 @@ No feature is considered production-complete until it meets the privacy, accurac
 ### Eighth implementation pass
 - CI now provisions a dedicated PostgreSQL 16 service, initializes the schema in a disposable database, tests relationships/constraints, then runs web/API smoke checks.
 - This validates schema functionality but is not a staging/prod migration rehearsal or full native end-to-end suite.
+
+### Ninth implementation pass
+- Financial budget allocations and expense approval workflows with separate submitter and reviewer identities.
+- Restricted finance control center; published budget allocations appear in the public transparency API.
+- Financial allocations and expense records included in disposable PostgreSQL integration tests.
+- **Not a reconciled ledger**: accounting journal lines, receipts, provider settlements, expense attachments and refund workflows require further engineering and finance approval.
