@@ -27,6 +27,8 @@ assert.equal(admin.data.user.mfaSetupRequired,true,"new admin must enroll");
 const blocked=await request("admin","GET",null,admin.data.token);
 assert.equal(blocked.status,403,"no privileged data before MFA");
 assert.equal(blocked.error.code,"MFA_REQUIRED");
+const teamBlocked=await request("admin/team","GET",null,admin.data.token);
+ assert.equal(teamBlocked.status,403,"team management requires MFA");
 const weak=await request("auth/mfa-setup","POST",{password:"incorrect-password"},admin.data.token);
 assert.equal(weak.status,401,"enrollment requires current password");
 const setup=await request("auth/mfa-setup","POST",{password},admin.data.token);
@@ -37,8 +39,6 @@ const invalid=await request("auth/mfa-enable","POST",{code:otp.slice(0,5)+(otp[5
 assert.equal(invalid.status,422,"wrong authenticator code rejected");
 const enabled=await request("auth/mfa-enable","POST",{code:otp},admin.data.token);
 assert.equal(enabled.status,200,"valid authenticator enrolled");
-const teamBlocked=await request("admin/team","GET",null,admin.data.token);
- assert.equal(teamBlocked.status,403,"team management requires MFA");
 const allowed=await request("admin","GET",null,admin.data.token);
 assert.equal(allowed.status,200,"MFA-verified session can enter admin");
 const team=await request("admin/team","GET",null,admin.data.token);
