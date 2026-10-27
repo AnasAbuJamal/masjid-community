@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import {Prisma} from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireVerified, audit } from "@/lib/auth";
@@ -18,8 +19,11 @@ export async function POST(req:NextRequest){
   const user=await requireVerified(req);
   const input=schema.parse(await jsonBody(req));
   if(input.kind==="rsvp"){
+    const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+    if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+    try{
     const output=await db.$transaction(async tx=>{
-      const event=await tx.event.findUnique({where:{id:input.eventId}});
+      const event=await tx.event.findFirst({where:{id:input.eventId,organizationId:organization.id}});
       if(!event||event.status!=="published"||event.startAt<=new Date())
         throw new HttpError(404,"UNAVAILABLE","Event unavailable.");
       const existing=await tx.eventRSVP.findUnique({where:{eventId_userId:{eventId:event.id,userId:user.id}}});
@@ -43,6 +47,11 @@ export async function POST(req:NextRequest){
         message:"You are on the waitlist. This is not a confirmed reservation."};
     },{isolationLevel:"Serializable"});
     return ok(output,201);
+    }catch(error){
+      if(error instanceof Prisma.PrismaClientKnownRequestError&&["P2034","P2002"].includes(error.code))
+        throw new HttpError(409,"RETRY_RESERVATION","The event reservation changed. Please try again.");
+      throw error;
+    }
   }
   if(input.kind==="volunteer"){
     const opp=await db.volunteerOpportunity.findFirst({where:{id:input.opportunityId,published:true}});
