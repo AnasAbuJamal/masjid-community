@@ -9,18 +9,18 @@ const SESSION = "masjid_session";
 const DAYS = 7;
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 
-export type Actor = { id: string; role: UserRole; email: string; verifiedAt: Date | null; firstName: string; lastName: string };
+export type Actor = { id: string; role: UserRole; email: string; verifiedAt: Date | null; firstName: string; lastName: string; mfaEnabled: boolean; mfaVerified: boolean };
 export async function actor(req: NextRequest): Promise<Actor | null> {
   const bearer = req.headers.get("authorization");
   const token = bearer?.startsWith("Bearer ") ? bearer.slice(7) : req.cookies.get(SESSION)?.value;
   if (!token || token.length < 30 || token.length > 200) return null;
   const session = await db.authSession.findUnique({
     where: { tokenHash: hash(token) },
-    include: { user: { select: { id: true, role: true, email: true, verifiedAt: true, firstName: true, lastName: true, status: true } } },
+    include: { user: { select: { id: true, role: true, email: true, verifiedAt: true, firstName: true, lastName: true, status: true, mfaEnabledAt: true } } },
   });
   if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.status !== "active") return null;
-  const { status: _status, ...identity } = session.user;
-  return identity;
+  const { status: _status, mfaEnabledAt, ...identity } = session.user;
+  return {...identity,mfaEnabled:!!mfaEnabledAt,mfaVerified:!!mfaEnabledAt&&!!session.mfaVerifiedAt};
 }
 export async function requireActor(req: NextRequest, roles?: UserRole[]): Promise<Actor> {
   const user = await actor(req);
@@ -31,6 +31,7 @@ export async function requireActor(req: NextRequest, roles?: UserRole[]): Promis
 export async function requireVerified(req: NextRequest, roles?: UserRole[]) {
   const user = await requireActor(req, roles);
   if (!user.verifiedAt) throw new HttpError(403, "EMAIL_NOT_VERIFIED", "Verify your email first.");
+  if (["admin","finance"].includes(user.role) && !user.mfaVerified) throw new HttpError(403, "MFA_REQUIRED", "Complete multi-factor authentication before continuing.");
   return user;
 }
 export async function startSession(userId: string): Promise<string> {

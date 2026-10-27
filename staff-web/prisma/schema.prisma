@@ -90,6 +90,10 @@ model User {
   status AccountStatus @default(active)
   role UserRole @default(member)
   verifiedAt DateTime?
+  mfaSecretEncrypted String?
+  mfaPendingSecretEncrypted String?
+  mfaEnabledAt DateTime?
+  mfaLastCounter Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sessions AuthSession[]
@@ -125,6 +129,7 @@ model AuthSession {
   tokenHash String @unique
   expiresAt DateTime
   revokedAt DateTime?
+  mfaVerifiedAt DateTime?
   createdAt DateTime @default(now())
   @@index([userId,expiresAt])
 }

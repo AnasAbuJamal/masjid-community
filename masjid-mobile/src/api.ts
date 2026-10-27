@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 const tokenKey="masjid.session";
 const raw=(process.env.EXPO_PUBLIC_API_URL||"").replace(/\/+$/,"");
-export type ApiUser={id:string;email:string;firstName:string;lastName:string;role:string;isVerified:boolean};
+export type ApiUser={id:string;email:string;firstName:string;lastName:string;role:string;isVerified:boolean;mfaRequired?:boolean;mfaSetupRequired?:boolean};
 export async function token(){return SecureStore.getItemAsync(tokenKey);}
 export async function setToken(value:string){return SecureStore.setItemAsync(tokenKey,value);}
 export async function clearToken(){return SecureStore.deleteItemAsync(tokenKey);}

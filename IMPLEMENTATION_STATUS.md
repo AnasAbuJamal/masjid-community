@@ -95,3 +95,10 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Publishable community articles and construction projects with visible verified milestones.
 - Staff authoring and public mobile browsing through the same governed content API.
 - Dedicated tables and simple database integration checks. Media uploads, revisions and granular editorial approval are still future requirements.
+
+### Fourteenth implementation pass: privileged MFA and security checks
+- Privileged admin/finance sessions now require TOTP verification before sensitive `requireVerified` operations; first enrollment requires the account password.
+- Authenticator secrets are encrypted with a separate environment key; codes accept a small clock-skew window and reject replayed counters.
+- Added web/native MFA setup and verification screens.
+- CI tests the **actual HTTP** privileged gate, enrollment, wrong code, replay prevention and member denial against a disposable Postgres database.
+- Operational blockers remain: production secret provisioning, account recovery/break-glass policy, privileged TOTP recovery, penetration testing, hardware-key/passkey options and authorization audits.

@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import {PrismaClient} from "@prisma/client";
 import bcrypt from "bcryptjs";
+import {writeFileSync} from "node:fs";
 if(process.env.NODE_ENV==="production"||process.env.VERCEL)throw Error("Cannot test against production.");
 if(!process.env.DATABASE_URL?.includes("masjid_ci"))throw Error("Database name must be masjid_ci for integration tests.");
 const db=new PrismaClient();
@@ -14,6 +15,7 @@ try{
  const member=await db.user.create({data:{email:"member-"+suffix+"@example.test",firstName:"Member",lastName:"Fixture",passwordHash:hashes,verifiedAt:new Date()}});
  const teacher=await db.user.create({data:{email:"teacher-"+suffix+"@example.test",firstName:"Teacher",lastName:"Fixture",passwordHash:hashes,role:"teacher",verifiedAt:new Date()}});
  const admin=await db.user.create({data:{email:"admin-"+suffix+"@example.test",firstName:"Admin",lastName:"Fixture",passwordHash:hashes,role:"admin",verifiedAt:new Date()}});
+ writeFileSync("/tmp/masjid-ci-accounts.json",JSON.stringify({adminEmail:admin.email,memberEmail:member.email,password:"sample-development-password"}),{mode:0o600});
  const program=await db.schoolProgram.create({data:{organizationId:org.id,title:"Reading Skills",description:"Integration only",published:true}});
  const application=await db.enrollmentApplication.create({data:{organizationId:org.id,programId:program.id,applicantUserId:member.id,
   studentFirstName:"Child",studentLastName:"Fixture"}});

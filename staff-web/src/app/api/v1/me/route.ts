@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handled, ok } from "@/lib/http";
-import { requireActor } from "@/lib/auth";
+import { requireVerified } from "@/lib/auth";
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  const user=await requireActor(req);
+  const user=await requireVerified(req);
   const [donations,rsvps,notifications,children,classes,bookings,volunteerApplications,jobApplications]=await Promise.all([
     db.donation.findMany({where:{donorId:user.id},orderBy:{createdAt:"desc"},take:30,select:{id:true,amountMinor:true,currency:true,status:true,createdAt:true,campaign:{select:{title:true}}}}),
     db.eventRSVP.findMany({where:{userId:user.id},include:{event:{select:{id:true,title:true,startAt:true}}},take:30}),

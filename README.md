@@ -46,3 +46,6 @@ All protected APIs validate a database-backed session; native bearer tokens are 
 ## Production warnings
 
 Before any real use: rotate previously exposed historical credentials; reconcile database migrations and backup/recovery; configure a real verified email sender, payment provider + webhook; add distributed login/rate limiting, MFA, session rotation, per-resource scope verification, fully audited finance and schooling, receipt reconciliation, native device/accessibility QA, and consent/retention/privacy sign-off. Deployed API and mobile signing are separate systems; Vercel does not build a native app.
+
+## Privileged sign-in (admin/finance)
+Admin and finance accounts must enroll and verify time-based one-time codes before accessing privileged APIs. Configure `MFA_ENCRYPTION_KEY` as **32 random bytes encoded in 64 hexadecimal characters**, stored in the deployment secret manager; never use the CI example in production. First privileged sign-in routes to `/mfa`; re-enter your password, store the displayed secret in a TOTP authenticator, then enter a fresh six-digit code. Subsequent sign-ins require a code. Losing the encryption key makes existing authenticator secrets unrecoverable; implement documented key custody, backup and rotation before release.

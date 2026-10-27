@@ -27,6 +27,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://masjid_ci:ci_only_password@127.0.0.1:5432/masjid_ci
       AUTH_SECRET: ci-not-for-production-000000000000000000000
+      MFA_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +53,7 @@ jobs:
           node -e "const d=require('/tmp/home.json');if(!d.data?.organization)process.exit(1);"
           curl -fsS http://127.0.0.1:3000/api/v1/public/prayers > /tmp/prayers.json
           node -e "const d=require('/tmp/prayers.json');if(!Array.isArray(d.data?.days))process.exit(1);"
+          node scripts/test-auth.mjs
 
   verify-mobile:
     name: Native app TypeScript and package compatibility

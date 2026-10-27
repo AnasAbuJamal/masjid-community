@@ -12,7 +12,7 @@ export default function AuthScreen(){
  const submit=async()=>{
   if(busy)return;setBusy(true);setError("");setNotice("");
   try{
-   if(mode==="login"){await login(email,password);router.replace("/(tabs)/profile");}
+   if(mode==="login"){const result=await login(email,password);router.replace(result.mfaRequired?"/mfa":"/(tabs)/profile");}
    else{const message=await register({email,password,firstName,lastName});setMode("login");setNotice(message);setPassword("");}
   }catch(e){setError(e instanceof Error?e.message:"Unable to contact server.");}
   finally{setBusy(false);}

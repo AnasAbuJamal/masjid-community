@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { encryptMfaSecret, generateMfaSecret, decryptMfaSecret, verifyMfaCode } from "@/lib/mfa";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest,{params}:Context) {
     const { action }=await params;
     if(action!=="me")throw new HttpError(404,"NOT_FOUND","Unknown action.");
     const user=await actor(req);
-    return ok(user ? {id:user.id,firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,isVerified:!!user.verifiedAt}:null);
+    return ok(user ? {id:user.id,firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,isVerified:!!user.verifiedAt,mfaRequired:["admin","finance"].includes(user.role)&&!user.mfaVerified,mfaSetupRequired:["admin","finance"].includes(user.role)&&!user.mfaEnabled}:null);
   });
 }
 export async function POST(req:NextRequest,{params}:Context) {
@@ -38,9 +39,58 @@ export async function POST(req:NextRequest,{params}:Context) {
     catch(error) { await recordFailedLogin(normalized); throw error; }
     await clearLoginThrottle(normalized);
     const token=await startSession(user.id);
-    const response=NextResponse.json({data:{token,user:{id:user.id,email:user.email,firstName:user.firstName,lastName:user.lastName,role:user.role,isVerified:!!user.verifiedAt}}},{headers:{"Cache-Control":"no-store"}});
+    const response=NextResponse.json({data:{token,user:{id:user.id,email:user.email,firstName:user.firstName,lastName:user.lastName,role:user.role,isVerified:!!user.verifiedAt,mfaRequired:["admin","finance"].includes(user.role),mfaSetupRequired:["admin","finance"].includes(user.role)&&!user.mfaEnabledAt}}},{headers:{"Cache-Control":"no-store"}});
     setSessionCookie(response,token);
     return response;
+  }
+  if(action==="mfa-setup"){
+    const current=await requireActor(req);
+    if(!current.verifiedAt)throw new HttpError(403,"VERIFY_EMAIL","Verify your email first.");
+    if(current.mfaEnabled)throw new HttpError(409,"MFA_ALREADY_ENABLED","MFA is already enabled.");
+    const {password}=z.object({password:z.string().min(1)}).parse(await jsonBody(req));
+    await checkLoginThrottle(current.email);
+    try { await checkPassword(current.email,password); }
+    catch(e){await recordFailedLogin(current.email);throw e;}
+    await clearLoginThrottle(current.email);
+    const secret=generateMfaSecret();
+    await db.user.update({where:{id:current.id},data:{mfaPendingSecretEncrypted:encryptMfaSecret(secret)}});
+    const label=encodeURIComponent("Masjid Community:"+current.email);
+    const uri="otpauth://totp/"+label+"?secret="+secret+"&issuer="+encodeURIComponent("Masjid Community")+"&algorithm=SHA1&digits=6&period=30";
+    return ok({secret,otpauthUri:uri,message:"Store this secret in your authenticator app, then confirm a code. The secret will not be shown again."});
+  }
+  if(action==="mfa-enable"){
+    const current=await requireActor(req);
+    if(!current.verifiedAt)throw new HttpError(403,"VERIFY_EMAIL","Verify your email first.");
+    const {code}=z.object({code:z.string().regex(/^\d{6}$/)}).parse(await jsonBody(req));
+    const account=await db.user.findUniqueOrThrow({where:{id:current.id}});
+    if(account.mfaEnabledAt||!account.mfaPendingSecretEncrypted)throw new HttpError(409,"NO_SETUP","Start MFA enrollment before confirming.");
+    const step=verifyMfaCode(decryptMfaSecret(account.mfaPendingSecretEncrypted),code);
+    if(step===null)throw new HttpError(422,"INCORRECT_CODE","Authenticator code is incorrect or expired.");
+    const token=sessionFrom(req);
+    await db.$transaction(async tx=>{
+      const updated=await tx.user.updateMany({where:{id:current.id,mfaEnabledAt:null,mfaPendingSecretEncrypted:account.mfaPendingSecretEncrypted},
+        data:{mfaSecretEncrypted:account.mfaPendingSecretEncrypted,mfaPendingSecretEncrypted:null,mfaEnabledAt:new Date(),mfaLastCounter:step}});
+      if(!updated.count)throw new HttpError(409,"SETUP_CHANGED","MFA enrollment has changed. Start again.");
+      await tx.authSession.updateMany({where:{userId:current.id,tokenHash:tokenHash(token),revokedAt:null},data:{mfaVerifiedAt:new Date()}});
+      await tx.auditEvent.create({data:{actorId:current.id,action:"auth.mfa.enable",entity:"User",entityId:current.id}});
+    });
+    return ok({mfaVerified:true,message:"MFA is enabled."});
+  }
+  if(action==="mfa-verify"){
+    const current=await requireActor(req);
+    if(!current.verifiedAt)throw new HttpError(403,"VERIFY_EMAIL","Verify your email first.");
+    const {code}=z.object({code:z.string().regex(/^\d{6}$/)}).parse(await jsonBody(req));
+    const account=await db.user.findUniqueOrThrow({where:{id:current.id}});
+    if(!account.mfaEnabledAt||!account.mfaSecretEncrypted)throw new HttpError(409,"MFA_NOT_ENABLED","Configure your authenticator first.");
+    const step=verifyMfaCode(decryptMfaSecret(account.mfaSecretEncrypted),code);
+    if(step===null)throw new HttpError(401,"INVALID_CODE","Authenticator code is incorrect or expired.");
+    const changed=await db.user.updateMany({where:{id:current.id,mfaLastCounter:{lt:step}},data:{mfaLastCounter:step}});
+    if(!changed.count)throw new HttpError(409,"CODE_REUSED","Use the next authenticator code.");
+    const token=sessionFrom(req);
+    const session=await db.authSession.updateMany({where:{userId:current.id,tokenHash:tokenHash(token),revokedAt:null,expiresAt:{gt:new Date()}},data:{mfaVerifiedAt:new Date()}});
+    if(!session.count)throw new HttpError(401,"SESSION_EXPIRED","Sign in again.");
+    await db.auditEvent.create({data:{actorId:current.id,action:"auth.mfa.verify",entity:"AuthSession",entityId:current.id}});
+    return ok({mfaVerified:true});
   }
   if(action==="logout"){
     const token=sessionFrom(req);
