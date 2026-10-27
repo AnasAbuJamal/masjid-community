@@ -92,3 +92,14 @@
   .visit-hero h1 { font-size: clamp(2.55rem,11vw,3.5rem); }
 }
 @media (prefers-reduced-motion: reduce) { .visit { scroll-behavior: auto; } }
+
+.visit h3 a { text-decoration: none; }
+.visit h3 a:hover, .visit h3 a:focus-visible { text-decoration: underline; }
+.visit-detail { max-width: 780px; margin: 54px auto 90px; padding: clamp(24px,5vw,54px);
+  border: 1px solid var(--v-line); background: #fff; border-radius: 26px; }
+.visit-detail .visit-kicker { margin-top: 26px; }
+.visit-detail h1 { font-size: clamp(2.2rem,5vw,4.5rem); margin: 14px 0 25px; overflow-wrap: anywhere; }
+.visit-detail-facts { list-style: none; margin: 0 0 28px; padding: 20px; border-radius: 16px; background: var(--v-soft); }
+.visit-detail-facts li { margin: 7px 0; font-weight: 650; }
+.visit-detail-body { color: var(--v-ink); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.05rem; line-height: 1.8; }
+.visit-back { font-weight: 750; font-size: .9rem; }
