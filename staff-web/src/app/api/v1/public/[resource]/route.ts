@@ -33,7 +33,10 @@ export async function GET(req:NextRequest,{params}:Context){
     if(venueId&&!venue)throw new HttpError(404,"VENUE_NOT_FOUND","The selected venue is unavailable.");
     if(!venue) return ok({venue:null,days:[],jummah:[]});
     const date=req.nextUrl.searchParams.get("date")||localDate(new Date(),venue.timeZone);
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new HttpError(422,"BAD_DATE","Use YYYY-MM-DD.");
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw new HttpError(422,"BAD_DATE","Use YYYY-MM-DD.");
+    const parsed=new Date(date+"T12:00:00Z");
+    if(!Number.isFinite(parsed.valueOf())||parsed.toISOString().slice(0,10)!==date)
+      throw new HttpError(422,"INVALID_DATE","Use a real YYYY-MM-DD calendar date.");
     const [days,jummah]=await Promise.all([
       db.prayerDay.findMany({where:{venueId:venue.id,published:true,localDate:date},take:1}),
       db.jummahSession.findMany({where:{venueId:venue.id,localDate:date},orderBy:{ordinal:"asc"}})
