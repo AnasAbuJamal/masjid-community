@@ -53,6 +53,15 @@ try{
   const today=field("year")+"-"+field("month")+"-"+field("day");
   await db.prayerDay.create({data:{venueId:other.id,localDate:today,published:true,
    fajr:"04:17",sunrise:"06:21",dhuhr:"12:44",asr:"15:37",maghrib:"18:20",isha:"19:39",source:"CI source"}});
+  const available=await get("public/venues");
+  assert.equal(available.status,200);
+  assert.ok(available.data.data.venues.some(v=>v.id===other.id));
+  const scoped=await get("public/home?venueId="+encodeURIComponent(other.id));
+  assert.equal(scoped.status,200);
+  assert.equal(scoped.data.data.venue.id,other.id);
+  assert.equal(scoped.data.data.prayer.fajr,"04:17");
+  const invalid=await get("public/home?venueId=unknown");
+  assert.equal(invalid.status,404);
   const selected=await fetch("http://127.0.0.1:3000/visit?venue="+encodeURIComponent(other.id));
   assert.equal(selected.status,200);
   const selectedHtml=await selected.text();
