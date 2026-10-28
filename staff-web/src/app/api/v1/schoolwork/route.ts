@@ -11,8 +11,11 @@ const schema=z.discriminatedUnion("kind",[
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req);
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(user.role==="teacher"||user.role==="admin"){
-   const classes=await db.classSection.findMany({where:user.role==="teacher"?{teachers:{some:{teacherId:user.id}}}:{},
+   const classes=await db.classSection.findMany({where:{program:{organizationId:org.id},
+    ...(user.role==="teacher"?{teachers:{some:{teacherId:user.id}}}:{})},
     take:100,select:{id:true,name:true,assignments:{orderBy:{createdAt:"desc"},take:50,
      select:{id:true,title:true,instructions:true,dueAt:true,published:true,
        submissions:{select:{studentId:true,body:true,submittedAt:true,student:{select:{firstName:true,lastName:true}}}}}},
@@ -27,10 +30,10 @@ export async function GET(req:NextRequest){
   const ids=[...new Set([...(own?[own.id]:[]),...links.map(x=>x.studentId)])];
   if(!ids.length)return ok({mode:"family",assignments:[],reports:[],submissions:[]});
   const [enrollments,reports,submissions]=await Promise.all([
-   db.enrollment.findMany({where:{studentId:{in:ids},status:"active"},select:{studentId:true,classId:true}}),
-   db.studentReport.findMany({where:{studentId:{in:ids},status:"published"},take:100,
+   db.enrollment.findMany({where:{studentId:{in:ids},status:"active",classSection:{program:{organizationId:org.id}}},select:{studentId:true,classId:true}}),
+   db.studentReport.findMany({where:{studentId:{in:ids},status:"published",classSection:{program:{organizationId:org.id}}},take:100,
     orderBy:{publishedAt:"desc"},select:{id:true,studentId:true,summary:true,publishedAt:true,classSection:{select:{name:true}},student:{select:{firstName:true,lastName:true}}}}),
-   db.studentSubmission.findMany({where:{studentId:{in:ids}},take:100,select:{id:true,studentId:true,assignmentId:true,submittedAt:true}})
+   db.studentSubmission.findMany({where:{studentId:{in:ids},assignment:{classSection:{program:{organizationId:org.id}}}},take:100,select:{id:true,studentId:true,assignmentId:true,submittedAt:true}})
   ]);
   const classIds=[...new Set(enrollments.map(x=>x.classId))];
   const assignments=classIds.length?await db.schoolAssignment.findMany({where:{classId:{in:classIds},published:true},
@@ -44,10 +47,13 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const user=await requireVerified(req);
   const input=schema.parse(await jsonBody(req));
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(input.kind==="submission"){
    const student=await db.student.findUnique({where:{userId:user.id}});
    if(!student)throw new HttpError(403,"STUDENT_REQUIRED","Only a linked student account may submit its work.");
-   const assignment=await db.schoolAssignment.findFirst({where:{id:input.assignmentId,published:true}});
+   const assignment=await db.schoolAssignment.findFirst({where:{id:input.assignmentId,published:true,
+    classSection:{program:{organizationId:org.id}}}});
    if(!assignment)throw new HttpError(404,"NOT_FOUND","Assignment unavailable.");
    const enrollment=await db.enrollment.findUnique({where:{studentId_classId:{studentId:student.id,classId:assignment.classId}}});
    if(!enrollment||enrollment.status!=="active")throw new HttpError(403,"NOT_ENROLLED","Not enrolled in this class.");
@@ -57,7 +63,8 @@ export async function POST(req:NextRequest){
    return ok({id:submission.id,submittedAt:submission.submittedAt});
   }
   if(!["teacher","admin"].includes(user.role))throw new HttpError(403,"FORBIDDEN","Teacher permission required.");
-  const classItem=await db.classSection.findFirst({where:{id:input.classId,...(user.role==="admin"?{}:{teachers:{some:{teacherId:user.id}}})}});
+  const classItem=await db.classSection.findFirst({where:{id:input.classId,program:{organizationId:org.id},
+   ...(user.role==="admin"?{}:{teachers:{some:{teacherId:user.id}}})}});
   if(!classItem)throw new HttpError(403,"NOT_ASSIGNED","You are not assigned to this class.");
   if(input.kind==="assignment"){
    if(new Date(input.dueAt)<new Date())throw new HttpError(422,"DUE_IN_PAST","Due date must be in the future.");

@@ -200,3 +200,10 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Added a safe public iCalendar download for published, organization-scoped gatherings at `/api/v1/events/{id}/calendar`. Exports actual event timestamps in UTC with calendar escaping/folding and no attendee information, explicitly stating that downloading **does not reserve a seat**. The public gathering detail links to this download.
 - Expanded isolated HTTP tests for guest denial, private member-specific state before/after promotion/cancellation, foreign-mosque denial and public calendar content and published-only restrictions.
 - Remaining Gather release gates: real host-scoped event check-in, fair conflict/last-seat stress tests, explicit RSVP deadlines and cancellation policy, accessible complete Arabic UX, and event policy review.
+
+
+### Twenty-ninth implementation pass: organization-scoped classroom access
+- Scoped teacher classroom listings and assigned-cohort learning views to the configured mosque's program, including administrator classroom listings. A teacher assignment to a different organization's class does not authorize reading it.
+- Scoped teacher attendance updates and assignment/report creation to the same organization before checking class assignment or enrollment. Family learning lists and student submissions now filter assignments, reports and submissions through the current organization's program.
+- Added disposable-PostgreSQL HTTP negative tests for foreign classes with an explicit cross-organization teacher assignment, denied foreign attendance/report/assignment writes, and foreign guardian-linked learning data not appearing in the family view. No schema migration or production data changes.
+- **Still incomplete:** broader school admin/student endpoints and guardian/custody revocation need a full organization-wide authorization audit, multi-organization context selection, field-level safeguarding review and independent child-data security testing. This slice is not production readiness.

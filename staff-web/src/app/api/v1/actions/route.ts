@@ -82,7 +82,12 @@ export async function POST(req:NextRequest){
   }
   if(input.kind==="attendance"){
     if(!["teacher","admin"].includes(user.role))throw new HttpError(403,"FORBIDDEN","Teacher permission required.");
-    const session=await db.classSession.findUnique({where:{id:input.sessionId},include:{classSection:{include:{teachers:true}}}});
+    const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+    if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+    const session=await db.classSession.findFirst({
+      where:{id:input.sessionId,classSection:{program:{organizationId:org.id}}},
+      include:{classSection:{include:{teachers:true}}}
+    });
     if(!session||!(user.role==="admin"||session.classSection.teachers.some(x=>x.teacherId===user.id)))throw new HttpError(403,"NOT_ASSIGNED","Class is not assigned.");
     const enrollment=await db.enrollment.findUnique({where:{studentId_classId:{studentId:input.studentId,classId:session.classId}}});
     if(!enrollment||enrollment.status!=="active")throw new HttpError(404,"NOT_ENROLLED","Student not enrolled.");
