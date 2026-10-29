@@ -1,0 +1,84 @@
+name: Internal phone previews (manual, safeguarded)
+on:
+  workflow_dispatch:
+    inputs:
+      verified_sha:
+        description: "Exact development SHA with green verification checks"
+        required: true
+        type: string
+      platform:
+        description: "Phone builds"
+        required: true
+        type: choice
+        options: [both, android, ios]
+      review:
+        description: "I confirm approved synthetic-only private staging and signed test devices"
+        required: true
+        type: choice
+        options: [not-approved, approved-for-private-testing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce commit, verification and staging gates
+        env:
+          REQUESTED_SHA: ${{ inputs.verified_sha }}
+          REVIEW: ${{ inputs.review }}
+          STAGING_APPROVED: ${{ vars.SILA_MOBILE_PREVIEW_APPROVED }}
+          STAGING_URL: ${{ vars.SILA_MOBILE_PREVIEW_API_URL }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Enter exact full commit SHA'; exit 1; }
+          [[ "$REQUESTED_SHA" == "$GITHUB_SHA" ]] || { echo 'Current development HEAD differs'; exit 1; }
+          [[ "$REVIEW" == 'approved-for-private-testing' && "$STAGING_APPROVED" == 'true' ]] || { echo 'Private staging approval missing'; exit 1; }
+          [[ -n "$EXPO_TOKEN" ]] || { echo 'EXPO_TOKEN missing'; exit 1; }
+          node <<'NODE'
+          let u;
+          try {u=new URL(process.env.STAGING_URL)} catch {}
+          if(!u || u.protocol!=='https:' || u.username || u.password || u.search || u.hash ||
+             u.pathname!=='/' || ['localhost','127.0.0.1','[::1]'].includes(u.hostname)){
+            console.error('Set a root HTTPS staging URL as SILA_MOBILE_PREVIEW_API_URL');
+            process.exit(1);
+          }
+          const project=require('./masjid-mobile/app.json').expo.extra?.eas?.projectId;
+          if(!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(project||'')){
+            console.error('EAS projectId missing; initialize project and iOS/Android credentials interactively');
+            process.exit(1);
+          }
+          NODE
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&event=push&per_page=30" |
+            jq -e --arg sha "$GITHUB_SHA" \
+              '[.workflow_runs[] | select(.head_sha==$sha and .path==".github/workflows/verify.yml" and .conclusion=="success")] | length>0' > /dev/null ||
+              { echo 'Exact commit has no passing verification workflow'; exit 1; }
+          curl -fsS --max-time 15 "${STAGING_URL%/}/api/health" |
+            jq -e '.data.status=="ok" and .data.database=="reachable"' > /dev/null ||
+              { echo 'Staging database/API unavailable'; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install dependencies and typecheck
+        working-directory: masjid-mobile
+        run: npm install --no-audit --no-fund && npm run check
+      - name: Build internal binaries (never submit to app stores)
+        working-directory: masjid-mobile
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.SILA_MOBILE_PREVIEW_API_URL }}
+          BUILD_PLATFORM: ${{ inputs.platform }}
+        run: |
+          case "$BUILD_PLATFORM" in
+            both) target=all ;;
+            android|ios) target="$BUILD_PLATFORM" ;;
+            *) exit 1 ;;
+          esac
+          eas build --platform "$target" --profile preview --non-interactive --wait

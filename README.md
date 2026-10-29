@@ -80,3 +80,7 @@ The server persists a private in-app notification and an `OutboxEvent` in the sa
 
 ## Database migration baseline
 A generated, versioned SQL baseline lives at `staff-web/prisma/migrations/20261027000000_initial/migration.sql` (56 tables). The CI pipeline installs an **empty** PostgreSQL instance using `npx prisma migrate deploy`, verifies migration status, then runs integration tests. **Never apply this empty-database baseline directly to an existing production database containing records**. Existing databases need a separately reviewed backfill, migration-history baseline, backup and restore rehearsal before any schema deployment.
+
+## Android and iPhone private previews
+
+See [docs/mobile-preview-runbook.md](docs/mobile-preview-runbook.md) for a gated, manual Expo EAS path. No installable phone builds are claimed until actual EAS artifacts and staging safety checks have been verified.
