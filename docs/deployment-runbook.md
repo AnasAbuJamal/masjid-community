@@ -51,3 +51,15 @@ Work on `development` only. For each scoped implementation slice:
 A scoped Vercel preview deployment was attempted for GitHub commit `f6963c8f` after all GitHub Actions jobs passed. The deployment API rejected the request with **402 payment_required**, resource code `api-deployments-free-per-day` (daily free-tier API deployment limit; 24-hour retry). No preview or production deployment was created by this request. The same Vercel project still lacks a database connection. Do not try to bypass the quota using unrelated projects or request automatic upgrades/billing changes.
 
 After the team quota resets, only retry a preview if a working isolated database and required runtime secrets are configured; do not promote it without the production release checks above.
+
+## Student-ownership migration gate (October 29, 2026)
+The additive migration `20261029160000_student_org_ownership` introduces nullable
+`Student.organizationId`. New authorized student and approved application writes
+set the current organization's ID. **Existing values are left null**. For a
+nonempty database, the safeguarding officer must independently review the
+provenance and conflicting links of each legacy student before any backfill.
+The application intentionally denies unrelated or ambiguous legacy students;
+it does not grant a foreign child to a mosque by matching names or email.
+Review and test nullable legacy behavior, migration history, backups,
+restore and reconciliation before staging or production database changes.
+CI only applies migrations to a disposable empty PostgreSQL instance.
