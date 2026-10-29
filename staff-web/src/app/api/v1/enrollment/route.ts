@@ -4,7 +4,8 @@ import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const form=z.object({programId:z.string().min(8),studentFirstName:z.string().trim().min(2).max(120),
- studentLastName:z.string().trim().min(2).max(120),notes:z.string().trim().max(1000).optional()});
+ studentLastName:z.string().trim().min(2).max(120),notes:z.string().trim().max(1000).optional(),
+ reviewAcknowledged:z.literal(true)});
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const actor=await requireVerified(req);
@@ -30,7 +31,8 @@ export async function POST(req:NextRequest){
     studentFirstName:input.studentFirstName,studentLastName:input.studentLastName}});
   if(recent)throw new HttpError(409,"APPLICATION_EXISTS","This child's application is already awaiting review.");
   const app=await db.enrollmentApplication.create({data:{organizationId:program.organizationId,programId:program.id,
-   applicantUserId:actor.id,studentFirstName:input.studentFirstName,studentLastName:input.studentLastName,notes:input.notes}});
+   applicantUserId:actor.id,studentFirstName:input.studentFirstName,studentLastName:input.studentLastName,notes:input.notes,
+   reviewAcknowledgedAt:new Date(),reviewAcknowledgementVersion:"guardian-review-v1"}});
   return ok({id:app.id,status:app.status,message:"Your application was submitted for school review. Enrollment is not yet approved."},201);
  });
 }

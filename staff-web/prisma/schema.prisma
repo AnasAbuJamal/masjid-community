@@ -636,6 +636,9 @@ model EnrollmentApplication {
   studentFirstName String
   studentLastName String
   notes String?
+  // Applicant's own acknowledgement of review conditions, not proof of custody.
+  reviewAcknowledgedAt DateTime?
+  reviewAcknowledgementVersion String?
   status ApplicationStatus @default(submitted)
   reviewedById String?
   reviewer User? @relation("ApplicationReviewer",fields:[reviewedById],references:[id])

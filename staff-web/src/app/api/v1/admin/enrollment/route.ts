@@ -11,7 +11,8 @@ export async function GET(req:NextRequest){
   const organization=await db.organization.findFirst();
   const applications=organization?await db.enrollmentApplication.findMany({where:{organizationId:organization.id},take:100,
    orderBy:{createdAt:"desc"},select:{id:true,studentFirstName:true,studentLastName:true,notes:true,status:true,decisionReason:true,
-     program:{select:{title:true}},applicant:{select:{firstName:true,lastName:true,email:true,verifiedAt:true}},createdAt:true}}):[];
+     program:{select:{title:true}},applicant:{select:{firstName:true,lastName:true,email:true,verifiedAt:true}},
+     reviewAcknowledgedAt:true,reviewAcknowledgementVersion:true,createdAt:true}}):[];
   return ok({applications});
  });
 }
@@ -30,6 +31,9 @@ export async function PATCH(req:NextRequest){
    if(!app||app.status!=="submitted")throw new HttpError(409,"NOT_PENDING","Application already decided or unavailable.");
    if(!app.applicant.verifiedAt||app.applicant.status!=="active"||app.applicant.role==="student")
     throw new HttpError(403,"APPLICANT_INVALID","Guardian account is not a verified active adult account.");
+   if(input.decision==="approved"&&!app.reviewAcknowledgedAt)
+    throw new HttpError(409,"ACKNOWLEDGEMENT_REQUIRED",
+     "The applicant must acknowledge the review conditions before a child profile can be linked.");
    const now=new Date();
    const claim=await tx.enrollmentApplication.updateMany({where:{id:app.id,status:"submitted"},data:{status:input.decision,reviewedById:admin.id,reviewedAt:now,decisionReason:input.reason}});
    if(!claim.count)throw new HttpError(409,"STALE_APPLICATION","Application already reviewed.");

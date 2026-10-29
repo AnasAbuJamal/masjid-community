@@ -15,7 +15,7 @@ async function request(path,method="GET",payload,token){
  },body:payload?JSON.stringify(payload):undefined});
  return {status:response.status,...await response.json()};
 }
-let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId;
+let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId,localAcknowledgedApplicationId;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -42,6 +42,33 @@ try{
  const teacherToken=teacherLogin.data.token,memberToken=memberLogin.data.token;
  assert.equal((await request("teacher")).status,401,"guest cannot read teacher rosters");
  assert.equal((await request("teacher","GET",null,memberToken)).status,403,"member cannot read teacher rosters");
+ const applicantFields={programId:localClass.programId,studentFirstName:"Acknowledgement",studentLastName:"Fixture"};
+ const missingAcknowledgement=await request("enrollment","POST",applicantFields,memberToken);
+ assert.equal(missingAcknowledgement.status,422,"child applications require applicant acknowledgement");
+ const explicitlyFalse=await request("enrollment","POST",{...applicantFields,reviewAcknowledged:false},memberToken);
+ assert.equal(explicitlyFalse.status,422,"false acknowledgement cannot be accepted");
+ assert.equal(await db.enrollmentApplication.count({where:{
+  programId:localClass.programId,applicantUserId:member.id,
+  studentFirstName:applicantFields.studentFirstName
+ }}),0,"rejected acknowledgement does not persist child information");
+ const acknowledged=await request("enrollment","POST",{...applicantFields,reviewAcknowledged:true},memberToken);
+ assert.equal(acknowledged.status,201,"verified adult can submit acknowledged application");
+ localAcknowledgedApplicationId=acknowledged.data.id;
+ const storedAcknowledgement=await db.enrollmentApplication.findUniqueOrThrow({where:{id:localAcknowledgedApplicationId}});
+ assert.ok(storedAcknowledgement.reviewAcknowledgedAt instanceof Date,"server timestamp is stored");
+ assert.equal(storedAcknowledgement.reviewAcknowledgementVersion,"guardian-review-v1");
+ assert.equal(storedAcknowledgement.status,"submitted","acknowledgement does not approve guardianship");
+ const oldApplication=await db.enrollmentApplication.findFirst({where:{
+  applicantUserId:member.id,organizationId:org.id,reviewAcknowledgedAt:null,status:"submitted"
+ }});
+ assert.ok(oldApplication,"CI provides a legacy application without an acknowledgement");
+ const oldApproval=await request("admin/enrollment","PATCH",{
+  id:oldApplication.id,decision:"approved",reason:"Synthetic independent evidence checked",
+  relationshipVerified:true
+ },adminToken);
+ assert.equal(oldApproval.status,409,"legacy unacknowledged application cannot be approved");
+ assert.equal(oldApproval.error.code,"ACKNOWLEDGEMENT_REQUIRED");
+ assert.equal((await db.enrollmentApplication.findUniqueOrThrow({where:{id:oldApplication.id}})).status,"submitted");
 
  foreignOrg=await db.organization.create({data:{slug:"school-scope-"+Date.now(),name:"Unrelated school"}});
  foreignTeacher=await db.user.create({data:{email:"foreign-school-teacher-"+Date.now()+"@example.test",
@@ -94,7 +121,7 @@ try{
  assert.equal(await db.enrollment.count({where:{classId:localClass.id,studentId:foreignStudent.id}}),0,"no foreign child enrollment created");
  assert.equal(await db.teacherAssignment.count({where:{classId:localClass.id,teacherId:foreignTeacher.id}}),0,"no unauthorized staff assignment created");
  const foreignApplicationAttempt=await request("enrollment","POST",{
-  programId:foreignProgram.id,studentFirstName:"Cross",studentLastName:"Organization"
+  programId:foreignProgram.id,studentFirstName:"Cross",studentLastName:"Organization",reviewAcknowledged:true
  },memberToken);
  assert.equal(foreignApplicationAttempt.status,404,"member cannot submit an application to a published foreign program");
  const applications=await request("enrollment","GET",null,memberToken);
@@ -210,6 +237,7 @@ try{
  }
  console.log("Verified organization-scoped school admin and finance writes, child ownership, legacy isolation, custody revocation and teacher rosters.");
  }finally{
+ if(localAcknowledgedApplicationId)await db.enrollmentApplication.deleteMany({where:{id:localAcknowledgedApplicationId}});
  if(schoolAdminSession)await db.authSession.deleteMany({where:{id:schoolAdminSession.id}});
  if(newLocalStudentId)await db.student.delete({where:{id:newLocalStudentId}});
  if(foreignClass){

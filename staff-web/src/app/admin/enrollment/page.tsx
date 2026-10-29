@@ -1,7 +1,8 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
 type Application={id:string;studentFirstName:string;studentLastName:string;notes:string|null;status:string;
- program:{title:string};applicant:{firstName:string;lastName:string;email:string;verifiedAt:string|null};createdAt:string;decisionReason:string|null};
+ program:{title:string};applicant:{firstName:string;lastName:string;email:string;verifiedAt:string|null};
+ reviewAcknowledgedAt:string|null;reviewAcknowledgementVersion:string|null;createdAt:string;decisionReason:string|null};
 export default function EnrollmentReview(){
  const [items,setItems]=useState<Application[]>([]),[reason,setReason]=useState<Record<string,string>>({}),[verified,setVerified]=useState<Record<string,boolean>>({}),[busy,setBusy]=useState("");
  const [error,setError]=useState(""),[notice,setNotice]=useState("");
@@ -22,11 +23,14 @@ export default function EnrollmentReview(){
  <p className="eyebrow">{a.program.title}</p><h2>{a.studentFirstName} {a.studentLastName}</h2>
  <p className="small">Applicant: {a.applicant.firstName} {a.applicant.lastName} · {a.applicant.email}</p>
  <p className="small">Email {a.applicant.verifiedAt?"verified":"NOT verified"} · {new Date(a.createdAt).toLocaleDateString()} · {a.status}</p>
+ <p className="small">{a.reviewAcknowledgedAt
+  ?"Applicant confirmed review conditions on "+new Date(a.reviewAcknowledgedAt).toLocaleDateString()+" (self-attestation only; not legal-guardian proof)."
+  :"Applicant acknowledgement is missing. Approval must remain blocked until the applicant resubmits."}</p>
  {a.notes?<p>{a.notes}</p>:null}
  {a.status==="submitted"?<div className="form">
  <div className="field"><label htmlFor={"reason-"+a.id}>Decision reason or review note (required)</label><textarea id={"reason-"+a.id} value={reason[a.id]||""} onChange={e=>setReason(old=>({...old,[a.id]:e.target.value}))}/></div>
  <label><input type="checkbox" checked={!!verified[a.id]} onChange={e=>setVerified(old=>({...old,[a.id]:e.target.checked}))}/> I have personally checked the legal guardian relationship against school-approved evidence</label>
- <div className="actions"><button className="primary" disabled={!!busy||!verified[a.id]||!a.applicant.verifiedAt||(reason[a.id]||"").trim().length<5} onClick={()=>void decide(a.id,"approved")}>Approve & link student</button>
+ <div className="actions"><button className="primary" disabled={!!busy||!a.reviewAcknowledgedAt||!verified[a.id]||!a.applicant.verifiedAt||(reason[a.id]||"").trim().length<5} onClick={()=>void decide(a.id,"approved")}>Approve & link student</button>
  <button className="secondary" disabled={!!busy||(reason[a.id]||"").trim().length<5} onClick={()=>void decide(a.id,"declined")}>Decline</button></div></div>:<p className="small">Decision: {a.decisionReason||"Reviewed"}</p>}</article>)}</div>
  {!items.length&&<div className="panel">No applications have been submitted yet.</div>}</main></>;
 }
