@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit, requireVerified } from "@/lib/auth";
@@ -38,6 +39,7 @@ export async function POST(req:NextRequest){
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   let id:string;
+  let created=true;
   if(input.kind==="class"){
     const program=await db.schoolProgram.findFirst({where:{id:input.programId,organizationId:org.id}});
     if(!program)throw new HttpError(404,"NOT_FOUND","Program unavailable.");
@@ -74,22 +76,38 @@ export async function POST(req:NextRequest){
     const klass=await db.classSection.findFirst({where:{id:input.classId,program:{organizationId:org.id}}});
     const student=await db.student.findFirst({where:{id:input.studentId,...schoolStudentScope(org.id)}});
     if(!klass||!student)throw new HttpError(404,"NOT_FOUND","Class or student unavailable.");
-    const row=await db.$transaction(async tx=>{
-      const existing=await tx.enrollment.findUnique({where:{studentId_classId:{studentId:student.id,classId:klass.id}}});
-      if(existing)return existing;
-      if(klass.capacity!==null){
-        const occupied=await tx.enrollment.count({where:{classId:klass.id,status:"active"}});
-        if(occupied>=klass.capacity)throw new HttpError(409,"CLASS_FULL","No available seats.");
+    try{
+     const row=await db.$transaction(async tx=>{
+      // Read capacity and enrollment in one serializable snapshot. A concurrent
+      // last-seat claim must conflict rather than create an oversubscribed class.
+      const scoped=await tx.classSection.findFirst({where:{id:klass.id,program:{organizationId:org.id}},
+       select:{id:true,capacity:true}});
+      if(!scoped)throw new HttpError(404,"NOT_FOUND","Class unavailable.");
+      const existing=await tx.enrollment.findUnique({where:{studentId_classId:{studentId:student.id,classId:scoped.id}}});
+      if(existing){
+       if(existing.status!=="active")
+        throw new HttpError(409,"ENROLLMENT_INACTIVE","A previous enrollment is inactive. Staff review is required.");
+       created=false;
+       return existing;
       }
-      return tx.enrollment.create({data:{studentId:student.id,classId:klass.id}});
-    },{isolationLevel:"Serializable"});
-    id=row.id;
+      if(scoped.capacity!==null){
+       const occupied=await tx.enrollment.count({where:{classId:scoped.id,status:"active"}});
+       if(occupied>=scoped.capacity)throw new HttpError(409,"CLASS_FULL","No available seats.");
+      }
+      return tx.enrollment.create({data:{studentId:student.id,classId:scoped.id}});
+     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+     id=row.id;
+    }catch(error){
+     if(error instanceof Prisma.PrismaClientKnownRequestError&&["P2002","P2034"].includes(error.code))
+      throw new HttpError(409,"RETRY_ENROLLMENT","Class enrollment changed. Refresh available seats and retry.");
+     throw error;
+    }
   }else{
     const klass=await db.classSection.findFirst({where:{id:input.classId,program:{organizationId:org.id}}});
     if(!klass)throw new HttpError(404,"NOT_FOUND","Class unavailable.");
     const row=await db.classSession.create({data:{classId:klass.id,startsAt:new Date(input.startsAt)}});id=row.id;
   }
   await audit(admin.id,"school."+input.kind,"School",id);
-  return ok({id,created:true},201);
+  return ok({id,created},created?201:200);
  });
 }
