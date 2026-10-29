@@ -29,6 +29,13 @@ approved
 declined
 withdrawn
 }
+
+enum CircleMemberStatus {
+  requested
+  approved
+  declined
+  left
+}
 enum PaymentStatus {
 pending
 paid
@@ -58,6 +65,7 @@ model Organization {
   venues Venue[]
   announcements Announcement[]
   events Event[]
+  circles Circle[]
   programs SchoolProgram[]
   students Student[]
   campaigns DonationCampaign[]
@@ -110,6 +118,9 @@ model User {
   resetTokens PasswordResetToken[]
   rsvps EventRSVP[]
   hostedEvents EventHostAssignment[]
+  hostedCircles Circle[] @relation("CircleHost")
+  circleMemberships CircleMember[]
+  circleUpdates CircleUpdate[] @relation("CircleUpdateAuthor")
   volunteerApplications VolunteerApplication[]
   studentAccount Student? @relation("StudentAccount")
   guardianLinks GuardianLink[]
@@ -281,6 +292,50 @@ model EventHostAssignment {
   revokedAt DateTime?
   @@unique([eventId,hostId])
   @@index([hostId,revokedAt])
+}
+model Circle {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id])
+  title String
+  summary String
+  cadence String
+  guidelines String
+  hostId String
+  host User @relation("CircleHost",fields:[hostId],references:[id],onDelete:Restrict)
+  status ContentStatus @default(draft)
+  createdAt DateTime @default(now())
+  members CircleMember[]
+  updates CircleUpdate[]
+  @@index([organizationId,status,createdAt])
+  @@index([hostId,status])
+}
+model CircleMember {
+  id String @id @default(cuid())
+  circleId String
+  circle Circle @relation(fields:[circleId],references:[id],onDelete:Cascade)
+  userId String
+  member User @relation(fields:[userId],references:[id],onDelete:Restrict)
+  status CircleMemberStatus @default(requested)
+  requestedAt DateTime @default(now())
+  reviewedAt DateTime?
+  reviewedById String?
+  decisionReason String?
+  updatedAt DateTime @updatedAt
+  @@unique([circleId,userId])
+  @@index([circleId,status,requestedAt,id])
+  @@index([userId,status])
+}
+model CircleUpdate {
+  id String @id @default(cuid())
+  circleId String
+  circle Circle @relation(fields:[circleId],references:[id],onDelete:Cascade)
+  authorId String
+  author User @relation("CircleUpdateAuthor",fields:[authorId],references:[id],onDelete:Restrict)
+  body String
+  publishedAt DateTime @default(now())
+  revision Int @default(1)
+  @@index([circleId,publishedAt,id])
 }
 model SchoolProgram {
   id String @id @default(cuid())
