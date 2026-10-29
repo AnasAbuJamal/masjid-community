@@ -85,3 +85,13 @@ Only an authorized release owner may remove this hold after:
 - Promotion or production-domain aliasing is deliberately approved.
 
 Do not infer runtime readiness from Vercel's READY build status.
+
+## Guardian application acknowledgement migration gate
+The additive `20261029170000_guardian_review_acknowledgement` migration
+adds optional server-captured acknowledgement time and wording version to
+school applications. Existing requests remain NULL and cannot be **approved**
+without an applicant resubmission; staff may decline them. This is intended
+fail-closed behavior and requires operator communication and a legal/safeguarding
+review before any pilot. The text is a review acknowledgement, **not legal
+consent** and **not a guardian-identity verification**. Do not backfill missing
+timestamps or treat a user-set checkbox as proof of custody.
