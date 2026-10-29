@@ -90,6 +90,11 @@ export async function POST(req:NextRequest){
        created=false;
        return existing;
       }
+      const oldestWaiting=await tx.schoolWaitlist.findFirst({where:{
+       classId:scoped.id,status:"waiting"
+      },orderBy:[{requestedAt:"asc"},{id:"asc"}],select:{id:true}});
+      if(oldestWaiting)throw new HttpError(409,"WAITLIST_PRIORITY",
+       "This class has a reviewed waitlist. Promote its earliest eligible child before accepting a new direct enrollment.");
       if(scoped.capacity!==null){
        const occupied=await tx.enrollment.count({where:{classId:scoped.id,status:"active"}});
        if(occupied>=scoped.capacity)throw new HttpError(409,"CLASS_FULL","No available seats.");
