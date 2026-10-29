@@ -36,6 +36,12 @@ enum CircleMemberStatus {
   declined
   left
 }
+
+enum SchoolWaitlistStatus {
+  waiting
+  promoted
+  cancelled
+}
 enum PaymentStatus {
 pending
 paid
@@ -356,6 +362,7 @@ model ClassSection {
   capacity Int?
   teachers TeacherAssignment[]
   enrollments Enrollment[]
+  waitlist SchoolWaitlist[]
   sessions ClassSession[]
   assignments SchoolAssignment[]
   reports StudentReport[]
@@ -371,6 +378,7 @@ model Student {
   user User? @relation("StudentAccount",fields:[userId],references:[id])
   guardians GuardianLink[]
   enrollments Enrollment[]
+  waitlist SchoolWaitlist[]
   attendance Attendance[]
   invoices SchoolInvoice[]
   submissions StudentSubmission[]
@@ -404,6 +412,20 @@ model Enrollment {
   classSection ClassSection @relation(fields:[classId],references:[id])
   status String @default("active")
   @@unique([studentId,classId])
+}
+model SchoolWaitlist {
+  id String @id @default(cuid())
+  classId String
+  classSection ClassSection @relation(fields:[classId],references:[id],onDelete:Restrict)
+  studentId String
+  student Student @relation(fields:[studentId],references:[id],onDelete:Restrict)
+  status SchoolWaitlistStatus @default(waiting)
+  requestedAt DateTime @default(now())
+  decidedAt DateTime?
+  decidedById String?
+  decisionReason String?
+  @@unique([classId,studentId])
+  @@index([classId,status,requestedAt,id])
 }
 model ClassSession {
   id String @id @default(cuid())
