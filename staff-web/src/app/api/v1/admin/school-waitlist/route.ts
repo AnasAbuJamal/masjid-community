@@ -37,7 +37,7 @@ export async function GET(req:NextRequest){
      select:{id:true,student:{select:{id:true,firstName:true,lastName:true}}}},
     waitlist:{where:{status:"waiting",student:schoolStudentScope(org.id)},
      orderBy:[{requestedAt:"asc"},{id:"asc"}],take:100,
-     select:{id:true,studentId:true,requestedAt:true,student:{select:{firstName:true,lastName:true}}}}}
+     select:{id:true,studentId:true,requestedAt:true,student:{select:{firstName:true,lastName:true}}}}
    }});
   return ok({classes,listingLimit:100,
    policy:"Private school data. Only a qualified administrator may queue, withdraw or explicitly promote. Historical enrollments are retained."});
