@@ -20,16 +20,16 @@ export async function GET(req:NextRequest){
     take:200,orderBy:{createdAt:"desc"},
     select:{amountMinor:true,currency:true,status:true,createdAt:true,campaign:{select:{title:true}}}}),
    db.jobApplication.findMany({where:{userId:user.id,job:{organizationId:org.id}},
-    take:200,orderBy:{createdAt:"desc"},
+    take:200,orderBy:{id:"desc"},
     select:{job:{select:{title:true}},coverLetter:true}}),
    db.volunteerApplication.findMany({where:{userId:user.id,opportunity:{organizationId:org.id}},
-    take:200,orderBy:{createdAt:"desc"},
+    take:200,orderBy:{id:"desc"},
     select:{status:true,opportunity:{select:{title:true}}}}),
    db.rentalBooking.findMany({where:{userId:user.id,resource:{organizationId:org.id}},
     take:200,orderBy:{startAt:"desc"},
     select:{status:true,startAt:true,endAt:true,resource:{select:{title:true}}}}),
    db.proposal.findMany({where:{submittedById:user.id,organizationId:org.id},
-    take:200,orderBy:{createdAt:"desc"},
+    take:200,orderBy:{id:"desc"},
     select:{title:true,description:true,status:true}})
   ]);
   return ok({
