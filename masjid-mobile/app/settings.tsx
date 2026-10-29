@@ -34,8 +34,9 @@ export default function Settings(){
  }
  async function exportData(){
   setBusy(true);setError("");
-  try{const value=await api<Record<string,unknown>>("account/export");
-   await Share.share({title:"Your account data",message:JSON.stringify(value,null,2)});}
+  try{const value=await api<{organization:{name:string};scope:string}&Record<string,unknown>>("account/export");
+   await Share.share({title:"Your private data — "+value.organization.name,
+    message:JSON.stringify(value,null,2)});}
   catch(e){setError(e instanceof Error?e.message:"Unable to prepare export.");}finally{setBusy(false);}
  }
  async function deleteRequest(){
@@ -73,12 +74,19 @@ export default function Settings(){
  <Action label="Sign out on all devices" secondary icon="shield-lock-outline" disabled={busy} onPress={()=>Alert.alert("Sign out all sessions?","You will need to sign in again on every device.",[
   {text:"Cancel",style:"cancel"},{text:"Sign out all",style:"destructive",onPress:()=>void logoutEverywhere()}])}/>
  </Card>
- <Card style={{gap:13}}><Text style={S.headline}>Data and privacy</Text>
- <Text style={S.bodyText}>Export a bounded copy of your own account activity, excluding student records that require a safeguarding review.</Text>
- <Action label="Export my account data" secondary icon="download-outline" disabled={busy} onPress={()=>void exportData()}/>
- {result.data.deletion?<Text style={S.muted}>Most recent deletion request: {result.data.deletion.status}</Text>:null}
- <Action label="Request account deletion" secondary icon="account-remove-outline" disabled={busy} onPress={()=>Alert.alert("Request account deletion?","This will create a review request, not immediately erase financial or child records.",[
-  {text:"Cancel",style:"cancel"},{text:"Submit request",style:"destructive",onPress:()=>void deleteRequest()}])}/>
+ <Card style={{gap:13}}><Text style={S.headline}>{t("settings.privacy")}</Text>
+ <Text style={S.bodyText}>{t("settings.exportScope")}</Text>
+ <Action label={t("settings.export")} secondary icon="download-outline" disabled={busy}
+ onPress={()=>Alert.alert(t("settings.exportConfirmTitle"),t("settings.exportConfirmBody"),[
+  {text:t("settings.cancel"),style:"cancel"},
+  {text:t("settings.export"),onPress:()=>void exportData()}
+ ])}/>
+ {result.data.deletion?<Text style={S.muted}>{t("settings.requestStatus")}: {result.data.deletion.status}</Text>:null}
+ <Action label={t("settings.requestReview")} secondary icon="account-remove-outline" disabled={busy}
+ onPress={()=>Alert.alert(t("settings.requestConfirmTitle"),t("settings.requestConfirmBody"),[
+  {text:t("settings.cancel"),style:"cancel"},
+  {text:t("settings.submitRequest"),style:"destructive",onPress:()=>void deleteRequest()}
+ ])}/>
  </Card></>:null}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
  {notice?<Text style={{color:T.success}}>{notice}</Text>:null}
