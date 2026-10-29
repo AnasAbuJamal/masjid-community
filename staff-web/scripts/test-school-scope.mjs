@@ -190,6 +190,12 @@ try{
  const localLink=await db.guardianLink.findUniqueOrThrow({where:{guardianId_studentId:{guardianId:member.id,studentId:localEnrollment.studentId}}});
  try{
   await db.guardianLink.update({where:{id:localLink.id},data:{revokedAt:new Date()}});
+  const restoreAttempt=await request("admin/school","POST",{kind:"guardian-link",
+   studentId:localEnrollment.studentId,guardianId:member.id},adminToken);
+  assert.equal(restoreAttempt.status,409,"school administrator cannot reactivate a revoked guardian without separate safeguarding review");
+  assert.equal(restoreAttempt.error.code,"GUARDIAN_REVOKED");
+  assert.ok((await db.guardianLink.findUniqueOrThrow({where:{id:localLink.id}})).revokedAt,
+   "denied guardian restoration leaves the revocation in force");
   const revokedStudents=await request("students","GET",null,memberToken);
   const revokedOverview=await request("me","GET",null,memberToken);
   const revokedInvoices=await request("invoices","GET",null,memberToken);
