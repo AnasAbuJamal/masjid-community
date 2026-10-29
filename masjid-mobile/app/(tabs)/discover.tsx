@@ -22,6 +22,7 @@ export default function Discover(){
  return <Shell><Head eyebrow={t("discover.eyebrow")} title={t("discover.title")} subtitle={t("discover.subtitle")}/>
  <Card style={{backgroundColor:T.ice,gap:8}}><Text style={S.overline}>{t("discover.one")}</Text><Text style={S.headline}>{t("discover.good")}</Text><Text style={S.bodyText}>{t("discover.browse")}</Text></Card>
  <View style={S.section}><PressRow icon="magnify" title={t("discover.search")} subtitle={t("discover.searchSubtitle")} onPress={()=>router.push("/search")}/>
+ <PressRow icon="account-group-outline" title="Community circles" subtitle="Join moderated groups with host approval" onPress={()=>router.push("/circles")}/>
  <PressRow icon="lightbulb-outline" title={t("discover.proposal")} subtitle={t("discover.proposalSubtitle")} onPress={()=>router.push("/community/proposal")}/>
  <PressRow icon="chart-box-outline" title={t("discover.financial")} subtitle="Published community budget allocations" onPress={()=>router.push("/finance/transparency")}/>
  <PressRow icon="email-outline" title={t("discover.contact")} subtitle="Ask questions and share feedback" onPress={()=>router.push("/contact")}/>
