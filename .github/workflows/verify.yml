@@ -61,6 +61,7 @@ jobs:
           node -e "const d=require('/tmp/prayers.json');if(!Array.isArray(d.data?.days))process.exit(1);"
           node scripts/test-auth.mjs
           node scripts/test-gather.mjs
+          node scripts/test-event-checkin.mjs
           node scripts/test-school-scope.mjs
           node scripts/test-community-scope.mjs
           node scripts/test-payments.mjs
