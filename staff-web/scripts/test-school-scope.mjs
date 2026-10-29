@@ -42,11 +42,34 @@ try{
  await db.enrollment.create({data:{studentId:foreignStudent.id,classId:foreignClass.id}});
  await db.guardianLink.create({data:{guardianId:member.id,studentId:foreignStudent.id,approvedAt:new Date()}});
  const foreignSession=await db.classSession.create({data:{classId:foreignClass.id,startsAt:new Date(Date.now()+86400000)}});
+ await db.attendance.create({data:{sessionId:foreignSession.id,studentId:foreignStudent.id,markedById:teacher.id,status:"present"}});
+ const foreignInvoice=await db.schoolInvoice.create({data:{organizationId:foreignOrg.id,studentId:foreignStudent.id,
+  payerGuardianId:member.id,description:"Foreign private tuition",amountMinor:4400,dueAt:new Date(Date.now()+86400000)}});
  const foreignAssignment=await db.schoolAssignment.create({data:{classId:foreignClass.id,teacherId:teacher.id,
   title:"Foreign private work",instructions:"Private instructions for a foreign school.",dueAt:new Date(Date.now()+86400000),published:true}});
  const foreignReport=await db.studentReport.create({data:{classId:foreignClass.id,studentId:foreignStudent.id,teacherId:teacher.id,
   summary:"Confidential foreign student report.",status:"published",publishedAt:new Date()}});
  const foreignSubmission=await db.studentSubmission.create({data:{assignmentId:foreignAssignment.id,studentId:foreignStudent.id,body:"Private foreign submission."}});
+
+ const students=await request("students","GET",null,memberToken);
+ assert.equal(students.status,200);
+ assert.ok(students.data.children.some(c=>c.id===localEnrollment.studentId),"approved local child remains visible");
+ assert.ok(!students.data.children.some(c=>c.id===foreignStudent.id),"foreign guardian link cannot expose student identity or attendance");
+ const teacherStudents=await request("students","GET",null,teacherToken);
+ assert.equal(teacherStudents.status,200);
+ assert.ok(teacherStudents.data.teaching.some(c=>c.id===localClass.id),"local teacher roster remains visible");
+ assert.ok(!teacherStudents.data.teaching.some(c=>c.id===foreignClass.id),"foreign class hidden from student summary");
+ const overview=await request("me","GET",null,memberToken);
+ assert.equal(overview.status,200);
+ assert.ok(overview.data.children.some(c=>c.student.id===localEnrollment.studentId));
+ assert.ok(!overview.data.children.some(c=>c.student.id===foreignStudent.id),"foreign child hidden from member summary");
+ const teacherOverview=await request("me","GET",null,teacherToken);
+ assert.equal(teacherOverview.status,200);
+ assert.ok(!teacherOverview.data.classes.some(c=>c.classSection.id===foreignClass.id),"foreign class hidden from teacher summary");
+ const invoices=await request("invoices","GET",null,memberToken);
+ assert.equal(invoices.status,200);
+ assert.ok(invoices.data.invoices.some(i=>i.studentId===localEnrollment.studentId),"local tuition remains visible");
+ assert.ok(!invoices.data.invoices.some(i=>i.id===foreignInvoice.id),"foreign tuition remains private despite approved guardian link");
 
  const roster=await request("teacher","GET",null,teacherToken);
  assert.equal(roster.status,200);
@@ -81,9 +104,26 @@ try{
  assert.equal(foreignReportWrite.status,403,"foreign student report denied");
  assert.equal(await db.schoolAssignment.count({where:{classId:foreignClass.id}}),1,"denied assignment not persisted");
  assert.equal(await db.studentReport.count({where:{classId:foreignClass.id}}),1,"denied report not persisted");
- console.log("Verified organization-scoped teacher rosters, attendance, learning writes and family learning privacy.");
+ // A custody revocation must immediately remove every family summary and invoice view.
+ const localLink=await db.guardianLink.findUniqueOrThrow({where:{guardianId_studentId:{guardianId:member.id,studentId:localEnrollment.studentId}}});
+ try{
+  await db.guardianLink.update({where:{id:localLink.id},data:{revokedAt:new Date()}});
+  const revokedStudents=await request("students","GET",null,memberToken);
+  const revokedOverview=await request("me","GET",null,memberToken);
+  const revokedInvoices=await request("invoices","GET",null,memberToken);
+  assert.equal(revokedStudents.status,200);
+  assert.equal(revokedOverview.status,200);
+  assert.equal(revokedInvoices.status,200);
+  assert.ok(!revokedStudents.data.children.some(c=>c.id===localEnrollment.studentId));
+  assert.ok(!revokedOverview.data.children.some(c=>c.student.id===localEnrollment.studentId));
+  assert.ok(!revokedInvoices.data.invoices.some(i=>i.studentId===localEnrollment.studentId));
+ }finally{
+  await db.guardianLink.update({where:{id:localLink.id},data:{revokedAt:localLink.revokedAt}});
+ }
+ console.log("Verified organization-scoped school summaries, invoices, custody revocation, teacher rosters and learning writes.");
 }finally{
  if(foreignClass){
+  await db.schoolInvoice.deleteMany({where:{organizationId:foreignOrg.id}});
   await db.studentSubmission.deleteMany({where:{assignment:{classId:foreignClass.id}}});
   await db.studentReport.deleteMany({where:{classId:foreignClass.id}});
   await db.schoolAssignment.deleteMany({where:{classId:foreignClass.id}});
