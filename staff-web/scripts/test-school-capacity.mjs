@@ -55,6 +55,8 @@ try{
  assert.equal(duplicate.status,200,"idempotent enrollment must report an existing record");
  assert.equal(duplicate.data.id,active[0].id);
  assert.equal(duplicate.data.created,false);
+ assert.ok(await db.auditEvent.count({where:{action:"school.enrollment.existing",entityId:active[0].id}}),
+  "idempotent replay is audited as an existing seat, not a new admission");
  assert.equal(await db.enrollment.count({where:{classId:cohort.id,status:"active"}}),1);
  const full=await request(excluded,token);
  assert.equal(full.status,409,"retries cannot overbook a full class");
@@ -74,6 +76,14 @@ try{
  assert.equal(inactiveRetry.status,409,"an inactive enrollment is not reported as a fresh admission");
  assert.equal(inactiveRetry.error.code,"ENROLLMENT_INACTIVE");
  assert.equal((await db.enrollment.findUniqueOrThrow({where:{id:inactive.id}})).status,"withdrawn");
+ const overviewResponse=await fetch(base+"admin/school",{headers:{Authorization:"Bearer "+token}});
+ assert.equal(overviewResponse.status,200);
+ const overview=(await overviewResponse.json()).data;
+ const classes=overview.programs.flatMap(p=>p.classes);
+ assert.equal(classes.find(c=>c.id===cohort.id)?.enrollments.length,1,
+  "the class overview counts one real active seat");
+ assert.equal(classes.find(c=>c.id===previous.id)?.enrollments.length,0,
+  "inactive historical enrollments do not inflate current class occupancy");
  const other=await db.organization.create({data:{
   slug:"school-capacity-ci-"+Date.now(),name:"Different school"
  }});
