@@ -76,6 +76,7 @@ model Organization {
   refundRequests RefundRequest[]
   faithNotices FaithNotice[]
   memberships OrganizationMembership[]
+  deletionRequests DeletionRequest[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -683,6 +684,8 @@ enum DeletionStatus {
 }
 model DeletionRequest {
   id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:SetNull)
   userId String
   user User @relation("DeletionSubject",fields:[userId],references:[id])
   status DeletionStatus @default(pending)
@@ -692,6 +695,7 @@ model DeletionRequest {
   reviewedAt DateTime?
   createdAt DateTime @default(now())
   @@index([userId,status])
+  @@index([organizationId,status,createdAt])
 }
 
 enum ShiftStatus {

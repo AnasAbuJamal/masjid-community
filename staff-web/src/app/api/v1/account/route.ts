@@ -8,11 +8,17 @@ const update=z.object({firstName:z.string().trim().min(1).max(100).optional(),la
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireActor(req);
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  const membership=org?await db.organizationMembership.findUnique({where:{
+   organizationId_userId:{organizationId:org.id,userId:user.id}
+  },select:{status:true}}):null;
   const [preferences,sessions,deletion]=await Promise.all([
    db.userPreference.findUnique({where:{userId:user.id}}),
    db.authSession.findMany({where:{userId:user.id,revokedAt:null,expiresAt:{gt:new Date()}},take:30,
     orderBy:{createdAt:"desc"},select:{id:true,createdAt:true,expiresAt:true}}),
-   db.deletionRequest.findFirst({where:{userId:user.id},orderBy:{createdAt:"desc"},select:{id:true,status:true,createdAt:true}})
+   org&&membership?.status==="active"?
+    db.deletionRequest.findFirst({where:{userId:user.id,organizationId:org.id},
+     orderBy:{createdAt:"desc"},select:{id:true,status:true,createdAt:true}}):Promise.resolve(null)
   ]);
   return ok({profile:{firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,verified:!!user.verifiedAt},
    preferences:{newsletterOptIn:preferences?.newsletterOptIn||false,eventEmailOptIn:preferences?.eventEmailOptIn||false,quietHoursEnabled:preferences?.quietHoursEnabled||false},

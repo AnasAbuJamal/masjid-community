@@ -6,7 +6,9 @@ import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 export async function GET(req:NextRequest){
  return handled(async()=>{
   await requireVerified(req,["admin"]);
-  const requests=await db.deletionRequest.findMany({take:100,orderBy:{createdAt:"desc"},
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const requests=await db.deletionRequest.findMany({where:{organizationId:org.id},take:100,orderBy:{createdAt:"desc"},
    select:{id:true,status:true,reason:true,createdAt:true,reviewedAt:true,user:{select:{firstName:true,lastName:true,email:true}}}});
   return ok({requests,disclaimer:"Marking a request under review does not delete data. Data removal must follow legal, school and financial retention review."});
  });
@@ -16,9 +18,20 @@ export async function PATCH(req:NextRequest){
   assertSameOrigin(req);
   const admin=await requireVerified(req,["admin"]);
   const {id,status}=z.object({id:z.string().min(8),status:z.enum(["in_review","rejected"])}).parse(await jsonBody(req));
-  const updated=await db.deletionRequest.updateMany({where:{id,status:"pending"},data:{status,reviewedById:admin.id,reviewedAt:new Date()}});
-  if(!updated.count)throw new HttpError(409,"NOT_PENDING","Request not pending.");
-  await db.auditEvent.create({data:{actorId:admin.id,action:"privacy.deletion."+status,entity:"DeletionRequest",entityId:id}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const changed=await db.$transaction(async tx=>{
+   const updated=await tx.deletionRequest.updateMany({where:{
+    id,organizationId:org.id,status:"pending"
+   },data:{status,reviewedById:admin.id,reviewedAt:new Date()}});
+   if(!updated.count)throw new HttpError(409,"NOT_PENDING","Request not pending in this organization.");
+   await tx.auditEvent.create({data:{
+    actorId:admin.id,action:"privacy.deletion."+status,entity:"DeletionRequest",
+    entityId:id,detail:JSON.stringify({organizationId:org.id})
+   }});
+   return true;
+  });
+  if(!changed)throw new HttpError(409,"NOT_PENDING","Request not pending.");
   return ok({id,status});
  });
 }

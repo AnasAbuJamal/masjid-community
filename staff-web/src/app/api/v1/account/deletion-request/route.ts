@@ -8,10 +8,19 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const user=await requireVerified(req);
   const {confirm,reason}=z.object({confirm:z.literal(true),reason:z.string().trim().max(500).optional()}).parse(await jsonBody(req));
-  const existing=await db.deletionRequest.findFirst({where:{userId:user.id,status:{in:["pending","in_review"]}}});
-  if(existing)return ok({id:existing.id,status:existing.status,message:"Your request is already queued for review."});
-  const item=await db.deletionRequest.create({data:{userId:user.id,reason}});
-  await db.auditEvent.create({data:{actorId:user.id,action:"account.deletion.request",entity:"DeletionRequest",entityId:item.id}});
-  return ok({id:item.id,status:item.status,message:"Your deletion request has been recorded for review. No data has been deleted yet."},201);
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const existing=await db.deletionRequest.findFirst({where:{
+   userId:user.id,organizationId:org.id,status:{in:["pending","in_review"]}
+  },orderBy:{createdAt:"desc"}});
+  if(existing)return ok({id:existing.id,status:existing.status,message:"Your mosque-specific request is already awaiting review."});
+  const item=await db.deletionRequest.create({data:{
+   organizationId:org.id,userId:user.id,reason
+  }});
+  await db.auditEvent.create({data:{
+   actorId:user.id,action:"account.deletion.request",entity:"DeletionRequest",entityId:item.id,
+   detail:JSON.stringify({organizationId:org.id})
+  }});
+  return ok({id:item.id,status:item.status,message:"Your mosque-specific data request is queued for human review. No account or data has been deleted."},201);
  });
 }
