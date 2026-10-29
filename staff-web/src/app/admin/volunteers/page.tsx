@@ -22,7 +22,7 @@ export default function VolunteerAdmin(){
   catch{setError("Enter valid start and end dates.");}
  }
  return <><header className="masthead"><span className="brand"><span className="mark">✧</span>Volunteer coordination</span><a href="/admin" className="secondary">Control center</a></header>
- <main className="container"><div className="hero"><p className="eyebrow">COMMUNITY · VOLUNTEERS</p><h1>Support that shows up.</h1><p>Schedule approved volunteers, record attendance, and keep the community informed.</p></div>
+ <main className="container"><div className="hero"><p className="eyebrow">COMMUNITY · VOLUNTEERS</p><h1>Support that shows up.</h1><p>Schedule approved volunteers, record factual attendance, and keep the community informed. Check-in opens 15 minutes before the shift and closes when it ends. An arrived volunteer cannot be silently cancelled.</p><button className="secondary" onClick={()=>void load()} disabled={busy}>Refresh shift windows</button></div>
  {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
  <div className="split"><section className="panel"><h2>Schedule shift</h2><div className="form">
  <div className="field"><label htmlFor="volunteer">Approved application</label><select id="volunteer" value={applicationId} onChange={e=>setApplicationId(e.target.value)}><option value="">Select volunteer</option>{apps.map(a=><option value={a.id} key={a.id}>{a.user.firstName} {a.user.lastName} — {a.opportunity.title}</option>)}</select></div>
@@ -34,9 +34,12 @@ export default function VolunteerAdmin(){
  <p className="small">{s.opportunity.title} · {new Date(s.startAt).toLocaleString()} – {new Date(s.endAt).toLocaleString()}</p>
  <p className="small">{s.status} · {s.checkedInAt?"Checked in "+new Date(s.checkedInAt).toLocaleString():"Not checked in"}</p>
  {s.status==="scheduled"?<div className="actions">
- {!s.checkedInAt?<button className="primary" disabled={busy} onClick={()=>void send({kind:"update",shiftId:s.id,action:"check-in"})}>Check in</button>:
- <button className="primary" disabled={busy} onClick={()=>void send({kind:"update",shiftId:s.id,action:"complete"})}>Complete</button>}
- <button className="secondary" disabled={busy} onClick={()=>void send({kind:"update",shiftId:s.id,action:"cancel"})}>Cancel</button>
+ {!s.checkedInAt?<button className="primary"
+ disabled={busy||Date.parse(s.startAt)>Date.now()+15*60000||Date.parse(s.endAt)<=Date.now()}
+ onClick={()=>void send({kind:"update",shiftId:s.id,action:"check-in"})}>Check in</button>:
+ <button className="primary" disabled={busy||Date.parse(s.startAt)>Date.now()}
+ onClick={()=>void send({kind:"update",shiftId:s.id,action:"complete"})}>Complete</button>}
+ <button className="secondary" disabled={busy||!!s.checkedInAt} onClick={()=>void send({kind:"update",shiftId:s.id,action:"cancel"})}>Cancel</button>
  </div>:null}</div>)}
  {!shifts.length?<p className="small">No shifts have been scheduled.</p>:null}</section></div>
  </main></>;
