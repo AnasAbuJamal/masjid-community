@@ -63,3 +63,25 @@ it does not grant a foreign child to a mosque by matching names or email.
 Review and test nullable legacy behavior, migration history, backups,
 restore and reconciliation before staging or production database changes.
 CI only applies migrations to a disposable empty PostgreSQL instance.
+
+## Automatic Vercel production-deployment hold — October 29, 2026
+
+The linked Vercel project `masjid-community` was generating **production-targeted**
+deployments on ordinary pushes to the sole `development` branch, before
+safeguarding/database prerequisites were met. Unapproved queued deployments
+from this implementation pass were canceled individually. The project
+configuration API accepted a reversible **Ignored Build Step** setting of
+`exit 0` to skip subsequent Git-triggered builds while the release is held.
+**Re-check this setting in the Vercel dashboard before relying on it:**
+a configuration API acknowledgement is not a verified release control.
+Existing previously built READY artifacts must not be called production ready.
+
+Only an authorized release owner may remove this hold after:
+- The exact commit passes all GitHub Actions jobs and independent staging tests.
+- PostgreSQL credentials, server-side secrets, migration reconciliation,
+  backups/restore and incident response are proven in the target environment.
+- Child safeguarding, guardian custody, accessibility, payment and deployment
+  sign-offs are complete and a no-go rollback plan is rehearsed.
+- Promotion or production-domain aliasing is deliberately approved.
+
+Do not infer runtime readiness from Vercel's READY build status.
