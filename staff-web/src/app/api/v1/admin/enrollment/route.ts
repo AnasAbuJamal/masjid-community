@@ -38,7 +38,7 @@ export async function PATCH(req:NextRequest){
     await notifyUser(tx,app.applicantUserId,"School application reviewed","Your program application was declined. Contact the school for details.");
     return {id:app.id,status:"declined"};
    }
-   const student=await tx.student.create({data:{studentNumber:"STU-"+randomUUID(),firstName:app.studentFirstName,lastName:app.studentLastName}});
+   const student=await tx.student.create({data:{organizationId:organization.id,studentNumber:"STU-"+randomUUID(),firstName:app.studentFirstName,lastName:app.studentLastName}});
    await tx.guardianLink.create({data:{guardianId:app.applicantUserId,studentId:student.id,approvedAt:now}});
    await tx.enrollmentApplication.update({where:{id:app.id},data:{approvedStudentId:student.id}});
    await tx.auditEvent.create({data:{actorId:admin.id,action:"enrollment.approved",entity:"EnrollmentApplication",entityId:app.id}});
