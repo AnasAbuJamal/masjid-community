@@ -21,6 +21,8 @@ export async function DELETE(req:NextRequest){
      throw new HttpError(409,"EVENT_STARTED","Event registration cannot be cancelled after the start.");
     const current=await tx.eventRSVP.findUnique({where:{eventId_userId:{eventId,userId:user.id}}});
     if(!current)return {cancelled:true,alreadyCancelled:true,promotedWaitlist:false};
+    if(current.checkedInAt)
+     throw new HttpError(409,"ALREADY_CHECKED_IN","An attendee who has checked in requires an audited host correction before cancellation.");
     await tx.eventRSVP.delete({where:{id:current.id}});
     let promotedWaitlist=false;
     if(current.status==="confirmed"){

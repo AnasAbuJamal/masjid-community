@@ -108,6 +108,7 @@ model User {
   emailTokens EmailToken[]
   resetTokens PasswordResetToken[]
   rsvps EventRSVP[]
+  hostedEvents EventHostAssignment[]
   volunteerApplications VolunteerApplication[]
   studentAccount Student? @relation("StudentAccount")
   guardianLinks GuardianLink[]
@@ -251,6 +252,7 @@ model Event {
   waitlistEnabled Boolean @default(false)
   status ContentStatus @default(draft)
   rsvps EventRSVP[]
+  hostAssignments EventHostAssignment[]
   @@index([organizationId,status,startAt])
 }
 model EventRSVP {
@@ -260,9 +262,24 @@ model EventRSVP {
   eventId String
   event Event @relation(fields:[eventId],references:[id])
   status String @default("confirmed")
+  checkedInAt DateTime?
+  checkedInById String?
+  checkInRevision Int @default(0)
   createdAt DateTime @default(now())
   @@unique([eventId,userId])
   @@index([eventId,status,createdAt,id])
+}
+model EventHostAssignment {
+  id String @id @default(cuid())
+  eventId String
+  event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+  hostId String
+  host User @relation(fields:[hostId],references:[id],onDelete:Restrict)
+  assignedById String
+  assignedAt DateTime @default(now())
+  revokedAt DateTime?
+  @@unique([eventId,hostId])
+  @@index([hostId,revokedAt])
 }
 model SchoolProgram {
   id String @id @default(cuid())
