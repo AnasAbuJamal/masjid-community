@@ -421,6 +421,12 @@ model Attendance {
   student Student @relation(fields:[studentId],references:[id])
   markedById String
   status AttendanceStatus
+  revision Int @default(1)
+  // Existing marks retain NULL rather than an invented historic timestamp.
+  markedAt DateTime?
+  correctedAt DateTime?
+  correctedById String?
+  correctionReason String?
   @@unique([sessionId,studentId])
 }
 enum InvoiceStatus {
