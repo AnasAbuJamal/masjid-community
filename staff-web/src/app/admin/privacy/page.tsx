@@ -16,7 +16,7 @@ export default function PrivacyDesk(){
  }
  return <><header className="masthead"><span className="brand"><span className="mark">✧</span>Privacy review</span><a href="/admin" className="secondary">Control center</a></header>
  <main className="container"><div className="hero"><p className="eyebrow">TRUST · DATA GOVERNANCE</p><h1>Respect every record.</h1>
- <p>Deletion requests require a retention, child-safeguarding and financial review. Marking “in review” does not delete any data.</p></div>
+ <p>This queue includes only data review requests submitted for the current mosque. Requests for another organization and older unassigned requests are excluded; older requests require separate privacy-officer reconciliation. Marking “in review” does not delete any account or data. Follow retention, safeguarding and financial policies.</p></div>
  {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
  <div className="grid">{requests.map(r=><article className="panel" key={r.id}><h2>{r.user.firstName} {r.user.lastName}</h2><p className="small">{r.user.email} · {new Date(r.createdAt).toLocaleString()}</p>
  <p>Status: <strong>{r.status}</strong></p>{r.reason?<p>{r.reason}</p>:null}

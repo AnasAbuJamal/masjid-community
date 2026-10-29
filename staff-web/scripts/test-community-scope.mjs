@@ -136,6 +136,20 @@ try {
  assert.ok(!me.data.volunteerApplications.some(x=>x.id===foreignApplication.id),"foreign volunteering hidden");
  assert.ok(!me.data.jobApplications.some(x=>x.id===foreignJobApp.id),"foreign job application hidden");
  assert.ok(!me.data.bookings.some(x=>x.id===foreignBooking.id),"foreign booking hidden");
+ const exportBefore=await request("account/export","GET",null,memberToken);
+ assert.equal(exportBefore.status,200);
+ assert.equal(exportBefore.data.organization.id,org.id);
+ const forbiddenExport=await request("account/export");
+ assert.equal(forbiddenExport.status,401,"guest cannot retrieve private export");
+ const exportText=JSON.stringify(exportBefore.data);
+ for(const phrase of [
+  "Different mosque event","Different mosque volunteer",
+  "Different mosque proposal","Confidential synthetic proposal",
+  "Different mosque opportunity","Sensitive synthetic cover letter",
+  "Different mosque room","Different mosque giving"
+ ])assert.ok(!exportText.includes(phrase),"account export excludes other mosque: "+phrase);
+ assert.ok(exportBefore.data.scope.includes("Current mosque only"),
+  "export must describe its limits rather than promise an all-organization data package");
 
  const shifts=await request("shifts","GET",null,memberToken);
  assert.equal(shifts.status,200);
@@ -241,6 +255,26 @@ try {
   kind:"rental-decision",bookingId:fixtureIds.localBooking,decision:"approved"
  },adminToken);
  assert.equal(localDecision.status,200,"authorized steward can approve a home-mosque request");
+ const localCampaign=await db.donationCampaign.create({data:{
+  organizationId:org.id,title:"Home mosque giving CI",
+  purpose:"Synthetic local giving for privacy export test",published:true
+ }});
+ fixtureIds.localCampaign=localCampaign.id;
+ const localDonation=await db.donation.create({data:{
+  campaignId:localCampaign.id,donorId:member.id,amountMinor:2500,status:"pending"
+ }});
+ fixtureIds.localDonation=localDonation.id;
+ const ownExport=await request("account/export","GET",null,memberToken);
+ assert.equal(ownExport.status,200);
+ assert.equal(ownExport.data.organization.id,org.id);
+ assert.ok(ownExport.data.donations.some(x=>x.campaign.title==="Home mosque giving CI"),
+  "current mosque donation appears even when provider status remains pending");
+ assert.ok(ownExport.data.volunteerApplications.some(x=>x.opportunity.title==="Local service CI"));
+ assert.ok(ownExport.data.jobApplications.some(x=>x.job.title==="Local CI role"));
+ assert.ok(ownExport.data.rentalBookings.some(x=>x.resource.title==="Local CI room"));
+ assert.ok(ownExport.data.proposals.some(x=>x.title==="Local CI vote"));
+ assert.ok(!JSON.stringify(ownExport.data).includes("Sensitive synthetic cover letter"),
+  "foreign private job application text must not leak in a local export");
  const localDashboard=await request("me","GET",null,memberToken);
  assert.ok(localDashboard.data.volunteerApplications.some(x=>x.opportunity.title==="Local service CI"));
  assert.ok(localDashboard.data.jobApplications.some(x=>x.job.title==="Local CI role"));
@@ -269,7 +303,9 @@ try {
   await db.jobApplication.deleteMany({where:{jobId:id}});
   await db.jobPosting.deleteMany({where:{id}});
  }
+ if(fixtureIds.localDonation)await db.donation.deleteMany({where:{id:fixtureIds.localDonation}});
  if(fixtureIds.donation)await db.donation.deleteMany({where:{id:fixtureIds.donation}});
+ if(fixtureIds.localCampaign)await db.donationCampaign.deleteMany({where:{id:fixtureIds.localCampaign}});
  if(fixtureIds.campaign)await db.donationCampaign.deleteMany({where:{id:fixtureIds.campaign}});
  if(fixtureIds.event){
   await db.eventRSVP.deleteMany({where:{eventId:fixtureIds.event}});
