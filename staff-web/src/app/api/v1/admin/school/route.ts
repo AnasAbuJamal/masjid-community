@@ -107,7 +107,7 @@ export async function POST(req:NextRequest){
     if(!klass)throw new HttpError(404,"NOT_FOUND","Class unavailable.");
     const row=await db.classSession.create({data:{classId:klass.id,startsAt:new Date(input.startsAt)}});id=row.id;
   }
-  await audit(admin.id,"school."+input.kind,"School",id);
+  await audit(admin.id,created?"school."+input.kind:"school."+input.kind+".existing","School",id);
   return ok({id,created},created?201:200);
  });
 }
