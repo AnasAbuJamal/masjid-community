@@ -53,6 +53,10 @@ try {
   opportunityId:foreignOpportunity.id,userId:member.id
  }});
  fixtureIds.application=foreignApplication.id;
+ const foreignApprovedApp=await db.volunteerApplication.create({data:{
+  opportunityId:foreignOpportunity.id,userId:admin.id,status:"approved"
+ }});
+ fixtureIds.foreignApprovedApplication=foreignApprovedApp.id;
  const foreignShift=await db.volunteerShift.create({data:{
   applicationId:foreignApplication.id,opportunityId:foreignOpportunity.id,userId:member.id,
   startAt:farDate,endAt:endDate
@@ -94,7 +98,7 @@ try {
  }});
  fixtureIds.campaign=foreignCampaign.id;
  const foreignDonation=await db.donation.create({data:{
-  campaignId:foreignCampaign.id,donorId:member.id,amountMinor:1500,status:"pending"
+  campaignId:foreignCampaign.id,donorId:member.id,amountMinor:1500,status:"paid"
  }});
  fixtureIds.donation=foreignDonation.id;
 
@@ -137,6 +141,34 @@ try {
  assert.equal(localProposal.status,201,"other mosque draft cannot block local proposal submission");
  fixtureIds.localProposal=localProposal.data.id;
 
+ // Privileged dashboards and work queues must never cross organization scopes.
+ const steward=await request("admin","GET",null,adminToken);
+ assert.equal(steward.status,200);
+ assert.ok(!steward.data.events.some(x=>x.id===foreignEvent.id),"foreign event hidden from steward");
+ assert.ok(!steward.data.applications.some(x=>x.id===foreignApplication.id),"foreign volunteer application hidden from steward");
+ assert.equal(steward.data.counts.events,await db.event.count({where:{organizationId:org.id}}));
+ assert.equal(steward.data.counts.donations,await db.donation.count({where:{campaign:{organizationId:org.id}}}));
+ const finance=await request("admin/finance","GET",null,adminToken);
+ assert.equal(finance.status,200);
+ assert.ok(!finance.data.payments.some(x=>x.id===foreignDonation.id),"foreign paid record absent from finance totals");
+ const foreignVolunteerDecision=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:foreignApplication.id,decision:"approved"
+ },adminToken);
+ assert.equal(foreignVolunteerDecision.status,404,"steward cannot decide foreign volunteer application");
+ assert.equal((await db.volunteerApplication.findUniqueOrThrow({where:{id:foreignApplication.id}})).status,"submitted");
+ const shiftQueue=await request("admin/shifts","GET",null,adminToken);
+ assert.equal(shiftQueue.status,200);
+ assert.ok(!shiftQueue.data.applications.some(x=>x.id===foreignApprovedApp.id),"approved foreign application absent from shift queue");
+ assert.ok(!shiftQueue.data.shifts.some(x=>x.id===foreignShift.id),"foreign shift absent from steward listing");
+ const foreignSchedule=await request("admin/shifts","POST",{
+  kind:"schedule",applicationId:foreignApprovedApp.id,startAt:farDate.toISOString(),endAt:endDate.toISOString()
+ },adminToken);
+ assert.equal(foreignSchedule.status,404,"steward cannot schedule foreign approved application");
+ const foreignCheckIn=await request("admin/shifts","POST",{
+  kind:"update",shiftId:foreignShift.id,action:"cancel"
+ },adminToken);
+ assert.equal(foreignCheckIn.status,409,"steward cannot modify foreign volunteer shift");
+ assert.equal((await db.volunteerShift.findUniqueOrThrow({where:{id:foreignShift.id}})).status,"scheduled");
  const adminQueue=await request("admin/operations","GET",null,adminToken);
  assert.equal(adminQueue.status,200);
  assert.ok(!adminQueue.data.bookings.some(x=>x.id===foreignBooking.id),"foreign facility request hidden from steward");
@@ -177,6 +209,21 @@ try {
   assert.equal(accepted.status,201,"local action accepted: "+item.kind);
   if(item.kind==="rental")fixtureIds.localBooking=accepted.data.id;
  }
+ // Home mosque volunteer review -> scheduled shift must still work.
+ const localVolunteerApp=await db.volunteerApplication.findUniqueOrThrow({where:{
+  opportunityId_userId:{opportunityId:localOpportunity.id,userId:member.id}
+ }});
+ const reviewed=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:localVolunteerApp.id,decision:"approved"
+ },adminToken);
+ assert.equal(reviewed.status,201,"steward may approve local volunteer application");
+ const scheduled=await request("admin/shifts","POST",{
+  kind:"schedule",applicationId:localVolunteerApp.id,startAt:farDate.toISOString(),endAt:endDate.toISOString()
+ },adminToken);
+ assert.equal(scheduled.status,201,"steward may schedule home mosque shift");
+ fixtureIds.localShift=scheduled.data.id;
+ const localShifts=await request("admin/shifts","GET",null,adminToken);
+ assert.ok(localShifts.data.shifts.some(x=>x.id===fixtureIds.localShift));
  const localAdminQueue=await request("admin/operations","GET",null,adminToken);
  assert.ok(localAdminQueue.data.bookings.some(x=>x.id===fixtureIds.localBooking),
   "own mosque booking is visible to steward");
@@ -188,7 +235,7 @@ try {
  assert.ok(localDashboard.data.volunteerApplications.some(x=>x.opportunity.title==="Local service CI"));
  assert.ok(localDashboard.data.jobApplications.some(x=>x.job.title==="Local CI role"));
  assert.ok(localDashboard.data.bookings.some(x=>x.id===fixtureIds.localBooking));
- console.log("Verified member actions, dashboard and steward bookings deny foreign mosque data while preserving local use.");
+ console.log("Verified member actions, steward dashboard, finance, volunteer approvals/shifts and facilities deny cross-mosque data.");
 }finally{
  // Test fixtures are deliberately synthetic and must never run against live DB.
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
