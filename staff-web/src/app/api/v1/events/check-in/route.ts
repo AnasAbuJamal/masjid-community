@@ -30,7 +30,7 @@ export async function GET(req:NextRequest){
   const parsedId=z.string().min(8).parse(eventId);
   const assignment=await db.eventHostAssignment.findFirst({where:{
    eventId:parsedId,hostId:actor.id,revokedAt:null,
-   event:{organizationId:org.id,status:"published"}
+   event:{organizationId:org.id,status:"published",endAt:{gte:new Date(Date.now()-7*86400000)}}
   },select:{event:{select:{id:true,title:true,startAt:true,endAt:true}}}});
   if(!assignment)throw new HttpError(404,"EVENT_UNAVAILABLE","Assigned gathering unavailable.");
   const roster=await db.eventRSVP.findMany({
