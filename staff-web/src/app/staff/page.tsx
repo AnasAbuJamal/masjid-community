@@ -24,6 +24,7 @@ export default function StaffHome(){
  {data.capabilities.map(({capability,expiresAt})=><a href={workspaces[capability].href} key={capability} className="tile" style={{display:"block"}}>
  <p className="eyebrow">AUTHORIZED WORKSPACE</p><strong style={{fontSize:22}}>{workspaces[capability].title}</strong>
  <p>{workspaces[capability].description}</p>{expiresAt?<p className="small">Grant expires {new Date(expiresAt).toLocaleString()}</p>:null}</a>)}
+ <a href="/host/circles" className="tile" style={{display:"block"}}><p className="eyebrow">ASSIGNED GROUPS ONLY</p><strong>Host your circles</strong><p>Review membership requests and publish updates only to approved members.</p></a>
  <a href="/host/check-in" className="tile" style={{display:"block"}}><p className="eyebrow">EVENT-SCOPED ACCESS</p><strong>Gathering check-in</strong><p>Only individually assigned hosts can see confirmed attendees and record arrival. Your permissions are checked again on every request.</p></a>
  {!data.capabilities.length?<div className="panel"><h2>No delegated workspaces yet</h2><p>Ask the organization administrator to assign the minimum permission needed for your duties.</p></div>:null}
  </div>}
