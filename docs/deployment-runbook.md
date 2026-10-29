@@ -95,3 +95,32 @@ fail-closed behavior and requires operator communication and a legal/safeguardin
 review before any pilot. The text is a review acknowledgement, **not legal
 consent** and **not a guardian-identity verification**. Do not backfill missing
 timestamps or treat a user-set checkbox as proof of custody.
+
+
+## Mosque-scoped privacy data-review migration gate (October 29, 2026)
+
+`20261029190000_privacy_request_org_scope` adds nullable
+`DeletionRequest.organizationId`, an index and a foreign key.
+`20261029191000_privacy_review_uniqueness` adds a **partial unique index**
+over `(organizationId,userId)` for active (`pending` or `in_review`)
+requests. CI applies these against a disposable **empty** PostgreSQL database.
+
+Older privacy/deletion requests remain `organizationId=NULL`. They are
+deliberately omitted from the standard steward queue; do not silently assign
+them to a mosque from an email, names, dates or the current membership list.
+A named privacy officer must reconcile historical requests offline under an
+approved, documented policy with legal retention and identity verification.
+Before running on a nonempty database, reconcile any already-tenanted
+duplicate active requests (the uniqueness index will otherwise refuse to
+apply), rehearse the changes on a restored backup, review rollback and gain
+privacy-owner signoff.
+
+The account export endpoint now represents **only the current mosque's
+activity**, capped at 200 rows per category, with no student/custody data.
+This is not an end-to-end portability or erasure service: additional sources,
+multi-organization record requests, provider archives, notification retention
+and legal/safeguarding obligations require manual review. Nothing in this
+migration or the review queue deletes account or transactional data.
+
+Do not apply either migration to a live environment as part of an ordinary
+source push. This work is development and synthetic CI verification only.
