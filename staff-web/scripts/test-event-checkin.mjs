@@ -19,7 +19,7 @@ async function request(path,method="GET",payload,token){
  return {status:response.status,...await response.json().catch(()=>({}))};
 }
 const ids=[];
-let otherOrgId,adminSession;
+let otherOrgId,foreignUserId,adminSession;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -138,11 +138,32 @@ try{
  },staffToken);
  assert.equal(early.status,409,"arrival cannot be recorded far before gathering");
  assert.equal(early.error.code,"CHECK_IN_WINDOW");
+ // A guessed old event ID cannot retrieve a stale private roster indefinitely.
+ const pastStart=new Date(Date.now()-11*86400000);
+ const past=await db.event.create({data:{
+  organizationId:org.id,title:"Expired host roster",description:"Retention boundary",
+  location:"Old CI room",startAt:pastStart,endAt:new Date(pastStart.getTime()+3600000),status:"published"
+ }});
+ ids.push(past.id);
+ await db.eventHostAssignment.create({data:{eventId:past.id,hostId:staff.id,assignedById:admin.id}});
+ await db.eventRSVP.create({data:{eventId:past.id,userId:member.id}});
+ const staleRoster=await request("events/check-in?eventId="+past.id,"GET",null,staffToken);
+ assert.equal(staleRoster.status,404,"host roster access expires seven days after event");
  // Forged host assignment in another mosque still cannot show another tenant's roster.
  const otherOrg=await db.organization.create({data:{
   slug:"checkin-isolation-"+Date.now(),name:"Foreign mosque"
  }});
  otherOrgId=otherOrg.id;
+ const foreignHost=await db.user.create({data:{
+  email:"foreign-checkin-host-"+Date.now()+"@example.test",
+  firstName:"Foreign",lastName:"Host",passwordHash:staff.passwordHash,
+  verifiedAt:new Date(),memberships:{create:{organizationId:otherOrg.id}}
+ }});
+ foreignUserId=foreignHost.id;
+ const foreignMemberGrant=await request("admin/event-hosts","POST",{
+  eventId:event.id,hostId:foreignHost.id,action:"assign"
+ },adminToken);
+ assert.equal(foreignMemberGrant.status,422,"steward cannot grant home event roster to another mosque's member");
  const foreign=await db.event.create({data:{
   organizationId:otherOrg.id,title:"Private foreign roster",description:"Restricted",
   location:"Other CI room",startAt:starts,endAt:ends,status:"published"
@@ -180,6 +201,10 @@ try{
   await db.eventHostAssignment.deleteMany({where:{eventId:id}});
   await db.eventRSVP.deleteMany({where:{eventId:id}});
   await db.event.deleteMany({where:{id}});
+ }
+ if(foreignUserId){
+  await db.organizationMembership.deleteMany({where:{userId:foreignUserId}});
+  await db.user.deleteMany({where:{id:foreignUserId}});
  }
  if(otherOrgId)await db.organization.deleteMany({where:{id:otherOrgId}});
  await db.$disconnect();
