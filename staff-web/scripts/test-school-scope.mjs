@@ -94,7 +94,7 @@ try{
  const foreignStudentMark=await request("actions","POST",{kind:"attendance",sessionId:localSession.id,
   studentId:foreignStudent.id,status:"present"},teacherToken);
  assert.equal(foreignStudentMark.status,404,"unrelated student cannot be marked in local class");
- assert.equal(await db.attendance.count({where:{sessionId:foreignSession.id}}),0,"denied attendance has no write");
+ assert.equal(await db.attendance.count({where:{sessionId:foreignSession.id}}),1,"denied attendance did not change the existing foreign mark");
  const foreignWrite=await request("schoolwork","POST",{kind:"assignment",classId:foreignClass.id,
   title:"Should be denied",instructions:"Unauthorized private learning material.",dueAt:new Date(Date.now()+86400000).toISOString(),
   published:true},teacherToken);
