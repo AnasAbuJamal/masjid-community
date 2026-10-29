@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handled, HttpError, ok } from "@/lib/http";
 import { requireVerified } from "@/lib/auth";
+import {schoolStudentScope} from "@/lib/school-scope";
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req);
@@ -12,8 +13,7 @@ export async function GET(req:NextRequest){
     db.eventRSVP.findMany({where:{userId:user.id},include:{event:{select:{id:true,title:true,startAt:true}}},take:30}),
     db.notification.findMany({where:{userId:user.id},orderBy:{createdAt:"desc"},take:30}),
     db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,
-      student:{OR:[{enrollments:{some:{classSection:{program:{organizationId:org.id}}}}},
-                   {applications:{some:{organizationId:org.id,status:"approved"}}}]}},
+      student:schoolStudentScope(org.id)},
       select:{student:{select:{id:true,firstName:true,lastName:true,
        enrollments:{where:{status:"active",classSection:{program:{organizationId:org.id}}},
         select:{classSection:{select:{name:true}}}}}}}}),

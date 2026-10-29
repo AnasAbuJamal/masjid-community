@@ -2,6 +2,7 @@ import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
+import {schoolStudentScope} from "@/lib/school-scope";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("assignment"),classId:z.string().min(8),title:z.string().trim().min(4).max(180),instructions:z.string().trim().min(10).max(8000),dueAt:z.iso.datetime(),published:z.boolean().default(false)}),
@@ -18,14 +19,14 @@ export async function GET(req:NextRequest){
     ...(user.role==="teacher"?{teachers:{some:{teacherId:user.id}}}:{})},
     take:100,select:{id:true,name:true,assignments:{orderBy:{createdAt:"desc"},take:50,
      select:{id:true,title:true,instructions:true,dueAt:true,published:true,
-       submissions:{select:{studentId:true,body:true,submittedAt:true,student:{select:{firstName:true,lastName:true}}}}}},
-     enrollments:{where:{status:"active"},select:{student:{select:{id:true,firstName:true,lastName:true}}}},
+       submissions:{where:{student:schoolStudentScope(org.id)},select:{studentId:true,body:true,submittedAt:true,student:{select:{firstName:true,lastName:true}}}}}},
+     enrollments:{where:{status:"active",student:schoolStudentScope(org.id)},select:{student:{select:{id:true,firstName:true,lastName:true}}}},
     }});
    return ok({mode:"teacher",classes});
   }
   const [own,links]=await Promise.all([
-   db.student.findUnique({where:{userId:user.id},select:{id:true}}),
-   db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null},select:{studentId:true}})
+   db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)},select:{id:true}}),
+   db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,student:schoolStudentScope(org.id)},select:{studentId:true}})
   ]);
   const ids=[...new Set([...(own?[own.id]:[]),...links.map(x=>x.studentId)])];
   if(!ids.length)return ok({mode:"family",assignments:[],reports:[],submissions:[]});
@@ -50,7 +51,7 @@ export async function POST(req:NextRequest){
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(input.kind==="submission"){
-   const student=await db.student.findUnique({where:{userId:user.id}});
+   const student=await db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)}});
    if(!student)throw new HttpError(403,"STUDENT_REQUIRED","Only a linked student account may submit its work.");
    const assignment=await db.schoolAssignment.findFirst({where:{id:input.assignmentId,published:true,
     classSection:{program:{organizationId:org.id}}}});
@@ -73,7 +74,7 @@ export async function POST(req:NextRequest){
    await db.auditEvent.create({data:{actorId:user.id,action:"school.assignment.create",entity:"SchoolAssignment",entityId:result.id}});
    return ok({id:result.id,published:result.published},201);
   }
-  const enrolled=await db.enrollment.findUnique({where:{studentId_classId:{studentId:input.studentId,classId:classItem.id}}});
+  const enrolled=await db.enrollment.findFirst({where:{studentId:input.studentId,classId:classItem.id,status:"active",student:schoolStudentScope(org.id)}});
   if(!enrolled||enrolled.status!=="active")throw new HttpError(404,"NOT_ENROLLED","Student is not enrolled in this class.");
   const result=await db.studentReport.create({data:{classId:classItem.id,studentId:input.studentId,teacherId:user.id,summary:input.summary,
    status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});

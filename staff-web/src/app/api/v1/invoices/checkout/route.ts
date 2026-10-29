@@ -3,6 +3,7 @@ import {NextRequest} from "next/server";
 import Stripe from "stripe";
 import {z} from "zod";
 import {requireVerified} from "@/lib/auth";
+import {schoolStudentScope} from "@/lib/school-scope";
 import {db} from "@/lib/db";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 export async function POST(req:NextRequest){
@@ -10,7 +11,9 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const actor=await requireVerified(req);
   const {invoiceId}=z.object({invoiceId:z.string().min(8)}).parse(await jsonBody(req));
-  const invoice=await db.schoolInvoice.findUnique({where:{id:invoiceId}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const invoice=await db.schoolInvoice.findFirst({where:{id:invoiceId,organizationId:org.id,student:schoolStudentScope(org.id)}});
   if(!invoice||invoice.status!=="pending")throw new HttpError(404,"INVOICE_UNAVAILABLE","This invoice is not payable.");
   if(invoice.payerGuardianId!==actor.id)throw new HttpError(403,"NOT_PAYER","Only the designated guardian may pay this invoice.");
   const link=await db.guardianLink.findUnique({where:{guardianId_studentId:{guardianId:actor.id,studentId:invoice.studentId}}});

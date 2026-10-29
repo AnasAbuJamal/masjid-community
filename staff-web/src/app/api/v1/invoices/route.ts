@@ -1,13 +1,14 @@
 import {NextRequest} from "next/server";
 import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
+import {schoolStudentScope} from "@/lib/school-scope";
 import {handled,HttpError,ok} from "@/lib/http";
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const actor=await requireVerified(req);
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
-  const links=await db.guardianLink.findMany({where:{guardianId:actor.id,approvedAt:{not:null},revokedAt:null},select:{studentId:true}});
+  const links=await db.guardianLink.findMany({where:{guardianId:actor.id,approvedAt:{not:null},revokedAt:null,student:schoolStudentScope(org.id)},select:{studentId:true}});
   const studentIds=links.map(x=>x.studentId);
   const invoices=studentIds.length?await db.schoolInvoice.findMany({
    where:{organizationId:org.id,studentId:{in:studentIds},payerGuardianId:actor.id},
