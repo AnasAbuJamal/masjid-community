@@ -13,6 +13,9 @@ const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("job"),jobId:z.string().min(8),coverLetter:z.string().trim().min(10).max(3000)}),
  z.object({kind:z.literal("rental"),resourceId:z.string().min(8),startAt:z.iso.datetime(),endAt:z.iso.datetime()}),
  z.object({kind:z.literal("attendance"),sessionId:z.string().min(8),studentId:z.string().min(8),status:z.enum(["present","absent","late","excused"])}),
+ z.object({kind:z.literal("attendance-correction"),sessionId:z.string().min(8),studentId:z.string().min(8),
+  status:z.enum(["present","absent","late","excused"]),expectedRevision:z.number().int().min(1).max(1000000),
+  reason:z.string().trim().min(10).max(300)}),
 ]);
 export async function POST(req:NextRequest){
  return handled(async()=>{
@@ -81,19 +84,78 @@ export async function POST(req:NextRequest){
     const row=await db.rentalBooking.create({data:{resourceId:item.id,userId:user.id,startAt:start,endAt:end}});
     return ok({id:row.id,status:row.status,message:"Request sent for review; booking not confirmed."},201);
   }
-  if(input.kind==="attendance"){
+  if(input.kind==="attendance"||input.kind==="attendance-correction"){
     if(!["teacher","admin"].includes(user.role))throw new HttpError(403,"FORBIDDEN","Teacher permission required.");
-    const org=organization;
-    const session=await db.classSession.findFirst({
-      where:{id:input.sessionId,classSection:{program:{organizationId:org.id}}},
-      include:{classSection:{include:{teachers:true}}}
-    });
-    if(!session||!(user.role==="admin"||session.classSection.teachers.some(x=>x.teacherId===user.id)))throw new HttpError(403,"NOT_ASSIGNED","Class is not assigned.");
-    const enrollment=await db.enrollment.findFirst({where:{studentId:input.studentId,classId:session.classId,status:"active",student:schoolStudentScope(org.id)}});
-    if(!enrollment||enrollment.status!=="active")throw new HttpError(404,"NOT_ENROLLED","Student not enrolled.");
-    const row=await db.attendance.upsert({where:{sessionId_studentId:{sessionId:session.id,studentId:input.studentId}},update:{status:input.status,markedById:user.id},create:{sessionId:session.id,studentId:input.studentId,status:input.status,markedById:user.id}});
-    await audit(user.id,"attendance.mark","Attendance",row.id);
-    return ok({id:row.id,status:row.status});
+    try{
+     const result=await db.$transaction(async tx=>{
+      const session=await tx.classSession.findFirst({
+       where:{id:input.sessionId,classSection:{program:{organizationId:organization.id}}},
+       include:{classSection:{include:{teachers:true}}}
+      });
+      if(!session||!(user.role==="admin"||session.classSection.teachers.some(x=>x.teacherId===user.id)))
+       throw new HttpError(403,"NOT_ASSIGNED","Class is not assigned.");
+      const enrollment=await tx.enrollment.findFirst({where:{
+       studentId:input.studentId,classId:session.classId,status:"active",
+       student:schoolStudentScope(organization.id)
+      },select:{id:true}});
+      if(!enrollment)throw new HttpError(404,"NOT_ENROLLED","Student not enrolled.");
+      const now=new Date();
+      const start=session.startsAt.getTime(),current=now.getTime();
+      // ClassSession has a start but no end. This interim, explicit 4-hour
+      // operational window is safer than permitting indefinite retroactive marks.
+      // Corrections may be made for up to 24 hours with a reason and audit.
+      const earliest=start-15*60000;
+      const latest=start+(input.kind==="attendance"?4:24)*3600000;
+      if(current<earliest||current>latest)
+       throw new HttpError(409,"ATTENDANCE_WINDOW","Attendance is outside the approved session window.");
+      const prior=await tx.attendance.findUnique({where:{
+       sessionId_studentId:{sessionId:session.id,studentId:input.studentId}
+      }});
+      if(input.kind==="attendance"){
+       if(prior){
+        if(prior.status!==input.status)
+         throw new HttpError(409,"CORRECTION_REQUIRED","An existing mark requires a reasoned correction and current revision.");
+        return {id:prior.id,status:prior.status,revision:prior.revision,created:false};
+       }
+       const row=await tx.attendance.create({data:{
+        sessionId:session.id,studentId:input.studentId,markedById:user.id,
+        status:input.status,markedAt:now,revision:1
+       }});
+       await tx.auditEvent.create({data:{
+        actorId:user.id,action:"attendance.mark",entity:"Attendance",entityId:row.id,
+        detail:JSON.stringify({organizationId:organization.id,sessionId:session.id,
+         studentId:input.studentId,status:input.status,revision:1})
+       }});
+       return {id:row.id,status:row.status,revision:1,created:true};
+      }
+      if(!prior)throw new HttpError(404,"NOT_MARKED","An initial mark is required before a correction.");
+      if(prior.revision!==input.expectedRevision)
+       throw new HttpError(409,"ATTENDANCE_STALE","Attendance changed. Refresh the session.");
+      if(prior.status===input.status)
+       throw new HttpError(409,"SAME_STATUS","Choose a different status for a correction.");
+      const updated=await tx.attendance.updateMany({where:{
+       id:prior.id,sessionId:session.id,studentId:input.studentId,
+       revision:input.expectedRevision,status:prior.status
+      },data:{
+       status:input.status,revision:{increment:1},correctedAt:now,
+       correctedById:user.id,correctionReason:input.reason
+      }});
+      if(!updated.count)
+       throw new HttpError(409,"ATTENDANCE_STALE","Attendance changed. Refresh the session.");
+      await tx.auditEvent.create({data:{
+       actorId:user.id,action:"attendance.correct",entity:"Attendance",entityId:prior.id,
+       detail:JSON.stringify({organizationId:organization.id,sessionId:session.id,
+        studentId:input.studentId,previous:prior.status,updated:input.status,
+        revision:input.expectedRevision+1,reason:input.reason})
+      }});
+      return {id:prior.id,status:input.status,revision:input.expectedRevision+1,created:false,corrected:true};
+     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+     return ok(result,result.created?201:200);
+    }catch(error){
+     if(error instanceof Prisma.PrismaClientKnownRequestError&&["P2002","P2034"].includes(error.code))
+      throw new HttpError(409,"ATTENDANCE_STALE","Attendance changed. Refresh the session and retry.");
+     throw error;
+    }
   }
   throw new HttpError(422,"BAD_ACTION","Unknown action.");
  });
