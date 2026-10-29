@@ -124,3 +124,29 @@ migration or the review queue deletes account or transactional data.
 
 Do not apply either migration to a live environment as part of an ordinary
 source push. This work is development and synthetic CI verification only.
+
+
+## Circles and school attendance migration gates (October 29, 2026)
+
+`20261029224500_private_circles` adds separate organization-bound
+Circle, CircleMember and CircleUpdate tables. No historical groups, personal
+contact lists or social-media membership tables are imported. Public records
+must remain safe to publish; circle names, meeting descriptions, community
+host assignments and moderation guidelines need their own safeguarding
+and content review. Membership lists and updates are private, and archived
+circles must never be presented as currently active.
+
+`20261029231000_versioned_attendance_corrections` adds revision and nullable
+attendance provenance fields. Existing attendance rows receive revision 1
+but **not an invented `markedAt` instant**. Future marks and corrections
+follow a provisional 15-minute-before/4-hour-after initial-mark window and
+24-hour correction window. The organization must approve actual class
+duration, exception, safeguarding, retention and appeal policies before any
+real student is enrolled or historical register changed.
+
+For a nonempty target database, separately rehearse migrations against a
+restored isolated snapshot, inspect all existing class enrollment/attendance
+relationships, confirm backup and rollback procedures, then obtain written
+school/safeguarding and privacy-owner sign-offs. The current CI evidence is
+limited to an ephemeral synthetic PostgreSQL database and local HTTP tests.
+No environment deployment or live-data migration was requested or performed.
