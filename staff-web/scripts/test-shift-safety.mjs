@@ -136,10 +136,10 @@ try{
  assert.equal((await db.volunteerShift.findUniqueOrThrow({where:{id:expiredShift.id}})).checkedInAt,null);
  assert.ok(await db.auditEvent.count({where:{
   entity:"VolunteerShift",entityId:activeShift.id,action:"volunteer.shift.check-in"
- }},"successful arrival has an audit event");
+ }}),"successful arrival has an audit event");
  assert.ok(await db.auditEvent.count({where:{
   entity:"VolunteerShift",entityId:activeShift.id,action:"volunteer.shift.complete"
- }},"successful completion has an audit event");
+ }}),"successful completion has an audit event");
  console.log("Verified cross-mosque schedule overlap, concurrent last-slot, truthful volunteer check-in and completion windows.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
