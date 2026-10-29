@@ -1,10 +1,11 @@
 // Organization boundary regression for teacher attendance and learning; disposable CI database only.
 import assert from "node:assert/strict";
+import {createHash,randomBytes} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {PrismaClient} from "@prisma/client";
 if(process.env.NODE_ENV==="production"||process.env.VERCEL||!process.env.DATABASE_URL?.includes("masjid_ci"))
  throw Error("Refusing school scope tests outside isolated CI.");
-const {memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
+const {adminEmail,memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
 const db=new PrismaClient();
 const base="http://127.0.0.1:3000/api/v1/";
 async function request(path,method="GET",payload,token){
@@ -14,13 +15,21 @@ async function request(path,method="GET",payload,token){
  },body:payload?JSON.stringify(payload):undefined});
  return {status:response.status,...await response.json()};
 }
-let foreignOrg,foreignProgram,foreignClass,foreignStudent;
+let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,schoolAdminSession,newLocalStudentId;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
  const teacher=await db.user.findFirst({where:{role:"teacher",memberships:{some:{organizationId:org.id,status:"active"}}}});
  const member=await db.user.findUnique({where:{email:memberEmail}});
- assert.ok(teacher&&member);
+ const admin=await db.user.findUnique({where:{email:adminEmail}});
+ assert.ok(teacher&&member&&admin);
+ // Authorization fixture only: test-auth.mjs already tested real MFA/OTP, while
+ // this CI-scoped session isolates subsequent row-level authorization checks.
+ const adminToken=randomBytes(32).toString("base64url");
+ schoolAdminSession=await db.authSession.create({data:{
+  userId:admin.id,tokenHash:createHash("sha256").update(adminToken).digest("hex"),
+  expiresAt:new Date(Date.now()+3600000),mfaVerifiedAt:new Date()
+ }});
  const localClass=await db.classSection.findFirst({where:{program:{organizationId:org.id},teachers:{some:{teacherId:teacher.id}}}});
  assert.ok(localClass);
  const localSession=await db.classSession.findFirst({where:{classId:localClass.id}});
@@ -35,9 +44,12 @@ try{
  assert.equal((await request("teacher","GET",null,memberToken)).status,403,"member cannot read teacher rosters");
 
  foreignOrg=await db.organization.create({data:{slug:"school-scope-"+Date.now(),name:"Unrelated school"}});
+ foreignTeacher=await db.user.create({data:{email:"foreign-school-teacher-"+Date.now()+"@example.test",
+  firstName:"Foreign",lastName:"Teacher",role:"teacher",status:"active",verifiedAt:new Date(),
+  passwordHash:teacher.passwordHash,memberships:{create:{organizationId:foreignOrg.id}}}});
  foreignProgram=await db.schoolProgram.create({data:{organizationId:foreignOrg.id,title:"Foreign private program",description:"CI only",published:false}});
  foreignClass=await db.classSection.create({data:{programId:foreignProgram.id,name:"Foreign private class",schedule:"CI only"}});
- foreignStudent=await db.student.create({data:{studentNumber:"foreign-school-"+Date.now(),firstName:"Foreign",lastName:"Child"}});
+ foreignStudent=await db.student.create({data:{organizationId:foreignOrg.id,studentNumber:"foreign-school-"+Date.now(),firstName:"Foreign",lastName:"Child"}});
  await db.teacherAssignment.create({data:{teacherId:teacher.id,classId:foreignClass.id}});
  await db.enrollment.create({data:{studentId:foreignStudent.id,classId:foreignClass.id}});
  await db.guardianLink.create({data:{guardianId:member.id,studentId:foreignStudent.id,approvedAt:new Date()}});
@@ -50,6 +62,44 @@ try{
  const foreignReport=await db.studentReport.create({data:{classId:foreignClass.id,studentId:foreignStudent.id,teacherId:teacher.id,
   summary:"Confidential foreign student report.",status:"published",publishedAt:new Date()}});
  const foreignSubmission=await db.studentSubmission.create({data:{assignmentId:foreignAssignment.id,studentId:foreignStudent.id,body:"Private foreign submission."}});
+
+ // The administrator must never see or manipulate foreign school records
+ // merely because an attacker knows a student, class, session, user or invoice ID.
+ const adminList=await request("admin/school","GET",null,adminToken);
+ assert.equal(adminList.status,200,"MFA-approved administrator may inspect school records");
+ assert.ok(adminList.data.students.some(s=>s.id===localEnrollment.studentId),"legacy local student with enrollment remains visible");
+ assert.ok(!adminList.data.students.some(s=>s.id===foreignStudent.id),"foreign student identity is not in admin list");
+ assert.ok(!adminList.data.sessions.some(s=>s.id===foreignSession.id),"foreign class session is not listed");
+ assert.ok(!adminList.data.programs.some(p=>p.id===foreignProgram.id),"foreign program is not listed");
+ assert.ok(!adminList.data.users.some(u=>u.id===foreignTeacher.id),"staff selector excludes another organization's users");
+ const linkForeignStudent=await request("admin/school","POST",{kind:"guardian-link",studentId:foreignStudent.id,guardianId:member.id},adminToken);
+ assert.equal(linkForeignStudent.status,404,"admin cannot link home guardian to foreign child");
+ const enrollForeignStudent=await request("admin/school","POST",{kind:"enrollment",classId:localClass.id,studentId:foreignStudent.id},adminToken);
+ assert.equal(enrollForeignStudent.status,404,"admin cannot import foreign child by identifier");
+ const foreignClassSession=await request("admin/school","POST",{kind:"class-session",classId:foreignClass.id,startsAt:new Date(Date.now()+86400000).toISOString()},adminToken);
+ assert.equal(foreignClassSession.status,404,"admin cannot schedule another school's class");
+ const foreignTeacherAssignment=await request("admin/school","POST",{kind:"teacher-assignment",classId:localClass.id,teacherId:foreignTeacher.id},adminToken);
+ assert.equal(foreignTeacherAssignment.status,422,"teacher without this mosque's active membership denied");
+ const foreignGuardianLink=await request("admin/school","POST",{kind:"guardian-link",studentId:localEnrollment.studentId,guardianId:foreignTeacher.id},adminToken);
+ assert.equal(foreignGuardianLink.status,422,"guardian without this mosque's active membership denied");
+ const foreignIssue=await request("admin/invoices","POST",{studentId:foreignStudent.id,payerGuardianId:member.id,
+  description:"Must not issue foreign tuition",amountMinor:2200,dueAt:new Date(Date.now()+86400000).toISOString()},adminToken);
+ assert.equal(foreignIssue.status,403,"admin cannot issue an invoice for a foreign child");
+ const foreignVoid=await request("admin/invoices","PATCH",{id:foreignInvoice.id},adminToken);
+ assert.equal(foreignVoid.status,409,"admin cannot void another organization's invoice");
+ assert.equal((await db.schoolInvoice.findUniqueOrThrow({where:{id:foreignInvoice.id}})).status,"pending","foreign invoice remains unchanged");
+ assert.equal(await db.guardianLink.count({where:{guardianId:member.id,studentId:foreignStudent.id}}),1,"denied guardian link did not change the fixture");
+ assert.equal(await db.enrollment.count({where:{classId:localClass.id,studentId:foreignStudent.id}}),0,"no foreign child enrollment created");
+ assert.equal(await db.teacherAssignment.count({where:{classId:localClass.id,teacherId:foreignTeacher.id}}),0,"no unauthorized staff assignment created");
+ const newLocalStudent=await request("admin/school","POST",{
+  kind:"student",studentNumber:"owned-school-"+Date.now(),firstName:"Local",lastName:"Learner"
+ },adminToken);
+ assert.equal(newLocalStudent.status,201,"registered student is assigned to current mosque");
+ newLocalStudentId=newLocalStudent.data.id;
+ assert.equal((await db.student.findUniqueOrThrow({where:{id:newLocalStudentId}})).organizationId,org.id);
+ const afterRegister=await request("admin/school","GET",null,adminToken);
+ assert.equal(afterRegister.status,200);
+ assert.ok(afterRegister.data.students.some(s=>s.id===newLocalStudentId),"newly registered owned student is available to school staff");
 
  const students=await request("students","GET",null,memberToken);
  assert.equal(students.status,200);
@@ -120,8 +170,10 @@ try{
  }finally{
   await db.guardianLink.update({where:{id:localLink.id},data:{revokedAt:localLink.revokedAt}});
  }
- console.log("Verified organization-scoped school summaries, invoices, custody revocation, teacher rosters and learning writes.");
-}finally{
+ console.log("Verified organization-scoped school admin and finance writes, child ownership, legacy isolation, custody revocation and teacher rosters.");
+ }finally{
+ if(schoolAdminSession)await db.authSession.deleteMany({where:{id:schoolAdminSession.id}});
+ if(newLocalStudentId)await db.student.delete({where:{id:newLocalStudentId}});
  if(foreignClass){
   await db.schoolInvoice.deleteMany({where:{organizationId:foreignOrg.id}});
   await db.studentSubmission.deleteMany({where:{assignment:{classId:foreignClass.id}}});
@@ -138,6 +190,10 @@ try{
   await db.student.delete({where:{id:foreignStudent.id}});
  }
  if(foreignProgram)await db.schoolProgram.delete({where:{id:foreignProgram.id}});
+ if(foreignTeacher){
+  await db.organizationMembership.deleteMany({where:{userId:foreignTeacher.id}});
+  await db.user.delete({where:{id:foreignTeacher.id}});
+ }
  if(foreignOrg)await db.organization.delete({where:{id:foreignOrg.id}});
  await db.$disconnect();
 }
