@@ -15,7 +15,7 @@ async function request(path,method="GET",payload,token){
  },body:payload?JSON.stringify(payload):undefined});
  return {status:response.status,...await response.json()};
 }
-let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId,localAcknowledgedApplicationId;
+let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId,localAcknowledgedApplicationId,currentTestSessionId;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -32,7 +32,10 @@ try{
  }});
  const localClass=await db.classSection.findFirst({where:{program:{organizationId:org.id},teachers:{some:{teacherId:teacher.id}}}});
  assert.ok(localClass);
- const localSession=await db.classSession.findFirst({where:{classId:localClass.id}});
+ const localSession=await db.classSession.create({data:{
+  classId:localClass.id,startsAt:new Date(Date.now()-5*60000)
+ }});
+ currentTestSessionId=localSession.id;
  const localEnrollment=await db.enrollment.findFirst({where:{classId:localClass.id,status:"active"}});
  assert.ok(localSession&&localEnrollment);
  const teacherLogin=await request("auth/login","POST",{email:teacher.email,password});
@@ -196,7 +199,7 @@ try{
 
  const localMark=await request("actions","POST",{kind:"attendance",sessionId:localSession.id,
   studentId:localEnrollment.studentId,status:"present"},teacherToken);
- assert.equal(localMark.status,200,"assigned local teacher can mark own class");
+ assert.equal(localMark.status,201,"assigned local teacher can record a factual mark in the session window");
  const foreignMark=await request("actions","POST",{kind:"attendance",sessionId:foreignSession.id,
   studentId:foreignStudent.id,status:"present"},teacherToken);
  assert.equal(foreignMark.status,403,"foreign session denied even with a teacher assignment");
@@ -237,6 +240,10 @@ try{
  }
  console.log("Verified organization-scoped school admin and finance writes, child ownership, legacy isolation, custody revocation and teacher rosters.");
  }finally{
+ if(currentTestSessionId){
+  await db.attendance.deleteMany({where:{sessionId:currentTestSessionId}});
+  await db.classSession.deleteMany({where:{id:currentTestSessionId}});
+ }
  if(localAcknowledgedApplicationId)await db.enrollmentApplication.deleteMany({where:{id:localAcknowledgedApplicationId}});
  if(schoolAdminSession)await db.authSession.deleteMany({where:{id:schoolAdminSession.id}});
  if(newLocalStudentId)await db.student.delete({where:{id:newLocalStudentId}});
