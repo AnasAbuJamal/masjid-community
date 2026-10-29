@@ -22,7 +22,7 @@ export async function GET(req:NextRequest){
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","No organization has been configured.");
   const [users,programs,students,sessions]=await Promise.all([
     db.user.findMany({where:{status:"active",memberships:{some:{organizationId:org.id,status:"active"}}},select:{id:true,email:true,firstName:true,lastName:true,role:true,verifiedAt:true},take:100,orderBy:{createdAt:"desc"}}),
-    db.schoolProgram.findMany({where:{organizationId:org.id},take:100,include:{classes:{select:{id:true,name:true,schedule:true,capacity:true,enrollments:{select:{id:true}}}}}}),
+    db.schoolProgram.findMany({where:{organizationId:org.id},take:100,include:{classes:{select:{id:true,name:true,schedule:true,capacity:true,enrollments:{where:{status:"active"},select:{id:true}}}}}}),
     db.student.findMany({where:schoolStudentScope(org.id),take:100,orderBy:{studentNumber:"asc"},select:{id:true,studentNumber:true,firstName:true,lastName:true,
      guardians:{where:{guardian:{memberships:{some:{organizationId:org.id,status:"active"}}}},select:{id:true,guardianId:true,approvedAt:true,revokedAt:true}},
      enrollments:{where:{classSection:{program:{organizationId:org.id}}},select:{classSection:{select:{name:true,id:true}},status:true}}}}),
