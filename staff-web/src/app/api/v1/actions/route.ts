@@ -3,6 +3,7 @@ import {Prisma} from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireVerified, audit } from "@/lib/auth";
+import {schoolStudentScope} from "@/lib/school-scope";
 import { handled, HttpError, jsonBody, ok, assertSameOrigin } from "@/lib/http";
 
 const schema=z.discriminatedUnion("kind",[
@@ -89,7 +90,7 @@ export async function POST(req:NextRequest){
       include:{classSection:{include:{teachers:true}}}
     });
     if(!session||!(user.role==="admin"||session.classSection.teachers.some(x=>x.teacherId===user.id)))throw new HttpError(403,"NOT_ASSIGNED","Class is not assigned.");
-    const enrollment=await db.enrollment.findUnique({where:{studentId_classId:{studentId:input.studentId,classId:session.classId}}});
+    const enrollment=await db.enrollment.findFirst({where:{studentId:input.studentId,classId:session.classId,status:"active",student:schoolStudentScope(org.id)}});
     if(!enrollment||enrollment.status!=="active")throw new HttpError(404,"NOT_ENROLLED","Student not enrolled.");
     const row=await db.attendance.upsert({where:{sessionId_studentId:{sessionId:session.id,studentId:input.studentId}},update:{status:input.status,markedById:user.id},create:{sessionId:session.id,studentId:input.studentId,status:input.status,markedById:user.id}});
     await audit(user.id,"attendance.mark","Attendance",row.id);
