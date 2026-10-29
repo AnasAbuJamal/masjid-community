@@ -54,6 +54,10 @@ export async function POST(req:NextRequest){
     if(!student)throw new HttpError(404,"STUDENT_NOT_FOUND","Student unavailable in this organization.");
     if(!guardian)throw new HttpError(422,"INVALID_GUARDIAN","Choose a verified adult member of this organization.");
     const existing=await db.guardianLink.findUnique({where:{guardianId_studentId:{guardianId:guardian.id,studentId:student.id}}});
+    // Reinstating a revoked custody/guardian link is a new safeguarding decision,
+    // not an idempotent retry. This one-person admin form must fail closed.
+    if(existing?.revokedAt)throw new HttpError(409,"GUARDIAN_REVOKED",
+      "A revoked guardian relationship requires separate safeguarding review.");
     const row=await db.guardianLink.upsert({where:{guardianId_studentId:{guardianId:guardian.id,studentId:student.id}},
       update:{approvedAt:existing?.approvedAt||new Date(),revokedAt:null},
       create:{guardianId:guardian.id,studentId:student.id,approvedAt:new Date()}});
