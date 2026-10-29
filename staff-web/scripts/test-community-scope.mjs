@@ -226,7 +226,9 @@ try {
  },adminToken);
  assert.equal(reviewed.status,201,"steward may approve local volunteer application");
  const scheduled=await request("admin/shifts","POST",{
-  kind:"schedule",applicationId:localVolunteerApp.id,startAt:farDate.toISOString(),endAt:endDate.toISOString()
+  kind:"schedule",applicationId:localVolunteerApp.id,
+  startAt:new Date(farDate.getTime()+5*3600000).toISOString(),
+  endAt:new Date(endDate.getTime()+5*3600000).toISOString()
  },adminToken);
  assert.equal(scheduled.status,201,"steward may schedule home mosque shift");
  fixtureIds.localShift=scheduled.data.id;
