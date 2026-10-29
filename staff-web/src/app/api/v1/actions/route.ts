@@ -19,9 +19,9 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const user=await requireVerified(req);
   const input=schema.parse(await jsonBody(req));
+  const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(input.kind==="rsvp"){
-    const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
-    if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
     try{
     const output=await db.$transaction(async tx=>{
       const event=await tx.event.findFirst({where:{id:input.eventId,organizationId:organization.id}});
@@ -55,19 +55,19 @@ export async function POST(req:NextRequest){
     }
   }
   if(input.kind==="volunteer"){
-    const opp=await db.volunteerOpportunity.findFirst({where:{id:input.opportunityId,published:true}});
+    const opp=await db.volunteerOpportunity.findFirst({where:{id:input.opportunityId,organizationId:organization.id,published:true}});
     if(!opp)throw new HttpError(404,"NOT_FOUND","Opportunity unavailable.");
     const row=await db.volunteerApplication.upsert({where:{opportunityId_userId:{opportunityId:opp.id,userId:user.id}},update:{},create:{opportunityId:opp.id,userId:user.id}});
     return ok({id:row.id,status:row.status},201);
   }
   if(input.kind==="vote"){
-    const proposal=await db.proposal.findFirst({where:{id:input.proposalId,status:"published"}});
+    const proposal=await db.proposal.findFirst({where:{id:input.proposalId,organizationId:organization.id,status:"published"}});
     if(!proposal)throw new HttpError(404,"NOT_FOUND","Proposal unavailable.");
     const row=await db.proposalVote.upsert({where:{proposalId_userId:{proposalId:proposal.id,userId:user.id}},update:{},create:{proposalId:proposal.id,userId:user.id}});
     return ok({id:row.id,voted:true},201);
   }
   if(input.kind==="job"){
-    const job=await db.jobPosting.findFirst({where:{id:input.jobId,status:"published"}});
+    const job=await db.jobPosting.findFirst({where:{id:input.jobId,organizationId:organization.id,status:"published"}});
     if(!job)throw new HttpError(404,"NOT_FOUND","Job unavailable.");
     const row=await db.jobApplication.upsert({where:{jobId_userId:{jobId:job.id,userId:user.id}},update:{},create:{jobId:job.id,userId:user.id,coverLetter:input.coverLetter}});
     return ok({id:row.id,applied:true},201);
@@ -75,7 +75,7 @@ export async function POST(req:NextRequest){
   if(input.kind==="rental"){
     const start=new Date(input.startAt),end=new Date(input.endAt);
     if(start<=new Date()||end<=start||end.getTime()-start.getTime()>7*86400000)throw new HttpError(422,"INVALID_TIME","Choose a future interval up to seven days.");
-    const item=await db.rentalResource.findFirst({where:{id:input.resourceId,published:true}});
+    const item=await db.rentalResource.findFirst({where:{id:input.resourceId,organizationId:organization.id,published:true}});
     if(!item)throw new HttpError(404,"NOT_FOUND","Rental unavailable.");
     if(await db.rentalBooking.findFirst({where:{resourceId:item.id,status:"approved",startAt:{lt:end},endAt:{gt:start}}}))throw new HttpError(409,"BOOKED","Time unavailable.");
     const row=await db.rentalBooking.create({data:{resourceId:item.id,userId:user.id,startAt:start,endAt:end}});
@@ -83,8 +83,7 @@ export async function POST(req:NextRequest){
   }
   if(input.kind==="attendance"){
     if(!["teacher","admin"].includes(user.role))throw new HttpError(403,"FORBIDDEN","Teacher permission required.");
-    const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
-    if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+    const org=organization;
     const session=await db.classSession.findFirst({
       where:{id:input.sessionId,classSection:{program:{organizationId:org.id}}},
       include:{classSection:{include:{teachers:true}}}
