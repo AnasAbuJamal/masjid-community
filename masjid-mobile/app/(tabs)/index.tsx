@@ -7,6 +7,7 @@ import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {useVenue} from "../../src/venue";
 import {VenuePicker} from "../../src/VenuePicker";
+import {nextPublishedPrayer} from "../../src/nextPrayer";
 type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;localDate:string;source:string};
 type Home={organization:{id:string;name:string;timeZone:string}|null;venue:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string}[]};
 export default function HomeScreen(){
@@ -14,12 +15,11 @@ export default function HomeScreen(){
  const {venue,ready}=useVenue();
  const path=ready?(venue?`public/home?venueId=${encodeURIComponent(venue.id)}`:"public/home"):null;
  const {data,loading,error,refresh}=useResource<Home>(path);
- const prayers:[keyof Prayer,string][]=[["fajr","Fajr"],["dhuhr","Dhuhr"],["asr","Asr"],["maghrib","Maghrib"],["isha","Isha"]];
- const next=data?.prayer?prayers.find(([k])=>{const v=data.prayer?.[k]||"";if(!/^\d{2}:\d{2}$/.test(v))return false;
-  const tz=data.venue?.timeZone||data.organization?.timeZone||"America/New_York";
-  const clock=new Intl.DateTimeFormat("en-US",{hour:"2-digit",minute:"2-digit",hourCycle:"h23",timeZone:tz}).format(new Date());
-  return v>clock;
- }):null;
+ // Recheck the clock while Today is open; never call yesterday's prayer "next".
+ const [now,setNow]=React.useState(()=>new Date());
+ React.useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),60_000);return()=>clearInterval(timer)},[]);
+ const next=nextPublishedPrayer(data?.prayer,data?.venue?.timeZone||data?.organization?.timeZone,now);
+ const prayerNames={fajr:t("prayer.fajr"),dhuhr:t("prayer.dhuhr"),asr:t("prayer.asr"),maghrib:t("prayer.maghrib"),isha:t("prayer.isha")};
  return <Shell>
   <Head eyebrow={t("home.eyebrow")} title={t("home.title")} subtitle={t("home.subtitle")}/>
   <Feedback loading={loading||!ready} error={error} empty={ready&&!data?.organization} refresh={refresh}/>
@@ -27,7 +27,7 @@ export default function HomeScreen(){
   {data?.organization?<Card style={{padding:0,overflow:"hidden"}}>
    <View style={{backgroundColor:T.deep,padding:25,gap:12}}>
     <Text style={{color:"#CFEAFE",fontSize:12,letterSpacing:1.7,fontWeight:"800"}}>{t("home.today")} · {data.organization.name}</Text>
-    <Text style={{fontSize:31,fontWeight:"800",color:"white",letterSpacing:-1}}>{next?next[1]+" · "+data.prayer?.[next[0]]:t("home.prayerSchedule")}</Text>
+    <Text style={{fontSize:31,fontWeight:"800",color:"white",letterSpacing:-1}}>{next?prayerNames[next.name]+" · "+next.time:t("home.prayerSchedule")}</Text>
     <Text style={{color:"#DDF2FF",fontSize:14}}>{data.prayer?data.prayer.localDate+" · "+data.prayer.source:t("home.noPrayers")}</Text>
    </View>
    <View style={{padding:16}}><Action label={t("home.explore")} icon="clock-outline" onPress={()=>router.push("/salah")} secondary/></View>
