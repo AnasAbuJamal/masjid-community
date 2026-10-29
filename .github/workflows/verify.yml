@@ -63,6 +63,7 @@ jobs:
           node scripts/test-gather.mjs
           node scripts/test-event-checkin.mjs
           node scripts/test-school-scope.mjs
+          node scripts/test-school-capacity.mjs
           node scripts/test-community-scope.mjs
           node scripts/test-shift-safety.mjs
           node scripts/test-payments.mjs
