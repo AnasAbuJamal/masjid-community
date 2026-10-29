@@ -10,7 +10,9 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const user=await requireVerified(req);
   const input=payload.parse(await jsonBody(req));
-  const campaign=await db.donationCampaign.findFirst({where:{id:input.campaignId,published:true}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const campaign=await db.donationCampaign.findFirst({where:{id:input.campaignId,organizationId:org.id,published:true}});
   if(!campaign)throw new HttpError(404,"NOT_FOUND","Campaign unavailable.");
   if(campaign.currency!=="usd")throw new HttpError(422,"CURRENCY","Only USD checkout is enabled.");
   if(!process.env.STRIPE_SECRET_KEY||!process.env.STRIPE_WEBHOOK_SECRET)throw new HttpError(503,"PROVIDER","Payments are not configured.");
