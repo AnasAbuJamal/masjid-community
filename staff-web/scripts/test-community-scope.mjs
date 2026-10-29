@@ -101,6 +101,13 @@ try {
   campaignId:foreignCampaign.id,donorId:member.id,amountMinor:1500,status:"paid"
  }});
  fixtureIds.donation=foreignDonation.id;
+ const foreignCheckout=await request("donations/checkout","POST",{
+  campaignId:foreignCampaign.id,amountMinor:1500,anonymous:false
+ },memberToken);
+ assert.equal(foreignCheckout.status,404,
+  "foreign campaign checkout fails before a payment intent or donation is created");
+ assert.equal(await db.donation.count({where:{campaignId:foreignCampaign.id}}),1,
+  "rejected payment request cannot persist a new donation");
 
  // All independent ID-based write paths must reject unrelated organizations.
  const attempts=[
