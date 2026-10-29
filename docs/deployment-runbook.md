@@ -150,3 +150,26 @@ relationships, confirm backup and rollback procedures, then obtain written
 school/safeguarding and privacy-owner sign-offs. The current CI evidence is
 limited to an ephemeral synthetic PostgreSQL database and local HTTP tests.
 No environment deployment or live-data migration was requested or performed.
+
+
+## Private school waitlist migration gate (October 29, 2026)
+
+`20261029234500_school_class_waitlist` adds a new `SchoolWaitlist`
+table, PostgreSQL enum, unique key, FIFO index and class/student
+foreign keys. It does **not** rewrite old enrollments, approve guardianship,
+or automatically enroll a child. CI applies the migration only to synthetic
+empty PostgreSQL.
+
+On a real school database, verify student ownership, active/withdrawn
+enrollment history, guardian custody/revocation evidence, program capacity,
+and the organization's signed queue, eligibility, notification and fairness
+policies in a restored isolated test environment. A written safeguarding
+owner must approve queue creation and review who may withdraw or promote.
+Withdrawal retains history; staff explicitly promote one waiting student
+only after checking current custody and an available seat. No automated
+promotion, billing or contact to a minor is implied.
+
+The family's waiting status is visible only through a current approved
+guardian link. Review family-language wording, screen-reader usability,
+retention and migration rollback before use outside disposable CI tests.
+**No deployment or live migration was requested or performed.**
