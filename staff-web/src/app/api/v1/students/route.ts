@@ -13,6 +13,10 @@ export async function GET(req:NextRequest){
     db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,student:studentScope},select:{student:{select:{
       id:true,firstName:true,lastName:true,
       enrollments:{where:{status:"active",classSection:{program:{organizationId:org.id}}},select:{classSection:{select:{id:true,name:true,schedule:true}},classId:true}},
+      waitlist:{where:{status:"waiting",classSection:{program:{organizationId:org.id}}},
+       orderBy:[{requestedAt:"asc"},{id:"asc"}],take:30,
+       select:{id:true,status:true,requestedAt:true,
+        classSection:{select:{id:true,name:true,schedule:true}}}},
       attendance:{where:{session:{classSection:{program:{organizationId:org.id}}}},take:15,orderBy:{session:{startsAt:"desc"}},select:{id:true,status:true,session:{select:{startsAt:true,classSection:{select:{name:true}}}}}},
     }}}}),
     db.student.findFirst({where:{userId:user.id,...studentScope},select:{id:true,firstName:true,lastName:true,

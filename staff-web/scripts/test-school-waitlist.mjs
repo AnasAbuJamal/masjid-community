@@ -76,6 +76,13 @@ try{
  const ownClass=list.data.classes.find(x=>x.id===klass.id);
  assert.deepEqual(ownClass.waitlist.map(x=>x.id),[first.data.id,second.data.id,third.data.id],
   "waiting order follows request time and stable ID");
+ const guardianView=await call("students","GET",undefined,memberToken);
+ assert.equal(guardianView.status,200);
+ assert.ok(guardianView.data.children.some(child=>child.id===b.id&&
+  child.waitlist.some(w=>w.id===first.data.id)),
+  "approved guardian sees the waiting state and cannot mistake it for enrollment");
+ assert.ok(!guardianView.data.children.find(child=>child.id===b.id)?.enrollments.some(e=>e.classId===klass.id),
+  "a waiting child has no confirmed place");
  assert.ok(!JSON.stringify(ownClass).includes(guardian.email),
   "school queue shows child names but no guardian email or private notes");
  const directFull=await call("admin/school","POST",{
@@ -126,6 +133,12 @@ try{
   classId:klass.id,studentId:b.id
  }}});
  assert.equal(admittedB.status,"active");
+ const familyAfterPromotion=await call("students","GET",undefined,memberToken);
+ const approvedB=familyAfterPromotion.data.children.find(child=>child.id===b.id);
+ assert.ok(approvedB.enrollments.some(e=>e.classId===klass.id),
+  "guardian can see a genuinely promoted and active enrollment");
+ assert.ok(!approvedB.waitlist.some(w=>w.id===first.data.id),
+  "promoted child no longer appears as waiting");
  const reEnrolOld=await call("admin/school","POST",{
   kind:"enrollment",classId:klass.id,studentId:a.id
  },adminToken);
@@ -138,6 +151,9 @@ try{
  assert.equal(withdrawB.status,200);
  const cLink=await db.guardianLink.findUniqueOrThrow({where:{id:IDs.links[1]}});
  await db.guardianLink.update({where:{id:cLink.id},data:{revokedAt:new Date()}});
+ const afterRevocation=await call("students","GET",undefined,memberToken);
+ assert.ok(!afterRevocation.data.children.some(child=>child.id===c.id),
+  "revoked guardian immediately loses child identity and waitlist status");
  const invalidC=await call("admin/school-waitlist","POST",{
   kind:"promote",waitlistId:second.data.id,
   reason:"The guardian relationship has been revoked and must be checked."

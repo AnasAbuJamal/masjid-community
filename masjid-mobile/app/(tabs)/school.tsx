@@ -8,9 +8,11 @@ import {useResource} from "../../src/useResource";
 import {useSession} from "../../src/session";
 type Program={id:string;title:string;description:string;classes:{id:string;name:string;schedule:string}[]};
 type Public={items:Program[]};
-type Private={children:{id:string;firstName:string;lastName:string;enrollments:{classSection:{name:string;schedule:string}}[];attendance:{id:string;status:string;session:{startsAt:string;classSection:{name:string}}}[]}[];student?:{id:string;firstName:string;lastName:string}|null;teaching:{id:string;name:string;schedule:string}[]};
+type Private={children:{id:string;firstName:string;lastName:string;enrollments:{classSection:{name:string;schedule:string}}[];
+ waitlist:{id:string;status:string;requestedAt:string;classSection:{id:string;name:string;schedule:string}}[];
+ attendance:{id:string;status:string;session:{startsAt:string;classSection:{name:string}}}[]}[];student?:{id:string;firstName:string;lastName:string}|null;teaching:{id:string;name:string;schedule:string}[]};
 export default function School(){
- const {t}=useLanguage();
+ const {t,language}=useLanguage();
  const {user}=useSession();
  const catalog=useResource<Public>("public/programs");
  const privateData=useResource<Private>(user?.isVerified?"students":"public/programs");
@@ -19,7 +21,9 @@ export default function School(){
  {user&&!user.isVerified?<Card><Text style={S.bodyText}>Verify your email and complete any required school linking with the school office to view private records.</Text></Card>:null}
  {user?.isVerified&&["teacher","admin"].includes(user.role)?<Card style={{gap:12}}><Text style={S.headline}>Teacher workspace</Text><Text style={S.muted}>Manage attendance only for assigned classes.</Text><Action label="Open your classroom" onPress={()=>router.push("/school/teacher")}/></Card>:null}
  {user?.isVerified?<><Feedback loading={privateData.loading} error={privateData.error} empty={false} refresh={privateData.refresh}/>
- {privateData.data?.children?.length?<View style={S.section}><Text style={S.headline}>{t("school.linked")}</Text>{privateData.data.children.map(child=><Card key={child.id}><Text style={S.label}>{child.firstName} {child.lastName}</Text><Text style={S.muted}>{child.enrollments.length} current classes</Text>{child.enrollments.map((entry,i)=><Text key={i} style={S.bodyText}>{entry.classSection.name} · {entry.classSection.schedule}</Text>)}{child.attendance.slice(0,5).map(a=><Text key={a.id} style={S.muted}>{a.session.classSection.name} · {new Date(a.session.startsAt).toLocaleDateString()} · {a.status}</Text>)}</Card>)}</View>:null}
+ {privateData.data?.children?.length?<View style={S.section}><Text style={S.headline}>{t("school.linked")}</Text>{privateData.data.children.map(child=><Card key={child.id}><Text style={S.label}>{child.firstName} {child.lastName}</Text><Text style={S.muted}>{child.enrollments.length} current classes</Text>{child.enrollments.map((entry,i)=><Text key={i} style={S.bodyText}>{entry.classSection.name} · {entry.classSection.schedule}</Text>)}
+ {child.waitlist?.map(w=><Text key={w.id} style={S.muted}>{language==="ar"?"قائمة انتظار فقط — لم يُؤكَّد مقعد: ":"Waitlisted, no confirmed seat: "}{w.classSection.name} · {new Date(w.requestedAt).toLocaleDateString()}</Text>)}
+ {child.attendance.slice(0,5).map(a=><Text key={a.id} style={S.muted}>{a.session.classSection.name} · {new Date(a.session.startsAt).toLocaleDateString()} · {a.status}</Text>)}</Card>)}</View>:null}
  {privateData.data?.teaching?.length?<View style={S.section}><Text style={S.headline}>{t("school.teaching")}</Text>{privateData.data.teaching.map(c=><Card key={c.id}><Text style={S.label}>{c.name}</Text><Text style={S.muted}>{c.schedule}</Text></Card>)}</View>:null}
  </>:null}
  {user?.isVerified?<Card style={{gap:11}}><Text style={S.headline}>Assignments & progress</Text><Text style={S.muted}>See published assignments and reports only for your authorized classes or linked children.</Text><Action label="Open learning center" secondary icon="book-open-page-variant-outline" onPress={()=>router.push("/school/work")}/></Card>:null}
