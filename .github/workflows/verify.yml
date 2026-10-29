@@ -66,6 +66,7 @@ jobs:
           node scripts/test-school-scope.mjs
           node scripts/test-attendance-corrections.mjs
           node scripts/test-school-capacity.mjs
+          node scripts/test-school-waitlist.mjs
           node scripts/test-community-scope.mjs
           node scripts/test-privacy-scope.mjs
           node scripts/test-shift-safety.mjs
