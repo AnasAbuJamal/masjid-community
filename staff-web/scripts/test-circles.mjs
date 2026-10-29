@@ -176,6 +176,12 @@ try{
  const declineCooldown=await request("circles","POST",{circleId:second.data.id},memberToken);
  assert.equal(declineCooldown.status,409);
  assert.equal(declineCooldown.error.code,"JOIN_COOLDOWN");
+ const declineBypass=await request("circles","DELETE",{circleId:second.data.id},memberToken);
+ assert.equal(declineBypass.status,409,"a declined applicant cannot reset cooldown by leaving");
+ assert.equal(declineBypass.error.code,"JOIN_COOLDOWN");
+ assert.equal((await db.circleMember.findUniqueOrThrow({where:{
+  circleId_userId:{circleId:second.data.id,userId:member.id}
+ }})).status,"declined","denied deletion must leave declined state unchanged");
  const notice=await db.notification.findFirst({where:{
   userId:member.id,title:"Your community request has been reviewed",
   id:{not:notification.id}

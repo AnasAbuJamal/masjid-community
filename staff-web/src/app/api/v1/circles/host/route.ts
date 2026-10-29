@@ -32,7 +32,11 @@ export async function GET(req:NextRequest){
   const circle=await db.circle.findFirst({where:{...activeHost,id:validId},
    select:{id:true,title:true,summary:true,cadence:true,guidelines:true}});
   if(!circle)throw new HttpError(404,"HOST_SCOPE","Assigned circle unavailable.");
-  const members=await db.circleMember.findMany({where:{circleId:circle.id,status:{in:["requested","approved"]}},
+  const members=await db.circleMember.findMany({where:{
+   circleId:circle.id,status:{in:["requested","approved"]},
+   member:{status:"active",verifiedAt:{not:null},role:{not:"student"},
+    memberships:{some:{organizationId:org.id,status:"active"}}}
+  },
    orderBy:[{requestedAt:"asc"},{id:"asc"}],take:100,
    select:{id:true,status:true,requestedAt:true,
     member:{select:{firstName:true,lastName:true}}}});

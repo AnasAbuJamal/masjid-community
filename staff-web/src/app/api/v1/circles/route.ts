@@ -78,8 +78,10 @@ export async function DELETE(req:NextRequest){
    if(!circle)throw new HttpError(404,"CIRCLE_UNAVAILABLE","Circle unavailable.");
    const row=await tx.circleMember.findUnique({where:{circleId_userId:{circleId,userId:member.id}}});
    if(!row||row.status==="left")return {left:true,alreadyLeft:true};
+   if(row.status==="declined")throw new HttpError(409,"JOIN_COOLDOWN",
+    "A declined request must remain in review cooldown. You may request a review from the mosque.");
    const updated=await tx.circleMember.updateMany({
-    where:{id:row.id,circleId,userId:member.id,status:{in:["requested","approved","declined"]}},
+    where:{id:row.id,circleId,userId:member.id,status:{in:["requested","approved"]}},
     data:{status:"left",reviewedAt:null,reviewedById:null,decisionReason:null}
    });
    if(!updated.count)throw new HttpError(409,"JOIN_CHANGED","Membership changed. Refresh and retry.");
