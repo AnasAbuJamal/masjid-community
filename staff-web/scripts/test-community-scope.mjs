@@ -123,7 +123,8 @@ try {
    "foreign action denied: "+attempt.body.kind);
  }
  assert.equal(await db.eventRSVP.count({where:{eventId:foreignEvent.id}}),1);
- assert.equal(await db.volunteerApplication.count({where:{opportunityId:foreignOpportunity.id}}),1);
+ assert.equal(await db.volunteerApplication.count({where:{opportunityId:foreignOpportunity.id}}),2,
+  "rejected request must not add to the member and approved-staff fixture applications");
  assert.equal(await db.proposalVote.count({where:{proposalId:foreignProposal.id}}),1);
  assert.equal(await db.jobApplication.count({where:{jobId:foreignJob.id}}),1);
  assert.equal(await db.rentalBooking.count({where:{resourceId:foreignResource.id}}),1);
