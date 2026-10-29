@@ -54,11 +54,18 @@ try {
   confirm:false,reason:"Please review organization-held records"
  },memberToken);
  assert.equal(missingConfirm.status,422,"request requires explicit confirmation");
- const created=await request("account/deletion-request","POST",{
+ const simultaneous=await Promise.all(Array.from({length:3},()=>request("account/deletion-request","POST",{
   confirm:true,reason:"Review records held by my current mosque"
- },memberToken);
- assert.equal(created.status,201,"historic unscoped request must not block a new mosque request");
+ },memberToken)));
+ assert.deepEqual(simultaneous.map(x=>x.status).sort(),[200,200,201],
+  "concurrent requests produce one durable case and two idempotent responses");
+ const created=simultaneous.find(x=>x.status===201);
+ assert.ok(created,"a single new request is created");
  localId=created.data.id;
+ assert.ok(simultaneous.every(x=>x.data.id===localId),"simultaneous requests share the same case");
+ assert.equal(await db.deletionRequest.count({where:{
+  organizationId:org.id,userId:member.id,status:{in:["pending","in_review"]}
+ }}),1,"database guarantees at most one active local privacy review");
  assert.notEqual(localId,legacy.id);
  assert.notEqual(localId,foreignId);
  const persisted=await db.deletionRequest.findUniqueOrThrow({where:{id:localId}});

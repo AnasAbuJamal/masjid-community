@@ -1,4 +1,5 @@
 import {NextRequest} from "next/server";
+import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
@@ -14,13 +15,30 @@ export async function POST(req:NextRequest){
    userId:user.id,organizationId:org.id,status:{in:["pending","in_review"]}
   },orderBy:{createdAt:"desc"}});
   if(existing)return ok({id:existing.id,status:existing.status,message:"Your mosque-specific request is already awaiting review."});
-  const item=await db.deletionRequest.create({data:{
-   organizationId:org.id,userId:user.id,reason
-  }});
-  await db.auditEvent.create({data:{
-   actorId:user.id,action:"account.deletion.request",entity:"DeletionRequest",entityId:item.id,
-   detail:JSON.stringify({organizationId:org.id})
-  }});
-  return ok({id:item.id,status:item.status,message:"Your mosque-specific data request is queued for human review. No account or data has been deleted."},201);
+  try{
+   const item=await db.$transaction(async tx=>{
+    const created=await tx.deletionRequest.create({data:{
+     organizationId:org.id,userId:user.id,reason
+    }});
+    await tx.auditEvent.create({data:{
+     actorId:user.id,action:"account.deletion.request",entity:"DeletionRequest",entityId:created.id,
+     detail:JSON.stringify({organizationId:org.id})
+    }});
+    return created;
+   });
+   return ok({id:item.id,status:item.status,message:"Your mosque-specific data request is queued for human review. No account or data has been deleted."},201);
+  }catch(error){
+   if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2002"){
+    // Database constraint arbitrates a simultaneous submission. The other
+    // writer must finish before the rejected insert returns to this handler.
+    const already=await db.deletionRequest.findFirst({where:{
+     userId:user.id,organizationId:org.id,status:{in:["pending","in_review"]}
+    },orderBy:{createdAt:"desc"}});
+    if(already)return ok({id:already.id,status:already.status,
+     message:"Your mosque-specific request is already awaiting review."});
+    throw new HttpError(409,"REQUEST_CHANGED","Privacy request changed. Refresh and try again.");
+   }
+   throw error;
+  }
  });
 }
