@@ -16,7 +16,7 @@ export async function GET(req:NextRequest){
   if(!event)throw new HttpError(404,"NOT_FOUND","Event unavailable.");
   const registration=await db.eventRSVP.findUnique({
    where:{eventId_userId:{eventId:event.id,userId:user.id}},
-   select:{status:true,createdAt:true}
+   select:{status:true,createdAt:true,checkedInAt:true}
   });
   return ok({eventId,registration});
  });

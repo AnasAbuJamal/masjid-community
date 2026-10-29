@@ -8,7 +8,7 @@ import {api,apiPost} from "../../../src/api";
 import {useSession} from "../../../src/session";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;filled?:number;publishedAt?:string;currency?:string};
 type Result={items:RecordItem[]};
-type OwnRegistration={eventId:string;registration:{status:string;createdAt:string}|null};
+type OwnRegistration={eventId:string;registration:{status:string;createdAt:string;checkedInAt:string|null}|null};
 const categories:{[key:string]:{label:string;subtitle:string}}={
  events:{label:"Events",subtitle:"Discover upcoming gatherings."},
  announcements:{label:"Announcements",subtitle:"Published news from the mosque."},
@@ -73,8 +73,10 @@ export default function Details(){
     <Text style={S.muted}>{item.rsvpCount??0} of {item.capacity} places confirmed · {item.waitlistEnabled?"Waitlist available if full":"No waitlist"}</Text>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
     <Text style={[S.label,{color:T.deep}]} accessibilityRole="text">
-     Your registration: {own.data.registration.status==="waitlisted"?"Waitlisted — not confirmed":"Confirmed place"}
+     Your registration: {own.data.registration.status==="waitlisted"?"Waitlisted — not confirmed":own.data.registration.checkedInAt?"Checked in — arrival confirmed":"Confirmed place"}
     </Text>:null}
+   {kind==="events"&&own.data?.registration?.checkedInAt?
+    <Text style={S.muted}>Arrival recorded {new Date(own.data.registration.checkedInAt).toLocaleString()}. If this is incorrect, contact an assigned host for an audited correction.</Text>:null}
    {kind==="events"&&user?.isVerified&&own.error?
     <Text accessibilityRole="alert" style={{color:T.danger}}>{own.error}</Text>:null}
    {item.company?<Text style={S.muted}>Organization: {item.company}</Text>:null}
@@ -85,7 +87,7 @@ export default function Details(){
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
      <Action label={own.data.registration.status==="waitlisted"?"Leave waitlist":"Cancel my reservation"}
-      secondary disabled={busy||own.loading} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
+      secondary disabled={busy||own.loading||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
     :null}
    {kind==="campaigns"?<Action label="Choose a donation" icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
     :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?"Sign in to participate":kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(item.waitlistEnabled?"Join event waitlist":"Event full — no waitlist"):"RSVP to event"):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={own.loading||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>

@@ -97,6 +97,10 @@ try{
  assert.ok(recorded.checkedInAt instanceof Date);
  assert.equal(recorded.checkedInById,staff.id);
  assert.equal(recorded.checkInRevision,1);
+ const ownArrival=await request("events/registration?eventId="+event.id,"GET",null,memberToken);
+ assert.equal(ownArrival.status,200);
+ assert.ok(ownArrival.data.registration.checkedInAt,"member can see their own factual checked-in state");
+ assert.ok(!Object.hasOwn(ownArrival.data.registration,"user"),"own registration never leaks a roster");
  const stale=await request("events/check-in","POST",{
   eventId:event.id,rsvpId:confirmed.id,action:"arrive",expectedRevision:0
  },staffToken);
@@ -120,6 +124,8 @@ try{
  assert.equal(correction.data.checkedIn,false);
  assert.equal((await db.eventRSVP.findUniqueOrThrow({where:{id:confirmed.id}})).checkedInAt,null);
  assert.equal((await db.eventRSVP.findUniqueOrThrow({where:{id:confirmed.id}})).checkInRevision,2);
+ const ownCorrected=await request("events/registration?eventId="+event.id,"GET",null,memberToken);
+ assert.equal(ownCorrected.data.registration.checkedInAt,null,"member sees corrected own check-in status");
  const journal=await db.auditEvent.findMany({where:{
   entity:"EventRSVP",entityId:confirmed.id,action:{in:["gather.check-in","gather.check-in.correct"]}
  }});
