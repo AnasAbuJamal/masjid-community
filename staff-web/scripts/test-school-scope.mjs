@@ -15,7 +15,7 @@ async function request(path,method="GET",payload,token){
  },body:payload?JSON.stringify(payload):undefined});
  return {status:response.status,...await response.json()};
 }
-let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,schoolAdminSession,newLocalStudentId;
+let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -47,12 +47,14 @@ try{
  foreignTeacher=await db.user.create({data:{email:"foreign-school-teacher-"+Date.now()+"@example.test",
   firstName:"Foreign",lastName:"Teacher",role:"teacher",status:"active",verifiedAt:new Date(),
   passwordHash:teacher.passwordHash,memberships:{create:{organizationId:foreignOrg.id}}}});
- foreignProgram=await db.schoolProgram.create({data:{organizationId:foreignOrg.id,title:"Foreign private program",description:"CI only",published:false}});
+ foreignProgram=await db.schoolProgram.create({data:{organizationId:foreignOrg.id,title:"Foreign private program",description:"CI only",published:true}});
  foreignClass=await db.classSection.create({data:{programId:foreignProgram.id,name:"Foreign private class",schedule:"CI only"}});
  foreignStudent=await db.student.create({data:{organizationId:foreignOrg.id,studentNumber:"foreign-school-"+Date.now(),firstName:"Foreign",lastName:"Child"}});
  await db.teacherAssignment.create({data:{teacherId:teacher.id,classId:foreignClass.id}});
  await db.enrollment.create({data:{studentId:foreignStudent.id,classId:foreignClass.id}});
  await db.guardianLink.create({data:{guardianId:member.id,studentId:foreignStudent.id,approvedAt:new Date()}});
+ foreignApplication=await db.enrollmentApplication.create({data:{organizationId:foreignOrg.id,programId:foreignProgram.id,
+  applicantUserId:member.id,studentFirstName:"Foreign",studentLastName:"Applicant"}});
  const foreignSession=await db.classSession.create({data:{classId:foreignClass.id,startsAt:new Date(Date.now()+86400000)}});
  await db.attendance.create({data:{sessionId:foreignSession.id,studentId:foreignStudent.id,markedById:teacher.id,status:"present"}});
  const foreignInvoice=await db.schoolInvoice.create({data:{organizationId:foreignOrg.id,studentId:foreignStudent.id,
@@ -91,6 +93,15 @@ try{
  assert.equal(await db.guardianLink.count({where:{guardianId:member.id,studentId:foreignStudent.id}}),1,"denied guardian link did not change the fixture");
  assert.equal(await db.enrollment.count({where:{classId:localClass.id,studentId:foreignStudent.id}}),0,"no foreign child enrollment created");
  assert.equal(await db.teacherAssignment.count({where:{classId:localClass.id,teacherId:foreignTeacher.id}}),0,"no unauthorized staff assignment created");
+ const foreignApplicationAttempt=await request("enrollment","POST",{
+  programId:foreignProgram.id,studentFirstName:"Cross",studentLastName:"Organization"
+ },memberToken);
+ assert.equal(foreignApplicationAttempt.status,404,"member cannot submit an application to a published foreign program");
+ const applications=await request("enrollment","GET",null,memberToken);
+ assert.equal(applications.status,200);
+ assert.ok(!applications.data.applications.some(x=>x.id===foreignApplication.id),"foreign application excluded from member history");
+ const foreignCheckout=await request("invoices/checkout","POST",{invoiceId:foreignInvoice.id},memberToken);
+ assert.equal(foreignCheckout.status,404,"foreign invoice cannot reach the payment provider");
  const newLocalStudent=await request("admin/school","POST",{
   kind:"student",studentNumber:"owned-school-"+Date.now(),firstName:"Local",lastName:"Learner"
  },adminToken);
@@ -101,6 +112,18 @@ try{
  assert.equal(afterRegister.status,200);
  assert.ok(afterRegister.data.students.some(s=>s.id===newLocalStudentId),"newly registered owned student is available to school staff");
 
+ // Synthetic bad legacy link: even if a foreign-owned student is enrolled
+ // into a local class directly in the database, family and staff APIs deny it.
+ await db.enrollment.create({data:{studentId:foreignStudent.id,classId:localClass.id,status:"active"}});
+ const adminAfterMalformedEnrollment=await request("admin/school","GET",null,adminToken);
+ assert.equal(adminAfterMalformedEnrollment.status,200);
+ assert.ok(!adminAfterMalformedEnrollment.data.students.some(s=>s.id===foreignStudent.id),
+  "a forged local enrollment cannot override explicit foreign child ownership");
+ const crossOwnerReport=await request("schoolwork","POST",{
+  kind:"report",classId:localClass.id,studentId:foreignStudent.id,
+  summary:"Must not publish foreign student progress.",published:true
+ },teacherToken);
+ assert.equal(crossOwnerReport.status,404,"teacher cannot report on a foreign-owned child in a local class");
  const students=await request("students","GET",null,memberToken);
  assert.equal(students.status,200);
  assert.ok(students.data.children.some(c=>c.id===localEnrollment.studentId),"approved local child remains visible");
@@ -109,6 +132,10 @@ try{
  assert.equal(teacherStudents.status,200);
  assert.ok(teacherStudents.data.teaching.some(c=>c.id===localClass.id),"local teacher roster remains visible");
  assert.ok(!teacherStudents.data.teaching.some(c=>c.id===foreignClass.id),"foreign class hidden from student summary");
+ const localTeacherRoster=teacherStudents.data.teaching.find(c=>c.id===localClass.id);
+ assert.ok(localTeacherRoster);
+ assert.ok(!localTeacherRoster.enrollments.some(e=>e.student.id===foreignStudent.id),
+  "forged cross-organization enrollment cannot expose foreign child through teacher roster");
  const overview=await request("me","GET",null,memberToken);
  assert.equal(overview.status,200);
  assert.ok(overview.data.children.some(c=>c.student.id===localEnrollment.studentId));
@@ -125,10 +152,15 @@ try{
  assert.equal(roster.status,200);
  assert.ok(roster.data.classes.some(c=>c.id===localClass.id),"assigned home-organization class remains visible");
  assert.ok(!roster.data.classes.some(c=>c.id===foreignClass.id),"foreign teacher assignment does not authorize roster disclosure");
+ const localRoster=roster.data.classes.find(c=>c.id===localClass.id);
+ assert.ok(localRoster&&!localRoster.enrollments.some(e=>e.student.id===foreignStudent.id),
+  "dedicated teacher API excludes foreign-owned child even with bad enrollment");
  const learning=await request("schoolwork","GET",null,teacherToken);
  assert.equal(learning.status,200);
  assert.ok(learning.data.classes.some(c=>c.id===localClass.id));
  assert.ok(!learning.data.classes.some(c=>c.id===foreignClass.id),"foreign class learning data is not disclosed");
+ assert.ok(!learning.data.classes.find(c=>c.id===localClass.id)?.enrollments.some(e=>e.student.id===foreignStudent.id),
+  "teacher learning rosters exclude foreign-owned child");
  const family=await request("schoolwork","GET",null,memberToken);
  assert.equal(family.status,200);
  assert.ok(!family.data.assignments.some(a=>a.id===foreignAssignment.id),"foreign class work stays outside member organization");
@@ -181,7 +213,7 @@ try{
   await db.schoolAssignment.deleteMany({where:{classId:foreignClass.id}});
   await db.attendance.deleteMany({where:{session:{classId:foreignClass.id}}});
   await db.classSession.deleteMany({where:{classId:foreignClass.id}});
-  await db.enrollment.deleteMany({where:{classId:foreignClass.id}});
+  await db.enrollment.deleteMany({where:{studentId:foreignStudent.id}});
   await db.teacherAssignment.deleteMany({where:{classId:foreignClass.id}});
   await db.classSection.delete({where:{id:foreignClass.id}});
  }
@@ -189,6 +221,7 @@ try{
   await db.guardianLink.deleteMany({where:{studentId:foreignStudent.id}});
   await db.student.delete({where:{id:foreignStudent.id}});
  }
+ if(foreignApplication)await db.enrollmentApplication.delete({where:{id:foreignApplication.id}});
  if(foreignProgram)await db.schoolProgram.delete({where:{id:foreignProgram.id}});
  if(foreignTeacher){
   await db.organizationMembership.deleteMany({where:{userId:foreignTeacher.id}});
