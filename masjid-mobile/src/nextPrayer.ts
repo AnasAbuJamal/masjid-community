@@ -4,7 +4,7 @@ export type PublishedPrayerDay = {localDate: string} & Partial<Record<PrayerName
 export type UpcomingPrayer = {name: PrayerName; time: string};
 
 const prayerNames: readonly PrayerName[] = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
-const validClock = /^(?:[01]\\d|2[0-3]):[0-5]\\d$/;
+const validClock = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export function nextPublishedPrayer(
   day: PublishedPrayerDay | null | undefined,
