@@ -24,15 +24,26 @@ const schema=z.discriminatedUnion("kind",[
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req,["admin"]);
-  const [org,counts,venues,prayers,announcements,events,applications,construction]=await Promise.all([
-    db.organization.findFirst(),
-    Promise.all([db.user.count(),db.event.count(),db.announcement.count(),db.schoolProgram.count(),db.donation.count()]),
-    db.venue.findMany({take:10,select:{id:true,name:true,timeZone:true}}),
-    db.prayerDay.findMany({take:12,orderBy:{localDate:"desc"}}),
-    db.announcement.findMany({take:12,orderBy:{createdAt:"desc"}}),
-    db.event.findMany({take:12,orderBy:{startAt:"desc"}}),
-    db.volunteerApplication.findMany({take:15,include:{opportunity:{select:{title:true}},user:{select:{firstName:true,lastName:true}}}}),
-    db.constructionProject.findMany({take:100,orderBy:{createdAt:"desc"},select:{id:true,title:true,status:true}})
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  // Every overview count, child row and staff application is tenant-scoped.
+  // Never query global totals before resolving the administrator's mosque.
+  const [counts,venues,prayers,announcements,events,applications,construction]=await Promise.all([
+    Promise.all([
+      db.user.count({where:{memberships:{some:{organizationId:org.id,status:"active"}}}}),
+      db.event.count({where:{organizationId:org.id}}),
+      db.announcement.count({where:{organizationId:org.id}}),
+      db.schoolProgram.count({where:{organizationId:org.id}}),
+      db.donation.count({where:{campaign:{organizationId:org.id}}})
+    ]),
+    db.venue.findMany({where:{organizationId:org.id},take:10,select:{id:true,name:true,timeZone:true}}),
+    db.prayerDay.findMany({where:{venue:{organizationId:org.id}},take:12,orderBy:{localDate:"desc"}}),
+    db.announcement.findMany({where:{organizationId:org.id},take:12,orderBy:{createdAt:"desc"}}),
+    db.event.findMany({where:{organizationId:org.id},take:12,orderBy:{startAt:"desc"}}),
+    db.volunteerApplication.findMany({where:{opportunity:{organizationId:org.id}},take:15,
+      include:{opportunity:{select:{title:true}},user:{select:{firstName:true,lastName:true}}}}),
+    db.constructionProject.findMany({where:{organizationId:org.id},take:100,
+      orderBy:{createdAt:"desc"},select:{id:true,title:true,status:true}})
   ]);
   return ok({organization:org&&{id:org.id,name:org.name},counts:{users:counts[0],events:counts[1],announcements:counts[2],programs:counts[3],donations:counts[4]},venues,prayers,announcements,events,applications,construction,role:user.role});
  });
@@ -45,7 +56,7 @@ export async function POST(req:NextRequest){
   if(body&&typeof body==="object"&&!Array.isArray(body)&&("kind" in body)&&body.kind==="prayer")
    throw new HttpError(409,"PRAYER_REVIEW_REQUIRED","Use the prayer review workflow. Direct schedule publication is disabled.");
   const input=schema.parse(body);
-  const org=await db.organization.findFirst();
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   let result:{id:string};
   if(input.kind==="announcement"){
@@ -78,19 +89,27 @@ export async function POST(req:NextRequest){
   }else if(input.kind==="rental"){
     result=await db.rentalResource.create({data:{organizationId:org.id,title:input.title,description:input.description,published:input.published}});
   }else{
-    const app=await db.volunteerApplication.findUnique({where:{id:input.applicationId},include:{opportunity:true}});
+    const app=await db.volunteerApplication.findFirst({where:{
+      id:input.applicationId,opportunity:{organizationId:org.id}
+    },include:{opportunity:true}});
     if(!app)throw new HttpError(404,"NOT_FOUND","Application unavailable.");
     if(app.status!=="submitted")throw new HttpError(409,"ALREADY_DECIDED","Application has already been decided.");
     if(input.decision==="approved"){
       result=await db.$transaction(async tx=>{
-        const claimed=await tx.volunteerOpportunity.updateMany({where:{id:app.opportunityId,filled:{lt:app.opportunity.capacity}},data:{filled:{increment:1}}});
+        const claimed=await tx.volunteerOpportunity.updateMany({where:{id:app.opportunityId,organizationId:org.id,filled:{lt:app.opportunity.capacity}},data:{filled:{increment:1}}});
         if(!claimed.count)throw new HttpError(409,"FULL","No volunteer spaces remain.");
-        const changed=await tx.volunteerApplication.updateMany({where:{id:app.id,status:"submitted"},data:{status:"approved"}});
+        const changed=await tx.volunteerApplication.updateMany({where:{
+          id:app.id,status:"submitted",opportunity:{organizationId:org.id}
+        },data:{status:"approved"}});
         if(!changed.count)throw new HttpError(409,"ALREADY_DECIDED","Application has already changed.");
         return {id:app.id};
       },{isolationLevel:"Serializable"});
     }else{
-      result=await db.volunteerApplication.update({where:{id:app.id},data:{status:"declined"}});
+      const updated=await db.volunteerApplication.updateMany({where:{
+        id:app.id,status:"submitted",opportunity:{organizationId:org.id}
+      },data:{status:"declined"}});
+      if(!updated.count)throw new HttpError(409,"ALREADY_DECIDED","Application has already changed.");
+      result={id:app.id};
     }
   }
   await audit(user.id,"admin."+input.kind,"record",result.id);
