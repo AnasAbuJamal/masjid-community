@@ -47,6 +47,11 @@ export async function POST(req:NextRequest){
   if(membership.status!=="active")throw new HttpError(403,"MEMBERSHIP_SUSPENDED","Restore this membership before changing its role.");
   if(!membership.user.verifiedAt)throw new HttpError(403,"ACCOUNT_UNVERIFIED","Verify the member's email before assigning privileges.");
   if(input.kind==="role"){
+   // The one-time, email-bound acceptance path is required for first
+   // promotion to staff. Legacy role editing cannot bypass consent/MFA.
+   if(input.role==="staff"&&membership.user.role!=="staff")
+    throw new HttpError(409,"INVITATION_REQUIRED",
+     "New staff authority requires a verified, accepted, one-time invitation.");
    await db.$transaction(async tx=>{
     await tx.user.update({where:{id:input.userId},data:{role:input.role}});
     await tx.authSession.updateMany({where:{userId:input.userId,revokedAt:null},data:{revokedAt:new Date()}});

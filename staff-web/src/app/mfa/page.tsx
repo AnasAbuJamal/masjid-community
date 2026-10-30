@@ -1,6 +1,6 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
-type Info={role:string;email:string;mfaRequired:boolean;mfaSetupRequired:boolean;isVerified:boolean};
+type Info={role:string;email:string;mfaRequired:boolean;mfaSetupRequired:boolean;isVerified:boolean;mfaEnabled:boolean};
 export default function MfaGate(){
  const [user,setUser]=useState<Info|null>(null);
  const [password,setPassword]=useState(""),[secret,setSecret]=useState(""),[code,setCode]=useState("");
@@ -8,8 +8,12 @@ export default function MfaGate(){
  const read=useCallback(async()=>{try{
   const r=await fetch("/api/v1/auth/me",{cache:"no-store"});const v=await r.json();
   if(!v.data){window.location.replace("/");return;}
-  setUser(v.data);
-  if(!v.data.mfaRequired&&(v.data.role!=="staff"||!v.data.mfaSetupRequired)){window.location.replace(v.data.role==="finance"?"/admin/finance":v.data.role==="staff"?"/staff":"/admin");}
+  const enroll=new URLSearchParams(window.location.search).get("enroll")==="1";
+  const memberEnrollment=enroll&&v.data.role==="member";
+  setUser({...v.data,mfaSetupRequired:v.data.mfaSetupRequired||(memberEnrollment&&!v.data.mfaEnabled)});
+  if(!v.data.mfaRequired&&!memberEnrollment&&(v.data.role!=="staff"||!v.data.mfaSetupRequired)){
+   window.location.replace(v.data.role==="finance"?"/admin/finance":v.data.role==="staff"?"/staff":"/admin");
+  }
  }catch{setError("Could not check your current sign-in status.");}},[]);
  useEffect(()=>{void read()},[read]);
  async function action(endpoint:string,body:unknown){
@@ -34,6 +38,9 @@ export default function MfaGate(){
  <input id="otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,""))}/></div>
  <button className="primary" disabled={busy||!user||code.length!==6||!!user.mfaSetupRequired&&!secret} onClick={()=>void action(user?.mfaSetupRequired?"mfa-enable":"mfa-verify",{code})}>{busy?"Checking…":"Continue securely"}</button></div>
  {error?<p className="error" role="alert">{error}</p>:null}{notice?<p className="notice" role="status">{notice}</p>:null}
+ {user?.role==="member"?<p className="small">If you opened this page for a staff invitation, return to your original one-time invitation link after enabling or verifying your authenticator. No staff permissions are granted here.</p>:null}
+ {typeof window!=="undefined"&&new URLSearchParams(window.location.hash.slice(1)).has("invite")?
+ <a href={"/invite#token="+encodeURIComponent(new URLSearchParams(window.location.hash.slice(1)).get("invite")||"")}>Return to my invitation</a>:null}
  <a href="/">Back to sign in</a>
  </section></main>;
 }

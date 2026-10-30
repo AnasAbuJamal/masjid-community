@@ -16,7 +16,8 @@ export async function GET(req: NextRequest,{params}:Context) {
     if(action!=="me")throw new HttpError(404,"NOT_FOUND","Unknown action.");
     const user=await actor(req);
     return ok(user ? {id:user.id,firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,isVerified:!!user.verifiedAt,mfaRequired:((["admin","finance"].includes(user.role)||user.role==="staff"&&user.mfaEnabled)&&!user.mfaVerified),
- mfaSetupRequired:(["admin","finance"].includes(user.role)||user.role==="staff")&&!user.mfaEnabled}:null);
+ mfaSetupRequired:(["admin","finance"].includes(user.role)||user.role==="staff")&&!user.mfaEnabled,
+ mfaEnabled:user.mfaEnabled,mfaVerified:user.mfaVerified}:null);
   });
 }
 export async function POST(req:NextRequest,{params}:Context) {
