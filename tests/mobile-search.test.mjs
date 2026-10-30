@@ -13,14 +13,19 @@ test("verified member search never falls back to the home mosque while context i
  assert.equal(memberSurfaceScope({...foreign,selectedActive:false},true),"inactive");
  assert.equal(allowPilotContent("inactive"),false);
 });
-test("other mosque searches ONLY published gatherings regardless of chosen old category",()=>{
+test("other mosque searches ONLY supported published categories",()=>{
  const scope=searchScope(foreign,true);
- assert.equal(scope,"gatherings_only");
- assert.equal(scopedSearchPath("  Friday prayer  ","jobs",scope),
-  "events/catalog?q=Friday%20prayer");
- assert.equal(scopedSearchPath("a","jobs",scope),null);
+ assert.equal(scope,"published_selected");
+ assert.equal(scopedSearchPath("  Friday prayer  ","events",scope),
+  "organizations/search?q=Friday%20prayer&kind=events");
+ assert.equal(scopedSearchPath("a","articles",scope),null);
  assert.equal(scopedSearchPath("مدرسة","all",scope),
-  "events/catalog?q="+encodeURIComponent("مدرسة"));
+  "organizations/search?q="+encodeURIComponent("مدرسة")+"&kind=all");
+ assert.equal(scopedSearchPath("newsletter","announcements",scope),
+  "organizations/search?q=newsletter&kind=announcements");
+ assert.equal(scopedSearchPath("housing","jobs",scope),
+  "organizations/search?q=housing&kind=all",
+  "unsupported client categories must not be supplied to the private search endpoint");
 });
 test("home and guest searches retain the original public categories",()=>{
  assert.equal(searchScope(home,true),"public");

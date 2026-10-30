@@ -287,6 +287,33 @@ try{
   assert.equal((await call("organizations/view?resource=articles&itemId="+id,
    "GET",undefined,first)).status,404,"unreleased articles remain inaccessible by ID");
  }
+ const anonymousDiscovery=await call("organizations/search?q=FOREIGN&kind=all");
+ assert.equal(anonymousDiscovery.status,401,"private selected-mosque search requires authentication");
+ const selectedDiscovery=await call("organizations/search?q=FOREIGN&kind=all","GET",undefined,first,
+  {"x-organization-id":home.id});
+ assert.equal(selectedDiscovery.status,200,JSON.stringify(selectedDiscovery));
+ assert.equal(selectedDiscovery.data.organization.id,foreign.id);
+ assert.deepEqual(new Set(selectedDiscovery.data.items.map(x=>x.kind)),
+  new Set(["events","announcements","articles"]));
+ assert.ok(selectedDiscovery.data.items.some(x=>x.id===event.id));
+ assert.ok(selectedDiscovery.data.items.some(x=>x.id===foreignNotice.id));
+ assert.ok(selectedDiscovery.data.items.some(x=>x.id===releasedArticle.id));
+ assert.ok(!selectedDiscovery.data.items.some(x=>x.id===draftArticle.id||
+  x.id===futureArticle.id||x.id===draftNotice.id||x.id===homeEvent.id));
+ const articleDiscovery=await call("organizations/search?q=FOREIGN&kind=articles","GET",undefined,first);
+ assert.deepEqual(articleDiscovery.data.items.map(x=>x.id),[releasedArticle.id]);
+ const homeDiscovery=await call("organizations/search?q=FOREIGN&kind=all","GET",undefined,second);
+ assert.equal(homeDiscovery.data.organization.id,home.id);
+ assert.ok(!homeDiscovery.data.items.some(x=>x.id===event.id||
+  x.id===releasedArticle.id||x.id===foreignNotice.id));
+ for(const bad of [
+  "q=a","q=FOREIGN&kind=jobs","q=FOREIGN&organizationId="+home.id,
+  "q=FOREIGN&q=SECOND","q=FOREIGN&kind=all&kind=events",
+  "q="+encodeURIComponent("!".repeat(10))
+ ]){
+  assert.equal((await call("organizations/search?"+bad,"GET",undefined,first)).status,422,
+   "malformed or unauthorized selected search must return 422: "+bad);
+ }
  const foreignFinance=await call("organizations/view?resource=financials","GET",undefined,first);
  assert.equal(foreignFinance.status,200);
  assert.equal(foreignFinance.data.organization.id,foreign.id);
@@ -545,6 +572,8 @@ try{
  assert.equal(revoked.error.code,"MEMBERSHIP_REQUIRED");
  const blockedCatalog=await call("events/catalog","GET",undefined,first);
  assert.equal(blockedCatalog.status,403,"suspended membership cannot browse selected catalog");
+ const deniedDiscovery=await call("organizations/search?q=FOREIGN&kind=all","GET",undefined,first);
+ assert.equal(deniedDiscovery.status,403,"revoked selected membership cannot use search");
  for(const resource of ["venues","home","prayers","faith","announcements","articles","financials"]){
   const blockedView=await call("organizations/view?resource="+resource,"GET",undefined,first);
   assert.equal(blockedView.status,403,"revoked foreign membership blocks "+resource);

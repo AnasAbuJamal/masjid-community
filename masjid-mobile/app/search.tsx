@@ -22,20 +22,21 @@ export default function Search(){
  const scope=searchScope(context.data,!!user?.isVerified);
  const inactive=memberSurfaceScope(context.data,!!user?.isVerified)==="inactive";
  const results=useResource<Results>(scopedSearchPath(term,category,scope));
- const limited=scope==="gatherings_only";
+ const limited=scope==="published_selected";
  const items=(results.data?.items||[]).map(item=>({
-  ...item,kind:limited?"events":item.kind||"events"
- }));
+  ...item,kind:item.kind||"events"
+ });
+ const choices=limited?["all","events","announcements","articles"]:categories;
  return <Shell><Action label="Back to Discover" secondary icon="arrow-left" onPress={()=>router.back()}/>
  <Head eyebrow="DISCOVER · SEARCH" title="Find your community."
   subtitle={limited
-   ?(language==="ar"?"البحث في تجمعات المسجد المحدد المنشورة فقط.":"Search only published gatherings at your selected mosque.")
+   ?(language==="ar"?"ابحث في التجمعات والأخبار والمقالات المنشورة في المسجد المحدد.":"Search published gatherings, announcements and articles at your selected mosque.")
    :"Search only publicly approved community information."}/>
- <Card style={{gap:12}}><Field label={limited?"Search published gatherings":"Search the mosque"} value={query} onChange={setQuery}/>
+ <Card style={{gap:12}}><Field label={limited?"Search published mosque content":"Search the mosque"} value={query} onChange={setQuery}/>
+ <View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{choices.map(c=><View key={c} style={{minWidth:85}}><Action secondary={category!==c} label={c==="all"?"All":c} onPress={()=>setCategory(c)}/></View>)}</View>
  {limited?<Text style={S.muted}>{language==="ar"
-   ?"البحث في الأقسام الأخرى غير متاح لهذا المسجد حتى اكتمال ضوابط الصلاحيات."
-   :"Other search categories are unavailable for this mosque until their permissions are implemented."}</Text>
-  :<View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{categories.map(c=><View key={c} style={{minWidth:85}}><Action secondary={category!==c} label={c==="all"?"All":c} onPress={()=>setCategory(c)}/></View>)}</View>}</Card>
+  ?"الفئات الأخرى غير متاحة للمسجد المحدد حاليًا."
+  :"Other categories remain unavailable for this mosque."}</Text>:null}</Card>
  {scope==="unknown"?<Feedback loading={context.loading} error={context.error} empty={false} refresh={context.refresh}/>:null}
  {inactive?<Card style={{gap:8}}><Text style={S.bodyText}>Your selected mosque membership is inactive. Switch to an active mosque before searching.</Text>
   <Action secondary label="Change mosque" onPress={()=>router.push("/settings")}/></Card>:null}
@@ -44,7 +45,7 @@ export default function Search(){
  icon="magnify" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:item.kind||"events",id:item.id}})}/>)}</View></>:
  <Card><Text style={S.bodyText}>{scope==="unknown"
   ?(inactive?"Selected mosque membership is inactive.":"Verifying which mosque you selected before searching.")
-  :limited?"Enter at least two characters to search published gatherings in this mosque."
+  :limited?"Enter at least two characters to search published gatherings, notices and articles."
   :"Enter at least two letters to search upcoming events, published stories, programs and community opportunities."}</Text></Card>}
  </Shell>;
 }

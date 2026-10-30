@@ -6,7 +6,7 @@ export type MembershipSearchContext={
  organizations:{id:string;memberWorkspace:string}[];
 };
 export type MemberSurfaceScope="guest"|"pilot"|"limited"|"loading"|"inactive";
-export type SearchScope="public"|"gatherings_only"|"unknown";
+export type SearchScope="public"|"published_selected"|"unknown";
 
 export function memberSurfaceScope(
  context:MembershipSearchContext|null|undefined,verified:boolean
@@ -28,13 +28,14 @@ export function searchScope(
 ):SearchScope{
  const scope=memberSurfaceScope(context,verified);
  if(scope==="guest"||scope==="pilot")return "public";
- return scope==="limited"?"gatherings_only":"unknown";
+ return scope==="limited"?"published_selected":"unknown";
 }
 
 export function scopedSearchPath(term:string,category:string,scope:SearchScope):string|null{
  const text=term.trim();
  if(text.length<2||scope==="unknown")return null;
- return scope==="gatherings_only"
-  ?"events/catalog?q="+encodeURIComponent(text)
+ return scope==="published_selected"
+  ?"organizations/search?q="+encodeURIComponent(text)+"&kind="+encodeURIComponent(
+   ["all","events","announcements","articles"].includes(category)?category:"all")
   :"public/search?q="+encodeURIComponent(text)+"&kind="+encodeURIComponent(category);
 }
