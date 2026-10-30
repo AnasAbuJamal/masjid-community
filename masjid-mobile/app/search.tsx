@@ -3,21 +3,45 @@ import {Text,View} from "react-native";
 import {router} from "expo-router";
 import {Action,Card,Field,Feedback,Head,PressRow,Shell} from "../src/ui";
 import {useResource} from "../src/useResource";
-import {S,T} from "../src/theme";
-type Item={kind:string;id:string;title:string;description:string};
-type Results={query:string;items:Item[]};
+import {useSession} from "../src/session";
+import {useLanguage} from "../src/i18n";
+import {S} from "../src/theme";
+import {searchScope,scopedSearchPath,type MembershipSearchContext} from "../src/searchScope";
+
+type Item={kind?:string;id:string;title:string;description:string};
+type Results={query?:string;items:Item[];organization?:{name:string}};
 const categories=["all","events","articles","announcements","programs","jobs","campaigns","volunteers","construction","rentals","proposals"];
 export default function Search(){
+ const {language}=useLanguage();
+ const {user}=useSession();
  const [query,setQuery]=useState(""),[term,setTerm]=useState(""),[category,setCategory]=useState("all");
  useEffect(()=>{const timer=setTimeout(()=>setTerm(query.trim()),300);return()=>clearTimeout(timer)},[query]);
- const results=useResource<Results>("public/search?q="+encodeURIComponent(term)+"&kind="+category);
+ // A verified account must not receive home-mosque search results while its
+ // server-selected membership context is still loading or was revoked.
+ const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
+ const scope=searchScope(context.data,!!user?.isVerified);
+ const results=useResource<Results>(scopedSearchPath(term,category,scope));
+ const limited=scope==="gatherings_only";
+ const items=(results.data?.items||[]).map(item=>({
+  ...item,kind:limited?"events":item.kind||"events"
+ }));
  return <Shell><Action label="Back to Discover" secondary icon="arrow-left" onPress={()=>router.back()}/>
- <Head eyebrow="DISCOVER · SEARCH" title="Find your community." subtitle="Search only publicly approved community information."/>
- <Card style={{gap:12}}><Field label="Search the mosque" value={query} onChange={setQuery}/>
- <View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{categories.map(c=><View key={c} style={{minWidth:85}}><Action secondary={category!==c} label={c==="all"?"All":c} onPress={()=>setCategory(c)}/></View>)}</View></Card>
- {term.length>=2?<><Feedback loading={results.loading} error={results.error} empty={!results.data?.items.length} refresh={results.refresh}/>
- <View style={S.section}>{results.data?.items.map(item=><PressRow key={item.kind+":"+item.id} title={item.title} subtitle={item.kind+" · "+item.description}
- icon="magnify" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:item.kind,id:item.id}})}/>)}</View></>:
- <Card><Text style={S.bodyText}>Enter at least two letters to search upcoming events, published stories, programs and community opportunities.</Text></Card>}
+ <Head eyebrow="DISCOVER · SEARCH" title="Find your community."
+  subtitle={limited
+   ?(language==="ar"?"البحث في تجمعات المسجد المحدد المنشورة فقط.":"Search only published gatherings at your selected mosque.")
+   :"Search only publicly approved community information."}/>
+ <Card style={{gap:12}}><Field label={limited?"Search published gatherings":"Search the mosque"} value={query} onChange={setQuery}/>
+ {limited?<Text style={S.muted}>{language==="ar"
+   ?"البحث في الأقسام الأخرى غير متاح لهذا المسجد حتى اكتمال ضوابط الصلاحيات."
+   :"Other search categories are unavailable for this mosque until their permissions are implemented."}</Text>
+  :<View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{categories.map(c=><View key={c} style={{minWidth:85}}><Action secondary={category!==c} label={c==="all"?"All":c} onPress={()=>setCategory(c)}/></View>)}</View>}</Card>
+ {scope==="unknown"?<Feedback loading={context.loading} error={context.error} empty={false} refresh={context.refresh}/>:null}
+ {term.length>=2&&scope!=="unknown"?<><Feedback loading={results.loading} error={results.error} empty={!items.length} refresh={results.refresh}/>
+ <View style={S.section}>{items.map(item=><PressRow key={item.kind+":"+item.id} title={item.title} subtitle={item.kind+" · "+item.description}
+ icon="magnify" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:item.kind||"events",id:item.id}})}/>)}</View></>:
+ <Card><Text style={S.bodyText}>{scope==="unknown"
+  ?"Verifying which mosque you selected before searching."
+  :limited?"Enter at least two characters to search published gatherings in this mosque."
+  :"Enter at least two letters to search upcoming events, published stories, programs and community opportunities."}</Text></Card>}
  </Shell>;
 }
