@@ -31,7 +31,12 @@ export async function requireActor(req: NextRequest, roles?: UserRole[]): Promis
 export async function requireVerified(req: NextRequest, roles?: UserRole[]) {
   const user = await requireActor(req, roles);
   if (!user.verifiedAt) throw new HttpError(403, "EMAIL_NOT_VERIFIED", "Verify your email first.");
-  if (["admin","finance"].includes(user.role) && !user.mfaVerified) throw new HttpError(403, "MFA_REQUIRED", "Complete multi-factor authentication before continuing.");
+  // Once a staff identity has enrolled MFA (including invitation acceptance),
+  // every new staff session must complete MFA before any delegated API read/write.
+  // Existing legacy staff without enrollment remain supported until governance
+  // review; all newly invited staff are required to enroll before elevation.
+  if ((["admin","finance"].includes(user.role)||(user.role==="staff"&&user.mfaEnabled)) && !user.mfaVerified)
+    throw new HttpError(403, "MFA_REQUIRED", "Complete multi-factor authentication before continuing.");
   const organization=await db.organization.findFirst();
   if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Community organization is unavailable.");
   const member=await db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:organization.id,userId:user.id}}});
