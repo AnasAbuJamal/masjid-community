@@ -40,6 +40,7 @@ jobs:
       SILA_CARE_POLICY_RESPONSE: "Synthetic CI: expected review within three business days; no guarantee."
       SILA_CARE_POLICY_LIMITS: "Synthetic CI: requests are reviewed by explicitly assigned, trained volunteers. Confidentiality may be limited by safety and reporting obligations."
       SILA_CARE_POLICY_EMERGENCY: "Synthetic CI: this is not an emergency service. For immediate danger contact local emergency services or a qualified crisis provider."
+      SILA_INVITE_CI_CAPTURE: "test-only" # only on disposable /masjid_ci, never a production feature
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +69,7 @@ jobs:
           curl -fsS http://127.0.0.1:3000/api/v1/public/prayers > /tmp/prayers.json
           node -e "const d=require('/tmp/prayers.json');if(!Array.isArray(d.data?.days))process.exit(1);"
           node scripts/test-auth.mjs
+          node scripts/test-staff-invitations.mjs
           node scripts/test-gather.mjs
           node scripts/test-event-checkin.mjs
           node scripts/test-circles.mjs
