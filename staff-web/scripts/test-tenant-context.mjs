@@ -213,7 +213,7 @@ try{
  assert.match(ownCalendar.cacheControl,/no-store/);
  assert.match(ownCalendar.body,/HOME_SYNTHETIC_RSVP_EVENT/);
  assert.doesNotMatch(ownCalendar.body,/ATTENDEE:|ORGANIZER:|mailto:/i);
- assert.match(ownCalendar.body,/This does not reserve a place/);
+ assert.match(ownCalendar.body.replace(/\r\n[ \t]/g,""),/This does not reserve a place/);
  assert.equal((await calendar("events/calendar?eventId="+event.id,first)).status,404,
   "primary mosque session cannot export a known published second-mosque gathering");
  const homeCatalog=await call("events/catalog","GET",undefined,first);
