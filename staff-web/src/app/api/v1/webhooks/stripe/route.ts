@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { db } from "@/lib/db";
 import { postVerifiedPayment, reverseVerifiedPayment } from "@/lib/ledger";
+import { recordProviderPayout } from "@/lib/payouts";
 import { fail, handled, HttpError, ok } from "@/lib/http";
 
 export async function POST(req:NextRequest){
@@ -18,6 +19,12 @@ export async function POST(req:NextRequest){
    const already=await tx.paymentEvent.findUnique({where:{providerEventId:event.id}});
    if(already)return;
    await tx.paymentEvent.create({data:{providerEventId:event.id,type:event.type}});
+   // A signed payout notice is captured as evidence, never as a settled or
+   // reconciled ledger movement. Fees/disputes/bank credits remain unknown.
+   if(event.type.startsWith("payout.")){
+    await recordProviderPayout(tx,event);
+    return;
+   }
    if(event.type==="checkout.session.completed"||event.type==="checkout.session.async_payment_succeeded"){
     const session=event.data.object as Stripe.Checkout.Session;
     if(session.payment_status!=="paid")return;
