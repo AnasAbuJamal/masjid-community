@@ -86,7 +86,8 @@ try{
  assert.equal(first.data.organization.id,org.id);
  assert.equal(first.data.account.email,member.email);
  assert.equal(first.data.proposals.length,200,"export caps each category");
- assert.equal(first.data.complete,false,"truncated data cannot be called complete");
+ assert.equal(first.data.complete,false,"a partial statutory export cannot be called complete");
+ assert.equal(first.data.categoryWindowComplete,false,"the 201st record must be disclosed");
  assert.ok(first.data.truncatedCategories.includes("proposals"));
  assert.ok(first.data.exclusions.includes("care narratives"));
  assert.ok(first.data.careRequestReferences.some(c=>c.reference===localCare.reference));

@@ -63,6 +63,11 @@ try{
  assert.equal(await db.providerPayout.count({where:{providerPayoutId:id}}),0);
  const pending=await webhook("payout.created",basePayout,now-40);
  assert.equal(pending.status,200,JSON.stringify(pending));
+ const exactReplay=await fetch(base+"webhooks/stripe",{
+  method:"POST",headers:{"Content-Type":"application/json","stripe-signature":pending.signature},
+  body:pending.payload
+ });
+ assert.equal(exactReplay.status,200,"exact signed webhook replay is idempotent");
  payoutId=(await db.providerPayout.findUniqueOrThrow({
   where:{providerPayoutId:id}
  })).id;

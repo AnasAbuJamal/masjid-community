@@ -76,7 +76,8 @@ export async function POST(req:NextRequest){
    exportedAt:new Date().toISOString(),
    organization:{id:org.id,name:org.name},
    scope:"Current mosque only. Up to 200 records per category; incomplete categories are explicitly flagged. School/child records, detailed confidential-care narratives, other organizations and payment-provider data require separate safeguarded handling.",
-   truncatedCategories,complete:truncatedCategories.length===0,
+   truncatedCategories,categoryWindowComplete:truncatedCategories.length===0,
+   complete:false, // Other organizations and protected categories always require a separate process.
    exclusions:["student and guardianship records","care narratives","finance-provider account data","other organizations"],
    account:{email:user.email,firstName:user.firstName,lastName:user.lastName},
    ...limited
