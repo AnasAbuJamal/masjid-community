@@ -91,6 +91,7 @@ model Organization {
   refundRequests RefundRequest[]
   faithNotices FaithNotice[]
   memberships OrganizationMembership[]
+  staffInvitations StaffInvitation[]
   deletionRequests DeletionRequest[]
 }
 model Venue {
@@ -141,6 +142,8 @@ model User {
   notifications Notification[]
   outboxEvents OutboxEvent[]
   auditEvents AuditEvent[]
+  invitationsIssued StaffInvitation[] @relation("StaffInvitationIssuer")
+  invitationsAccepted StaffInvitation[] @relation("StaffInvitationAccepter")
   authoredAssignments SchoolAssignment[] @relation("AssignmentAuthor")
   authoredReports StudentReport[] @relation("ReportAuthor")
   submittedProposals Proposal[] @relation("ProposalSubmitter")
@@ -1010,6 +1013,26 @@ enum RoleCapability {
   volunteers_manage
   community_moderate
   care_manage
+}
+// Invitations are not authority. The recipient must verify the exact email,
+// enroll MFA and explicitly accept before any scoped grant exists.
+model StaffInvitation {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  invitedEmail String
+  tokenHash String @unique
+  capabilities RoleCapability[]
+  issuedById String
+  issuer User @relation("StaffInvitationIssuer",fields:[issuedById],references:[id],onDelete:Restrict)
+  acceptedUserId String?
+  accepter User? @relation("StaffInvitationAccepter",fields:[acceptedUserId],references:[id],onDelete:Restrict)
+  acceptedAt DateTime?
+  revokedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([organizationId,invitedEmail,expiresAt])
+  @@index([organizationId,createdAt])
 }
 model OrganizationMembership {
   id String @id @default(cuid())
