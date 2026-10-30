@@ -83,6 +83,7 @@ jobs:
           node scripts/test-privacy-export.mjs
           node scripts/test-shift-safety.mjs
           node scripts/test-payments.mjs
+          node scripts/test-payout-register.mjs
           node scripts/test-public.mjs
           node scripts/test-delivery.mjs
 
