@@ -98,7 +98,11 @@ export async function appendIntegrityAudit(tx:Db,command:Command){
   previousHash:previous?.recordHash||ZERO
  };
  const recordHash=digest(item);
- return tx.integrityAuditEvent.create({data:{...item,recordHash},
+ return tx.integrityAuditEvent.create({data:{
+  ...item,recordHash,
+  // Validation above restricts evidence to a bounded, allowlisted JSON object.
+  evidence:safeEvidence(command.evidence||{}) as Prisma.InputJsonValue
+ },
   select:{id:true,sequence:true,recordHash:true}});
 }
 export type AuditVerification={
