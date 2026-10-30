@@ -94,11 +94,27 @@ jobs:
         run: |
           trap 'echo "--- Next.js server log ---"; tail -n 140 /tmp/masjid-next.log || true' ERR
           npm run start > /tmp/masjid-next.log 2>&1 &
-          curl -fsS http://127.0.0.1:3000/api/health > /tmp/liveness.json || true
+          # Fail closed: neither a failed liveness probe nor exhausted
+          # readiness retries may be hidden by a later successful API call.
+          ready=0
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/api/ready > /tmp/health.json; then break; fi
+            if curl --fail --silent --show-error --max-time 5 \
+              --dump-header /tmp/sila-ready-headers \
+              --output /tmp/health.json http://127.0.0.1:3000/api/ready; then
+              ready=1
+              break
+            fi
             sleep 2
           done
+          test "$ready" -eq 1
+          curl --fail --silent --show-error --max-time 5 \
+            --dump-header /tmp/sila-live-headers \
+            --output /tmp/liveness.json http://127.0.0.1:3000/api/health
+          node -e "const fs=require('node:fs');for(const [file,status,check] of [['/tmp/health.json','ready',null],['/tmp/liveness.json','alive','liveness']]){const body=JSON.parse(fs.readFileSync(file,'utf8'));if(body.data?.status!==status||(check&&body.data?.check!==check))throw Error('Invalid probe: '+file)}"
+          # Probes are real-time signals; stale intermediary responses must
+          # not be used to decide whether an instance receives traffic.
+          grep -iq '^cache-control: no-store' /tmp/sila-ready-headers
+          grep -iq '^cache-control: no-store' /tmp/sila-live-headers
           cat /tmp/health.json
           curl -fsS http://127.0.0.1:3000/api/v1/public/home > /tmp/home.json
           node -e "const d=require('/tmp/home.json');if(!d.data?.organization)process.exit(1);"
