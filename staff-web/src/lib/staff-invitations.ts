@@ -8,8 +8,10 @@ export function makeStaffInvitationToken(){
  return {token,hash:tokenHash(token)};
 }
 export function inviteCiCaptureEnabled(){
- return process.env.SILA_INVITE_CI_CAPTURE==="test-only"&&
-  !!process.env.DATABASE_URL?.includes("/masjid_ci");
+ return process.env.GITHUB_ACTIONS==="true"&&
+  process.env.SILA_INVITE_CI_CAPTURE==="test-only"&&
+  !!process.env.DATABASE_URL?.includes("/masjid_ci")&&
+  process.env.NEXT_PUBLIC_APP_URL==="http://localhost:3000";
 }
 export function inviteEmailConfigured(){
  const origin=process.env.NEXT_PUBLIC_APP_URL||"";

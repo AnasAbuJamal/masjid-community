@@ -191,6 +191,19 @@ try{
  },revivedToken)).status,404,
   "steward revocation invalidates the exact invitee's link");
  assert.equal((await db.user.findUniqueOrThrow({where:{id:revived.id}})).role,"member");
+ // Revoked and superseded links still count toward invitation rate limits.
+ for(let attempt=0;attempt<2;attempt++){
+  const extra=await request("admin/invitations","POST",{
+   action:"issue",email:revived.email,capabilities:["community_moderate"],expiresHours:1
+  },adminToken);
+  assert.equal(extra.status,201);
+  invitationIds.push(extra.data.id);
+ }
+ const tooMany=await request("admin/invitations","POST",{
+  action:"issue",email:revived.email,capabilities:["community_moderate"],expiresHours:1
+ },adminToken);
+ assert.equal(tooMany.status,429,"repeated invitation emails are limited per address");
+ assert.equal(tooMany.error.code,"INVITATION_RATE_LIMIT");
  const oldExpiry=await makeUser("expired");
  const expiredToken=randomBytes(32).toString("hex");
  const expired=await db.staffInvitation.create({data:{
@@ -270,6 +283,25 @@ try{
   action:"preview",token:externalToken
  },foreignSession)).status,404,"a foreign-mosque token cannot select a different tenant");
 
+ // A previously valid issuer who loses the administrator role must not
+ // leave behind an invitation that can still elevate somebody.
+ const tempIssuer=await makeUser("issuer",{role:"admin"});
+ const issuerToken=await session(tempIssuer,true);
+ const tempInvitee=await makeUser("issuer-revoked");
+ const issuerOffer=await request("admin/invitations","POST",{
+  action:"issue",email:tempInvitee.email,
+  capabilities:["volunteers_manage"],expiresHours:4
+ },issuerToken);
+ assert.equal(issuerOffer.status,201);
+ invitationIds.push(issuerOffer.data.id);
+ await db.user.update({where:{id:tempIssuer.id},data:{role:"member"}});
+ const issuerRecipientToken=await session(tempInvitee,true);
+ const oldIssuer=await request("invitations","POST",{
+  action:"accept",token:issuerOffer.data.ciOnlyToken
+ },issuerRecipientToken);
+ assert.equal(oldIssuer.status,409,"former steward cannot authorize a future privilege elevation");
+ assert.equal(oldIssuer.error.code,"ISSUER_UNAVAILABLE");
+ assert.equal((await db.user.findUniqueOrThrow({where:{id:tempInvitee.id}})).role,"member");
  const logs=await db.auditEvent.findMany({where:{
   entity:"StaffInvitation",entityId:issued.data.id
  }});
