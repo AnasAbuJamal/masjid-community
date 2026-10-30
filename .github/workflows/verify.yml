@@ -107,6 +107,7 @@ jobs:
           node scripts/test-auth.mjs
           node scripts/test-staff-invitations.mjs
           node scripts/test-integrity-audit.mjs
+          node scripts/test-audit-review.mjs
           node scripts/test-gather.mjs
           node scripts/test-event-checkin.mjs
           node scripts/test-circles.mjs

@@ -539,3 +539,8 @@ safeguarding, finance, accessibility and device tests with
 synthetic records; obtain owner approvals. This pass performs no
 deployment, production database migration, credential provisioning
 or public release.
+
+
+## Read-only audit reviewer migration gate (October 30, 2026)
+
+`20261030230000_audit_review_capability` adds one PostgreSQL enum value without backfilling or granting anyone access. Review existing enum dependencies and migration history on a restored isolated snapshot before applying to a nonempty environment. The new capability can be granted only by an MFA-verified home-mosque administrator to verified staff with an enrolled authenticator, expires within 30 days, and remains read-only. Governance must approve reviewer independence, HMAC-key custody, audit retention, and external head anchoring before treating it as a production assurance control. CI tests are synthetic only; no live grant or deployment is authorized by this change.

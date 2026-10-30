@@ -1089,6 +1089,7 @@ enum RoleCapability {
   volunteers_manage
   community_moderate
   care_manage
+  audit_review
 }
 // Invitations are not authority. The recipient must verify the exact email,
 // enroll MFA and explicitly accept before any scoped grant exists.

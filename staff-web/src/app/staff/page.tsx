@@ -1,6 +1,6 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
-type Capability="worship_publish"|"facilities_manage"|"volunteers_manage"|"community_moderate"|"care_manage";
+type Capability="worship_publish"|"facilities_manage"|"volunteers_manage"|"community_moderate"|"care_manage"|"audit_review";
 type Data={name:string;organization:string;capabilities:{capability:Capability;expiresAt:string|null}[]};
 const workspaces:Record<Capability,{title:string;description:string;href:string}>={
  worship_publish:{title:"Worship calendar",description:"Confirm mosque-approved Jummah, Ramadan and Eid information",href:"/admin/worship"},
@@ -8,6 +8,7 @@ const workspaces:Record<Capability,{title:string;description:string;href:string}
  volunteers_manage:{title:"Volunteer coordination",description:"Schedule approved shifts and record check-in",href:"/admin/volunteers"},
  community_moderate:{title:"Community desk",description:"Review proposals and contact requests",href:"/admin/community"},
  care_manage:{title:"Confidential care",description:"MFA and independently approved per-case access required. Never share private messages in email.",href:"/staff/care"},
+ audit_review:{title:"Protected audit review",description:"Read-only mosque-scoped integrity verification; MFA required. No authority to modify roles or records.",href:"/admin/integrity-audit"},
 };
 export default function StaffHome(){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState("");

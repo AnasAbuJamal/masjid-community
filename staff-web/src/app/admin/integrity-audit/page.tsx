@@ -18,12 +18,12 @@ export default function IntegrityAuditDesk(){
  useEffect(()=>{void refresh()},[refresh]);
  const state=data?.verification.state;
  return <><header className="masthead"><span className="brand">Protected change audit</span>
- <div className="actions"><a className="secondary" href="/admin/team">Team access</a>
- <a className="secondary" href="/admin">Control center</a></div></header>
+ <div className="actions"><a className="secondary" href="/staff">Staff workspace</a>
+ <a className="secondary" href="/admin">Control center (administrators only)</a></div></header>
  <main className="container">
   <section className="hero"><p className="eyebrow">IDENTITY · INTEGRITY REVIEW</p>
   <h1>Review high-risk changes by evidence, not assumption.</h1>
-  <p>This restricted viewer checks the per-mosque HMAC chain for newly sealed privilege and invitation changes. Existing audit history is not retrospectively cryptographically certified. An independent offsite anchor and auditor authority remain release requirements.</p></section>
+  <p>This restricted viewer checks the per-mosque HMAC chain for newly sealed privilege and invitation changes. Existing audit history is not retrospectively cryptographically certified. Independent offsite anchors and approved reviewer governance remain release requirements.</p></section>
   {error?<p className="error" role="alert">{error}</p>:null}
   {loading?<section className="panel"><p>Verifying protected history…</p></section>:null}
   {data?<><section className="panel"><h2>{data.organization.name} · audit chain</h2>

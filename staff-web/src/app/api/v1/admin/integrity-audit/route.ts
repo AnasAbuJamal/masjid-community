@@ -6,12 +6,26 @@ import {verifyIntegrityAudit} from "@/lib/integrity-audit";
 
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  // Pilot is administrator+MFA only. A dedicated scoped auditor capability,
-  // multi-organization switch and independent head storage are still missing.
-  await requireVerified(req,["admin"]);
+  // The pilot administrator can review its chain. Independently delegated
+  // staff reviewers need an active home-mosque grant and a verified MFA
+  // session. No account-global role or foreign tenant header grants access.
+  const user=await requireVerified(req);
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},
    select:{id:true,name:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  if(user.role!=="admin"){
+   if(user.role!=="staff")throw new HttpError(403,"AUDIT_REVIEW_REQUIRED",
+    "Protected audit review requires a separately delegated reviewer capability.");
+   if(!user.mfaEnabled||!user.mfaVerified)throw new HttpError(403,"AUDITOR_MFA_REQUIRED",
+    "An enrolled and verified authenticator is required for protected audit review.");
+   const grant=await db.roleGrant.findFirst({where:{
+    capability:"audit_review",revokedAt:null,
+    membership:{organizationId:org.id,userId:user.id,status:"active"},
+    expiresAt:{gt:new Date()}
+   },select:{id:true}});
+   if(!grant)throw new HttpError(403,"AUDIT_REVIEW_REQUIRED",
+    "Protected audit review requires a current time-limited mosque grant.");
+  }
   const result=await verifyIntegrityAudit(org.id);
   const recent=await db.integrityAuditEvent.findMany({where:{organizationId:org.id},
    orderBy:{sequence:"desc"},take:70,select:{
