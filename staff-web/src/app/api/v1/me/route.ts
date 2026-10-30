@@ -6,7 +6,7 @@ import {schoolStudentScope} from "@/lib/school-scope";
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req);
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   const [donations,rsvps,notifications,children,classes,bookings,volunteerApplications,jobApplications]=await Promise.all([
     db.donation.findMany({where:{donorId:user.id,campaign:{organizationId:org.id}},orderBy:{createdAt:"desc"},take:30,select:{id:true,amountMinor:true,currency:true,status:true,createdAt:true,campaign:{select:{title:true}},receipt:{select:{id:true,receiptNumber:true,issuedAt:true,reversedAt:true}}}}),
@@ -22,6 +22,6 @@ export async function GET(req:NextRequest){
     db.volunteerApplication.findMany({where:{userId:user.id,opportunity:{organizationId:org.id}},take:25,select:{id:true,status:true,opportunity:{select:{title:true}}}}),
     db.jobApplication.findMany({where:{userId:user.id,job:{organizationId:org.id}},take:25,select:{id:true,status:true,job:{select:{title:true}}}})
   ]);
-  return ok({user:{id:user.id,name:user.firstName+" "+user.lastName,email:user.email,role:user.role,verified:!!user.verifiedAt},donations,rsvps,notifications,children,classes,bookings,volunteerApplications,jobApplications});
+  return ok({organization:org,user:{id:user.id,name:user.firstName+" "+user.lastName,email:user.email,role:user.role,verified:!!user.verifiedAt},donations,rsvps,notifications,children,classes,bookings,volunteerApplications,jobApplications});
  });
 }
