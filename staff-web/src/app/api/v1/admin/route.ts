@@ -45,7 +45,8 @@ export async function GET(req:NextRequest){
       db.schoolProgram.count({where:{organizationId:org.id}}),
       db.donation.count({where:{campaign:{organizationId:org.id}}})
     ]),
-    db.venue.findMany({where:{organizationId:org.id},take:10,select:{id:true,name:true,timeZone:true}}),
+    db.venue.findMany({where:{organizationId:org.id},orderBy:{name:"asc"},take:100,
+      select:{id:true,name:true,timeZone:true}}),
     db.prayerDay.findMany({where:{venue:{organizationId:org.id}},take:12,orderBy:{localDate:"desc"}}),
     db.announcement.findMany({where:{organizationId:org.id},take:12,orderBy:{createdAt:"desc"}}),
     db.event.findMany({where:{organizationId:org.id},take:12,orderBy:{startAt:"desc"}}),

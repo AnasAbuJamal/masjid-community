@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<string,number>;construction:{id:string;title:string;status:string}[];venues:{id:string;name:string}[];prayers:{id:string;localDate:string;fajr:string;dhuhr:string;asr:string;maghrib:string;isha:string;published:boolean}[];announcements:{id:string;title:string;status:string}[];events:{id:string;title:string;status:string;startAt:string}[];applications:{id:string;status:string;opportunity:{title:string};user:{firstName:string;lastName:string}}[]};
+type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<string,number>;construction:{id:string;title:string;status:string}[];venues:{id:string;name:string;timeZone:string}[];prayers:{id:string;localDate:string;fajr:string;dhuhr:string;asr:string;maghrib:string;isha:string;published:boolean}[];announcements:{id:string;title:string;status:string}[];events:{id:string;title:string;status:string;startAt:string}[];applications:{id:string;status:string;opportunity:{title:string};user:{firstName:string;lastName:string}}[]};
 type Kind="announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental"|"article"|"construction"|"milestone";
 const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
  announcement:[{key:"title",label:"Headline"},{key:"body",label:"Announcement",type:"textarea"}],
