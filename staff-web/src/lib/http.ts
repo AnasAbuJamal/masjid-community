@@ -36,7 +36,7 @@ export async function jsonBody(req: NextRequest) {
   const declared = req.headers.get("content-length");
   // Content-Length is not a trusted upper bound: chunked transfer encoding
   // has no length header and a proxy can relay bytes differently.
-  if (declared !== null && (!/^\\d+$/.test(declared) || Number(declared) > limit))
+  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > limit))
     throw new HttpError(413, "TOO_LARGE", "Payload too large.");
   if (!req.body) throw new HttpError(400, "INVALID_JSON", "Invalid JSON body.");
   const reader = req.body.getReader();
