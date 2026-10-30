@@ -4,7 +4,7 @@
 // keys, and the fact that restoration cannot modify its source database.
 import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
-import {readFileSync} from "node:fs";
+import {readFileSync,readdirSync} from "node:fs";
 import {PrismaClient} from "@prisma/client";
 
 function checkedUrl(raw,dbName){
@@ -45,7 +45,11 @@ try{
   SELECT migration_name,checksum FROM "_prisma_migrations"
   WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
   ORDER BY migration_name`;
- assert.ok(migrations.length>20,"schema should contain real migration history");
+ const repositoryMigrations=readdirSync(new URL("../prisma/migrations/",import.meta.url),
+  {withFileTypes:true}).filter(e=>e.isDirectory()).map(e=>e.name).sort();
+ assert.ok(repositoryMigrations.length>=10,"CI expected actual schema migrations");
+ assert.deepEqual(migrations.map(m=>m.migration_name),repositoryMigrations,
+  "Every checked-in migration must be recorded as applied in the backup source");
  assert.deepEqual(restoredMigrations,migrations,
   "restore must preserve every applied migration and checksum");
  const sourceCounts={};
