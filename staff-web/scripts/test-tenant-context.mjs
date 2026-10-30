@@ -183,15 +183,17 @@ try{
  },second);
  assert.equal(homeInvitation.status,200,
   "original pilot session retains its independently authorized onboarding context");
- const unrelatedRoutes=["students","invoices","shifts","circles/mine","account/deletion-request"];
+ const unrelatedRoutes=["students","invoices","shifts","circles/mine"];
  for(const path of unrelatedRoutes){
   const result=await call(path,"GET",undefined,first);
-  // account/deletion-request is POST-only and may correctly reject GET.
-  if(path==="account/deletion-request")continue;
   assert.equal(result.status,409,
    "unmigrated "+path+" must reject foreign tenant context instead of using home records");
   assert.equal(result.error.code,"TENANT_CONTEXT_UNSUPPORTED");
  }
+ const blockedPrivacy=await call("account/deletion-request","POST",{confirm:true},first);
+ assert.equal(blockedPrivacy.status,409,
+  "unmigrated privacy request submission cannot silently target home mosque");
+ assert.equal(blockedPrivacy.error.code,"TENANT_CONTEXT_UNSUPPORTED");
  const prefHome=await call("me/preferences","GET",undefined,second);
  assert.equal(prefHome.status,200);
  assert.equal(prefHome.data.organization.id,home.id);
