@@ -19,9 +19,13 @@ type Entry={
 const ZERO="0".repeat(64);
 function key(){
  const hex=process.env.SILA_AUDIT_HMAC_KEY||"";
- if(!/^[0-9a-fA-F]{64}$/.test(hex))
+ const duplicates=[
+  process.env.MFA_ENCRYPTION_KEY,process.env.SILA_CARE_ENCRYPTION_KEY,
+  process.env.AUTH_SECRET,process.env.CRON_SECRET,process.env.SILA_OPERATIONS_SECRET
+ ].filter((s):s is string=>!!s).some(s=>s.toLowerCase()===hex.toLowerCase());
+ if(!/^[0-9a-fA-F]{64}$/.test(hex)||duplicates)
   throw new HttpError(503,"AUDIT_INTEGRITY_NOT_CONFIGURED",
-   "Sealed high-risk audit operations are not configured.");
+   "Sealed high-risk audit operations require a separately managed integrity key.");
  return Buffer.from(hex,"hex");
 }
 export function auditRequestId(req:NextRequest){

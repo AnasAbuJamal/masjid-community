@@ -29,7 +29,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://masjid_ci:ci_only_password@127.0.0.1:5432/masjid_ci
       AUTH_SECRET: ci-not-for-production-000000000000000000000
-      SILA_AUDIT_HMAC_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef # disposable CI only
+      SILA_AUDIT_HMAC_KEY: a1b2c3d4e5f60718a1b2c3d4e5f60718a1b2c3d4e5f60718a1b2c3d4e5f60718 # distinct, disposable CI only
       MFA_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       STRIPE_SECRET_KEY: sk_test_ci_synthetic_no_network
       STRIPE_WEBHOOK_SECRET: whsec_ci_synthetic_no_network
