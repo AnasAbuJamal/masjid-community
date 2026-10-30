@@ -32,6 +32,14 @@ jobs:
       MFA_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       STRIPE_SECRET_KEY: sk_test_ci_synthetic_no_network
       STRIPE_WEBHOOK_SECRET: whsec_ci_synthetic_no_network
+      # Synthetic confidentiality policy in disposable CI only. Real care
+      # intake is disabled by default in all other environments.
+      SILA_CARE_INTAKE_ENABLED: "true"
+      SILA_CARE_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      SILA_CARE_POLICY_HOURS: "Synthetic CI: weekdays between 9am and 5pm. No staffed care service."
+      SILA_CARE_POLICY_RESPONSE: "Synthetic CI: expected review within three business days; no guarantee."
+      SILA_CARE_POLICY_LIMITS: "Synthetic CI: requests are reviewed by explicitly assigned, trained volunteers. Confidentiality may be limited by safety and reporting obligations."
+      SILA_CARE_POLICY_EMERGENCY: "Synthetic CI: this is not an emergency service. For immediate danger contact local emergency services or a qualified crisis provider."
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +76,7 @@ jobs:
           node scripts/test-school-capacity.mjs
           node scripts/test-school-waitlist.mjs
           node scripts/test-community-scope.mjs
+          node scripts/test-care-intake.mjs
           node scripts/test-privacy-scope.mjs
           node scripts/test-shift-safety.mjs
           node scripts/test-payments.mjs
