@@ -175,8 +175,12 @@ model AuthSession {
   expiresAt DateTime
   revokedAt DateTime?
   mfaVerifiedAt DateTime?
+  // Null means the original one-mosque pilot context. An explicit choice
+  // is scoped to this individual session and is never taken from a header.
+  selectedOrganizationId String?
   createdAt DateTime @default(now())
   @@index([userId,expiresAt])
+  @@index([userId,selectedOrganizationId])
 }
 model EmailToken {
   id String @id @default(cuid())
