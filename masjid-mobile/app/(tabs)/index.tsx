@@ -3,6 +3,7 @@ import {Text,View} from "react-native";
 import {router} from "expo-router";
 import {Action,Card,Feedback,Head,PressRow,Shell} from "../../src/ui";
 import {useResource} from "../../src/useResource";
+import {useSession} from "../../src/session";
 import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {useVenue} from "../../src/venue";
@@ -12,8 +13,10 @@ type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;i
 type Home={organization:{id:string;name:string;timeZone:string}|null;venue:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string}[]};
 export default function HomeScreen(){
  const {t}=useLanguage();
+ const {user}=useSession();
  const {venue,ready}=useVenue();
- const path=ready?(venue?`public/home?venueId=${encodeURIComponent(venue.id)}`:"public/home"):null;
+ const base=user?.isVerified?"organizations/view?resource=home":"public/home";
+ const path=ready?(venue?base+(base.includes("?")?"&":"?")+"venueId="+encodeURIComponent(venue.id):base):null;
  const {data,loading,error,refresh}=useResource<Home>(path);
  // Recheck the clock while Today is open; never call yesterday's prayer "next".
  const [now,setNow]=React.useState(()=>new Date());

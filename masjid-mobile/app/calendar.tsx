@@ -4,12 +4,31 @@ import {router} from "expo-router";
 import {Action,Card,Feedback,Head,Shell} from "../src/ui";
 import {S,T} from "../src/theme";
 import {useResource} from "../src/useResource";
+import {useSession} from "../src/session";
+import {useVenue} from "../src/venue";
 function changeDate(key:string,days:number){
  const d=new Date(key+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);
 }
+function selectedCivilDay(zone:string){
+ try{
+  const fields=new Intl.DateTimeFormat("en-US",{
+   year:"numeric",month:"2-digit",day:"2-digit",timeZone:zone
+  }).formatToParts(new Date());
+  const part=(key:string)=>fields.find(x=>x.type===key)?.value||"";
+  return part("year")+"-"+part("month")+"-"+part("day");
+ }catch{return new Date().toISOString().slice(0,10);}
+}
 export default function Calendar(){
+ const {user}=useSession();
+ const {venue,ready}=useVenue();
  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
- const result=useResource<{days:{id:string;fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;source:string}[]}>("public/prayers?date="+date);
+ React.useEffect(()=>{
+  if(ready&&venue)setDate(selectedCivilDay(venue.timeZone));
+ },[ready,venue?.id,venue?.timeZone]);
+ const base=user?.isVerified?"organizations/view?resource=prayers":"public/prayers";
+ const path=ready?base+(base.includes("?")?"&":"?")+"date="+date+
+  (venue?"&venueId="+encodeURIComponent(venue.id):""):null;
+ const result=useResource<{days:{id:string;fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;source:string}[]}>(path);
  const times=result.data?.days[0];
  return <Shell><Action secondary icon="arrow-left" label="Back to Salah" onPress={()=>router.back()}/>
  <Head eyebrow="SALAH · CALENDAR" title="Prayer calendar." subtitle="Browse the mosque's published daily schedule."/>

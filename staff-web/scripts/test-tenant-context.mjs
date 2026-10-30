@@ -12,7 +12,8 @@ if(process.env.GITHUB_ACTIONS!=="true"||process.env.NODE_ENV==="production"||
 const {adminEmail,memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
 const db=new PrismaClient(),base="http://127.0.0.1:3000/api/v1/";
 const fixture={notes:[],campaigns:[],donations:[],events:[],rsvps:[],prefs:[],invitations:[],
- opportunities:[],volunteerApplications:[],shifts:[]};
+ opportunities:[],volunteerApplications:[],shifts:[],venues:[],prayerDays:[],
+ jummah:[],faithNotices:[],announcements:[]};
 const createdAt=new Date();
 let foreignOrgId=null,foreignMembershipId=null,adminMembershipId=null;
 const tokens=[];
@@ -67,6 +68,68 @@ try{
   organizationId:foreign.id,userId:admin.id
  }});
  adminMembershipId=directForeign.id;
+
+ // Synthetic worship evidence belongs to the *foreign selected mosque*,
+ // never the original pilot. These are fictional test fixtures only.
+ const homeVenue=await db.venue.findFirstOrThrow({where:{organizationId:home.id},
+  orderBy:{id:"asc"}});
+ const foreignVenue=await db.venue.create({data:{
+  organizationId:foreign.id,name:"FOREIGN_SYNTHETIC_VENUE",address:"Synthetic test location",
+  timeZone:"America/Chicago"
+ }});
+ fixture.venues.push(foreignVenue.id);
+ const parts=new Intl.DateTimeFormat("en-US",{
+  year:"numeric",month:"2-digit",day:"2-digit",timeZone:"America/Chicago"
+ }).formatToParts(new Date());
+ const part=(type)=>parts.find(x=>x.type===type)?.value||"";
+ const chicagoToday=part("year")+"-"+part("month")+"-"+part("day");
+ const worshipTimes={fajr:"05:30",sunrise:"06:45",dhuhr:"12:25",
+  asr:"15:40",maghrib:"17:45",isha:"19:10"};
+ const publishedPrayer=await db.prayerDay.create({data:{
+  venueId:foreignVenue.id,localDate:chicagoToday,...worshipTimes,
+  source:"FOREIGN_SYNTHETIC_PUBLISHED_PRAYER",published:true,publishedAt:new Date()
+ }});
+ fixture.prayerDays.push(publishedPrayer.id);
+ const unpublishedPrayer=await db.prayerDay.create({data:{
+  venueId:foreignVenue.id,localDate:"2032-11-06",...worshipTimes,
+  source:"FOREIGN_SYNTHETIC_DRAFT_PRAYER",published:false
+ }});
+ fixture.prayerDays.push(unpublishedPrayer.id);
+ const foreignJummah=await db.jummahSession.create({data:{
+  venueId:foreignVenue.id,localDate:chicagoToday,ordinal:1,
+  khutbahAt:"13:00",iqamahAt:"13:25"
+ }});
+ fixture.jummah.push(foreignJummah.id);
+ const foreignFaith=await db.faithNotice.create({data:{
+  organizationId:foreign.id,kind:"moon_sighting",localDate:"2032-11-05",
+  title:"FOREIGN_SYNTHETIC_APPROVED_FAITH",body:"Fictional approved notice",
+  status:"published",approvedById:admin.id,publishedAt:new Date()
+ }});
+ fixture.faithNotices.push(foreignFaith.id);
+ const foreignNotice=await db.announcement.create({data:{
+  organizationId:foreign.id,title:"FOREIGN_SYNTHETIC_PUBLIC_NOTICE",
+  body:"Fictional published mosque notice",status:"published",publishedAt:new Date()
+ }});
+ fixture.announcements.push(foreignNotice.id);
+ const draftNotice=await db.announcement.create({data:{
+  organizationId:foreign.id,title:"FOREIGN_SYNTHETIC_DRAFT_NOTICE",
+  body:"Unpublished notice",status:"draft"
+ }});
+ fixture.announcements.push(draftNotice.id);
+ const guestWorship=await call("organizations/view?resource=venues");
+ assert.equal(guestWorship.status,401,"selected-mosque worship route requires authenticated membership");
+ const homeVenues=await call("organizations/view?resource=venues","GET",undefined,first);
+ assert.equal(homeVenues.status,200);
+ assert.equal(homeVenues.data.organization.id,home.id);
+ assert.ok(homeVenues.data.venues.some(v=>v.id===homeVenue.id));
+ assert.ok(!homeVenues.data.venues.some(v=>v.id===foreignVenue.id));
+ const homeWorship=await call("organizations/view?resource=home","GET",undefined,first);
+ assert.equal(homeWorship.status,200);
+ assert.equal(homeWorship.data.organization.id,home.id);
+ assert.ok(!JSON.stringify(homeWorship).includes("FOREIGN_SYNTHETIC_PUBLISHED_PRAYER"));
+ assert.ok(!JSON.stringify(homeWorship).includes("FOREIGN_SYNTHETIC_PUBLIC_NOTICE"));
+ assert.equal((await call("organizations/view?resource=home&venueId="+foreignVenue.id,
+  "GET",undefined,first)).status,404);
  const homeNote=await note(home.id,member.id,"HOME_PRIVATE_CONTEXT_ONLY");
  const foreignNote=await note(foreign.id,member.id,"FOREIGN_PRIVATE_CONTEXT_ONLY");
  const unknownNote=await note(null,member.id,"LEGACY_UNOWNED_NEVER_PRESENT");
@@ -167,6 +230,51 @@ try{
  assert.equal(changed.status,200,JSON.stringify(changed));
  assert.equal(changed.data.selectedOrganizationId,foreign.id);
  assert.equal(changed.data.limited,true);
+
+ // Venue selection is an authorized filter, not a client-selected tenant.
+ const selectedVenues=await call("organizations/view?resource=venues","GET",undefined,first,
+  {"x-organization-id":home.id});
+ assert.equal(selectedVenues.status,200);
+ assert.equal(selectedVenues.data.organization.id,foreign.id);
+ assert.deepEqual(selectedVenues.data.venues.map(v=>v.id),[foreignVenue.id]);
+ const selectedToday=await call("organizations/view?resource=home&venueId="+foreignVenue.id,
+  "GET",undefined,first);
+ assert.equal(selectedToday.status,200,JSON.stringify(selectedToday));
+ assert.equal(selectedToday.data.organization.id,foreign.id);
+ assert.equal(selectedToday.data.venue.id,foreignVenue.id);
+ assert.equal(selectedToday.data.venue.timeZone,"America/Chicago");
+ assert.equal(selectedToday.data.prayer.source,"FOREIGN_SYNTHETIC_PUBLISHED_PRAYER");
+ assert.ok(selectedToday.data.announcements.some(x=>x.id===foreignNotice.id));
+ assert.ok(!selectedToday.data.announcements.some(x=>x.id===draftNotice.id));
+ assert.ok(!JSON.stringify(selectedToday).includes("FOREIGN_SYNTHETIC_DRAFT_NOTICE"));
+ assert.ok(!JSON.stringify(selectedToday).includes("HOME_SYNTHETIC_FUND"));
+ const selectedPrayers=await call("organizations/view?resource=prayers&venueId="+foreignVenue.id+
+  "&date="+chicagoToday,"GET",undefined,first);
+ assert.equal(selectedPrayers.status,200,JSON.stringify(selectedPrayers));
+ assert.equal(selectedPrayers.data.days[0].source,"FOREIGN_SYNTHETIC_PUBLISHED_PRAYER");
+ assert.equal(selectedPrayers.data.jummah[0].iqamahAt,"13:25");
+ const draftPrayers=await call("organizations/view?resource=prayers&venueId="+foreignVenue.id+
+  "&date=2032-11-06","GET",undefined,first);
+ assert.equal(draftPrayers.status,200);
+ assert.deepEqual(draftPrayers.data.days,[],"unpublished times never appear in calendar");
+ const selectedFaith=await call("organizations/view?resource=faith","GET",undefined,first);
+ assert.equal(selectedFaith.status,200);
+ assert.equal(selectedFaith.data.organization.id,foreign.id);
+ assert.ok(selectedFaith.data.notices.some(n=>n.id===foreignFaith.id));
+ assert.equal((await call("organizations/view?resource=home&venueId="+homeVenue.id,
+  "GET",undefined,first)).status,404);
+ assert.equal((await call("organizations/view?resource=prayers&venueId="+homeVenue.id,
+  "GET",undefined,first)).status,404);
+ assert.equal((await call("organizations/view?resource=home&organizationId="+home.id,
+  "GET",undefined,first)).status,422,"forged tenant query must never be accepted");
+ assert.equal((await call("organizations/view?resource=home&resource=faith",
+  "GET",undefined,first)).status,422,"ambiguous resource query fails closed");
+ assert.equal((await call("organizations/view?resource=prayers&date=2032-02-30",
+  "GET",undefined,first)).status,422,"invalid civil dates rejected");
+ const untouchedDevice=await call("organizations/view?resource=venues","GET",undefined,second);
+ assert.equal(untouchedDevice.data.organization.id,home.id);
+ assert.ok(!untouchedDevice.data.venues.some(v=>v.id===foreignVenue.id));
+
  assert.equal((await call("organizations/context","GET",undefined,first)).data.selectedOrganizationId,foreign.id);
  const dbSession=await db.authSession.findUniqueOrThrow({where:{
   tokenHash:createHash("sha256").update(first).digest("hex")
@@ -367,6 +475,11 @@ try{
  assert.equal(revoked.error.code,"MEMBERSHIP_REQUIRED");
  const blockedCatalog=await call("events/catalog","GET",undefined,first);
  assert.equal(blockedCatalog.status,403,"suspended membership cannot browse selected catalog");
+ for(const resource of ["venues","home","prayers","faith"]){
+  const blockedView=await call("organizations/view?resource="+resource,"GET",undefined,first);
+  assert.equal(blockedView.status,403,"revoked foreign membership blocks "+resource);
+  assert.equal(blockedView.error.code,"MEMBERSHIP_REQUIRED");
+ }
  assert.equal(blockedCatalog.error.code,"MEMBERSHIP_REQUIRED");
  assert.equal((await call("notifications/"+foreignNote.id,"PATCH",undefined,first)).status,403);
  for(const operation of [
@@ -389,6 +502,8 @@ try{
  assert.equal(back.data.limited,false);
  const homeAgain=await call("me","GET",undefined,first);
  assert.equal(homeAgain.data.organization.id,home.id);
+ assert.equal((await call("organizations/view?resource=venues","GET",undefined,first))
+  .data.organization.id,home.id);
  assert.ok(homeAgain.data.upcoming.some(x=>x.id===shifts.HOME.id));
  assert.ok(!homeAgain.data.upcoming.some(x=>x.id===shifts.FOREIGN.id));
  assert.equal((await call("students","GET",undefined,first)).status,200,
@@ -398,7 +513,7 @@ try{
  }});
  assert.equal(entries.length,2,"each successful switch records a scoped audit");
  assert.deepEqual(entries.map(e=>e.entityId),[foreign.id,home.id]);
- console.log("Verified per-session mosque selection, cross-mosque private dashboard, inbox/read, consent, active membership revocation, unsafe-workflow denial and privileged role isolation.");
+ console.log("Verified per-session mosque selection, tenant-owned published worship, venue/faith isolation, private dashboard, inbox/read, consent, active membership revocation, unsafe-workflow denial and privileged role isolation.");
 }finally{
  if(foreignMembershipId)await db.organizationMembership.updateMany({where:{id:foreignMembershipId},
   data:{status:"active"}});
@@ -414,6 +529,11 @@ try{
  if(fixture.shifts.length)await db.volunteerShift.deleteMany({where:{id:{in:fixture.shifts}}});
  if(fixture.volunteerApplications.length)await db.volunteerApplication.deleteMany({where:{id:{in:fixture.volunteerApplications}}});
  if(fixture.opportunities.length)await db.volunteerOpportunity.deleteMany({where:{id:{in:fixture.opportunities}}});
+ if(fixture.faithNotices.length)await db.faithNotice.deleteMany({where:{id:{in:fixture.faithNotices}}});
+ if(fixture.announcements.length)await db.announcement.deleteMany({where:{id:{in:fixture.announcements}}});
+ if(fixture.jummah.length)await db.jummahSession.deleteMany({where:{id:{in:fixture.jummah}}});
+ if(fixture.prayerDays.length)await db.prayerDay.deleteMany({where:{id:{in:fixture.prayerDays}}});
+ if(fixture.venues.length)await db.venue.deleteMany({where:{id:{in:fixture.venues}}});
  if(fixture.events.length){
   await db.eventRSVP.deleteMany({where:{eventId:{in:fixture.events}}});
   await db.event.deleteMany({where:{id:{in:fixture.events}}});

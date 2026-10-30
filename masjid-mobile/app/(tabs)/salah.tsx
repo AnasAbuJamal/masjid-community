@@ -5,6 +5,7 @@ import {Action,Card,Feedback,Head,PressRow,Shell} from "../../src/ui";
 import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {useResource} from "../../src/useResource";
+import {useSession} from "../../src/session";
 import {useVenue} from "../../src/venue";
 import {VenuePicker} from "../../src/VenuePicker";
 type Day={id:string;localDate:string;fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;fajrIqamah?:string;dhuhrIqamah?:string;asrIqamah?:string;maghribIqamah?:string;ishaIqamah?:string;source:string;updatedAt:string};
@@ -12,8 +13,10 @@ type Schedule={venue:{id:string;name:string;timeZone:string}|null;days:Day[];jum
 const rows:[string,keyof Day,keyof Day|undefined][]=[["Fajr","fajr","fajrIqamah"],["Sunrise","sunrise",undefined],["Dhuhr","dhuhr","dhuhrIqamah"],["Asr","asr","asrIqamah"],["Maghrib","maghrib","maghribIqamah"],["Isha","isha","ishaIqamah"]];
 export default function Salah(){
  const {t}=useLanguage();
+ const {user}=useSession();
  const {venue,ready}=useVenue();
- const path=ready?(venue?`public/prayers?venueId=${encodeURIComponent(venue.id)}`:"public/prayers"):null;
+ const base=user?.isVerified?"organizations/view?resource=prayers":"public/prayers";
+ const path=ready?(venue?base+(base.includes("?")?"&":"?")+"venueId="+encodeURIComponent(venue.id):base):null;
  const {data,loading,error,refresh}=useResource<Schedule>(path);
  const day=data?.days[0];
  return <Shell>

@@ -1,6 +1,7 @@
 import React,{createContext,useCallback,useContext,useEffect,useMemo,useState} from "react";
 import * as SecureStore from "expo-secure-store";
 import {useResource} from "./useResource";
+import {useSession} from "./session";
 
 export type PublicVenue={id:string;name:string;address:string|null;timeZone:string};
 type VenueList={organization:{id:string;name:string}|null;venues:PublicVenue[]};
@@ -18,7 +19,11 @@ const storageKey="masjid.community.publicVenue";
 export function VenueProvider({children}:{children:React.ReactNode}){
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const [hydrated,setHydrated]=useState(false);
- const list=useResource<VenueList>("public/venues");
+ const {user}=useSession();
+ // Validated selected-mosque venues for signed-in members; anonymous guests
+ // continue using the original public venue catalog.
+ const list=useResource<VenueList>(user?.isVerified
+  ?"organizations/view?resource=venues":"public/venues");
  useEffect(()=>{
   let active=true;
   void SecureStore.getItemAsync(storageKey).then(id=>{
