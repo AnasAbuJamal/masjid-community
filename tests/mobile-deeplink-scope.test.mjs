@@ -28,9 +28,17 @@ test("deep-link entry points must not fetch default-mosque records in foreign co
   ["app/giving/[id].tsx",/allowed\?"public\/campaigns":null/],
   ["app/care/request.tsx",/allowed\?"care":null/],
   ["app/school/apply/[programId].tsx",/allowed\?"public\/programs":null/],
-  ["app/finance/transparency.tsx",/surface\.allowed\?"public\/financials":null/],
+  
   ["app/circles.tsx",/allowed\?"circles":null/]
  ]){
   assert.match(readFileSync("masjid-mobile/"+file,"utf8"),guard);
  }
+});
+
+test("financial transparency selects published budget ownership without home fallback",()=>{
+ const code=readFileSync("masjid-mobile/app/finance/transparency.tsx","utf8");
+ assert.match(code,/const enabled=surface\.allowed\|\|surface\.scope==="limited"/);
+ assert.match(code,/const selected=surface\.scope==="pilot"\|\|surface\.scope==="limited"/);
+ assert.match(code,/const path=enabled\?\(selected\?"organizations\/view\?resource=financials":"public\/financials"\):null/);
+ assert.match(code,/!enabled\?<MemberScopeNotice/);
 });

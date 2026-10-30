@@ -483,3 +483,6 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Return shape is compatible with the SILA Mobile universal search. For members in a secondary mosque, search now shows only the three supported categories, retains their types for safe deep links, and keeps all other legacy categories disabled. Guest and pilot-public search remain unchanged.
 - Synthetic multi-mosque HTTP tests verify guest rejection, tenant scoping, exact category results, unpublished/draft/embargoed exclusions, alternate-session separation, forged organization headers and immediate revoked-membership rejection. Results are limited to six per category, with snippets capped at 240 characters.
 - **Incomplete:** broader approved organization-wide catalog search, moderation/translation review, full indexed pagination and accessible real-device search QA. No schema migration or production change.
+
+### Verification correction: source inventory for F-030
+- Replaced the obsolete source assertion that restricted published financial budgets to the pilot mosque. The corrected assertion requires the approved selected-mosque read-only path, guest public pilot fallback and a null path for unresolved or inactive member context. All backend treasury write restrictions remain unchanged.
