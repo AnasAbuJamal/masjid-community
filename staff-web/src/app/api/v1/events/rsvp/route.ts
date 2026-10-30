@@ -2,19 +2,22 @@ import {NextRequest} from "next/server";
 import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireVerified} from "@/lib/auth";
+import {requireMemberContext} from "@/lib/auth";
 import {notifyUser} from "@/lib/notifications";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 
 export async function DELETE(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
-  const user=await requireVerified(req);
+  const {user,org:organization}=await requireMemberContext(req);
   const {eventId}=z.object({eventId:z.string().min(8)}).parse(await jsonBody(req));
-  const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
-  if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   try{
    const result=await db.$transaction(async tx=>{
+    const membership=await tx.organizationMembership.findUnique({where:{
+     organizationId_userId:{organizationId:organization.id,userId:user.id}
+    },select:{status:true}});
+    if(membership?.status!=="active")
+     throw new HttpError(403,"MEMBERSHIP_REQUIRED","Selected mosque membership is not active.");
     const event=await tx.event.findFirst({where:{id:eventId,organizationId:organization.id}});
     if(!event)throw new HttpError(404,"NOT_FOUND","Event unavailable.");
     if(event.startAt<=new Date())

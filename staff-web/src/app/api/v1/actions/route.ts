@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import {Prisma} from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireVerified, audit } from "@/lib/auth";
+import { requireMemberContext, requireVerified } from "@/lib/auth";
 import {schoolStudentScope} from "@/lib/school-scope";
 import { handled, HttpError, jsonBody, ok, assertSameOrigin } from "@/lib/http";
 
@@ -20,13 +20,23 @@ const schema=z.discriminatedUnion("kind",[
 export async function POST(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
-  const user=await requireVerified(req);
   const input=schema.parse(await jsonBody(req));
-  const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  // Only F-009 RSVP is selected-mosque aware. Every unrelated action
+  // retains the original pilot-only guard and cannot inherit foreign scope.
+  const selected=input.kind==="rsvp"?await requireMemberContext(req):null;
+  const user=selected?.user||await requireVerified(req);
+  const organization=selected?.org||await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(input.kind==="rsvp"){
     try{
     const output=await db.$transaction(async tx=>{
+      // Recheck membership within the reservation transaction: a revoked
+      // foreign membership must never create a seat using a stale session.
+      const membership=await tx.organizationMembership.findUnique({where:{
+       organizationId_userId:{organizationId:organization.id,userId:user.id}
+      },select:{status:true}});
+      if(membership?.status!=="active")
+       throw new HttpError(403,"MEMBERSHIP_REQUIRED","Selected mosque membership is not active.");
       const event=await tx.event.findFirst({where:{id:input.eventId,organizationId:organization.id}});
       if(!event||event.status!=="published"||event.startAt<=new Date())
         throw new HttpError(404,"UNAVAILABLE","Event unavailable.");

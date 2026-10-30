@@ -30,12 +30,12 @@ export async function GET(req:NextRequest){
   const choices=memberships.map(m=>({
    ...m.organization,
    selectable:m.organization.id===home.id||user.role==="member",
-   memberWorkspace:m.organization.id===home.id?"pilot":"inbox_and_preferences_only"
+   memberWorkspace:m.organization.id===home.id?"pilot":"limited_member_rsvp"
   }));
   return ok({selectedOrganizationId:selectedId,
    selectedActive:choices.some(x=>x.id===selectedId),
    organizations:choices,
-   policy:"Mosque choices belong to this one session. A second mosque currently supports only its member dashboard, private notifications and optional email preferences; all other private workflows stay locked. No privileged global role transfers to another mosque."});
+   policy:"Mosque choices belong to this one session. A second mosque supports the member dashboard, private notifications, optional email preferences and gathering RSVP management for known event IDs. Other private workflows and foreign-mosque public discovery remain unsupported. No privileged global role transfers."});
  });
 }
 export async function POST(req:NextRequest){
@@ -66,6 +66,6 @@ export async function POST(req:NextRequest){
   });
   return ok({selectedOrganizationId:result.id,organization:result,
    limited:result.id!==home.id,
-   policy:result.id===home.id?"Primary community workspace.":"Limited member context. Only /me, /me/preferences and notification read actions support this mosque. Unsupported private actions are blocked."});
+   policy:result.id===home.id?"Primary community workspace.":"Limited member context: private dashboard, preferences, notifications and gathering RSVP status/join/cancellation support this selected mosque. Other private actions remain blocked; foreign public catalog discovery is not implemented."});
  });
 }

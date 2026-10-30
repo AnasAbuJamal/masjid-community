@@ -84,9 +84,15 @@ try{
  const event=await db.event.create({data:{
   organizationId:foreign.id,title:"FOREIGN_SYNTHETIC_PRIVATE_RSVP",description:"Private event",
   location:"Synthetic community",status:"published",startAt:new Date(Date.now()+86400000),
-  endAt:new Date(Date.now()+90000000)
+  endAt:new Date(Date.now()+90000000),rsvpCount:1
  }});
  fixture.events.push(event.id);
+ const homeEvent=await db.event.create({data:{
+  organizationId:home.id,title:"HOME_SYNTHETIC_RSVP_EVENT",description:"Home gathering",
+  location:"Synthetic home hall",status:"published",startAt:new Date(Date.now()+86400000),
+  endAt:new Date(Date.now()+90000000),capacity:2
+ }});
+ fixture.events.push(homeEvent.id);
  const rsvp=await db.eventRSVP.create({data:{eventId:event.id,userId:member.id}});
  fixture.rsvps.push(rsvp.id);
  const homeInbox=await call("me","GET",undefined,first);
@@ -97,6 +103,10 @@ try{
  assert.ok(!JSON.stringify(homeInbox.data).includes("FOREIGN_PRIVATE_CONTEXT_ONLY"));
  assert.ok(!JSON.stringify(homeInbox.data).includes("FOREIGN_SYNTHETIC_FUND"));
  assert.ok(!JSON.stringify(homeInbox.data).includes("FOREIGN_SYNTHETIC_PRIVATE_RSVP"));
+ assert.equal((await call("events/registration?eventId="+event.id,"GET",undefined,first)).status,404,
+  "home context cannot see known foreign registration");
+ assert.equal((await call("actions","POST",{kind:"rsvp",eventId:event.id},first)).status,404,
+  "home context cannot reserve foreign event by known ID");
  const invalid=await call("organizations/context","POST",{
   organizationId:"missing-organization-"+randomUUID()
  },first);
@@ -136,6 +146,39 @@ try{
  assert.ok(!JSON.stringify(switched.data).includes("LEGACY_UNOWNED_NEVER_PRESENT"));
  const otherDevice=await call("me","GET",undefined,second);
  assert.equal(otherDevice.data.organization.id,home.id);
+ // F-009 selected-mosque RSVP lifecycle: server-held session context and
+ // active membership must drive every read and write, never client IDs.
+ const foreignRegistration=await call("events/registration?eventId="+event.id,"GET",undefined,first,
+  {"x-organization-id":home.id});
+ assert.equal(foreignRegistration.status,200,JSON.stringify(foreignRegistration));
+ assert.equal(foreignRegistration.data.registration?.status,"confirmed");
+ assert.equal((await call("events/registration?eventId="+homeEvent.id,"GET",undefined,first)).status,404);
+ assert.equal((await call("events/registration?eventId="+event.id,"GET",undefined,second)).status,404);
+ assert.equal((await call("actions","POST",{kind:"rsvp",eventId:homeEvent.id},first)).status,404);
+ assert.equal((await call("events/rsvp","DELETE",{eventId:homeEvent.id},first)).status,404);
+ assert.equal((await call("actions","POST",{kind:"rsvp",eventId:event.id},second)).status,404);
+ assert.equal((await call("events/rsvp","DELETE",{eventId:event.id},second)).status,404);
+ assert.equal((await call("actions","POST",{kind:"volunteer",opportunityId:"synthetic-unknown"},first)).status,409,
+  "unmigrated action kinds remain pilot-only");
+ assert.equal((await call("actions","POST",{kind:"rsvp",eventId:event.id},first,
+  {origin:"https://malicious.example.test"})).status,403);
+ assert.equal((await call("events/rsvp","DELETE",{eventId:event.id},first,
+  {origin:"https://malicious.example.test"})).status,403);
+ const repeat=await call("actions","POST",{kind:"rsvp",eventId:event.id},first);
+ assert.equal(repeat.status,201,JSON.stringify(repeat));
+ assert.equal(repeat.data.alreadyJoined,true);
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:event.id}})).rsvpCount,1);
+ const leaveForeign=await call("events/rsvp","DELETE",{eventId:event.id},first);
+ assert.equal(leaveForeign.status,200,JSON.stringify(leaveForeign));
+ assert.equal(leaveForeign.data.cancelled,true);
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:event.id}})).rsvpCount,0);
+ assert.equal((await call("events/registration?eventId="+event.id,"GET",undefined,first)).data.registration,null);
+ assert.equal((await call("events/rsvp","DELETE",{eventId:event.id},first)).data.alreadyCancelled,true);
+ const rejoin=await call("actions","POST",{kind:"rsvp",eventId:event.id},first);
+ assert.equal(rejoin.status,201,JSON.stringify(rejoin));
+ assert.equal(rejoin.data.status,"confirmed");
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:event.id}})).rsvpCount,1);
+ assert.equal((await call("events/registration?eventId="+event.id,"GET",undefined,first)).data.registration?.status,"confirmed");
  assert.ok(otherDevice.data.notifications.some(n=>n.id===homeNote.id));
  assert.ok(!JSON.stringify(otherDevice.data).includes("FOREIGN_PRIVATE_CONTEXT_ONLY"));
  assert.equal((await call("notifications/"+homeNote.id,"PATCH",undefined,first)).status,404,
@@ -238,6 +281,16 @@ try{
  assert.equal(revoked.status,403,"foreign context must recheck active membership every call");
  assert.equal(revoked.error.code,"MEMBERSHIP_REQUIRED");
  assert.equal((await call("notifications/"+foreignNote.id,"PATCH",undefined,first)).status,403);
+ for(const operation of [
+  call("events/registration?eventId="+event.id,"GET",undefined,first),
+  call("actions","POST",{kind:"rsvp",eventId:event.id},first),
+  call("events/rsvp","DELETE",{eventId:event.id},first)
+ ]){
+  const response=await operation;
+  assert.equal(response.status,403,"revoked selected membership blocks RSVP operations immediately");
+  assert.equal(response.error.code,"MEMBERSHIP_REQUIRED");
+ }
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:event.id}})).rsvpCount,1);
  const contextRevoked=await call("organizations/context","GET",undefined,first);
  assert.equal(contextRevoked.status,200,"account must be able to recover by switching home");
  assert.equal(contextRevoked.data.selectedActive,false);
@@ -267,8 +320,10 @@ try{
  }});
  if(fixture.invitations.length)await db.staffInvitation.deleteMany({where:{id:{in:fixture.invitations}}});
  if(fixture.prefs.length)await db.organizationDeliveryPreference.deleteMany({where:{id:{in:fixture.prefs}}});
- if(fixture.rsvps.length)await db.eventRSVP.deleteMany({where:{id:{in:fixture.rsvps}}});
- if(fixture.events.length)await db.event.deleteMany({where:{id:{in:fixture.events}}});
+ if(fixture.events.length){
+  await db.eventRSVP.deleteMany({where:{eventId:{in:fixture.events}}});
+  await db.event.deleteMany({where:{id:{in:fixture.events}}});
+ }
  if(fixture.donations.length)await db.donation.deleteMany({where:{id:{in:fixture.donations}}});
  if(fixture.campaigns.length)await db.donationCampaign.deleteMany({where:{id:{in:fixture.campaigns}}});
  if(fixture.notes.length){
