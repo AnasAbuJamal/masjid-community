@@ -7,17 +7,26 @@ import {useSession} from "../../src/session";
 import {useResource} from "../../src/useResource";
 import {Action,Card,Feedback,Field,Head,Shell} from "../../src/ui";
 import {S,T} from "../../src/theme";
+import {usePilotSurface} from "../../src/usePilotSurface";
+import {MemberScopeNotice} from "../../src/MemberScopeNotice";
 type Policy={enabled:boolean;hours:string;response:string;limits:string;emergency:string;message:string;consentVersion:string};
 type Request={reference:string;status:string;createdAt:string;closedAt:string|null};
 export default function CareRequest(){
  const {user}=useSession();
+ const surface=usePilotSurface();
+ const {allowed,contextVersion}=surface;
  const {language}=useLanguage();const ar=language==="ar";
  const L=(en:string,arabic:string)=>ar?arabic:en;
- const policy=useResource<Policy>("care");
- const mine=useResource<{requests:Request[]}>(user?.isVerified?"care/mine":null);
+ const policy=useResource<Policy>(allowed?"care":null);
+ const mine=useResource<{requests:Request[]}>(allowed&&user?.isVerified?"care/mine":null);
  const [message,setMessage]=useState(""),[consent,setConsent]=useState(false);
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ React.useEffect(()=>{
+  // Never carry a sensitive unsubmitted care narrative into another mosque.
+  setMessage("");setConsent(false);setNotice("");setError("");
+ },[contextVersion]);
  async function submit(){
+  if(!allowed){setError("Care intake is unavailable at your selected mosque.");return;}
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError(L("Verify your account before requesting private assistance.","يرجى توثيق الحساب قبل إرسال طلب المساعدة."));return;}
   if(!policy.data?.enabled||!consent||message.trim().length<20)return;
@@ -38,7 +47,8 @@ export default function CareRequest(){
   title={L("Ask for a private conversation.","اطلب تواصلاً خاصاً.")}
   subtitle={L("A trained human coordinator will review requests only when the mosque has enabled this service.",
    "يراجع منسق مؤهل الطلبات فقط عند تفعيل المسجد لهذه الخدمة.")}/>
- <Feedback loading={policy.loading} error={policy.error} empty={false} refresh={policy.refresh}/>
+ {!allowed?<MemberScopeNotice {...surface}/>:null}
+ {allowed?<><Feedback loading={policy.loading} error={policy.error} empty={false} refresh={policy.refresh}/>
  {!policy.loading&&!policy.data?.enabled?<Card>
   <Text style={S.bodyText}>{L("Online care intake has not been enabled. Use the mosque's published contact methods. In an emergency, contact local emergency services.",
    "لم تُفعّل خدمة الطلبات السرية. استخدم طرق التواصل الرسمية للمسجد. في حالات الطوارئ اتصل بخدمات الطوارئ المحلية.")}</Text>
@@ -75,6 +85,6 @@ export default function CareRequest(){
   </Card>)}
   <Text style={S.muted}>{L("Your detailed message is intentionally not shown in ordinary account activity.",
    "لا تُعرض تفاصيل رسالتك في نشاط الحساب المعتاد حفاظاً على الخصوصية.")}</Text>
- </View>:null}
+ </View>:null}</>:null}
  </Shell>;
 }

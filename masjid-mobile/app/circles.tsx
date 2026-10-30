@@ -7,19 +7,24 @@ import {useLanguage} from "../src/i18n";
 import {useResource} from "../src/useResource";
 import {Action,Card,Feedback,Head,Shell} from "../src/ui";
 import {S,T} from "../src/theme";
+import {usePilotSurface} from "../src/usePilotSurface";
+import {MemberScopeNotice} from "../src/MemberScopeNotice";
 
 type Circle={id:string;title:string;summary:string;cadence:string;guidelines:string};
 type Membership={id:string;status:"requested"|"approved"|"declined"|"left";circle:{id:string;title:string;summary:string;cadence:string}};
 type Update={id:string;circleId:string;body:string;publishedAt:string;revision:number};
 export default function Circles(){
  const {user}=useSession();
+ const surface=usePilotSurface();
+ const {allowed}=surface;
  const {language}=useLanguage();
  const ar=language==="ar";
- const publicList=useResource<{items:Circle[]}>("circles");
- const own=useResource<{memberships:Membership[];updates:Update[]}>(user?.isVerified?"circles/mine":null);
+ const publicList=useResource<{items:Circle[]}>(allowed?"circles":null);
+ const own=useResource<{memberships:Membership[];updates:Update[]}>(allowed&&user?.isVerified?"circles/mine":null);
  const [busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const label=(en:string,arabic:string)=>ar?arabic:en;
  async function change(circleId:string,kind:"join"|"leave"){
+  if(!allowed){setError("Circles are unavailable at your selected mosque.");return;}
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError(label("Verify your email first.","وثّق بريدك الإلكتروني أولاً."));return;}
   setBusy(circleId);setError("");setNotice("");
@@ -38,7 +43,8 @@ export default function Circles(){
   title={label("Find a circle to belong to.","اعثر على حلقة تناسبك.")}
   subtitle={label("Read the public description, request to join, and wait for host approval. Member lists are never public.",
    "اقرأ الوصف العام، وقدّم طلب الانضمام وانتظر موافقة المشرف. قوائم الأعضاء ليست عامة.")}/>
- {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
+ {!allowed?<MemberScopeNotice {...surface}/>:null}
+ {allowed?<>{error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
  {notice?<Text style={{color:T.success}}>{notice}</Text>:null}
  <Feedback loading={publicList.loading} error={publicList.error} empty={publicList.data?.items.length===0} refresh={publicList.refresh}/>
  {publicList.data?.items.map(c=>{
@@ -65,6 +71,6 @@ export default function Circles(){
    <Text style={S.label}>{own.data?.memberships.find(m=>m.circle.id===u.circleId)?.circle.title}</Text>
    <Text style={S.bodyText}>{u.body}</Text><Text style={S.muted}>{new Date(u.publishedAt).toLocaleString()}</Text>
   </Card>)}
- </View>:null}
+ </View>:null}</>:null}
  </Shell>;
 }

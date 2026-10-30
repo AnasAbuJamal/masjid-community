@@ -6,14 +6,19 @@ import {S,T} from "../../src/theme";
 import {useResource} from "../../src/useResource";
 import {apiPost} from "../../src/api";
 import {useSession} from "../../src/session";
+import {usePilotSurface} from "../../src/usePilotSurface";
+import {MemberScopeNotice} from "../../src/MemberScopeNotice";
 type Campaign={id:string;title:string;purpose:string;currency:string;goalMinor?:number};
 export default function Giving(){
  const {id}=useLocalSearchParams<{id:string}>();
  const {user}=useSession();
- const result=useResource<{items:Campaign[]}>("public/campaigns");
+ const surface=usePilotSurface();
+ const {allowed}=surface;
+ const result=useResource<{items:Campaign[]}>(allowed?"public/campaigns":null);
  const campaign=result.data?.items.find(x=>x.id===id);
  const [amount,setAmount]=useState("25"),[anonymous,setAnonymous]=useState(false),[error,setError]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("");
  async function donate(){
+  if(!allowed){setError("Giving is unavailable for your selected mosque.");return;}
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError("Verify your email before donating.");return;}
   const cents=Math.round(Number(amount)*100);
@@ -28,8 +33,9 @@ export default function Giving(){
  }
  return <Shell><Action secondary icon="arrow-left" label="Back to campaigns" onPress={()=>router.back()}/>
  <Head eyebrow="GIVING · TRUSTED CHECKOUT" title="Every gift matters." subtitle="Secure checkout, verified payment status, and private records."/>
- <Feedback loading={result.loading} error={result.error} empty={!campaign} refresh={result.refresh}/>
- {campaign?<Card style={{gap:18}}><Text style={S.headline}>{campaign.title}</Text><Text style={S.bodyText}>{campaign.purpose}</Text>
+ {!allowed?<MemberScopeNotice {...surface}/>:null}
+ {allowed?<Feedback loading={result.loading} error={result.error} empty={!campaign} refresh={result.refresh}/>:null}
+ {allowed&&campaign?<Card style={{gap:18}}><Text style={S.headline}>{campaign.title}</Text><Text style={S.bodyText}>{campaign.purpose}</Text>
  <Field label="Amount (USD)" value={amount} onChange={setAmount} keyboardType="numeric"/>
  <Action label={anonymous?"Giving privately":"Give anonymously to the public"} secondary icon="incognito" onPress={()=>setAnonymous(!anonymous)}/>
  <Text style={S.muted}>Donation receipts become final only after a verified payment webhook. Your donation history is private.</Text>
