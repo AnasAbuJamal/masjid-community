@@ -42,6 +42,8 @@ try{
   organizationId_userId:{organizationId:home.id,userId:member.id}
  }});
  assert.equal(homeMember.status,"active");
+ assert.equal((await call("events/catalog")).status,401,
+  "authenticated gathering catalog must never become a public second-tenant listing");
  const first=await login(memberEmail);
  const second=await login(memberEmail);
  const stranger=await call("organizations/context");
@@ -93,6 +95,20 @@ try{
   endAt:new Date(Date.now()+90000000),capacity:2
  }});
  fixture.events.push(homeEvent.id);
+ const foreignDraft=await db.event.create({data:{
+  organizationId:foreign.id,title:"FOREIGN_SYNTHETIC_UNPUBLISHED_EVENT",
+  description:"Not for publication",location:"Private draft",
+  status:"draft",startAt:new Date(Date.now()+86400000),
+  endAt:new Date(Date.now()+90000000)
+ }});
+ fixture.events.push(foreignDraft.id);
+ const homeCatalog=await call("events/catalog","GET",undefined,first);
+ assert.equal(homeCatalog.status,200,JSON.stringify(homeCatalog));
+ assert.equal(homeCatalog.data.organization.id,home.id);
+ assert.ok(homeCatalog.data.items.some(x=>x.id===homeEvent.id));
+ assert.ok(!homeCatalog.data.items.some(x=>x.id===event.id||x.id===foreignDraft.id));
+ assert.equal((await call("events/catalog?eventId="+event.id,"GET",undefined,first)).status,404,
+  "known foreign event ID must not reveal its publication or metadata");
  const rsvp=await db.eventRSVP.create({data:{eventId:event.id,userId:member.id}});
  fixture.rsvps.push(rsvp.id);
  const homeInbox=await call("me","GET",undefined,first);
@@ -133,6 +149,25 @@ try{
  assert.equal(dbSession.selectedOrganizationId,foreign.id);
  assert.equal((await call("organizations/context","GET",undefined,second)).data.selectedOrganizationId,home.id,
   "second device/session must NOT switch when first device changes mosque");
+ const foreignCatalog=await call("events/catalog?organizationId="+home.id,"GET",undefined,first);
+ assert.equal(foreignCatalog.status,422,"client-provided mosque filter is forbidden");
+ const selectedCatalog=await call("events/catalog","GET",undefined,first,{"x-organization-id":home.id});
+ assert.equal(selectedCatalog.status,200,JSON.stringify(selectedCatalog));
+ assert.equal(selectedCatalog.data.organization.id,foreign.id,"server session chooses mosque");
+ assert.ok(selectedCatalog.data.items.some(x=>x.id===event.id));
+ assert.ok(!selectedCatalog.data.items.some(x=>x.id===homeEvent.id||x.id===foreignDraft.id));
+ assert.ok(!JSON.stringify(selectedCatalog).includes("FOREIGN_SYNTHETIC_UNPUBLISHED_EVENT"));
+ const selectedExact=await call("events/catalog?eventId="+event.id,"GET",undefined,first);
+ assert.equal(selectedExact.status,200);
+ assert.equal(selectedExact.data.items.length,1);
+ assert.equal(selectedExact.data.items[0].id,event.id);
+ assert.equal((await call("events/catalog?eventId="+foreignDraft.id,"GET",undefined,first)).status,404);
+ assert.equal((await call("events/catalog?eventId="+homeEvent.id,"GET",undefined,first)).status,404);
+ assert.equal((await call("events/catalog?eventId=missing-synthetic-event","GET",undefined,first)).status,404);
+ assert.equal((await call("events/catalog?eventId=bad","GET",undefined,first)).status,422);
+ const stillHomeCatalog=await call("events/catalog","GET",undefined,second);
+ assert.equal(stillHomeCatalog.data.organization.id,home.id);
+ assert.ok(!stillHomeCatalog.data.items.some(x=>x.id===event.id));
  const switched=await call("me","GET",undefined,first,
   {"x-organization-id":home.id});
  assert.equal(switched.status,200,JSON.stringify(switched));
@@ -280,6 +315,9 @@ try{
  const revoked=await call("me","GET",undefined,first);
  assert.equal(revoked.status,403,"foreign context must recheck active membership every call");
  assert.equal(revoked.error.code,"MEMBERSHIP_REQUIRED");
+ const blockedCatalog=await call("events/catalog","GET",undefined,first);
+ assert.equal(blockedCatalog.status,403,"suspended membership cannot browse selected catalog");
+ assert.equal(blockedCatalog.error.code,"MEMBERSHIP_REQUIRED");
  assert.equal((await call("notifications/"+foreignNote.id,"PATCH",undefined,first)).status,403);
  for(const operation of [
   call("events/registration?eventId="+event.id,"GET",undefined,first),
