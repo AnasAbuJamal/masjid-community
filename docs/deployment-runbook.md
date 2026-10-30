@@ -544,3 +544,26 @@ or public release.
 ## Read-only audit reviewer migration gate (October 30, 2026)
 
 `20261030230000_audit_review_capability` adds one PostgreSQL enum value without backfilling or granting anyone access. Review existing enum dependencies and migration history on a restored isolated snapshot before applying to a nonempty environment. The new capability can be granted only by an MFA-verified home-mosque administrator to verified staff with an enrolled authenticator, expires within 30 days, and remains read-only. Governance must approve reviewer independence, HMAC-key custody, audit retention, and external head anchoring before treating it as a production assurance control. CI tests are synthetic only; no live grant or deployment is authorized by this change.
+
+
+## Git-triggered deployment hold (October 30, 2026)
+
+Three linked Vercel projects (masjid-community, masjid-community1, and
+masjid-community-url3) previously attempted **production-targeted** builds on
+development pushes despite missing environment secrets, database migration
+approvals and safeguarding/finance gates.
+
+A reversible Vercel project-level **Ignored Build Step** command (exit 0) was
+configured on all three projects to skip builds during active development.
+For commit c3cc3a5e231462b4c9d1044816205e4a32b6db79, all three
+Git-triggered deployment records ended **CANCELED**, not READY. This confirms
+the hold for that commit, not a permanent guarantee against config drift.
+
+This hold is in Vercel project settings, not in Git. Check its continued
+enforcement before additional pushes and never remove it just because
+GitHub Actions passes. The exact release commit, deployment environment,
+secure secrets, independently rehearsed production-like backup/restore,
+approved safeguarding/privacy/finance policies, and written release signoff
+are required before a production deployment. If auto-release protection
+cannot be verified, stop unsafe pushes. No production deployment or live
+database migration was authorized or performed in this increment.
