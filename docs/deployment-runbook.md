@@ -209,3 +209,51 @@ CI enables the endpoint **only for synthetic fixtures**, with a disposable
 test key and fictional policy text. This does NOT constitute organizational
 approval or permit production enablement. No deployment or live migration
 was authorized by the user.
+
+
+## Single-organization staff invitation acceptance gate (October 30, 2026)
+
+`20261030120000_staff_invitations` adds `StaffInvitation` only; it
+does not change existing staff roles, automatically issue invitations,
+backfill memberships or grant capabilities. A staff invitation does
+**not** grant privilege until the named person verifies their exact
+email, proves fresh authenticator access and accepts.
+
+Configure a trusted `RESEND_API_KEY`, verified `EMAIL_FROM` and
+HTTPS `NEXT_PUBLIC_APP_URL` before delivering real invitations.
+The link uses a URL fragment to avoid automatically transmitting the
+one-time secret in the GET request. Email is still a sensitive delivery
+channel; recipients must use their own device and should not forward
+the link. If provider delivery fails, the invitation is revoked and
+the client sees a retryable delivery failure instead of success.
+
+For disposable integration tests only, `SILA_INVITE_CI_CAPTURE=test-only`
+can return a raw test token **only** within GitHub Actions when
+`DATABASE_URL` points to `/masjid_ci` and the frontend is
+`http://localhost:3000`. Do not enable this exception in staging or
+production and never reuse CI tokens, sender keys or security data.
+
+Authorization guards: administrative issue/revoke needs current,
+active admin membership and session MFA; invitee is email-verified,
+MFA-enrolled with a challenge less than 10 minutes old, and actively
+accepts. The previous direct member-to-staff role editor is blocked.
+Capabilities exclude confidential care, default to an explicit
+14-day expiration, and require an active matching membership on every
+privileged request. Reissued/revoked/expired invitations cannot be
+accepted, and a demoted issuer can no longer confer new privilege.
+
+**Single-org limit:** `User.role` remains an account-global field.
+An invited user with *any other active organization membership*
+is explicitly denied, rather than accidentally inheriting staff
+authority across multiple mosques. True multi-organization role
+separation, context switching and adversarial end-to-end tests are
+still an unresolved launch gate. Existing legacy staff without
+authenticator enrollment also need a separately governed migration.
+
+Before any non-CI migration or staff invitation rollout: restore
+an isolated snapshot, rehearse email delivery, recovery and link
+revocation, review the invitation and staff exit policy, approve audit
+retention and rate limits, verify full screen-reader/device flows,
+and secure written security/organization owner signoff. No deployment,
+provider configuration, app-store publication or live migration was
+requested or performed.
