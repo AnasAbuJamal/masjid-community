@@ -95,6 +95,7 @@ model Organization {
   staffInvitations StaffInvitation[]
   deletionRequests DeletionRequest[]
   notifications Notification[]
+  deliveryPreferences OrganizationDeliveryPreference[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -142,6 +143,7 @@ model User {
   jobApplications JobApplication[]
   bookings RentalBooking[]
   notifications Notification[]
+  deliveryPreferences OrganizationDeliveryPreference[]
   outboxEvents OutboxEvent[]
   auditEvents AuditEvent[]
   payoutReviewNotes PayoutReviewNote[]
@@ -649,6 +651,7 @@ model Notification {
   user User @relation(fields:[userId],references:[id])
   title String
   body String
+  purpose DeliveryPurpose @default(service)
   readAt DateTime?
   createdAt DateTime @default(now())
   outboxEvents OutboxEvent[]
@@ -1106,6 +1109,31 @@ model RoleGrant {
   @@index([membershipId,revokedAt,expiresAt])
 }
 
+enum DeliveryPurpose {
+  service
+  event_updates
+  community_news
+}
+enum DeliveryChannel {
+  email
+}
+model OrganizationDeliveryPreference {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  purpose DeliveryPurpose
+  channel DeliveryChannel @default(email)
+  enabled Boolean @default(false)
+  consentedAt DateTime?
+  // Local clock hours in the organization's IANA timezone, or both NULL.
+  quietStartHour Int?
+  quietEndHour Int?
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId,userId,purpose,channel])
+  @@index([userId,organizationId])
+}
 enum OutboxStatus {
   pending
   leased
