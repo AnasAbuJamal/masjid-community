@@ -12,10 +12,12 @@ type Data={profile:{firstName:string;lastName:string;email:string;role:string};
  sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
 type DeliveryPreference={purpose:"community_news"|"event_updates";enabled:boolean;quietStartHour:number|null;quietEndHour:number|null};
 type DeliveryData={organization:{name:string;timeZone:string};optional:DeliveryPreference[];policy:string};
+type ContextData={selectedOrganizationId:string;selectedActive:boolean;organizations:{id:string;name:string;slug:string;timeZone:string;selectable:boolean;memberWorkspace:string}[];policy:string};
 export default function Settings(){
  const {language,setLanguage,t}=useLanguage();
- const {refresh:refreshUser,logout}=useSession();
+ const {refresh:refreshUser,logout,selectOrganization}=useSession();
  const result=useResource<Data>("account");
+ const context=useResource<ContextData>("organizations/context");
  const delivery=useResource<DeliveryData>("me/preferences");
  const [first,setFirst]=useState(""),[last,setLast]=useState("");
  const [newsletter,setNewsletter]=useState(false),[events,setEvents]=useState(false),[quiet,setQuiet]=useState(false);
@@ -33,6 +35,15 @@ export default function Settings(){
   if(window?.quietStartHour!==null&&window?.quietStartHour!==undefined)setQuietStart(String(window.quietStartHour));
   if(window?.quietEndHour!==null&&window?.quietEndHour!==undefined)setQuietEnd(String(window.quietEndHour));
  }},[delivery.data]);
+ async function switchMosque(id:string){
+  setBusy(true);setNotice("");setError("");
+  try{
+   await selectOrganization(id);
+   await context.refresh();
+   setNotice(t("settings.mosqueSelected"));
+  }catch(e){setError(e instanceof Error?e.message:t("settings.mosqueSwitchError"));}
+  finally{setBusy(false);}
+ }
  async function saveProfile(){
   setBusy(true);setNotice("");setError("");
   try{await api("account",{method:"PATCH",body:JSON.stringify({firstName:first,lastName:last})});
@@ -103,6 +114,20 @@ export default function Settings(){
  <Text style={S.muted}>{result.data.profile.email}</Text>
  <Field label="First name" value={first} onChange={setFirst}/><Field label="Last name" value={last} onChange={setLast}/>
  <Action label={t("settings.saveProfile")} loading={busy} disabled={busy} onPress={()=>void saveProfile()}/></Card>
+ <Card style={{gap:12}}>
+ <Text style={S.headline}>{t("settings.mosqueTitle")}</Text>
+ <Feedback loading={context.loading} error={context.error} empty={false} refresh={context.refresh}/>
+ <Text style={S.muted}>{t("settings.mosquePolicy")}</Text>
+ {context.data?.organizations.map(item=><View key={item.id} style={{gap:6,paddingVertical:6}}>
+  <Text style={S.label}>{item.name} · {item.timeZone}</Text>
+  <Action label={item.id===context.data?.selectedOrganizationId?t("settings.mosqueCurrent"):t("settings.mosqueSwitch")}
+   secondary={item.id===context.data?.selectedOrganizationId}
+   disabled={busy||!item.selectable||item.id===context.data?.selectedOrganizationId}
+   onPress={()=>void switchMosque(item.id)}/>
+  {item.memberWorkspace!=="pilot"?<Text style={S.muted}>{t("settings.mosqueLimited")}</Text>:null}
+ </View>)}
+ {context.data&&!context.data.selectedActive?<Text accessibilityRole="alert" style={{color:T.danger}}>{t("settings.mosqueRevoked")}</Text>:null}
+ </Card>
  <Card style={{gap:13}}>
  <Text style={S.headline}>{t("settings.deliveryTitle")}</Text>
  <Feedback loading={delivery.loading} error={delivery.error} empty={false} refresh={delivery.refresh}/>
