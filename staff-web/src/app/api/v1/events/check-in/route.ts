@@ -12,6 +12,14 @@ const command=z.discriminatedUnion("action",[
  record.extend({action:z.literal("correct"),reason:z.string().trim().min(10).max(300)})
 ]);
 
+// Confirmation alone is not permission to disclose a name or record an arrival.
+// Revalidate recipient identity and active membership in the *event's* mosque.
+// Keep old RSVP rows for separately approved retention/appeal handling.
+function eligibleAttendee(organizationId:string):Prisma.EventRSVPWhereInput{
+ return {user:{status:"active",verifiedAt:{not:null},
+  memberships:{some:{organizationId,status:"active"}}}};
+}
+
 // Neither the public API nor unassigned staff can request an event's attendee roster.
 export async function GET(req:NextRequest){
  return handled(async()=>{
@@ -34,14 +42,14 @@ export async function GET(req:NextRequest){
   },select:{event:{select:{id:true,title:true,startAt:true,endAt:true}}}});
   if(!assignment)throw new HttpError(404,"EVENT_UNAVAILABLE","Assigned gathering unavailable.");
   const roster=await db.eventRSVP.findMany({
-   where:{eventId:parsedId,status:"confirmed"},
+   where:{eventId:parsedId,status:"confirmed",...eligibleAttendee(org.id)},
    orderBy:[{createdAt:"asc"},{id:"asc"}],take:300,
    select:{id:true,checkedInAt:true,checkInRevision:true,
     user:{select:{firstName:true,lastName:true}}}
   });
   return ok({event:assignment.event,roster,
    complete:roster.length<300,
-   policy:"Host-only confirmed registrations. List capped at 300. Attendance can be marked from 2 hours before to 1 hour after gathering; corrections until 24 hours after."});
+   policy:"Host-only confirmed registrations of currently active, verified mosque members. Ineligible historical reservations are held for separate authorized review. List capped at 300. Attendance can be marked from 2 hours before to 1 hour after gathering; corrections until 24 hours after."});
  });
 }
 
@@ -67,7 +75,8 @@ export async function POST(req:NextRequest){
     if(now.getTime()<earliest||now.getTime()>latest)
      throw new HttpError(409,"CHECK_IN_WINDOW","This attendance action is outside the approved gathering window.");
     const attendee=await tx.eventRSVP.findFirst({where:{
-     id:input.rsvpId,eventId:input.eventId,status:"confirmed"
+     id:input.rsvpId,eventId:input.eventId,status:"confirmed",
+     ...eligibleAttendee(org.id)
     },select:{id:true,checkedInAt:true,checkInRevision:true}});
     if(!attendee)throw new HttpError(404,"NOT_CONFIRMED","Confirmed attendee unavailable.");
     if(attendee.checkInRevision!==input.expectedRevision)
@@ -78,6 +87,7 @@ export async function POST(req:NextRequest){
      throw new HttpError(409,"NOT_CHECKED_IN","No recorded arrival to correct.");
     const updated=await tx.eventRSVP.updateMany({
      where:{id:attendee.id,eventId:input.eventId,status:"confirmed",
+      ...eligibleAttendee(org.id),
       checkInRevision:input.expectedRevision,
       checkedInAt:input.action==="arrive"?null:{not:null}},
      data:{checkedInAt:input.action==="arrive"?now:null,

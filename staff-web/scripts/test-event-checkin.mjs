@@ -126,6 +126,53 @@ try{
  assert.equal((await db.eventRSVP.findUniqueOrThrow({where:{id:confirmed.id}})).checkInRevision,2);
  const ownCorrected=await request("events/registration?eventId="+event.id,"GET",null,memberToken);
  assert.equal(ownCorrected.data.registration.checkedInAt,null,"member sees corrected own check-in status");
+ // A previously confirmed participant may lose identity verification,
+ // organization membership or account access before physical check-in.
+ // Their name must disappear from active host rosters immediately and
+ // stale RSVP IDs must not bypass the server-side authorization gate.
+ assert.ok(member.verifiedAt,"fixture must start with verified account");
+ const membership=await db.organizationMembership.findUniqueOrThrow({where:{
+  organizationId_userId:{organizationId:org.id,userId:member.id}
+ }});
+ assert.equal(membership.status,"active");
+ async function assertIneligible(label){
+  const activeRoster=await request("events/check-in?eventId="+event.id,"GET",null,staffToken);
+  assert.equal(activeRoster.status,200);
+  assert.equal(activeRoster.data.roster.length,0,label+" should not disclose roster names");
+  const blocked=await request("events/check-in","POST",{
+   eventId:event.id,rsvpId:confirmed.id,action:"arrive",expectedRevision:2
+  },staffToken);
+  assert.equal(blocked.status,404,label+" cannot be checked in by guessed RSVP ID");
+  assert.equal(blocked.error.code,"NOT_CONFIRMED");
+  const row=await db.eventRSVP.findUniqueOrThrow({where:{id:confirmed.id}});
+  assert.equal(row.checkInRevision,2,"eligibility denial is not an attendance correction");
+  assert.equal(row.checkedInAt,null);
+ }
+ try{
+  await db.organizationMembership.update({where:{
+   organizationId_userId:{organizationId:org.id,userId:member.id}
+  },data:{status:"suspended"}});
+  await assertIneligible("suspended mosque membership");
+  await db.organizationMembership.update({where:{
+   organizationId_userId:{organizationId:org.id,userId:member.id}
+  },data:{status:"active"}});
+  await db.user.update({where:{id:member.id},data:{verifiedAt:null}});
+  await assertIneligible("unverified account");
+  await db.user.update({where:{id:member.id},data:{verifiedAt:member.verifiedAt}});
+  await db.user.update({where:{id:member.id},data:{status:"suspended"}});
+  await assertIneligible("suspended account");
+ }finally{
+  await db.organizationMembership.updateMany({where:{
+   organizationId:org.id,userId:member.id
+  },data:{status:membership.status}});
+  await db.user.update({where:{id:member.id},data:{
+   status:member.status,verifiedAt:member.verifiedAt
+  }});
+ }
+ const restoredRoster=await request("events/check-in?eventId="+event.id,"GET",null,staffToken);
+ assert.equal(restoredRoster.data.roster.length,1,
+  "restored eligibility permits the original confirmed reservation again");
+
  const journal=await db.auditEvent.findMany({where:{
   entity:"EventRSVP",entityId:confirmed.id,action:{in:["gather.check-in","gather.check-in.correct"]}
  }});
@@ -200,7 +247,7 @@ try{
  },staffToken);
  assert.equal(deniedAfterRevocation.status,404,"revoked host loses write permission immediately");
  assert.equal((await db.eventRSVP.findUniqueOrThrow({where:{id:confirmed.id}})).checkInRevision,2);
- console.log("Verified assigned-host-only rosters, waitlist denial, recorded arrivals, correction audit, stale race, time gates, foreign tenant and revocation.");
+ console.log("Verified assigned-host-only rosters, revoked-attendee concealment and arrival denial, waitlist denial, recorded arrivals, correction audit, stale race, time gates, foreign tenant and revocation.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
  for(const id of ids){
