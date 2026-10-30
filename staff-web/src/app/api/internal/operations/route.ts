@@ -7,7 +7,7 @@ import {handled,HttpError,ok} from "@/lib/http";
 // and from all member/staff sessions. No dashboard/UI or public detail route.
 function authorized(req:NextRequest){
  const secret=process.env.SILA_OPERATIONS_SECRET;
- if(!secret||secret.length<32)throw new HttpError(503,"OPS_NOT_CONFIGURED",
+ if(!secret||secret.length<32||secret===process.env.CRON_SECRET||secret===process.env.AUTH_SECRET)throw new HttpError(503,"OPS_NOT_CONFIGURED",
   "Operational checks are not configured.");
  const supplied=Buffer.from(req.headers.get("authorization")||"","utf8");
  const expected=Buffer.from("Bearer "+secret,"utf8");

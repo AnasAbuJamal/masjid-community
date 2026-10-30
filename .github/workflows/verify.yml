@@ -44,6 +44,7 @@ jobs:
       # Signed synthetic worker in a disposable CI database; never contacts
       # Resend or other external mail providers.
       CRON_SECRET: ci-internal-worker-secret-000000000000000000000000
+      SILA_OPERATIONS_SECRET: ci-operations-readonly-secret-00000000000000000
       SILA_DELIVERY_CI_CAPTURE: "test-only"
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
@@ -57,14 +58,44 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npx prisma migrate status
       - run: node scripts/test-db.mjs
+      # Actual logical pg_dump -> fresh database -> pg_restore -> Prisma
+      # verification. This touches ONLY GitHub Actions' disposable postgres
+      # service, never any connected/staging/production database.
+      - name: Disposable PostgreSQL backup and restore rehearsal
+        shell: bash
+        env:
+          SILA_RESTORE_DATABASE_URL: postgresql://masjid_ci:ci_only_password@127.0.0.1:5432/masjid_ci_restore
+        run: |
+          set -euo pipefail
+          test "${GITHUB_ACTIONS:-}" = true
+          test "$DATABASE_URL" = "postgresql://masjid_ci:ci_only_password@127.0.0.1:5432/masjid_ci"
+          test "$SILA_RESTORE_DATABASE_URL" = "postgresql://masjid_ci:ci_only_password@127.0.0.1:5432/masjid_ci_restore"
+          if ! command -v pg_dump >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client >/dev/null
+          fi
+          # pg_dump must not be older than the PostgreSQL 16 CI service.
+          if [ "$(pg_dump --version | grep -oE '[0-9]+' | head -n 1)" -lt 16 ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client-16 >/dev/null
+          fi
+          export PGHOST=127.0.0.1 PGPORT=5432 PGUSER=masjid_ci PGPASSWORD=ci_only_password
+          ARCHIVE="$(mktemp /tmp/sila-ci-restore-XXXXXXXX.dump)"
+          trap 'rm -f "$ARCHIVE"; dropdb --if-exists masjid_ci_restore >/dev/null 2>&1 || true' EXIT
+          pg_dump --format=custom --no-owner --no-acl --file="$ARCHIVE" masjid_ci
+          createdb masjid_ci_restore
+          pg_restore --single-transaction --exit-on-error --no-owner --no-acl --dbname=masjid_ci_restore "$ARCHIVE"
+          node scripts/test-restore.mjs
+          DATABASE_URL="$SILA_RESTORE_DATABASE_URL" npx prisma migrate status
       - run: npm run check
       - run: npm run build
       - name: Web and public API smoke
         run: |
           trap 'echo "--- Next.js server log ---"; tail -n 140 /tmp/masjid-next.log || true' ERR
           npm run start > /tmp/masjid-next.log 2>&1 &
+          curl -fsS http://127.0.0.1:3000/api/health > /tmp/liveness.json || true
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/api/health > /tmp/health.json; then break; fi
+            if curl -fsS http://127.0.0.1:3000/api/ready > /tmp/health.json; then break; fi
             sleep 2
           done
           cat /tmp/health.json
@@ -92,6 +123,7 @@ jobs:
           node scripts/test-public.mjs
           node scripts/test-delivery-consent.mjs
           node scripts/test-delivery.mjs
+          node scripts/test-operations.mjs
 
   verify-mobile:
     name: Native app TypeScript and package compatibility
