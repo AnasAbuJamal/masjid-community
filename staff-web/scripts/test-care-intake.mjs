@@ -112,7 +112,8 @@ try{
   "MFA-enrolled coordinator must verify every new session");
  const staffNeedsMfa=await request("care/desk","GET",undefined,noMfa);
  assert.equal(staffNeedsMfa.status,403);
- assert.equal(staffNeedsMfa.error.code,"CARE_MFA_REQUIRED");
+ assert.equal(staffNeedsMfa.error.code,"MFA_REQUIRED",
+  "MFA-enrolled staff are denied before all delegated API access, including care");
  const desk=await request("care/desk","GET",undefined,a.token);
  assert.equal(desk.status,200);
  assert.ok(desk.data.requests.some(x=>x.id===saved.id));
