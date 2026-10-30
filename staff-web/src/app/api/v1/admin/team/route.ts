@@ -4,7 +4,7 @@ import {db} from "@/lib/db";
 import {notifyUser} from "@/lib/notifications";
 import {requireVerified} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
-const capability=z.enum(["worship_publish","facilities_manage","volunteers_manage","community_moderate"]);
+const capability=z.enum(["worship_publish","facilities_manage","volunteers_manage","community_moderate","care_manage"]);
 const command=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("role"),userId:z.string().min(8),role:z.enum(["member","staff","teacher","finance"])}),
  z.object({kind:z.literal("grant"),userId:z.string().min(8),capability,expiresAt:z.iso.datetime().optional()}),
@@ -69,6 +69,13 @@ export async function POST(req:NextRequest){
   }
   const expiresAt=input.expiresAt?new Date(input.expiresAt):null;
   if(expiresAt&&expiresAt<=new Date())throw new HttpError(422,"GRANT_EXPIRY","Capability expiry must be in the future.");
+  if(input.capability==="care_manage"){
+   if(!membership.user.mfaEnabledAt)throw new HttpError(403,"CARE_MFA_REQUIRED",
+    "A care coordinator must enroll an authenticator before permission can be granted.");
+   if(!expiresAt||expiresAt>new Date(Date.now()+30*86400000))
+    throw new HttpError(422,"CARE_GRANT_EXPIRY",
+     "Confidential care access must be time limited to at most 30 days.");
+  }
   const grant=await db.$transaction(async tx=>{
    const saved=await tx.roleGrant.upsert({where:{membershipId_capability:{membershipId:membership.id,capability:input.capability}},
     update:{grantedById:admin.id,grantedAt:new Date(),expiresAt,revokedAt:null},

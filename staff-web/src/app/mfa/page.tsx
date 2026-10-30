@@ -9,7 +9,7 @@ export default function MfaGate(){
   const r=await fetch("/api/v1/auth/me",{cache:"no-store"});const v=await r.json();
   if(!v.data){window.location.replace("/");return;}
   setUser(v.data);
-  if(!v.data.mfaRequired){window.location.replace(v.data.role==="finance"?"/admin/finance":"/admin");}
+  if(!v.data.mfaRequired){window.location.replace(v.data.role==="finance"?"/admin/finance":v.data.role==="staff"?"/staff":"/admin");}
  }catch{setError("Could not check your current sign-in status.");}},[]);
  useEffect(()=>{void read()},[read]);
  async function action(endpoint:string,body:unknown){
@@ -24,7 +24,7 @@ export default function MfaGate(){
  return <main className="auth-shell"><section className="panel narrow">
  <div className="brand"><span className="mark">✧</span><span>Masjid Community · Security</span></div>
  <div className="section"><p className="eyebrow">PRIVILEGED ACCESS</p><h1>Protect your community.</h1>
- <p className="small">Administrators and finance officers must use an authenticator app. Codes are time-limited and cannot be reused.</p></div>
+ <p className="small">Administrators and finance officers must use an authenticator. Confidential-care staff must enroll and verify their authenticator too. Codes cannot be reused.</p></div>
  {user?.isVerified===false?<p className="notice">Verify your email address before enrolling in MFA.</p>:null}
  {user?.mfaSetupRequired?<div className="form">
  <div className="field"><label htmlFor="password">Confirm your account password</label><input id="password" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></div>

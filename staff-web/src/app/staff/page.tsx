@@ -1,12 +1,13 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
-type Capability="worship_publish"|"facilities_manage"|"volunteers_manage"|"community_moderate";
+type Capability="worship_publish"|"facilities_manage"|"volunteers_manage"|"community_moderate"|"care_manage";
 type Data={name:string;organization:string;capabilities:{capability:Capability;expiresAt:string|null}[]};
 const workspaces:Record<Capability,{title:string;description:string;href:string}>={
  worship_publish:{title:"Worship calendar",description:"Confirm mosque-approved Jummah, Ramadan and Eid information",href:"/admin/worship"},
  facilities_manage:{title:"Facilities",description:"Review and approve non-conflicting community bookings",href:"/admin/operations"},
  volunteers_manage:{title:"Volunteer coordination",description:"Schedule approved shifts and record check-in",href:"/admin/volunteers"},
  community_moderate:{title:"Community desk",description:"Review proposals and contact requests",href:"/admin/community"},
+ care_manage:{title:"Confidential care",description:"MFA and independently approved per-case access required. Never share private messages in email.",href:"/staff/care"},
 };
 export default function StaffHome(){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState("");
@@ -24,6 +25,7 @@ export default function StaffHome(){
  {data.capabilities.map(({capability,expiresAt})=><a href={workspaces[capability].href} key={capability} className="tile" style={{display:"block"}}>
  <p className="eyebrow">AUTHORIZED WORKSPACE</p><strong style={{fontSize:22}}>{workspaces[capability].title}</strong>
  <p>{workspaces[capability].description}</p>{expiresAt?<p className="small">Grant expires {new Date(expiresAt).toLocaleString()}</p>:null}</a>)}
+ <a href="/mfa" className="tile" style={{display:"block"}}><p className="eyebrow">SECURE AUTHENTICATION</p><strong>Authenticator</strong><p>Staff members with confidential care duties must confirm their authenticator each session.</p></a>
  <a href="/host/circles" className="tile" style={{display:"block"}}><p className="eyebrow">ASSIGNED GROUPS ONLY</p><strong>Host your circles</strong><p>Review membership requests and publish updates only to approved members.</p></a>
  <a href="/host/check-in" className="tile" style={{display:"block"}}><p className="eyebrow">EVENT-SCOPED ACCESS</p><strong>Gathering check-in</strong><p>Only individually assigned hosts can see confirmed attendees and record arrival. Your permissions are checked again on every request.</p></a>
  {!data.capabilities.length?<div className="panel"><h2>No delegated workspaces yet</h2><p>Ask the organization administrator to assign the minimum permission needed for your duties.</p></div>:null}

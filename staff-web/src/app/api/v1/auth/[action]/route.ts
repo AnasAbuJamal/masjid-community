@@ -15,7 +15,8 @@ export async function GET(req: NextRequest,{params}:Context) {
     const { action }=await params;
     if(action!=="me")throw new HttpError(404,"NOT_FOUND","Unknown action.");
     const user=await actor(req);
-    return ok(user ? {id:user.id,firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,isVerified:!!user.verifiedAt,mfaRequired:["admin","finance"].includes(user.role)&&!user.mfaVerified,mfaSetupRequired:["admin","finance"].includes(user.role)&&!user.mfaEnabled}:null);
+    return ok(user ? {id:user.id,firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,isVerified:!!user.verifiedAt,mfaRequired:((["admin","finance"].includes(user.role)||user.role==="staff"&&user.mfaEnabled)&&!user.mfaVerified),
+ mfaSetupRequired:["admin","finance"].includes(user.role)&&!user.mfaEnabled}:null);
   });
 }
 export async function POST(req:NextRequest,{params}:Context) {
@@ -43,7 +44,8 @@ export async function POST(req:NextRequest,{params}:Context) {
     catch(error) { await recordFailedLogin(normalized); throw error; }
     await clearLoginThrottle(normalized);
     const token=await startSession(user.id);
-    const response=NextResponse.json({data:{token,user:{id:user.id,email:user.email,firstName:user.firstName,lastName:user.lastName,role:user.role,isVerified:!!user.verifiedAt,mfaRequired:["admin","finance"].includes(user.role),mfaSetupRequired:["admin","finance"].includes(user.role)&&!user.mfaEnabledAt}}},{headers:{"Cache-Control":"no-store"}});
+    const response=NextResponse.json({data:{token,user:{id:user.id,email:user.email,firstName:user.firstName,lastName:user.lastName,role:user.role,isVerified:!!user.verifiedAt,mfaRequired:["admin","finance"].includes(user.role)||user.role==="staff"&&!!user.mfaEnabledAt,
+ mfaSetupRequired:["admin","finance"].includes(user.role)&&!user.mfaEnabledAt}}},{headers:{"Cache-Control":"no-store"}});
     setSessionCookie(response,token);
     return response;
   }
