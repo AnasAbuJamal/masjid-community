@@ -6,7 +6,7 @@ import {useResource} from "../src/useResource";
 import {useSession} from "../src/session";
 import {useLanguage} from "../src/i18n";
 import {S} from "../src/theme";
-import {searchScope,scopedSearchPath,type MembershipSearchContext} from "../src/searchScope";
+import {searchScope,scopedSearchPath,memberSurfaceScope,type MembershipSearchContext} from "../src/searchScope";
 
 type Item={kind?:string;id:string;title:string;description:string};
 type Results={query?:string;items:Item[];organization?:{name:string}};
@@ -20,6 +20,7 @@ export default function Search(){
  // server-selected membership context is still loading or was revoked.
  const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
  const scope=searchScope(context.data,!!user?.isVerified);
+ const inactive=memberSurfaceScope(context.data,!!user?.isVerified)==="inactive";
  const results=useResource<Results>(scopedSearchPath(term,category,scope));
  const limited=scope==="gatherings_only";
  const items=(results.data?.items||[]).map(item=>({
@@ -36,11 +37,13 @@ export default function Search(){
    :"Other search categories are unavailable for this mosque until their permissions are implemented."}</Text>
   :<View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{categories.map(c=><View key={c} style={{minWidth:85}}><Action secondary={category!==c} label={c==="all"?"All":c} onPress={()=>setCategory(c)}/></View>)}</View>}</Card>
  {scope==="unknown"?<Feedback loading={context.loading} error={context.error} empty={false} refresh={context.refresh}/>:null}
+ {inactive?<Card style={{gap:8}}><Text style={S.bodyText}>Your selected mosque membership is inactive. Switch to an active mosque before searching.</Text>
+  <Action secondary label="Change mosque" onPress={()=>router.push("/settings")}/></Card>:null}
  {term.length>=2&&scope!=="unknown"?<><Feedback loading={results.loading} error={results.error} empty={!items.length} refresh={results.refresh}/>
  <View style={S.section}>{items.map(item=><PressRow key={item.kind+":"+item.id} title={item.title} subtitle={item.kind+" · "+item.description}
  icon="magnify" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:item.kind||"events",id:item.id}})}/>)}</View></>:
  <Card><Text style={S.bodyText}>{scope==="unknown"
-  ?"Verifying which mosque you selected before searching."
+  ?(inactive?"Selected mosque membership is inactive.":"Verifying which mosque you selected before searching.")
   :limited?"Enter at least two characters to search published gatherings in this mosque."
   :"Enter at least two letters to search upcoming events, published stories, programs and community opportunities."}</Text></Card>}
  </Shell>;

@@ -6,6 +6,8 @@ import {S,T} from "../../../src/theme";
 import {useResource} from "../../../src/useResource";
 import {api,apiPost} from "../../../src/api";
 import {useSession} from "../../../src/session";
+import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from "../../../src/searchScope";
+import {MemberScopeNotice} from "../../../src/MemberScopeNotice";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;filled?:number;publishedAt?:string;currency?:string};
 type Result={items:RecordItem[];organization?:{name:string;timeZone?:string}};
 type OwnRegistration={eventId:string;registration:{status:string;createdAt:string;checkedInAt:string|null}|null};
@@ -39,6 +41,11 @@ export default function Details(){
  const kind=String(params.kind||""),id=String(params.id||"all");
  const config=categories[kind];
  const {user}=useSession();
+ const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
+ const scope=memberSurfaceScope(context.data,!!user?.isVerified);
+ const authorizedEvent=scope==="pilot"||scope==="limited";
+ const pilotContent=allowPilotContent(scope);
+ const blocked=!pilotContent&&!(kind==="events"&&authorizedEvent);
  const [search,setSearch]=useState("");
  const [settledSearch,setSettledSearch]=useState("");
  React.useEffect(()=>{
@@ -49,15 +56,16 @@ export default function Details(){
  // published gatherings. Changing the filter invalidates useResource results.
  // Guest browsing continues through the original public pilot catalog.
  const path=kind==="events"&&user?.isVerified
-  ?"events/catalog"+(id==="all"
+  ?authorizedEvent?"events/catalog"+(id==="all"
     ?(settledSearch.length>=2?"?q="+encodeURIComponent(settledSearch):"")
-    :"?eventId="+encodeURIComponent(id))
-  :"public/"+(config?kind:"events");
+    :"?eventId="+encodeURIComponent(id)):null
+  :pilotContent?"public/"+(config?kind:"events"):null;
  const result=useResource<Result>(path);
- const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified?`events/registration?eventId=${encodeURIComponent(id)}`:null);
+ const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedEvent?`events/registration?eventId=${encodeURIComponent(id)}`:null);
  const [message,setMessage]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[letter,setLetter]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState("");
  const item=result.data?.items.find(x=>x.id===id);
  async function perform(){
+  if(blocked){setError("This action is unavailable at your selected mosque.");return;}
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError("Verify your email before participating.");return;}
   if(!item)return;
@@ -94,9 +102,10 @@ export default function Details(){
    <View style={{gap:6}}><Field label="Search gatherings by name or location" value={search} onChange={setSearch}/>
     {search.trim().length===1?<Text style={S.muted}>Enter at least two characters to search.</Text>:null}
    </View>:null}
-  <Feedback loading={result.loading} error={result.error} empty={!result.data?.items.length} refresh={result.refresh}/>
-  {id==="all"?<View style={S.section}>{result.data?.items.map(x=><PressRow key={x.id} title={x.title} subtitle={x.description||x.body||x.purpose||x.company||"View details and next steps"} icon="chevron-right-circle-outline" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind,id:x.id}})}/>)}</View>
-  :item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
+  {blocked?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
+  {!blocked?<Feedback loading={result.loading} error={result.error} empty={!result.data?.items.length} refresh={result.refresh}/>:null}
+  {!blocked&&(id==="all")?<View style={S.section}>{result.data?.items.map(x=><PressRow key={x.id} title={x.title} subtitle={x.description||x.body||x.purpose||x.company||"View details and next steps"} icon="chevron-right-circle-outline" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind,id:x.id}})}/>)}</View>
+  :!blocked&&item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
    {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
    {item.startAt||item.startsAt?<Text style={S.muted}>Date: {kind==="events"?gatheringTime(item.startAt||item.startsAt||"",result.data?.organization?.timeZone):new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
    {kind==="events"&&item.capacity!==null&&item.capacity!==undefined?

@@ -6,14 +6,20 @@ import {Card,Head,PressRow,Shell} from "../../src/ui";
 import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {useSession} from "../../src/session";
+import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from "../../src/searchScope";
+import {MemberScopeNotice} from "../../src/MemberScopeNotice";
 
 export default function CareScreen(){
  const {t,isRTL}=useLanguage();
  const {user}=useSession();
- const policy=useResource<{enabled:boolean;message:string;hours:string;response:string;limits:string;emergency:string}>("care");
+ const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
+ const scope=memberSurfaceScope(context.data,!!user?.isVerified);
+ const allowed=allowPilotContent(scope);
+ const policy=useResource<{enabled:boolean;message:string;hours:string;response:string;limits:string;emergency:string}>(allowed?"care":null);
  return <Shell>
   <Head eyebrow={t("care.eyebrow")} title={t("care.title")} subtitle={t("care.subtitle")}/>
-  <View style={S.section}>
+  {!allowed?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
+  {allowed?<><View style={S.section}>
    <PressRow icon="hand-heart-outline" title={t("care.time")} subtitle={t("care.timeDesc")}
     onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:"volunteers",id:"all"}})}/>
    <PressRow icon="heart-outline" title={t("care.funds")} subtitle={t("care.fundsDesc")}
@@ -32,6 +38,6 @@ export default function CareScreen(){
    <PressRow icon="email-outline" title={t("care.contact")} onPress={()=>router.push("/contact")}/>
    <Text style={S.muted}>{policy.loading?t("feedback.loading"):policy.data?.enabled?
     policy.data.response:t("care.unavailable")}</Text>
-  </Card>
+  </Card></>:null}
  </Shell>;
 }

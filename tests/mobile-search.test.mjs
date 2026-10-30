@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {searchScope,scopedSearchPath} from "../masjid-mobile/src/searchScope.ts";
+import {searchScope,scopedSearchPath,memberSurfaceScope,allowPilotContent} from "../masjid-mobile/src/searchScope.ts";
 
 const home={selectedOrganizationId:"home",selectedActive:true,
  organizations:[{id:"home",memberWorkspace:"pilot"},{id:"foreign",memberWorkspace:"limited_member_gather"}]};
@@ -9,7 +9,9 @@ const foreign={...home,selectedOrganizationId:"foreign"};
 test("verified member search never falls back to the home mosque while context is unresolved",()=>{
  assert.equal(searchScope(null,true),"unknown");
  assert.equal(scopedSearchPath("mosque","all","unknown"),null);
- assert.equal(searchScope({...foreign,selectedActive:false},true),"gatherings_only");
+ assert.equal(searchScope({...foreign,selectedActive:false},true),"unknown");
+ assert.equal(memberSurfaceScope({...foreign,selectedActive:false},true),"inactive");
+ assert.equal(allowPilotContent("inactive"),false);
 });
 test("other mosque searches ONLY published gatherings regardless of chosen old category",()=>{
  const scope=searchScope(foreign,true);

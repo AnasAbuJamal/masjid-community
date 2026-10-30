@@ -1,7 +1,11 @@
 import React from "react";
 import {Text,View} from "react-native";
 import {router} from "expo-router";
-import {Head,PressRow,Shell,Card} from "../../src/ui";
+import {Head,PressRow,Shell,Card,Feedback} from "../../src/ui";
+import {useSession} from "../../src/session";
+import {useResource} from "../../src/useResource";
+import {memberSurfaceScope,type MembershipSearchContext} from "../../src/searchScope";
+import {MemberScopeNotice} from "../../src/MemberScopeNotice";
 import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 type Tile={kind:string;title:string;subtitle:string;icon:React.ComponentProps<typeof import("@expo/vector-icons").MaterialCommunityIcons>["name"]};
@@ -19,13 +23,22 @@ const categories:Tile[]=[
 ];
 export default function Discover(){
  const {t,language}=useLanguage();
+ const {user}=useSession();
+ const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
+ const scope=memberSurfaceScope(context.data,!!user?.isVerified);
+ const blocked=scope==="loading"||scope==="inactive";
+ const limited=scope==="limited";
  return <Shell><Head eyebrow={t("discover.eyebrow")} title={t("discover.title")} subtitle={t("discover.subtitle")}/>
  <Card style={{backgroundColor:T.ice,gap:8}}><Text style={S.overline}>{t("discover.one")}</Text><Text style={S.headline}>{t("discover.good")}</Text><Text style={S.bodyText}>{t("discover.browse")}</Text></Card>
- <View style={S.section}><PressRow icon="magnify" title={t("discover.search")} subtitle={t("discover.searchSubtitle")} onPress={()=>router.push("/search")}/>
+ {blocked?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
+ {!blocked?<View style={S.section}><PressRow icon="magnify" title={t("discover.search")} subtitle={limited?"Published gatherings only":t("discover.searchSubtitle")} onPress={()=>router.push("/search")}/>
+ {limited?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
+ {!limited?<>
  <PressRow icon="account-group-outline" title={language==="ar"?"الحلقات المجتمعية":"Community circles"} subtitle={language==="ar"?"انضم إلى حلقات مُدارة بعد موافقة المشرف":"Join moderated groups with host approval"} onPress={()=>router.push("/circles")}/>
  <PressRow icon="lightbulb-outline" title={t("discover.proposal")} subtitle={t("discover.proposalSubtitle")} onPress={()=>router.push("/community/proposal")}/>
  <PressRow icon="chart-box-outline" title={t("discover.financial")} subtitle="Published community budget allocations" onPress={()=>router.push("/finance/transparency")}/>
  <PressRow icon="email-outline" title={t("discover.contact")} subtitle="Ask questions and share feedback" onPress={()=>router.push("/contact")}/>
- {categories.map(c=><PressRow key={c.kind} title={c.title} subtitle={c.subtitle} icon={c.icon} onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:c.kind,id:"all"}})}/>)}</View>
+ </>:null}
+ {categories.filter(c=>!limited||c.kind==="events").map(c=><PressRow key={c.kind} title={c.title} subtitle={c.subtitle} icon={c.icon} onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:c.kind,id:"all"}})}/>)}</View>:null}
  </Shell>;
 }

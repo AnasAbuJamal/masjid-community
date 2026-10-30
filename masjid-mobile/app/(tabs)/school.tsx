@@ -6,6 +6,8 @@ import {S} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {useResource} from "../../src/useResource";
 import {useSession} from "../../src/session";
+import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from "../../src/searchScope";
+import {MemberScopeNotice} from "../../src/MemberScopeNotice";
 type Program={id:string;title:string;description:string;classes:{id:string;name:string;schedule:string}[]};
 type Public={items:Program[]};
 type Private={children:{id:string;firstName:string;lastName:string;enrollments:{classSection:{name:string;schedule:string}}[];
@@ -14,9 +16,14 @@ type Private={children:{id:string;firstName:string;lastName:string;enrollments:{
 export default function School(){
  const {t,language}=useLanguage();
  const {user}=useSession();
- const catalog=useResource<Public>("public/programs");
- const privateData=useResource<Private>(user?.isVerified?"students":"public/programs");
+ const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
+ const scope=memberSurfaceScope(context.data,!!user?.isVerified);
+ const allowed=allowPilotContent(scope);
+ const catalog=useResource<Public>(allowed?"public/programs":null);
+ const privateData=useResource<Private>(allowed&&user?.isVerified?"students":null);
  return <Shell><Head eyebrow={t("school.eyebrow")} title={t("school.title")} subtitle={t("school.subtitle")}/>
+ {!allowed?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
+ {allowed?<>
  {!user?<Card style={{gap:14}}><Text style={S.headline}>{t("school.family")}</Text><Text style={S.bodyText}>Sign in to view your own linked children, classes and teacher assignments.</Text><Action label={t("school.signin")} onPress={()=>router.push("/auth")}/></Card>:null}
  {user&&!user.isVerified?<Card><Text style={S.bodyText}>Verify your email and complete any required school linking with the school office to view private records.</Text></Card>:null}
  {user?.isVerified&&["teacher","admin"].includes(user.role)?<Card style={{gap:12}}><Text style={S.headline}>Teacher workspace</Text><Text style={S.muted}>Manage attendance only for assigned classes.</Text><Action label="Open your classroom" onPress={()=>router.push("/school/teacher")}/></Card>:null}
@@ -31,5 +38,6 @@ export default function School(){
  <View style={S.section}><Text style={S.headline}>{t("school.explore")}</Text><Feedback loading={catalog.loading} error={catalog.error} empty={!catalog.data?.items?.length} refresh={catalog.refresh}/>
  {catalog.data?.items?.map(p=><Card key={p.id}><Text style={S.label}>{p.title}</Text><Text style={[S.bodyText,{marginTop:8}]}>{p.description}</Text>{p.classes.map(c=><Text style={[S.muted,{marginTop:6}]} key={c.id}>{c.name} · {c.schedule}</Text>)}
  <View style={{marginTop:13}}><Action label="Apply for this program" secondary icon="application-edit-outline" onPress={()=>router.push({pathname:"/school/apply/[programId]",params:{programId:p.id}})}/></View></Card>)}</View>
+ </>:null}
  </Shell>;
 }
