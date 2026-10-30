@@ -17,6 +17,7 @@ export default function Settings(){
  const [first,setFirst]=useState(""),[last,setLast]=useState("");
  const [newsletter,setNewsletter]=useState(false),[events,setEvents]=useState(false),[quiet,setQuiet]=useState(false);
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ const [exportPassword,setExportPassword]=useState("");
  useEffect(()=>{if(result.data){setFirst(result.data.profile.firstName);setLast(result.data.profile.lastName);
   setNewsletter(result.data.preferences.newsletterOptIn);setEvents(result.data.preferences.eventEmailOptIn);setQuiet(result.data.preferences.quietHoursEnabled);}},[result.data]);
  async function save(){
@@ -33,11 +34,20 @@ export default function Settings(){
   finally{setBusy(false);}
  }
  async function exportData(){
-  setBusy(true);setError("");
-  try{const value=await api<{organization:{name:string};scope:string}&Record<string,unknown>>("account/export");
-   await Share.share({title:"Your private data — "+value.organization.name,
-    message:JSON.stringify(value,null,2)});}
-  catch(e){setError(e instanceof Error?e.message:"Unable to prepare export.");}finally{setBusy(false);}
+  if(!exportPassword){setError(t("settings.exportPasswordRequired"));return;}
+  setBusy(true);setError("");setNotice("");
+  try{
+   const value=await apiPost<{organization:{name:string};scope:string;truncatedCategories:string[]}&Record<string,unknown>>("account/export",{
+    password:exportPassword,confirm:true
+   });
+   setExportPassword("");
+   setNotice(value.truncatedCategories.length?t("settings.exportPartialNotice"):t("settings.exportSuccessNotice"));
+   // Native sharing is an explicit user action; the OS sharing destination is
+   // outside SILA's control. Warn before disclosing personal account content.
+   await Share.share({title:t("settings.export")+" — "+value.organization.name,
+    message:JSON.stringify(value,null,2)});
+  }catch(e){setError(e instanceof Error?e.message:t("settings.exportFailed"));}
+  finally{setExportPassword("");setBusy(false);}
  }
  async function deleteRequest(){
   setBusy(true);setError("");setNotice("");
@@ -76,7 +86,9 @@ export default function Settings(){
  </Card>
  <Card style={{gap:13}}><Text style={S.headline}>{t("settings.privacy")}</Text>
  <Text style={S.bodyText}>{t("settings.exportScope")}</Text>
- <Action label={t("settings.export")} secondary icon="download-outline" disabled={busy}
+ <Text style={S.muted}>{t("settings.exportSecurity")}</Text>
+ <Field label={t("settings.exportPasswordLabel")} value={exportPassword} onChange={setExportPassword} secure/>
+ <Action label={t("settings.export")} secondary icon="download-outline" disabled={busy||!exportPassword}
  onPress={()=>Alert.alert(t("settings.exportConfirmTitle"),t("settings.exportConfirmBody"),[
   {text:t("settings.cancel"),style:"cancel"},
   {text:t("settings.export"),onPress:()=>void exportData()}
