@@ -583,3 +583,20 @@ the public and mobile details state the exact configured policy.
 migration-diff review, separate organizer policy approval, rollback plan,
 safeguarding/accessibility review, and written deployment sign-off are
 complete. This branch change only permits disposable CI database verification.
+
+
+## Gathering discovery metadata migration (October 30, 2026)
+
+The additive migration `20261030234000_gathering_discovery_metadata`
+adds nullable event venue ownership, category, intended audience and staff-authored
+accessibility notes plus an initially empty accessibility-feature list.
+It adds a venue foreign key, strict ownership triggers preventing an event
+from linking another mosque's venue or an assigned venue from being transferred
+across mosques, and bounded read indexes. **Existing gatherings are not
+backfilled, categorized, assigned venues, or marked accessible**.
+
+Apply only to a disposable CI database before completing organizer review
+of audience labels, verified venue selection, actual accommodations, migration
+diff, backup/restore rehearsal, accessibility/Arabic review and production
+change sign-off. Do not deploy this migration or switch production endpoints
+until all rollout, data governance and safeguarding gates are met.

@@ -27,14 +27,23 @@ export default async function PublicDetail({ params }: Props) {
       where: { id, organizationId, status: "published" },
       select: { title: true, description: true, location: true, startAt: true, endAt: true,
         capacity: true, rsvpCount: true, waitlistEnabled: true, rsvpDeadlineAt: true,
-        cancellationDeadlineAt: true, cancellationTerms: true },
+        cancellationDeadlineAt: true, cancellationTerms: true, category:true,audience:true,
+        accessibilityFeatures:true,accessibilityNotes:true,
+        venue:{select:{name:true,timeZone:true,organizationId:true}} },
     });
     if (!item) notFound();
     title = item.title; body = item.description; label = "PUBLIC GATHERING";
+    const trustedVenue=item.venue?.organizationId===organizationId?item.venue:null;
     const format = (date: Date) => new Intl.DateTimeFormat("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: organization.timeZone, timeZoneName: "short",
+      weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit",
+      timeZone: trustedVenue?.timeZone||organization.timeZone,timeZoneName: "short",
     }).format(date);
     facts = [format(item.startAt), "Ends " + format(item.endAt), item.location,
+      ...(trustedVenue?["Confirmed venue: "+trustedVenue.name]:[]),
+      ...(item.category?["Category: "+item.category.replaceAll("_"," ")]:[]),
+      ...(item.audience?["Intended audience: "+item.audience]:[]),
+      ...(item.accessibilityFeatures.length?["Confirmed accessibility features: "+item.accessibilityFeatures.map(x=>x.replaceAll("_"," ")).join(", ")]:[]),
+      ...(item.accessibilityNotes?["Accommodations: "+item.accessibilityNotes]:[]),
       "RSVP closes " + format(item.rsvpDeadlineAt ?? item.startAt),
       "Cancellation closes " + format(item.cancellationDeadlineAt ?? item.startAt),
       ...(item.cancellationTerms?["Cancellation terms: " + item.cancellationTerms]:[]),

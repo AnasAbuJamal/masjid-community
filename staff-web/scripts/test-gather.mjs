@@ -17,6 +17,7 @@ async function request(path,method="GET",payload,token){
  return {status:response.status,...body};
 }
 let eventId,closedId,otherEventId,otherOrgId,screenedEventId,policyEventId;
+let categorizedEventId,homeVenueId,otherVenueId;
 const syntheticUsers=[];
 try{
  const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
@@ -42,6 +43,64 @@ try{
  assert.match(calendarText,/DTEND:20321105T160000Z/);
  assert.match(calendarText,/This does not reserve a place/,"download cannot claim registration");
  assert.doesNotMatch(calendarText,/ATTENDEE:/,"calendar export contains no attendee details");
+
+ // F-007: published guest AND verified selected-mosque catalogs support
+ // structured, organizer-confirmed metadata without inventing attributes for
+ // legacy records. Dates are exact instants, not guessed venue-local days.
+ const homeVenue=await db.venue.create({data:{
+  organizationId:organization.id,name:"CI FILTERED GATHERING VENUE",
+  address:"Fictional accessible community hall",timeZone:"America/New_York"
+ }});
+ homeVenueId=homeVenue.id;
+ const categorizedEvent=await db.event.create({data:{
+  ...fixture,title:"CI filterable gathering",startAt:new Date("2032-11-06T15:00:00Z"),
+  endAt:new Date("2032-11-06T16:00:00Z"),venueId:homeVenue.id,
+  category:"workshop",audience:"families",
+  accessibilityFeatures:["step_free","quiet_space"],
+  accessibilityNotes:"The organizer confirmed step-free entry and a quiet room."
+ }});
+ categorizedEventId=categorizedEvent.id;
+ const guestPublished=await request("public/events?category=workshop");
+ assert.equal(guestPublished.status,200,JSON.stringify(guestPublished));
+ assert.ok(guestPublished.data.items.some(x=>x.id===categorizedEvent.id));
+ const displayed=guestPublished.data.items.find(x=>x.id===categorizedEvent.id);
+ assert.equal(displayed.venue.id,homeVenue.id);
+ assert.equal(displayed.venue.timeZone,"America/New_York");
+ assert.equal(Object.hasOwn(displayed.venue,"organizationId"),false);
+ assert.equal(displayed.audience,"families");
+ assert.deepEqual(displayed.accessibilityFeatures,["step_free","quiet_space"]);
+ const memberPublished=await request("events/catalog?category=workshop&audience=families"+
+  "&accessibility=step_free&venueId="+homeVenue.id,"GET",null,memberToken);
+ assert.equal(memberPublished.status,200,JSON.stringify(memberPublished));
+ assert.deepEqual(memberPublished.data.items.map(x=>x.id),[categorizedEvent.id]);
+ const withinDates=await request("public/events?from=2032-11-06T00%3A00%3A00.000Z"+
+  "&to=2032-11-07T00%3A00%3A00.000Z&category=workshop");
+ assert.deepEqual(withinDates.data.items.map(x=>x.id),[categorizedEvent.id]);
+ const dateMismatch=await request("events/catalog?from=2032-11-05T00%3A00%3A00.000Z"+
+  "&to=2032-11-06T00%3A00%3A00.000Z&category=workshop","GET",null,memberToken);
+ assert.equal(dateMismatch.status,200);
+ assert.ok(!dateMismatch.data.items.some(x=>x.id===categorizedEvent.id));
+ const noFeature=await request("public/events?accessibility=hearing_support&category=workshop");
+ assert.equal(noFeature.status,200);
+ assert.ok(!noFeature.data.items.some(x=>x.id===categorizedEvent.id));
+ for(const path of ["public/events","events/catalog"]){
+  const auth=path==="events/catalog"?memberToken:undefined;
+  for(const query of [
+   "category=invalid","audience=unknown","accessibility=wheelchair_all",
+   "category=workshop&category=lecture",
+   "organizationId="+organization.id,
+   "eventId="+categorizedEvent.id+"&category=workshop",
+   "from=2032-11-07T00%3A00%3A00.000Z&to=2032-11-06T00%3A00%3A00.000Z"
+  ]){
+   const rejected=await request(path+"?"+query,"GET",undefined,auth);
+   assert.equal(rejected.status,422,
+    "invalid, conflicting or tenant-hint filters must be rejected: "+path+"?"+query);
+  }
+ }
+ const oldDetails=await request("public/events?eventId="+event.id);
+ assert.equal(oldDetails.status,200);
+ assert.equal(oldDetails.data.items[0].venue,null,"legacy gatherings do not invent a venue");
+ assert.deepEqual(oldDetails.data.items[0].accessibilityFeatures,[]);
  const listing=await request("public/events");
  assert.equal(listing.status,200);
  assert.ok(listing.data.items.some(x=>x.id===eventId&&x.waitlistEnabled&&x.capacity===1),"public event shows waitlist policy");
@@ -203,8 +262,30 @@ try{
  // A second organization is never accessible to a member of the first one.
  const otherOrg=await db.organization.create({data:{slug:"gather-ci-"+Date.now(),name:"Isolated mosque"}});
  otherOrgId=otherOrg.id;
- const otherEvent=await db.event.create({data:{...fixture,organizationId:otherOrgId,title:"Private organization event"}});
+ const otherVenue=await db.venue.create({data:{
+  organizationId:otherOrgId,name:"CI FOREIGN VENUE",timeZone:"America/Chicago"
+ }});
+ otherVenueId=otherVenue.id;
+ const otherEvent=await db.event.create({data:{
+  ...fixture,organizationId:otherOrgId,venueId:otherVenue.id,
+  title:"Private organization event",category:"workshop",
+  audience:"families",accessibilityFeatures:["step_free"]
+ }});
  otherEventId=otherEvent.id;
+ for(const endpoint of ["public/events","events/catalog"]){
+  const selected=endpoint==="events/catalog"?memberToken:undefined;
+  const forbidden=await request(endpoint+"?venueId="+otherVenue.id,"GET",null,selected);
+  assert.equal(forbidden.status,404,"venue filter may not select a foreign mosque");
+ }
+ await assert.rejects(db.event.create({data:{
+  ...fixture,venueId:otherVenue.id,category:"workshop"
+ }}),"database rejects foreign venue references");
+ await assert.rejects(db.venue.update({where:{id:homeVenue.id},
+  data:{organizationId:otherOrgId}}),
+  "assigned venue cannot transfer across mosques");
+ const foreignPublished=await request("public/events?category=workshop");
+ assert.ok(!foreignPublished.data.items.some(x=>x.id===otherEvent.id),
+  "guest venue/category catalog never crosses mosques");
  const foreign=await request("actions","POST",{kind:"rsvp",eventId:otherEventId},memberToken);
  assert.equal(foreign.status,404,"a foreign organization's published event cannot be reserved");
  const foreignCancel=await request("events/rsvp","DELETE",{eventId:otherEventId},memberToken);
@@ -215,10 +296,12 @@ try{
  assert.equal(foreignCalendar.status,404,"public calendar rejects events from other mosques");
  console.log("Verified confirmed seats, eligible-only waitlist promotion, ineligible state preservation, notices, idempotency, capacity and organization isolation.");
 }finally{
- for(const id of [eventId,closedId,otherEventId,screenedEventId,policyEventId].filter(Boolean)){
+ for(const id of [eventId,closedId,otherEventId,screenedEventId,policyEventId,categorizedEventId].filter(Boolean)){
   await db.eventRSVP.deleteMany({where:{eventId:id}});
   await db.event.deleteMany({where:{id}});
  }
+ if(otherVenueId)await db.venue.deleteMany({where:{id:otherVenueId}});
+ if(homeVenueId)await db.venue.deleteMany({where:{id:homeVenueId}});
  if(syntheticUsers.length){
   await db.organizationMembership.deleteMany({where:{userId:{in:syntheticUsers}}});
   await db.user.deleteMany({where:{id:{in:syntheticUsers}}});

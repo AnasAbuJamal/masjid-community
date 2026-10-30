@@ -3,12 +3,18 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireVerified, audit } from "@/lib/auth";
 import { assertSameOrigin, handled, HttpError, jsonBody, ok } from "@/lib/http";
+import {GATHERING_CATEGORIES,GATHERING_AUDIENCES,GATHERING_ACCESSIBILITY} from "@/lib/gathering-filters";
 
 const name=z.string().trim().min(3).max(150);
 const description=z.string().trim().min(10).max(4000);
 const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("announcement"),title:name,body:description,urgent:z.boolean().default(false),published:z.boolean().default(false)}),
  z.object({kind:z.literal("event"),title:name,description,location:z.string().trim().min(3).max(200),startAt:z.iso.datetime(),endAt:z.iso.datetime(),
+  venueId:z.string().min(8).max(128).optional(),
+  category:z.enum(GATHERING_CATEGORIES).optional(),audience:z.enum(GATHERING_AUDIENCES).optional(),
+  accessibilityFeatures:z.array(z.enum(GATHERING_ACCESSIBILITY)).max(3)
+   .refine(x=>x.length===new Set(x).size,"Each accommodation must be unique.").default([]),
+  accessibilityNotes:z.string().trim().min(5).max(500).optional(),
   rsvpDeadlineAt:z.iso.datetime().optional(),cancellationDeadlineAt:z.iso.datetime().optional(),
   cancellationTerms:z.string().trim().min(10).max(1000).optional(),
   capacity:z.number().int().positive().optional(),waitlistEnabled:z.boolean().default(false),published:z.boolean().default(false)}),
@@ -65,6 +71,9 @@ export async function POST(req:NextRequest){
   if(input.kind==="announcement"){
     result=await db.announcement.create({data:{organizationId:org.id,title:input.title,body:input.body,kind:input.urgent?"urgent":"general",status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});
   }else if(input.kind==="event"){
+    if(input.venueId&&!await db.venue.findFirst({where:{
+      id:input.venueId,organizationId:org.id},select:{id:true}}))
+     throw new HttpError(404,"VENUE_NOT_FOUND","The selected venue belongs to another mosque or is unavailable.");
     const startAt=new Date(input.startAt),endAt=new Date(input.endAt);
     if(endAt<=startAt)throw new HttpError(422,"INVALID_TIME","End date must be after start date.");
     if((input.rsvpDeadlineAt&&new Date(input.rsvpDeadlineAt)>startAt)||
@@ -72,6 +81,9 @@ export async function POST(req:NextRequest){
       throw new HttpError(422,"INVALID_DEADLINE","RSVP and cancellation cutoffs must not be later than the gathering start.");
     result=await db.event.create({data:{organizationId:org.id,title:input.title,description:input.description,
       location:input.location,startAt,endAt,capacity:input.capacity,
+      venueId:input.venueId||null,category:input.category||null,
+      audience:input.audience||null,accessibilityFeatures:input.accessibilityFeatures,
+      accessibilityNotes:input.accessibilityNotes||null,
       rsvpDeadlineAt:input.rsvpDeadlineAt?new Date(input.rsvpDeadlineAt):null,
       cancellationDeadlineAt:input.cancellationDeadlineAt?new Date(input.cancellationDeadlineAt):null,
       cancellationTerms:input.cancellationTerms||null,

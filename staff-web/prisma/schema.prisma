@@ -108,6 +108,7 @@ model Venue {
   prayerDays PrayerDay[]
   prayerRevisions PrayerScheduleRevision[]
   jummahSessions JummahSession[]
+  gatherings Event[]
   @@index([organizationId])
 }
 model User {
@@ -279,6 +280,14 @@ model Event {
   title String
   description String
   location String
+  // Optional, explicitly verified public discovery metadata; never infer
+  // venue or accessibility accommodations for legacy events.
+  venueId String?
+  venue Venue? @relation(fields:[venueId],references:[id],onDelete:SetNull)
+  category String?
+  audience String?
+  accessibilityFeatures String[] @default([])
+  accessibilityNotes String?
   startAt DateTime
   endAt DateTime
   // NULL keeps legacy start-time registration/cancellation behavior.
@@ -293,6 +302,8 @@ model Event {
   rsvps EventRSVP[]
   hostAssignments EventHostAssignment[]
   @@index([organizationId,status,startAt])
+  @@index([organizationId,status,venueId,startAt])
+  @@index([organizationId,status,category,startAt])
 }
 model EventRSVP {
   id String @id @default(cuid())

@@ -178,13 +178,16 @@ try{
  const event=await db.event.create({data:{
   organizationId:foreign.id,title:"FOREIGN_SYNTHETIC_PRIVATE_RSVP",description:"Private event",
   location:"Synthetic community",status:"published",startAt:new Date(Date.now()+86400000),
-  endAt:new Date(Date.now()+90000000),rsvpCount:1
+  endAt:new Date(Date.now()+90000000),rsvpCount:1,
+  venueId:foreignVenue.id,category:"workshop",audience:"families",
+  accessibilityFeatures:["step_free"],accessibilityNotes:"Synthetic verified step-free route."
  }});
  fixture.events.push(event.id);
  const homeEvent=await db.event.create({data:{
   organizationId:home.id,title:"HOME_SYNTHETIC_RSVP_EVENT",description:"Home gathering",
   location:"Synthetic home hall",status:"published",startAt:new Date(Date.now()+86400000),
-  endAt:new Date(Date.now()+90000000),capacity:2
+  endAt:new Date(Date.now()+90000000),capacity:2,
+  venueId:homeVenue.id,category:"service",audience:"everyone"
  }});
  fixture.events.push(homeEvent.id);
  const foreignDraft=await db.event.create({data:{
@@ -201,6 +204,15 @@ try{
  assert.ok(!homeCatalog.data.items.some(x=>x.id===event.id||x.id===foreignDraft.id));
  assert.equal((await call("events/catalog?eventId="+event.id,"GET",undefined,first)).status,404,
   "known foreign event ID must not reveal its publication or metadata");
+ const homeTagged=await call("events/catalog?category=service&audience=everyone&venueId="+homeVenue.id,
+  "GET",undefined,first);
+ assert.equal(homeTagged.status,200);
+ assert.ok(homeTagged.data.items.some(x=>x.id===homeEvent.id));
+ assert.ok(!homeTagged.data.items.some(x=>x.id===event.id));
+ const guestTagged=await call("public/events?category=service&venueId="+homeVenue.id);
+ assert.equal(guestTagged.status,200);
+ assert.ok(guestTagged.data.items.some(x=>x.id===homeEvent.id));
+ assert.ok(!guestTagged.data.items.some(x=>x.id===event.id));
  const rsvp=await db.eventRSVP.create({data:{eventId:event.id,userId:member.id}});
  fixture.rsvps.push(rsvp.id);
  // Two genuine future service shifts belong to the same person but different
@@ -265,6 +277,17 @@ try{
  assert.equal(selectedVenues.status,200);
  assert.equal(selectedVenues.data.organization.id,foreign.id);
  assert.deepEqual(selectedVenues.data.venues.map(v=>v.id),[foreignVenue.id]);
+ const filteredForeign=await call("events/catalog?category=workshop&audience=families"+
+  "&accessibility=step_free&venueId="+foreignVenue.id,"GET",undefined,first,
+  {"x-organization-id":home.id});
+ assert.equal(filteredForeign.status,200,JSON.stringify(filteredForeign));
+ assert.equal(filteredForeign.data.organization.id,foreign.id);
+ assert.deepEqual(filteredForeign.data.items.map(x=>x.id),[event.id]);
+ assert.equal(filteredForeign.data.items[0].venue.timeZone,"America/Chicago");
+ assert.equal((await call("events/catalog?venueId="+homeVenue.id,"GET",undefined,first)).status,404);
+ assert.equal((await call("events/catalog?category=service","GET",undefined,first))
+  .data.items.some(x=>x.id===homeEvent.id),false);
+ assert.equal((await call("events/catalog?organizationId="+home.id,"GET",undefined,first)).status,422);
 
  const foreignAnnouncements=await call("organizations/view?resource=announcements","GET",undefined,first);
  assert.equal(foreignAnnouncements.status,200);

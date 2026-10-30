@@ -3,6 +3,7 @@ import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireMemberContext} from "@/lib/auth";
 import {handled,HttpError,localDate,ok} from "@/lib/http";
+import {publicGatheringItems} from "@/lib/gathering-filters";
 
 // Read-only worship and public-content views in a VERIFIED member's current
 // server-held organization. Guests use the separate original /public API.
@@ -89,11 +90,13 @@ export async function GET(req:NextRequest){
     },take:3,orderBy:{startAt:"asc"},select:{
      id:true,title:true,description:true,location:true,startAt:true,endAt:true,
      capacity:true,rsvpCount:true,waitlistEnabled:true,
-     rsvpDeadlineAt:true,cancellationDeadlineAt:true,cancellationTerms:true
+     rsvpDeadlineAt:true,cancellationDeadlineAt:true,cancellationTerms:true,
+     venue:{select:{id:true,name:true,timeZone:true,organizationId:true}},category:true,audience:true,
+     accessibilityFeatures:true,accessibilityNotes:true
     }})
    ]);
    return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone},
-    venue,prayer,announcements,events});
+    venue,prayer,announcements,events:publicGatheringItems(events,org.id)});
   }
 
   // "prayers": only real, explicitly published venue days. The date is a

@@ -8,8 +8,12 @@ import {api,apiPost} from "../../../src/api";
 import {useSession} from "../../../src/session";
 import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from "../../../src/searchScope";
 import {MemberScopeNotice} from "../../../src/MemberScopeNotice";
+import {useVenue} from "../../../src/venue";
+import {CATEGORIES,AUDIENCES,ACCESSIBILITY,gatheringCatalogPath,gatheringFilterError} from "../../../src/gatheringFilters";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
- cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string};
+ cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string;
+ category?:string|null;audience?:string|null;accessibilityFeatures?:string[];
+ accessibilityNotes?:string|null;venue?:{id:string;name:string;timeZone:string}|null};
 type Result={items:RecordItem[];organization?:{name:string;timeZone?:string}};
 type OwnRegistration={eventId:string;registration:{status:string;createdAt:string;checkedInAt:string|null}|null};
 const categories:{[key:string]:{label:string;subtitle:string}}={
@@ -42,6 +46,13 @@ export default function Details(){
  const kind=String(params.kind||""),id=String(params.id||"all");
  const config=categories[kind];
  const {user}=useSession();
+ const {venues}=useVenue();
+ const [category,setCategory]=useState("");
+ const [audience,setAudience]=useState("");
+ const [accessibility,setAccessibility]=useState("");
+ const [filterVenue,setFilterVenue]=useState("");
+ const [fromDay,setFromDay]=useState("");
+ const [toDay,setToDay]=useState("");
  const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
  const scope=memberSurfaceScope(context.data,!!user?.isVerified);
  const authorizedSelected=scope==="pilot"||scope==="limited";
@@ -57,14 +68,18 @@ export default function Details(){
  // Only a verified member can search the currently selected mosque's
  // published gatherings. Changing the filter invalidates useResource results.
  // Guest browsing continues through the original public pilot catalog.
- const path=user?.isVerified&&selectedRead
-  ?authorizedSelected
-   ?kind==="events"?"events/catalog"+(id==="all"
-      ?(settledSearch.length>=2?"?q="+encodeURIComponent(settledSearch):"")
-      :"?eventId="+encodeURIComponent(id))
-    :"organizations/view?resource="+kind+(id==="all"?"":"&itemId="+encodeURIComponent(id))
-   :null
-  :pilotContent?"public/"+(config?kind:"events"):null;
+ const safeVenue=venues.some(v=>v.id===filterVenue)?filterVenue:"";
+ const filters={query:settledSearch,fromDay,toDay,venueId:safeVenue,category,audience,accessibility};
+ const filterError=gatheringFilterError(filters);
+ const path=kind==="events"
+  ?(user?.isVerified?authorizedSelected?"events/catalog":null:pilotContent?"public/events":null)
+    ?id==="all"
+     ?gatheringCatalogPath(user?.isVerified?"events/catalog":"public/events",filters)
+     :(user?.isVerified?"events/catalog":"public/events")+"?eventId="+encodeURIComponent(id)
+    :null
+  :user?.isVerified&&selectedRead
+   ?authorizedSelected?"organizations/view?resource="+kind+(id==="all"?"":"&itemId="+encodeURIComponent(id)):null
+   :pilotContent?"public/"+(config?kind:"events"):null;
  const result=useResource<Result>(path);
  const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedSelected?`events/registration?eventId=${encodeURIComponent(id)}`:null);
  const [message,setMessage]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[letter,setLetter]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState("");
@@ -109,21 +124,47 @@ export default function Details(){
  return <Shell>
   <Action label="Back" secondary icon="arrow-left" onPress={()=>router.back()}/>
   <Head eyebrow="DISCOVER · COMMUNITY" title={id==="all"?(config?.label||"Discover"):(item?.title||"Community")} subtitle={kind==="events"&&result.data?.organization?.name?result.data.organization.name:id==="all"?config?.subtitle:"Published by the mosque."}/>
-  {kind==="events"&&id==="all"&&user?.isVerified?
-   <View style={{gap:6}}><Field label="Search gatherings by name or location" value={search} onChange={setSearch}/>
+  {kind==="events"&&id==="all"&&!blocked?
+   <Card style={{gap:10}}>
+    <Field label="Search by name or location" value={search} onChange={setSearch}/>
     {search.trim().length===1?<Text style={S.muted}>Enter at least two characters to search.</Text>:null}
-   </View>:null}
+    <Text style={S.label}>Category</Text>
+    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>{CATEGORIES.map(([value,label])=>
+     <Action key={value||"all"} label={label} secondary={category!==value} onPress={()=>setCategory(value)}/>)}</View>
+    <Text style={S.label}>Intended audience</Text>
+    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>{AUDIENCES.map(([value,label])=>
+     <Action key={value||"any"} label={label} secondary={audience!==value} onPress={()=>setAudience(value)}/>)}</View>
+    <Text style={S.label}>Verified accessibility feature</Text>
+    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>{ACCESSIBILITY.map(([value,label])=>
+     <Action key={value||"any"} label={label} secondary={accessibility!==value} onPress={()=>setAccessibility(value)}/>)}</View>
+    <Text style={S.label}>Venue</Text>
+    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>
+     <Action label="Any venue" secondary={!!safeVenue} onPress={()=>setFilterVenue("")}/>
+     {venues.map(v=><Action key={v.id} label={v.name} secondary={safeVenue!==v.id}
+      onPress={()=>setFilterVenue(v.id)}/>)}
+    </View>
+    <Field label="From date YYYY-MM-DD (device timezone)" value={fromDay} onChange={setFromDay}/>
+    <Field label="Through date YYYY-MM-DD (device timezone)" value={toDay} onChange={setToDay}/>
+    <Text style={S.muted}>Dates filter real instants using your device timezone. Gathering times use the confirmed venue timezone where available. Missing accessibility details are not a guarantee.</Text>
+    {filterError?<Text accessibilityRole="alert" style={{color:T.danger}}>{filterError}</Text>:null}
+   </Card>:null}
   {blocked?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
   {!blocked?<Feedback loading={result.loading} error={result.error} empty={!result.data?.items.length} refresh={result.refresh}/>:null}
   {!blocked&&(id==="all")?<View style={S.section}>{result.data?.items.map(x=><PressRow key={x.id} title={x.title} subtitle={x.description||x.body||x.purpose||x.company||"View details and next steps"} icon="chevron-right-circle-outline" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind,id:x.id}})}/>)}</View>
   :!blocked&&item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
    {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
-   {item.startAt||item.startsAt?<Text style={S.muted}>Date: {kind==="events"?gatheringTime(item.startAt||item.startsAt||"",result.data?.organization?.timeZone):new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
+   {item.startAt||item.startsAt?<Text style={S.muted}>Date: {kind==="events"?gatheringTime(item.startAt||item.startsAt||"",item.venue?.timeZone||result.data?.organization?.timeZone):new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
    {kind==="events"&&item.capacity!==null&&item.capacity!==undefined?
     <Text style={S.muted}>{item.rsvpCount??0} of {item.capacity} places confirmed · {item.waitlistEnabled?"Waitlist available if full":"No waitlist"}</Text>:null}
    {kind==="events"&&item.startAt?<View style={{gap:6}}>
-    <Text style={S.muted}>RSVP closes: {gatheringTime(item.rsvpDeadlineAt||item.startAt,result.data?.organization?.timeZone)}{reservationClosed?" · Closed":""}</Text>
-    <Text style={S.muted}>Cancellation closes: {gatheringTime(item.cancellationDeadlineAt||item.startAt,result.data?.organization?.timeZone)}{cancellationClosed?" · Closed":""}</Text>
+    {item.venue?<Text style={S.muted}>Verified venue: {item.venue.name}</Text>:null}
+    {item.category?<Text style={S.muted}>Category: {item.category.replaceAll("_"," ")}</Text>:null}
+    {item.audience?<Text style={S.muted}>Intended audience: {item.audience}</Text>:null}
+    {item.accessibilityFeatures?.length?<Text style={S.muted}>Confirmed accessibility features: {item.accessibilityFeatures.map(x=>x.replaceAll("_"," ")).join(", ")}</Text>
+     :<Text style={S.muted}>Accessibility features are not verified for this gathering.</Text>}
+    {item.accessibilityNotes?<Text style={S.bodyText}>Accommodation details: {item.accessibilityNotes}</Text>:null}
+    <Text style={S.muted}>RSVP closes: {gatheringTime(item.rsvpDeadlineAt||item.startAt,item.venue?.timeZone||result.data?.organization?.timeZone)}{reservationClosed?" · Closed":""}</Text>
+    <Text style={S.muted}>Cancellation closes: {gatheringTime(item.cancellationDeadlineAt||item.startAt,item.venue?.timeZone||result.data?.organization?.timeZone)}{cancellationClosed?" · Closed":""}</Text>
     <Text style={S.bodyText}>{item.cancellationTerms||"Cancellations are allowed before the stated cutoff, unless attendance was already checked in."}</Text>
    </View>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?

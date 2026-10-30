@@ -54,6 +54,21 @@ const cancellationAfterStart=await request("admin","POST",{
 },admin.data.token);
 assert.equal(cancellationAfterStart.status,422);
 assert.equal(cancellationAfterStart.error.code,"INVALID_DEADLINE");
+for(const invalidDiscovery of [
+ {...wrongCutoff,rsvpDeadlineAt:undefined,category:"not_reviewed"},
+ {...wrongCutoff,rsvpDeadlineAt:undefined,audience:"unknown"},
+ {...wrongCutoff,rsvpDeadlineAt:undefined,accessibilityFeatures:["invented"]},
+ {...wrongCutoff,rsvpDeadlineAt:undefined,
+  accessibilityFeatures:["step_free","step_free"]}
+ ]){
+ const rejected=await request("admin","POST",invalidDiscovery,admin.data.token);
+ assert.equal(rejected.status,422,"unreviewed public filter metadata cannot be published");
+}
+const notOwnedVenue=await request("admin","POST",{
+ ...wrongCutoff,rsvpDeadlineAt:undefined,venueId:"missing-venue-id"
+},admin.data.token);
+assert.equal(notOwnedVenue.status,404);
+assert.equal(notOwnedVenue.error.code,"VENUE_NOT_FOUND");
 const team=await request("admin/team","GET",null,admin.data.token);
 assert.equal(team.status,200,"verified admin can inspect scoped organization access");
 assert.ok(team.data.memberships.some(m=>m.user.email===staffEmail));

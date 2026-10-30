@@ -4,7 +4,11 @@ type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<st
 type Kind="announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental"|"article"|"construction"|"milestone";
 const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
  announcement:[{key:"title",label:"Headline"},{key:"body",label:"Announcement",type:"textarea"}],
- event:[{key:"title",label:"Event title"},{key:"description",label:"Details",type:"textarea"},{key:"location",label:"Location"},
+ event:[{key:"title",label:"Event title"},{key:"description",label:"Details",type:"textarea"},{key:"location",label:"Displayed location"},
+  {key:"venueId",label:"Verified venue (optional)"},
+  {key:"category",label:"Gathering category (optional)"},
+  {key:"audience",label:"Intended audience (optional)"},
+  {key:"accessibilityNotes",label:"Reviewed accommodation details (optional)",type:"textarea"},
   {key:"startAt",label:"Start (local device time)",type:"datetime-local"},
   {key:"endAt",label:"End (local device time)",type:"datetime-local"},
   {key:"rsvpDeadlineAt",label:"RSVP deadline (optional, local time)",type:"datetime-local"},
@@ -25,6 +29,7 @@ const names:Record<Kind,string>={announcement:"Announcement",event:"Event",progr
 export default function Admin(){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [kind,setKind]=useState<Kind>("announcement"),[form,setForm]=useState<Record<string,string>>({}),[published,setPublished]=useState(false),[waitlistEnabled,setWaitlistEnabled]=useState(false),[busy,setBusy]=useState(false);
+ const [accessibilityFeatures,setAccessibilityFeatures]=useState<string[]>([]);
  const reload=useCallback(async()=>{
   try{const res=await fetch("/api/v1/admin",{cache:"no-store"});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Admin access required.");setData(json.data);setError("");}
   catch(e){setError(e instanceof Error?e.message:"Unable to connect.");}
@@ -34,13 +39,13 @@ export default function Admin(){
  async function submit(){
   if(!data||busy||data.role!=="admin")return;
   setBusy(true);setError("");setNotice("");
-  const raw:Record<string,unknown>={kind,published,...form,...(kind==="event"?{waitlistEnabled}:{})};
+  const raw:Record<string,unknown>={kind,published,...form,...(kind==="event"?{waitlistEnabled,accessibilityFeatures}:{})};
   for(const key of ["capacity","goalMinor"])if(raw[key]!==undefined&&raw[key]!=="")raw[key]=Number(raw[key]);
   for(const key of ["startAt","endAt","startsAt","completedAt","rsvpDeadlineAt","cancellationDeadlineAt"])
    if(raw[key])raw[key]=new Date(String(raw[key])).toISOString();
-  for(const key of ["capacity","goalMinor","completedAt","rsvpDeadlineAt","cancellationDeadlineAt","cancellationTerms"])
+  for(const key of ["capacity","goalMinor","completedAt","rsvpDeadlineAt","cancellationDeadlineAt","cancellationTerms","venueId","category","audience","accessibilityNotes"])
    if(raw[key]==="")delete raw[key];
-  try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(raw)});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");setNotice(names[kind]+" saved successfully.");setForm({});setPublished(false);setWaitlistEnabled(false);await reload();}
+  try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(raw)});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");setNotice(names[kind]+" saved successfully.");setForm({});setPublished(false);setWaitlistEnabled(false);setAccessibilityFeatures([]);await reload();}
   catch(e){setError(e instanceof Error?e.message:"Save failed.");}
   finally{setBusy(false);}
  }
@@ -60,9 +65,15 @@ export default function Admin(){
    <section className="grid" aria-label="Operating overview">{Object.entries(data.counts).map(([key,value])=><div className="tile" key={key}><p>{key.charAt(0).toUpperCase()+key.slice(1)}</p><strong>{value.toLocaleString()}</strong><p>Verified database records</p></div>)}</section>
    <section className="section split">
     <div className="panel"><h2>Create & publish</h2><p className="small">Items saved as drafts are not shown publicly.</p>
-     <div className="tabs" role="group" aria-label="Content type">{(Object.keys(names) as Kind[]).map(k=><button key={k} type="button" className={kind===k?"primary":"secondary"} onClick={()=>{setKind(k);setForm({});setPublished(false);setWaitlistEnabled(false)}}>{names[k]}</button>)}</div>
+     <div className="tabs" role="group" aria-label="Content type">{(Object.keys(names) as Kind[]).map(k=><button key={k} type="button" className={kind===k?"primary":"secondary"} onClick={()=>{setKind(k);setForm({});setPublished(false);setWaitlistEnabled(false);setAccessibilityFeatures([])}}>{names[k]}</button>)}</div>
      {data.role!=="admin"?<p className="notice">Your staff role is read-only in this workspace.</p>:<div className="form">
-      {fields[kind].map(f=><div className="field" key={f.key}><label htmlFor={f.key}>{f.label}</label>{f.key==="projectId"?<select id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}><option value="">Select project</option>{data.construction.map(p=><option key={p.id} value={p.id}>{p.title} · {p.status}</option>)}</select>:f.type==="textarea"?<textarea id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>:<input id={f.key} type={f.type||"text"} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>}</div>)}
+      {fields[kind].map(f=><div className="field" key={f.key}><label htmlFor={f.key}>{f.label}</label>{f.key==="venueId"?<select id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}><option value="">Unassigned venue</option>{data.venues.map(v=><option key={v.id} value={v.id}>{v.name} ({v.timeZone})</option>)}</select>
+      :f.key==="category"||f.key==="audience"?<select id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}><option value="">Not specified</option>{(f.key==="category"?["lecture","workshop","community_meal","youth","service","other"]:["everyone","adults","families","youth","children","women","men"]).map(x=><option key={x} value={x}>{x.replaceAll("_"," ")}</option>)}</select>
+      :f.key==="projectId"?<select id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}><option value="">Select project</option>{data.construction.map(p=><option key={p.id} value={p.id}>{p.title} · {p.status}</option>)}</select>:f.type==="textarea"?<textarea id={f.key} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>:<input id={f.key} type={f.type||"text"} value={form[f.key]||""} onChange={e=>set(f.key,e.target.value)}/>}</div>)}
+      {kind==="event"?<fieldset className="field"><legend>Verified accessibility accommodations (only check confirmed features)</legend>
+       {([["step_free","Step-free access"],["hearing_support","Hearing support"],["quiet_space","Quiet space"]] as const).map(([id,label])=><label key={id} style={{display:"block"}}><input type="checkbox" checked={accessibilityFeatures.includes(id)} onChange={e=>setAccessibilityFeatures(current=>e.target.checked?[...current,id]:current.filter(x=>x!==id))}/>{label}</label>)}
+       <p className="small">If unknown, leave unchecked. Do not imply that every venue is accessible.</p>
+      </fieldset>:null}
       {kind==="event"?<div className="field"><label><input type="checkbox" checked={waitlistEnabled}
        onChange={e=>setWaitlistEnabled(e.target.checked)}/> Allow a waitlist when confirmed places are full</label>
        <p className="small">Waitlisted members are not confirmed. When a confirmed attendee cancels, the earliest waitlisted member gets that place.</p>
