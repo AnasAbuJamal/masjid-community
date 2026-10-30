@@ -123,9 +123,10 @@ try{
  },orderBy:{sequence:"asc"}});
  assert.equal(recent.length,7);
  assert.ok(recent.every(x=>x.actorId===admin.id));
- assert.equal(recent[0].requestId,observedTrace);
- assert.ok(recent.slice(1,4).every(x=>/^[0-9a-f-]{36}$/i.test(x.requestId)),
-  "untrusted or malformed request IDs must be replaced by server-generated identifiers");
+ assert.equal(recent.slice(0,4).filter(x=>x.requestId===observedTrace).length,1,
+  "the explicit request trace must appear exactly once regardless of concurrent completion order");
+ assert.equal(recent.slice(0,4).filter(x=>/^[0-9a-f-]{36}$/i.test(x.requestId)).length,3,
+  "the other three malformed request IDs must be replaced by server-generated identifiers");
  let last=before.data.verification.lastHash;
  let sequence=before.data.verification.checked;
  for(const row of recent){
