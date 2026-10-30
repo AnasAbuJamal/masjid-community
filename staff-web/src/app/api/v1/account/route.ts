@@ -2,7 +2,7 @@ import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireActor} from "@/lib/auth";
-import {assertSameOrigin,handled,jsonBody,ok} from "@/lib/http";
+import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const update=z.object({firstName:z.string().trim().min(1).max(100).optional(),lastName:z.string().trim().min(1).max(100).optional(),
  newsletterOptIn:z.boolean().optional(),eventEmailOptIn:z.boolean().optional(),quietHoursEnabled:z.boolean().optional()});
 export async function GET(req:NextRequest){
@@ -21,7 +21,8 @@ export async function GET(req:NextRequest){
      orderBy:{createdAt:"desc"},select:{id:true,status:true,createdAt:true}}):Promise.resolve(null)
   ]);
   return ok({profile:{firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,verified:!!user.verifiedAt},
-   preferences:{newsletterOptIn:preferences?.newsletterOptIn||false,eventEmailOptIn:preferences?.eventEmailOptIn||false,quietHoursEnabled:preferences?.quietHoursEnabled||false},
+   preferences:{newsletterOptIn:preferences?.newsletterOptIn||false,eventEmailOptIn:preferences?.eventEmailOptIn||false,quietHoursEnabled:preferences?.quietHoursEnabled||false,
+    deprecated:true,effectiveForDelivery:false},
    sessions,deletion});
  });
 }
@@ -30,12 +31,15 @@ export async function PATCH(req:NextRequest){
   assertSameOrigin(req);
   const user=await requireActor(req);
   const values=update.parse(await jsonBody(req));
-  const {firstName,lastName,...prefs}=values;
+  if(values.newsletterOptIn!==undefined||values.eventEmailOptIn!==undefined||values.quietHoursEnabled!==undefined)
+   throw new HttpError(409,"ORG_PREFERENCES_REQUIRED",
+    "Legacy account-wide email switches do not constitute mosque-specific consent. Use /api/v1/me/preferences.");
+  const {firstName,lastName}=values;
   await db.$transaction(async tx=>{
    if(firstName!==undefined||lastName!==undefined)
     await tx.user.update({where:{id:user.id},data:{...(firstName!==undefined?{firstName}:{}),...(lastName!==undefined?{lastName}:{})}});
-   if(Object.keys(prefs).length)
-    await tx.userPreference.upsert({where:{userId:user.id},create:{userId:user.id,...prefs},update:prefs});
+  // Do not write misleading account-global email opt-ins. The new
+  // organization-scoped delivery preference endpoint is authoritative.
    await tx.auditEvent.create({data:{actorId:user.id,action:"account.profile.update",entity:"User",entityId:user.id}});
   });
   return ok({saved:true});

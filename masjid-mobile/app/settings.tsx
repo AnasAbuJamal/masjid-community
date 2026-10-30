@@ -8,24 +8,54 @@ import {useResource} from "../src/useResource";
 import {S,T} from "../src/theme";
 import {useLanguage} from "../src/i18n";
 type Session={id:string;createdAt:string;expiresAt:string};
-type Data={profile:{firstName:string;lastName:string;email:string;role:string};preferences:{newsletterOptIn:boolean;eventEmailOptIn:boolean;quietHoursEnabled:boolean};
+type Data={profile:{firstName:string;lastName:string;email:string;role:string};
  sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
+type DeliveryPreference={purpose:"community_news"|"event_updates";enabled:boolean;quietStartHour:number|null;quietEndHour:number|null};
+type DeliveryData={organization:{name:string;timeZone:string};optional:DeliveryPreference[];policy:string};
 export default function Settings(){
  const {language,setLanguage,t}=useLanguage();
  const {refresh:refreshUser,logout}=useSession();
  const result=useResource<Data>("account");
+ const delivery=useResource<DeliveryData>("me/preferences");
  const [first,setFirst]=useState(""),[last,setLast]=useState("");
  const [newsletter,setNewsletter]=useState(false),[events,setEvents]=useState(false),[quiet,setQuiet]=useState(false);
+ const [quietStart,setQuietStart]=useState("22"),[quietEnd,setQuietEnd]=useState("7");
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [exportPassword,setExportPassword]=useState("");
- useEffect(()=>{if(result.data){setFirst(result.data.profile.firstName);setLast(result.data.profile.lastName);
-  setNewsletter(result.data.preferences.newsletterOptIn);setEvents(result.data.preferences.eventEmailOptIn);setQuiet(result.data.preferences.quietHoursEnabled);}},[result.data]);
- async function save(){
+ useEffect(()=>{if(result.data){setFirst(result.data.profile.firstName);setLast(result.data.profile.lastName);}},[result.data]);
+ useEffect(()=>{if(delivery.data){
+  const community=delivery.data.optional.find(x=>x.purpose==="community_news");
+  const events=delivery.data.optional.find(x=>x.purpose==="event_updates");
+  setNewsletter(!!community?.enabled);setEvents(!!events?.enabled);
+  const window=community?.quietStartHour!==null&&community?.quietStartHour!==undefined?community:
+   events?.quietStartHour!==null&&events?.quietStartHour!==undefined?events:null;
+  setQuiet(!!window);
+  if(window?.quietStartHour!==null&&window?.quietStartHour!==undefined)setQuietStart(String(window.quietStartHour));
+  if(window?.quietEndHour!==null&&window?.quietEndHour!==undefined)setQuietEnd(String(window.quietEndHour));
+ }},[delivery.data]);
+ async function saveProfile(){
   setBusy(true);setNotice("");setError("");
-  try{await api("account",{method:"PATCH",body:JSON.stringify({firstName:first,lastName:last,newsletterOptIn:newsletter,eventEmailOptIn:events,quietHoursEnabled:quiet})});
-   await result.refresh();await refreshUser();setNotice("Your preferences were saved.");}
-  catch(e){setError(e instanceof Error?e.message:"Unable to save.");}
+  try{await api("account",{method:"PATCH",body:JSON.stringify({firstName:first,lastName:last})});
+   await result.refresh();await refreshUser();setNotice(t("settings.profileSaved"));}
+  catch(e){setError(e instanceof Error?e.message:t("settings.saveError"));}
   finally{setBusy(false);}
+ }
+ async function saveDelivery(){
+  const from=Number(quietStart),until=Number(quietEnd);
+  if(quiet&&(!/^\\d{1,2}$/.test(quietStart)||!/^\\d{1,2}$/.test(quietEnd)||
+   from<0||from>23||until<0||until>23||from===until)){
+   setError(t("settings.quietInvalid"));return;
+  }
+  setBusy(true);setNotice("");setError("");
+  const hours={quietStartHour:quiet?from:null,quietEndHour:quiet?until:null};
+  try{
+   await api("me/preferences",{method:"PATCH",body:JSON.stringify({purpose:"community_news",enabled:newsletter,...hours})});
+   await api("me/preferences",{method:"PATCH",body:JSON.stringify({purpose:"event_updates",enabled:events,...hours})});
+   await delivery.refresh();setNotice(t("settings.deliverySaved"));
+  }catch(e){
+   setError((e instanceof Error?e.message:"")+". "+t("settings.deliveryPartial"));
+   await delivery.refresh();
+  }finally{setBusy(false);}
  }
  async function revoke(id:string){
   setBusy(true);setError("");setNotice("");
@@ -72,11 +102,23 @@ export default function Settings(){
  <Text style={S.headline}>Profile</Text>
  <Text style={S.muted}>{result.data.profile.email}</Text>
  <Field label="First name" value={first} onChange={setFirst}/><Field label="Last name" value={last} onChange={setLast}/>
- <Text style={S.headline}>Communication choices</Text>
- {pref("Newsletter opt-in",newsletter,setNewsletter)}{pref("Event emails opt-in",events,setEvents)}
- {pref("Quiet hours preference",quiet,setQuiet)}
- <Text style={S.muted}>Email and push providers are not yet fully connected. Saving preferences does not enroll you in an active mailing service.</Text>
- <Action label="Save my settings" loading={busy} onPress={()=>void save()}/></Card>
+ <Action label={t("settings.saveProfile")} loading={busy} disabled={busy} onPress={()=>void saveProfile()}/></Card>
+ <Card style={{gap:13}}>
+ <Text style={S.headline}>{t("settings.deliveryTitle")}</Text>
+ <Feedback loading={delivery.loading} error={delivery.error} empty={false} refresh={delivery.refresh}/>
+ <Text style={S.muted}>{delivery.data?.organization.name||t("inbox.currentMosque")} · {delivery.data?.organization.timeZone||""}</Text>
+ <Text style={S.bodyText}>{t("settings.serviceEmail")}</Text>
+ {pref(t("settings.communityOptIn"),newsletter,setNewsletter)}
+ {pref(t("settings.eventOptIn"),events,setEvents)}
+ {pref(t("settings.quietHours"),quiet,setQuiet)}
+ {quiet?<View style={{gap:8}}>
+ <Field label={t("settings.quietStart")} value={quietStart} onChange={setQuietStart}/>
+ <Field label={t("settings.quietEnd")} value={quietEnd} onChange={setQuietEnd}/>
+ <Text style={S.muted}>{t("settings.quietZone")}</Text>
+ </View>:null}
+ <Text style={S.muted}>{t("settings.deliveryPolicy")}</Text>
+ <Action label={t("settings.saveDelivery")} loading={busy} disabled={busy||!delivery.data}
+ onPress={()=>void saveDelivery()}/></Card>
  <Card style={{gap:13}}><Text style={S.headline}>Your sessions</Text>
  {result.data.sessions.map(s=><View key={s.id} style={[S.row,{paddingVertical:8}]}><View style={{flex:1}}><Text style={S.label}>Signed in {new Date(s.createdAt).toLocaleDateString()}</Text>
  <Text style={S.muted}>Expires {new Date(s.expiresAt).toLocaleDateString()}</Text></View>
