@@ -78,6 +78,34 @@ assert.equal(member.data.user.mfaRequired,false,"ordinary members can sign in wi
  assert.equal(acceptedOrigin.status,422,"same origin reaches ordinary payload validation");
  assert.equal((await probeOrigin()).status,422,
   "native authenticated Bearer clients without browser Origin remain supported");
+
+ // Enforce the real JSON body byte count even when Transfer-Encoding is
+ // chunked and no Content-Length header is present. Multiple UTF-8 bytes
+ // per character must count toward the limit; this request must fail before
+ // any business or database action, without logging the supplied text.
+ const oversized=JSON.stringify({kind:"job",jobId:"synthetic-test",
+  coverLetter:"سلام".repeat(16000)});
+ const encoded=new TextEncoder().encode(oversized);
+ assert.ok(encoded.byteLength>65536);
+ const streamed=await fetch(host+"actions",{
+  method:"POST",duplex:"half",
+  headers:{Authorization:"Bearer "+member.data.token,"Content-Type":"application/json"},
+  body:new ReadableStream({start(controller){
+   controller.enqueue(encoded.subarray(0,120));
+   controller.enqueue(encoded.subarray(120,60000));
+   controller.enqueue(encoded.subarray(60000));
+   controller.close();
+  }})
+ });
+ assert.equal(streamed.status,413,"oversized chunked body rejected by actual byte count");
+ const oversizedResponse=await streamed.json();
+ assert.equal(oversizedResponse.error.code,"TOO_LARGE");
+ const invalidJson=await fetch(host+"actions",{
+  method:"POST",headers:{Authorization:"Bearer "+member.data.token,"Content-Type":"application/json"},
+  body:"{not a valid json payload}"
+ });
+ assert.equal(invalidJson.status,400,"invalid short JSON must retain existing 400 behavior");
+ assert.equal((await invalidJson.json()).error.code,"INVALID_JSON");
 const memberForbidden=await request("admin","GET",null,member.data.token);
 assert.equal(memberForbidden.status,403,"member must not be able to read admin data");
 const staff=await request("auth/login","POST",{email:staffEmail,password});

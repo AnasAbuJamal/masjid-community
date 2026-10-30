@@ -32,8 +32,42 @@ export function assertSameOrigin(req: NextRequest) {
     throw new HttpError(403, "ORIGIN", "Origin not allowed.");
 }
 export async function jsonBody(req: NextRequest) {
-  if (Number(req.headers.get("content-length") || 0) > 65536) throw new HttpError(413, "TOO_LARGE", "Payload too large.");
-  try { return await req.json(); } catch { throw new HttpError(400, "INVALID_JSON", "Invalid JSON body."); }
+  const limit = 65536;
+  const declared = req.headers.get("content-length");
+  // Content-Length is not a trusted upper bound: chunked transfer encoding
+  // has no length header and a proxy can relay bytes differently.
+  if (declared !== null && (!/^\\d+$/.test(declared) || Number(declared) > limit))
+    throw new HttpError(413, "TOO_LARGE", "Payload too large.");
+  if (!req.body) throw new HttpError(400, "INVALID_JSON", "Invalid JSON body.");
+  const reader = req.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        // Stop reading immediately, even for a single oversized stream chunk.
+        await reader.cancel().catch(() => {});
+        throw new HttpError(413, "TOO_LARGE", "Payload too large.");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(400, "INVALID_JSON", "Invalid JSON body.");
+  } finally {
+    reader.releaseLock();
+  }
+  try {
+    // Fatal decoding rejects malformed UTF-8 before JSON parsing; the byte
+    // count (not JavaScript string length) is what the 64-KiB cap protects.
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true })
+      .decode(Buffer.concat(chunks, total)));
+  } catch {
+    throw new HttpError(400, "INVALID_JSON", "Invalid JSON body.");
+  }
 }
 export function localDate(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US",{year:"numeric",month:"2-digit",day:"2-digit",timeZone}).formatToParts(date);
