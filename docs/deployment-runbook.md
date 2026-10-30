@@ -302,3 +302,34 @@ payout reversal, late/duplicate events, full refunds, two-person
 approval and bank statement ties in isolated Stripe test mode,
 then in a separately approved controlled pilot. This increment
 deliberately stops short of F-031 completion and of live deployment.
+
+
+## Notification organization-ownership migration gate (October 30, 2026)
+
+`20261030150000_notification_org_ownership` adds a nullable
+`Notification.organizationId` with tenant/recipient indexes and a
+foreign key. Existing records are deliberately left NULL because the
+recipient's identity alone cannot establish which mosque owns the
+message. **Never** run a blanket backfill to the oldest organization.
+Historic unowned messages are hidden from member inboxes, denied by
+the mark-read API and ineligible for outgoing email. A designated
+privacy officer must decide whether a specific old message can
+safely be reattributed or retained, with provenance and audit.
+
+All new workflow notices must pass the verified organization ID,
+not a client-supplied tenant hint. The helper must recheck active
+recipient membership and account verification; noneligible recipients
+are skipped without reversing a valid staff/business decision.
+Outbox delivery separately rechecks original ownership, recipient
+identity, active account and membership at dispatch, and must never
+include school, child, case or payment details in external email.
+
+Before actual mail rollout, approve opt-in and mandatory-service
+notification categories, per-channel and quiet-hours policies,
+provider idempotency, worker retry/lease recovery, tenant-specific
+service ownership, unsubscribe/revocation handling and a tested
+multi-organization account switcher. Review old NULL messages with
+legal/privacy staff and run fixture-backed migration and restoring
+tests against a nonproduction copy first. Real provider credentials
+and production delivery remain unconfigured under this work; no
+deployment or production data migration was performed.
