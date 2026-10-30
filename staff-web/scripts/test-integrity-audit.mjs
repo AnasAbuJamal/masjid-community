@@ -179,6 +179,11 @@ try{
  if(fakeSessions.length)await db.authSession.deleteMany({where:{id:{in:fakeSessions}}});
  if(fakeUsers.length){
   await db.authSession.deleteMany({where:{userId:{in:fakeUsers}}});
+  // Changing a synthetic staff role legitimately queues a service notice.
+  // Clean the disposable recipient's outbox before deleting the identity;
+  // the protected HMAC ledger itself must remain append-only.
+  await db.outboxEvent.deleteMany({where:{userId:{in:fakeUsers}}});
+  await db.notification.deleteMany({where:{userId:{in:fakeUsers}}});
   await db.auditEvent.deleteMany({where:{actorId:{in:fakeUsers}}});
   await db.roleGrant.deleteMany({where:{membership:{userId:{in:fakeUsers}}}});
   await db.organizationMembership.deleteMany({where:{userId:{in:fakeUsers}}});
