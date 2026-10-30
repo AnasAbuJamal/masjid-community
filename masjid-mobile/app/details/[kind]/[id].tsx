@@ -1,10 +1,10 @@
 import React,{useState} from "react";
-import {Text,View} from "react-native";
+import {Share,Text,View} from "react-native";
 import {router,useLocalSearchParams} from "expo-router";
 import {Action,Card,Feedback,Field,Head,PressRow,Shell} from "../../../src/ui";
 import {S,T} from "../../../src/theme";
 import {useResource} from "../../../src/useResource";
-import {api,apiPost} from "../../../src/api";
+import {api,apiPost,apiCalendar} from "../../../src/api";
 import {useSession} from "../../../src/session";
 import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from "../../../src/searchScope";
 import {MemberScopeNotice} from "../../../src/MemberScopeNotice";
@@ -109,6 +109,17 @@ export default function Details(){
   }catch(e){setError(e instanceof Error?e.message:"Request unsuccessful.");}
   finally{setBusy(false);}
  }
+ async function shareCalendar(){
+  if(!item||!user?.isVerified||blocked)return;
+  setBusy(true);setError("");setMessage("");
+  try{
+   const ics=await apiCalendar("events/calendar?eventId="+encodeURIComponent(item.id));
+   const result=await Share.share({message:ics,title:"SILA gathering calendar entry"});
+   if(result.action===Share.sharedAction)
+    setMessage("Calendar text shared. Save it as an .ics file to import into your calendar; this does not reserve a place.");
+  }catch(e){setError(e instanceof Error?e.message:"Calendar sharing was unavailable.");}
+  finally{setBusy(false);}
+ }
  async function cancelEvent(){
   if(!item||!user?.isVerified)return;
   if(cancellationClosed){setError("The cancellation deadline has passed. Contact an assigned host.");return;}
@@ -181,6 +192,9 @@ export default function Details(){
    {kind==="rentals"?<><Field label="Start (ISO date/time)" value={from} onChange={setFrom}/><Field label="End (ISO date/time)" value={to} onChange={setTo}/></>:null}
    {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
+   {kind==="events"&&user?.isVerified?
+    <Action label="Share calendar entry text" secondary icon="calendar-check-outline"
+     disabled={busy} onPress={()=>void shareCalendar()}/>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
      <Action label={own.data.registration.status==="waitlisted"?"Leave waitlist":"Cancel my reservation"}
       secondary disabled={busy||own.loading||cancellationClosed||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>

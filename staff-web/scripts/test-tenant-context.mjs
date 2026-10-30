@@ -24,6 +24,14 @@ async function call(path,method="GET",body,token,headers={}){
  },body:body?JSON.stringify(body):undefined});
  return {status:r.status,...await r.json().catch(()=>({}))};
 }
+async function calendar(path,token,headers={}){
+ const response=await fetch(base+path,{headers:{
+  ...(token?{authorization:"Bearer "+token}:{}),...headers
+ }});
+ return {status:response.status,body:await response.text(),
+  contentType:response.headers.get("content-type"),
+  cacheControl:response.headers.get("cache-control")};
+}
 async function login(email){
  const result=await call("auth/login","POST",{email,password});
  assert.equal(result.status,200,JSON.stringify(result));
@@ -197,6 +205,17 @@ try{
   endAt:new Date(Date.now()+90000000)
  }});
  fixture.events.push(foreignDraft.id);
+ const guestOwnCalendar=await calendar("events/calendar?eventId="+homeEvent.id);
+ assert.equal(guestOwnCalendar.status,401,"selected-mosque export is private to verified members");
+ const ownCalendar=await calendar("events/calendar?eventId="+homeEvent.id,first);
+ assert.equal(ownCalendar.status,200,ownCalendar.body.slice(0,400));
+ assert.match(ownCalendar.contentType,/text\/calendar/);
+ assert.match(ownCalendar.cacheControl,/no-store/);
+ assert.match(ownCalendar.body,/HOME_SYNTHETIC_RSVP_EVENT/);
+ assert.doesNotMatch(ownCalendar.body,/ATTENDEE:|ORGANIZER:|mailto:/i);
+ assert.match(ownCalendar.body,/This does not reserve a place/);
+ assert.equal((await calendar("events/calendar?eventId="+event.id,first)).status,404,
+  "primary mosque session cannot export a known published second-mosque gathering");
  const homeCatalog=await call("events/catalog","GET",undefined,first);
  assert.equal(homeCatalog.status,200,JSON.stringify(homeCatalog));
  assert.equal(homeCatalog.data.organization.id,home.id);
@@ -277,6 +296,21 @@ try{
  assert.equal(selectedVenues.status,200);
  assert.equal(selectedVenues.data.organization.id,foreign.id);
  assert.deepEqual(selectedVenues.data.venues.map(v=>v.id),[foreignVenue.id]);
+ const switchedCalendar=await calendar("events/calendar?eventId="+event.id,first,
+  {"x-organization-id":home.id});
+ assert.equal(switchedCalendar.status,200,switchedCalendar.body.slice(0,400));
+ assert.match(switchedCalendar.body,/FOREIGN_SYNTHETIC_PRIVATE_RSVP/);
+ assert.doesNotMatch(switchedCalendar.body,/HOME_SYNTHETIC_RSVP_EVENT|ATTENDEE:|mailto:/);
+ assert.equal((await calendar("events/calendar?eventId="+homeEvent.id,first)).status,404);
+ assert.equal((await calendar("events/calendar?eventId="+foreignDraft.id,first)).status,404);
+ assert.equal((await calendar("events/calendar?eventId="+event.id+
+  "&organizationId="+home.id,first)).status,422);
+ assert.equal((await calendar("events/calendar?eventId="+event.id+
+  "&eventId="+homeEvent.id,first)).status,422);
+ const untouchedCalendar=await calendar("events/calendar?eventId="+homeEvent.id,second);
+ assert.equal(untouchedCalendar.status,200);
+ assert.match(untouchedCalendar.body,/HOME_SYNTHETIC_RSVP_EVENT/);
+ assert.equal((await calendar("events/calendar?eventId="+event.id,second)).status,404);
  const filteredForeign=await call("events/catalog?category=workshop&audience=families"+
   "&accessibility=step_free&venueId="+foreignVenue.id,"GET",undefined,first,
   {"x-organization-id":home.id});
@@ -595,6 +629,8 @@ try{
  assert.equal(revoked.error.code,"MEMBERSHIP_REQUIRED");
  const blockedCatalog=await call("events/catalog","GET",undefined,first);
  assert.equal(blockedCatalog.status,403,"suspended membership cannot browse selected catalog");
+ assert.equal((await calendar("events/calendar?eventId="+event.id,first)).status,403,
+  "revocation blocks authenticated calendar export immediately");
  const deniedDiscovery=await call("organizations/search?q=FOREIGN&kind=all","GET",undefined,first);
  assert.equal(deniedDiscovery.status,403,"revoked selected membership cannot use search");
  for(const resource of ["venues","home","prayers","faith","announcements","articles","financials"]){
@@ -626,6 +662,8 @@ try{
  assert.equal(homeAgain.data.organization.id,home.id);
  assert.equal((await call("organizations/view?resource=venues","GET",undefined,first))
   .data.organization.id,home.id);
+ assert.equal((await calendar("events/calendar?eventId="+homeEvent.id,first)).status,200,
+  "returning to home restores only the original mosque's published calendar");
  assert.ok(homeAgain.data.upcoming.some(x=>x.id===shifts.HOME.id));
  assert.ok(!homeAgain.data.upcoming.some(x=>x.id===shifts.FOREIGN.id));
  assert.equal((await call("students","GET",undefined,first)).status,200,

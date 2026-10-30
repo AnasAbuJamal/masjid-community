@@ -16,3 +16,25 @@ export async function api<T>(path:string, options:RequestInit={}):Promise<T>{
  return value.data as T;
 }
 export function apiPost<T>(path:string,body:unknown){return api<T>(path,{method:"POST",body:JSON.stringify(body)});}
+
+// Download the real, membership-scoped iCalendar TEXT payload without exposing
+// the Bearer token in a URL or launching an unauthenticated external browser.
+// Sharing raw text is a manual export, not an automatic device calendar write.
+export async function apiCalendar(path:string):Promise<string>{
+ if(!raw)throw new Error("The server address is not configured.");
+ const saved=await token();
+ if(!saved)throw new Error("Sign in and verify membership to export this gathering.");
+ const response=await fetch(raw+"/api/v1/"+path.replace(/^\/+/, ""),{
+  headers:{"Accept":"text/calendar","Authorization":"Bearer "+saved}
+ });
+ if(!response.ok){
+  const value=await response.json().catch(()=>({}));
+  throw new Error(value.error?.message||"Calendar export was unavailable.");
+ }
+ if(!response.headers.get("content-type")?.startsWith("text/calendar"))
+  throw new Error("The server returned an unexpected calendar format.");
+ const content=await response.text();
+ if(!content.startsWith("BEGIN:VCALENDAR")||content.length>65536)
+  throw new Error("The calendar entry is malformed or too large.");
+ return content;
+}

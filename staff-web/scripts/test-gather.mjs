@@ -108,6 +108,15 @@ try{
  assert.equal(guest.status,401,"guest cannot reserve a place");
  const first=await request("actions","POST",{kind:"rsvp",eventId},memberToken);
  assert.equal(first.status,201);
+ const memberIcs=await fetch(base+"events/calendar?eventId="+event.id,{
+  headers:{Authorization:"Bearer "+memberToken}
+ });
+ assert.equal(memberIcs.status,200,"authenticated member can export published gathering");
+ assert.match(memberIcs.headers.get("content-type"),/text\/calendar/);
+ assert.match(memberIcs.headers.get("cache-control"),/no-store/);
+ const memberIcsText=await memberIcs.text();
+ assert.match(memberIcsText,/DTSTART:20321105T150000Z/);
+ assert.doesNotMatch(memberIcsText,/ATTENDEE:|mailto:/i);
  assert.equal(first.data.status,"confirmed");
  assert.equal(first.data.joined,true);
  const guestRegistration=await request("events/registration?eventId="+eventId);
