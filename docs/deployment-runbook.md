@@ -378,3 +378,63 @@ idempotent worker recovery, tenant-specific sender credentials,
 support routes and end-to-end assistive-tech tests. All changes
 in this pass remain code and CI-only synthetic tests; no deployment,
 production migration or real email has been initiated.
+
+
+## F-045 recovery and incident readiness (disposable verification only)
+
+**Health probe semantics.** `/api/health` tests process liveness only.
+`/api/ready` tests whether the database is currently reachable; its
+response is intentionally generic. Load balancers should use readiness
+to avoid sending DB-backed traffic to an unavailable instance. Neither
+endpoint exposes tenancy, credentials, queues, financial details or
+versioned infrastructure. Liveness returning 200 **does not** prove
+that a customer workflow or payment provider is operational.
+
+**Restricted operational counters.** `GET /api/internal/operations`
+requires a dedicated `Authorization: Bearer $SILA_OPERATIONS_SECRET`
+of at least 32 characters and not equal to worker `CRON_SECRET` or
+`AUTH_SECRET`. Store it only in approved secret management, not in
+client builds or the repository. Rotate and monitor access separately
+from the delivery worker; restrict at network level in deployed
+infrastructure. Its counters include queue backlog/leases, provider-
+reported failed payouts, refund exceptions and outstanding privacy
+reviews; no personal records or message bodies. `attention` is a
+provisional alert signal, **not** measured SLA/SLO compliance,
+provider delivery proof, bank reconciliation or privacy-case closure.
+
+**What CI actually rehearses.** Against its ephemeral PostgreSQL 16
+service and fictional fixtures only, the GitHub Actions verification
+workflow:
+1. Applies migrations and inserts representative synthetic people,
+   guardian links, attendance, invoices, email outbox and content.
+2. Captures a **logical** PostgreSQL custom-format snapshot to an
+   ephemeral `/tmp` file; restores into a **distinct** fresh DB using
+   transactional `pg_restore` and no ACL/owner restoration.
+3. Compares applied migration checksums, seeded model counts and
+   specific private relationships/financial amounts and queued state;
+   proves restored FK and provider-event unique keys still enforce
+   integrity; proves restored-only writes never appear in source.
+4. Checks Prisma migration status against the restored DB and
+   destroys both temporary dump and restored database via shell trap.
+   No backup archive is uploaded, committed or made externally
+   accessible by the workflow.
+
+The shell and `scripts/test-restore.mjs` explicitly require
+`GITHUB_ACTIONS=true`, localhost CI credentials and exact
+`/masjid_ci` and `/masjid_ci_restore` database paths. **Never use
+the CI restore script against a real organization or production
+database**, including a cloned production-data snapshot. Only the
+synthetic fixture is allowed.
+
+**Non-CI release blockers:** obtain written approval for RPO/RTO,
+encrypted automated offsite backup frequency/retention, independent
+credential custody, full backups including object storage and
+external provider recovery state, restricted support access,
+tested key restoration, a monthly sampled restore schedule, and
+full prelaunch multi-tenant staging restoration. Rehearse provider
+webhook backlog replay and deduplication, accidental guardian
+access revocation, sensitive school-content exposure response,
+stale prayer schedule correction and Stripe payout/refund incident
+handling with the real responsible teams. Establish quantitative
+service monitoring, paging, on-call runbooks and signed evidence.
+This code change performs no deployment or production migration.
