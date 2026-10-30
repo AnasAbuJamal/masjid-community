@@ -28,7 +28,10 @@ export async function requireActor(req: NextRequest, roles?: UserRole[]): Promis
   if (roles && !roles.includes(user.role)) throw new HttpError(403, "FORBIDDEN", "You cannot perform this action.");
   return user;
 }
-export async function requireVerified(req: NextRequest, roles?: UserRole[]) {
+// The legacy API surface is still the original single-mosque pilot. It MUST
+// reject sessions that explicitly selected another mosque, rather than use
+// global roles or accidentally read/write the first organization.
+export async function requireVerified(req: NextRequest, roles?: UserRole[], context:"pilot"|"selected"="pilot") {
   const user = await requireActor(req, roles);
   if (!user.verifiedAt) throw new HttpError(403, "EMAIL_NOT_VERIFIED", "Verify your email first.");
   // Once a staff identity has enrolled MFA (including invitation acceptance),
@@ -37,12 +40,56 @@ export async function requireVerified(req: NextRequest, roles?: UserRole[]) {
   // review; all newly invited staff are required to enroll before elevation.
   if ((["admin","finance"].includes(user.role)||(user.role==="staff"&&user.mfaEnabled)) && !user.mfaVerified)
     throw new HttpError(403, "MFA_REQUIRED", "Complete multi-factor authentication before continuing.");
-  const organization=await db.organization.findFirst();
-  if(!organization)throw new HttpError(503,"NOT_CONFIGURED","Community organization is unavailable.");
-  const member=await db.organizationMembership.findUnique({where:{organizationId_userId:{organizationId:organization.id,userId:user.id}}});
-  if(!member||member.status!=="active")throw new HttpError(403,"MEMBERSHIP_REQUIRED","Your organization membership is not active.");
+  const home=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}],
+   select:{id:true}});
+  if(!home)throw new HttpError(503,"NOT_CONFIGURED","Community organization is unavailable.");
+  const session=await db.authSession.findUnique({where:{tokenHash:hash(sessionFrom(req))},
+   select:{userId:true,selectedOrganizationId:true,revokedAt:true,expiresAt:true}});
+  if(!session||session.userId!==user.id||session.revokedAt||session.expiresAt<=new Date())
+   throw new HttpError(401,"UNAUTHENTICATED","Please sign in.");
+  const orgId=session.selectedOrganizationId||home.id;
+  if(context==="pilot"&&orgId!==home.id)
+   throw new HttpError(409,"TENANT_CONTEXT_UNSUPPORTED",
+    "This feature is not yet available for your selected mosque. Switch back to the primary mosque or use the supported private inbox and preferences.");
+  // Account-global privileged roles must NEVER authorize a second mosque.
+  // Later per-membership role policy will replace this temporary safeguard.
+  if(orgId!==home.id&&user.role!=="member")
+   throw new HttpError(403,"TENANT_ROLE_ISOLATION",
+    "Privileged roles cannot switch mosque context until per-mosque roles are implemented.");
+  const member=await db.organizationMembership.findUnique({where:{
+   organizationId_userId:{organizationId:orgId,userId:user.id}
+  },select:{status:true}});
+  if(!member||member.status!=="active")throw new HttpError(403,"MEMBERSHIP_REQUIRED",
+   "Your selected mosque membership is not active.");
   return user;
 }
+
+/** Verified private context for the few migrated member-only endpoints.
+ * The selected ID is stored in the authenticated server-side session, NOT
+ * obtained from a header, query, body, or a stale client-side role claim. */
+export async function requireMemberContext(req:NextRequest){
+ const user=await requireVerified(req,undefined,"selected");
+ const home=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}],
+  select:{id:true}});
+ if(!home)throw new HttpError(503,"NOT_CONFIGURED","Community organization is unavailable.");
+ const session=await db.authSession.findUnique({where:{tokenHash:hash(sessionFrom(req))},
+  select:{userId:true,selectedOrganizationId:true,revokedAt:true,expiresAt:true}});
+ if(!session||session.userId!==user.id||session.revokedAt||session.expiresAt<=new Date())
+  throw new HttpError(401,"UNAUTHENTICATED","Please sign in.");
+ const orgId=session.selectedOrganizationId||home.id;
+ if(orgId!==home.id&&user.role!=="member")throw new HttpError(403,
+  "TENANT_ROLE_ISOLATION","This role cannot access another mosque.");
+ const membership=await db.organizationMembership.findUnique({where:{
+  organizationId_userId:{organizationId:orgId,userId:user.id}
+ },select:{status:true}});
+ if(membership?.status!=="active")throw new HttpError(403,"MEMBERSHIP_REQUIRED",
+  "Selected mosque membership is no longer active.");
+ const org=await db.organization.findUnique({where:{id:orgId},
+  select:{id:true,name:true,timeZone:true,slug:true}});
+ if(!org)throw new HttpError(403,"MEMBERSHIP_REQUIRED","Selected mosque unavailable.");
+ return {user,org,homeId:home.id};
+}
+
 export async function startSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   await db.authSession.create({

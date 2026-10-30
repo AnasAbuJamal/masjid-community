@@ -1,13 +1,11 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handled, HttpError, ok } from "@/lib/http";
-import { requireVerified } from "@/lib/auth";
+import { requireMemberContext } from "@/lib/auth";
 import {schoolStudentScope} from "@/lib/school-scope";
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  const user=await requireVerified(req);
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true}});
-  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const {user,org}=await requireMemberContext(req);
   const [donations,rsvps,notifications,children,classes,bookings,volunteerApplications,jobApplications]=await Promise.all([
     db.donation.findMany({where:{donorId:user.id,campaign:{organizationId:org.id}},orderBy:{createdAt:"desc"},take:30,select:{id:true,amountMinor:true,currency:true,status:true,createdAt:true,campaign:{select:{title:true}},receipt:{select:{id:true,receiptNumber:true,issuedAt:true,reversedAt:true}}}}),
     db.eventRSVP.findMany({where:{userId:user.id,event:{organizationId:org.id}},include:{event:{select:{id:true,title:true,startAt:true}}},take:30}),

@@ -2,7 +2,7 @@ import {NextRequest} from "next/server";
 import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireVerified} from "@/lib/auth";
+import {requireMemberContext} from "@/lib/auth";
 import {optionalDeliveryPurposes} from "@/lib/delivery-policy";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 
@@ -18,10 +18,7 @@ const change=z.object({
  {message:"Select both different local quiet-hour boundaries, or turn quiet hours off."}
 );
 async function context(req:NextRequest){
- const user=await requireVerified(req);
- const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},
-  select:{id:true,name:true,timeZone:true}});
- if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+ const {user,org}=await requireMemberContext(req);
  return {user,org};
 }
 export async function GET(req:NextRequest){
