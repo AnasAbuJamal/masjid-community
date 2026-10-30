@@ -13,7 +13,7 @@ const {adminEmail,memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-
 const db=new PrismaClient(),base="http://127.0.0.1:3000/api/v1/";
 const fixture={notes:[],campaigns:[],donations:[],events:[],rsvps:[],prefs:[],invitations:[],
  opportunities:[],volunteerApplications:[],shifts:[],venues:[],prayerDays:[],
- jummah:[],faithNotices:[],announcements:[]};
+ jummah:[],faithNotices:[],announcements:[],articles:[],budgets:[]};
 const createdAt=new Date();
 let foreignOrgId=null,foreignMembershipId=null,adminMembershipId=null;
 const tokens=[];
@@ -116,6 +116,34 @@ try{
   body:"Unpublished notice",status:"draft"
  }});
  fixture.announcements.push(draftNotice.id);
+
+ // Publication gates for selected-mosque editorial and financial read-only views.
+ const releasedArticle=await db.communityArticle.create({data:{
+  organizationId:foreign.id,title:"FOREIGN_PUBLISHED_ARTICLE",
+  body:"Fictional reviewed community writing",status:"published",publishedAt:new Date()
+ }});
+ fixture.articles.push(releasedArticle.id);
+ const draftArticle=await db.communityArticle.create({data:{
+  organizationId:foreign.id,title:"FOREIGN_DRAFT_ARTICLE",
+  body:"Unpublished writing must remain hidden",status:"draft"
+ }});
+ fixture.articles.push(draftArticle.id);
+ const futureArticle=await db.communityArticle.create({data:{
+  organizationId:foreign.id,title:"FOREIGN_FUTURE_ARTICLE",
+  body:"Embargoed publication",status:"published",
+  publishedAt:new Date(Date.now()+86400000)
+ }});
+ fixture.articles.push(futureArticle.id);
+ const releasedBudget=await db.financeBudget.create({data:{
+  organizationId:foreign.id,category:"FOREIGN_PUBLISHED_BUDGET",
+  periodMonth:"2032-11",amountMinor:123400,published:true
+ }});
+ fixture.budgets.push(releasedBudget.id);
+ const hiddenBudget=await db.financeBudget.create({data:{
+  organizationId:foreign.id,category:"FOREIGN_DRAFT_BUDGET",
+  periodMonth:"2032-10",amountMinor:900,published:false
+ }});
+ fixture.budgets.push(hiddenBudget.id);
  const guestWorship=await call("organizations/view?resource=venues");
  assert.equal(guestWorship.status,401,"selected-mosque worship route requires authenticated membership");
  const homeVenues=await call("organizations/view?resource=venues","GET",undefined,first);
@@ -237,6 +265,48 @@ try{
  assert.equal(selectedVenues.status,200);
  assert.equal(selectedVenues.data.organization.id,foreign.id);
  assert.deepEqual(selectedVenues.data.venues.map(v=>v.id),[foreignVenue.id]);
+
+ const foreignAnnouncements=await call("organizations/view?resource=announcements","GET",undefined,first);
+ assert.equal(foreignAnnouncements.status,200);
+ assert.equal(foreignAnnouncements.data.organization.id,foreign.id);
+ assert.deepEqual(foreignAnnouncements.data.items.map(x=>x.id),[foreignNotice.id],
+  "draft or another mosque's announcements cannot enter the selected list");
+ const selectedAnnouncement=await call("organizations/view?resource=announcements&itemId="+foreignNotice.id,
+  "GET",undefined,first);
+ assert.deepEqual(selectedAnnouncement.data.items.map(x=>x.id),[foreignNotice.id]);
+ for(const id of [draftNotice.id,homeNote.id,"missing-article-id"]){
+  assert.equal((await call("organizations/view?resource=announcements&itemId="+id,
+   "GET",undefined,first)).status,404,"draft, foreign or unknown item IDs do not disclose content");
+ }
+ const foreignArticles=await call("organizations/view?resource=articles","GET",undefined,first);
+ assert.equal(foreignArticles.status,200);
+ assert.deepEqual(foreignArticles.data.items.map(x=>x.id),[releasedArticle.id]);
+ assert.equal((await call("organizations/view?resource=articles&itemId="+releasedArticle.id,
+  "GET",undefined,first)).data.items[0].id,releasedArticle.id);
+ for(const id of [draftArticle.id,futureArticle.id]){
+  assert.equal((await call("organizations/view?resource=articles&itemId="+id,
+   "GET",undefined,first)).status,404,"unreleased articles remain inaccessible by ID");
+ }
+ const foreignFinance=await call("organizations/view?resource=financials","GET",undefined,first);
+ assert.equal(foreignFinance.status,200);
+ assert.equal(foreignFinance.data.organization.id,foreign.id);
+ assert.deepEqual(foreignFinance.data.budgets.map(x=>x.id),[releasedBudget.id]);
+ assert.match(foreignFinance.data.note,/not donations received or cash balances/);
+ const originalFinance=await call("organizations/view?resource=financials","GET",undefined,second);
+ assert.equal(originalFinance.data.organization.id,home.id);
+ assert.ok(!originalFinance.data.budgets.some(x=>x.id===releasedBudget.id));
+ const originalArticle=await call("organizations/view?resource=articles","GET",undefined,second);
+ assert.ok(!originalArticle.data.items.some(x=>x.id===releasedArticle.id));
+ for(const resource of ["financials","announcements","articles"]){
+  assert.equal((await call("organizations/view?resource="+resource+"&organizationId="+home.id,
+   "GET",undefined,first)).status,422,"tenant hint must not choose publication owner");
+  assert.equal((await call("organizations/view?resource="+resource+"&venueId="+homeVenue.id,
+   "GET",undefined,first)).status,422,"venue hints are forbidden for unrelated resources");
+ }
+ assert.equal((await call("organizations/view?resource=articles&itemId="+releasedArticle.id+
+  "&itemId="+draftArticle.id,"GET",undefined,first)).status,422,
+  "multiple item IDs must fail closed");
+
  const selectedToday=await call("organizations/view?resource=home&venueId="+foreignVenue.id,
   "GET",undefined,first);
  assert.equal(selectedToday.status,200,JSON.stringify(selectedToday));
@@ -475,7 +545,7 @@ try{
  assert.equal(revoked.error.code,"MEMBERSHIP_REQUIRED");
  const blockedCatalog=await call("events/catalog","GET",undefined,first);
  assert.equal(blockedCatalog.status,403,"suspended membership cannot browse selected catalog");
- for(const resource of ["venues","home","prayers","faith"]){
+ for(const resource of ["venues","home","prayers","faith","announcements","articles","financials"]){
   const blockedView=await call("organizations/view?resource="+resource,"GET",undefined,first);
   assert.equal(blockedView.status,403,"revoked foreign membership blocks "+resource);
   assert.equal(blockedView.error.code,"MEMBERSHIP_REQUIRED");
@@ -529,6 +599,8 @@ try{
  if(fixture.shifts.length)await db.volunteerShift.deleteMany({where:{id:{in:fixture.shifts}}});
  if(fixture.volunteerApplications.length)await db.volunteerApplication.deleteMany({where:{id:{in:fixture.volunteerApplications}}});
  if(fixture.opportunities.length)await db.volunteerOpportunity.deleteMany({where:{id:{in:fixture.opportunities}}});
+ if(fixture.budgets.length)await db.financeBudget.deleteMany({where:{id:{in:fixture.budgets}}});
+ if(fixture.articles.length)await db.communityArticle.deleteMany({where:{id:{in:fixture.articles}}});
  if(fixture.faithNotices.length)await db.faithNotice.deleteMany({where:{id:{in:fixture.faithNotices}}});
  if(fixture.announcements.length)await db.announcement.deleteMany({where:{id:{in:fixture.announcements}}});
  if(fixture.jummah.length)await db.jummahSession.deleteMany({where:{id:{in:fixture.jummah}}});

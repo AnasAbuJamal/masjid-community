@@ -43,9 +43,10 @@ export default function Details(){
  const {user}=useSession();
  const context=useResource<MembershipSearchContext>(user?.isVerified?"organizations/context":null);
  const scope=memberSurfaceScope(context.data,!!user?.isVerified);
- const authorizedEvent=scope==="pilot"||scope==="limited";
+ const authorizedSelected=scope==="pilot"||scope==="limited";
+ const selectedRead=["events","announcements","articles"].includes(kind);
  const pilotContent=allowPilotContent(scope);
- const blocked=!pilotContent&&!(kind==="events"&&authorizedEvent);
+ const blocked=!pilotContent&&!(selectedRead&&authorizedSelected);
  const [search,setSearch]=useState("");
  const [settledSearch,setSettledSearch]=useState("");
  React.useEffect(()=>{
@@ -55,13 +56,16 @@ export default function Details(){
  // Only a verified member can search the currently selected mosque's
  // published gatherings. Changing the filter invalidates useResource results.
  // Guest browsing continues through the original public pilot catalog.
- const path=kind==="events"&&user?.isVerified
-  ?authorizedEvent?"events/catalog"+(id==="all"
-    ?(settledSearch.length>=2?"?q="+encodeURIComponent(settledSearch):"")
-    :"?eventId="+encodeURIComponent(id)):null
+ const path=user?.isVerified&&selectedRead
+  ?authorizedSelected
+   ?kind==="events"?"events/catalog"+(id==="all"
+      ?(settledSearch.length>=2?"?q="+encodeURIComponent(settledSearch):"")
+      :"?eventId="+encodeURIComponent(id))
+    :"organizations/view?resource="+kind+(id==="all"?"":"&itemId="+encodeURIComponent(id))
+   :null
   :pilotContent?"public/"+(config?kind:"events"):null;
  const result=useResource<Result>(path);
- const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedEvent?`events/registration?eventId=${encodeURIComponent(id)}`:null);
+ const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedSelected?`events/registration?eventId=${encodeURIComponent(id)}`:null);
  const [message,setMessage]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[letter,setLetter]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState("");
  const item=result.data?.items.find(x=>x.id===id);
  async function perform(){

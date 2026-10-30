@@ -11,12 +11,40 @@ export async function GET(req:NextRequest){
  return handled(async()=>{
   const {org}=await requireMemberContext(req);
   const params=req.nextUrl.searchParams,resource=params.get("resource");
-  if(!["venues","home","prayers","faith"].includes(resource||"")||
-   [...params.keys()].some(k=>!["resource","venueId","date"].includes(k))||
-   ["resource","venueId","date"].some(k=>params.getAll(k).length>1)||
+  if(!["venues","home","prayers","faith","announcements","articles","financials"].includes(resource||"")||
+   [...params.keys()].some(k=>!["resource","venueId","date","itemId"].includes(k))||
+   ["resource","venueId","date","itemId"].some(k=>params.getAll(k).length>1)||
    (resource!=="prayers"&&params.has("date"))||
-   ((resource==="venues"||resource==="faith")&&params.has("venueId")))
-   throw new HttpError(422,"BAD_QUERY","Unsupported worship view or filter.");
+   (!["home","prayers"].includes(resource||"")&&params.has("venueId"))||
+   (!["announcements","articles"].includes(resource||"")&&params.has("itemId")))
+   throw new HttpError(422,"BAD_QUERY","Unsupported view or filter.");
+
+  // The same session-selected organization protects all read-only content.
+  // Only explicitly published, released content may enter this response.
+  if(resource==="financials"){
+   const budgets=await db.financeBudget.findMany({where:{organizationId:org.id,published:true},
+    take:100,orderBy:[{periodMonth:"desc"},{id:"asc"}],
+    select:{id:true,category:true,periodMonth:true,amountMinor:true,currency:true}});
+   return ok({organization:{id:org.id,name:org.name},budgets,
+    note:"Published budgets are planned allocations, not donations received or cash balances."});
+  }
+
+  if(resource==="announcements"||resource==="articles"){
+   const itemId=params.get("itemId")===null?null:z.string().min(8).max(128).parse(params.get("itemId"));
+   const now=new Date();
+   const items=resource==="announcements"
+    ?await db.announcement.findMany({where:{organizationId:org.id,status:"published",
+      publishedAt:{lte:now},...(itemId?{id:itemId}:{})},
+      take:itemId?1:50,orderBy:[{publishedAt:"desc"},{id:"asc"}],
+      select:{id:true,title:true,body:true,kind:true,publishedAt:true}})
+    :await db.communityArticle.findMany({where:{organizationId:org.id,status:"published",
+      publishedAt:{lte:now},...(itemId?{id:itemId}:{})},
+      take:itemId?1:50,orderBy:[{publishedAt:"desc"},{id:"asc"}],
+      select:{id:true,title:true,body:true,publishedAt:true}});
+   if(itemId&&!items.length)throw new HttpError(404,"NOT_FOUND","Published item unavailable.");
+   return ok({organization:{id:org.id,name:org.name},items,
+    note:"Only released, published community content from your selected mosque."});
+  }
 
   if(resource==="venues"){
    const venues=await db.venue.findMany({where:{organizationId:org.id},

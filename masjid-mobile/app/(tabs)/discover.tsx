@@ -36,9 +36,9 @@ export default function Discover(){
  {!limited?<>
  <PressRow icon="account-group-outline" title={language==="ar"?"الحلقات المجتمعية":"Community circles"} subtitle={language==="ar"?"انضم إلى حلقات مُدارة بعد موافقة المشرف":"Join moderated groups with host approval"} onPress={()=>router.push("/circles")}/>
  <PressRow icon="lightbulb-outline" title={t("discover.proposal")} subtitle={t("discover.proposalSubtitle")} onPress={()=>router.push("/community/proposal")}/>
- <PressRow icon="chart-box-outline" title={t("discover.financial")} subtitle="Published community budget allocations" onPress={()=>router.push("/finance/transparency")}/>
  <PressRow icon="email-outline" title={t("discover.contact")} subtitle="Ask questions and share feedback" onPress={()=>router.push("/contact")}/>
  </>:null}
- {categories.filter(c=>!limited||c.kind==="events").map(c=><PressRow key={c.kind} title={c.title} subtitle={c.subtitle} icon={c.icon} onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:c.kind,id:"all"}})}/>)}</View>:null}
+ <PressRow icon="chart-box-outline" title={t("discover.financial")} subtitle="Published budget allocations (not cash balances)" onPress={()=>router.push("/finance/transparency")}/>
+ {categories.filter(c=>!limited||["events","announcements","articles"].includes(c.kind)).map(c=><PressRow key={c.kind} title={c.title} subtitle={c.subtitle} icon={c.icon} onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:c.kind,id:"all"}})}/>)}</View>:null}
  </Shell>;
 }
