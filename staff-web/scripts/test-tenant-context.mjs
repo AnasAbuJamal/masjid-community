@@ -157,6 +157,24 @@ try{
  assert.ok(selectedCatalog.data.items.some(x=>x.id===event.id));
  assert.ok(!selectedCatalog.data.items.some(x=>x.id===homeEvent.id||x.id===foreignDraft.id));
  assert.ok(!JSON.stringify(selectedCatalog).includes("FOREIGN_SYNTHETIC_UNPUBLISHED_EVENT"));
+ const byTitle=await call("events/catalog?q="+encodeURIComponent("foreign_synthetic"),"GET",undefined,first);
+ assert.equal(byTitle.status,200);
+ assert.deepEqual(byTitle.data.items.map(x=>x.id),[event.id],
+  "case-insensitive text search returns only published selected-mosque gathering");
+ const byPlace=await call("events/catalog?q="+encodeURIComponent("synthetic community"),"GET",undefined,first);
+ assert.equal(byPlace.status,200);
+ assert.deepEqual(byPlace.data.items.map(x=>x.id),[event.id],
+  "displayed location is searchable without leaking another mosque");
+ const noMatch=await call("events/catalog?q="+encodeURIComponent("HOME_SYNTHETIC"),"GET",undefined,first);
+ assert.equal(noMatch.status,200);
+ assert.deepEqual(noMatch.data.items,[],"home-only event is never a selected-foreign search hit");
+ for(const badQuery of [
+  "q=x","q=%20%20%20","q="+encodeURIComponent("a".repeat(81)),
+  "q=valid&q=valid","q=valid&eventId="+event.id
+ ]){
+  const response=await call("events/catalog?"+badQuery,"GET",undefined,first);
+  assert.equal(response.status,422,"invalid or ambiguous search input is denied: "+badQuery);
+ }
  const selectedExact=await call("events/catalog?eventId="+event.id,"GET",undefined,first);
  assert.equal(selectedExact.status,200);
  assert.equal(selectedExact.data.items.length,1);

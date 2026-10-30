@@ -7,7 +7,7 @@ import {useResource} from "../../../src/useResource";
 import {api,apiPost} from "../../../src/api";
 import {useSession} from "../../../src/session";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;filled?:number;publishedAt?:string;currency?:string};
-type Result={items:RecordItem[];organization?:{name:string}};
+type Result={items:RecordItem[];organization?:{name:string;timeZone?:string}};
 type OwnRegistration={eventId:string;registration:{status:string;createdAt:string;checkedInAt:string|null}|null};
 const categories:{[key:string]:{label:string;subtitle:string}}={
  events:{label:"Events",subtitle:"Discover upcoming gatherings."},
@@ -21,15 +21,37 @@ const categories:{[key:string]:{label:string;subtitle:string}}={
  articles:{label:"Articles",subtitle:"Published stories from the community."},
  construction:{label:"Construction",subtitle:"Verified building-project updates."},
 };
+// Use the mosque's IANA timezone for trusted gatherings when supplied by the
+// selected membership API. If the native Intl runtime cannot format that zone,
+// show the real UTC instant rather than a guessed local wall-clock time.
+function gatheringTime(value:string,timeZone?:string){
+ const date=new Date(value);
+ if(!Number.isFinite(date.getTime()))return "Schedule unavailable";
+ if(!timeZone)return date.toLocaleString()+" (device time)";
+ try{
+  return new Intl.DateTimeFormat(undefined,{
+   dateStyle:"medium",timeStyle:"short",timeZone
+  }).format(date)+" ("+timeZone+")";
+ }catch{return date.toISOString()+" (UTC)";}
+}
 export default function Details(){
  const params=useLocalSearchParams<{kind:string;id:string}>();
  const kind=String(params.kind||""),id=String(params.id||"all");
  const config=categories[kind];
  const {user}=useSession();
- // A verified account's event list must follow its selected server-side
- // mosque session; the guest public feed remains the original pilot site.
+ const [search,setSearch]=useState("");
+ const [settledSearch,setSettledSearch]=useState("");
+ React.useEffect(()=>{
+  const timer=setTimeout(()=>setSettledSearch(search.trim()),350);
+  return ()=>clearTimeout(timer);
+ },[search]);
+ // Only a verified member can search the currently selected mosque's
+ // published gatherings. Changing the filter invalidates useResource results.
+ // Guest browsing continues through the original public pilot catalog.
  const path=kind==="events"&&user?.isVerified
-  ?"events/catalog"+(id==="all"?"":"?eventId="+encodeURIComponent(id))
+  ?"events/catalog"+(id==="all"
+    ?(settledSearch.length>=2?"?q="+encodeURIComponent(settledSearch):"")
+    :"?eventId="+encodeURIComponent(id))
   :"public/"+(config?kind:"events");
  const result=useResource<Result>(path);
  const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified?`events/registration?eventId=${encodeURIComponent(id)}`:null);
@@ -68,11 +90,15 @@ export default function Details(){
  return <Shell>
   <Action label="Back" secondary icon="arrow-left" onPress={()=>router.back()}/>
   <Head eyebrow="DISCOVER · COMMUNITY" title={id==="all"?(config?.label||"Discover"):(item?.title||"Community")} subtitle={kind==="events"&&result.data?.organization?.name?result.data.organization.name:id==="all"?config?.subtitle:"Published by the mosque."}/>
+  {kind==="events"&&id==="all"&&user?.isVerified?
+   <View style={{gap:6}}><Field label="Search gatherings by name or location" value={search} onChange={setSearch}/>
+    {search.trim().length===1?<Text style={S.muted}>Enter at least two characters to search.</Text>:null}
+   </View>:null}
   <Feedback loading={result.loading} error={result.error} empty={!result.data?.items.length} refresh={result.refresh}/>
   {id==="all"?<View style={S.section}>{result.data?.items.map(x=><PressRow key={x.id} title={x.title} subtitle={x.description||x.body||x.purpose||x.company||"View details and next steps"} icon="chevron-right-circle-outline" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind,id:x.id}})}/>)}</View>
   :item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
    {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
-   {item.startAt||item.startsAt?<Text style={S.muted}>Date: {new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
+   {item.startAt||item.startsAt?<Text style={S.muted}>Date: {kind==="events"?gatheringTime(item.startAt||item.startsAt||"",result.data?.organization?.timeZone):new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
    {kind==="events"&&item.capacity!==null&&item.capacity!==undefined?
     <Text style={S.muted}>{item.rsvpCount??0} of {item.capacity} places confirmed · {item.waitlistEnabled?"Waitlist available if full":"No waitlist"}</Text>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
