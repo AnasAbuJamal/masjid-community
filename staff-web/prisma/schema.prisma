@@ -94,6 +94,7 @@ model Organization {
   memberships OrganizationMembership[]
   staffInvitations StaffInvitation[]
   deletionRequests DeletionRequest[]
+  notifications Notification[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -640,6 +641,10 @@ model RentalBooking {
 }
 model Notification {
   id String @id @default(cuid())
+  // Nullable only for legacy unsafely unowned notifications, which remain
+  // hidden and undeliverable until individually reviewed by privacy staff.
+  organizationId String?
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict)
   userId String
   user User @relation(fields:[userId],references:[id])
   title String
@@ -647,6 +652,8 @@ model Notification {
   readAt DateTime?
   createdAt DateTime @default(now())
   outboxEvents OutboxEvent[]
+  @@index([organizationId,userId,createdAt])
+  @@index([userId,organizationId,readAt])
 }
 model AuditEvent {
   id String @id @default(cuid())
