@@ -257,3 +257,48 @@ retention and rate limits, verify full screen-reader/device flows,
 and secure written security/organization owner signoff. No deployment,
 provider configuration, app-store publication or live migration was
 requested or performed.
+
+
+## Private account export step-up gate (October 30, 2026)
+
+`POST /api/v1/account/export` requires password reauthentication,
+explicit confirmation, a currently verified active membership and fresh
+session MFA for enrolled users. The historic GET endpoint is disabled.
+The response and failures use `Cache-Control: no-store`. Completed
+exports are audited without recording exported data; no raw passwords
+are retained. The mobile app clears its password input before sharing.
+External OS share destinations are controlled by the user and may
+retain a copy; never imply end-to-end encrypted archive delivery.
+
+The export intentionally excludes child records, sensitive care
+narratives and data from other mosques; 200-record truncation is
+explicit. This is not a complete statutory data-subject access package.
+Approve data retention, access rights, dependent rights, secure-file
+delivery/expiry and multi-organization scoping before real use.
+
+## Signed provider payouts: evidence, NOT bank reconciliation
+
+The additive `20261030140000_provider_payout_register` migration
+creates a signed-event payout register and append-only human notes.
+Stripe webhook signature and provider event idempotency are enforced.
+The payout ID/amount/currency are immutable; a delayed event cannot
+silently reverse a paid/failed report. The finance UI marks every
+provider payout **NOT MATCHED**. A provider-reported paid status
+is NOT a bank credit, fee reconciliation or proof of source payment.
+
+One global `STRIPE_SECRET_KEY` cannot safely map incoming payout
+events when more than one organization exists; the current handler
+rejects that state until verified provider-account ownership is
+implemented. Do not assign another organization's payout to the
+default mosque. Notes do not write accounting entries or certify
+settlement. Payout amount/fees/disputes and bank credits require
+provider balance-transaction retrieval, bank statements, explicit
+journal lines, independent financial review and reconciliation
+exception controls.
+
+Before real-money rollout, test the full signed provider event suite,
+independent charge/refund/provider fee/adjustment/dispute matching,
+payout reversal, late/duplicate events, full refunds, two-person
+approval and bank statement ties in isolated Stripe test mode,
+then in a separately approved controlled pilot. This increment
+deliberately stops short of F-031 completion and of live deployment.
