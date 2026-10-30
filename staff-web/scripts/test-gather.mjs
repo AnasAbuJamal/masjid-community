@@ -16,7 +16,7 @@ async function request(path,method="GET",payload,token){
  const body=await response.json().catch(()=>({}));
  return {status:response.status,...body};
 }
-let eventId,closedId,otherEventId,otherOrgId,screenedEventId;
+let eventId,closedId,otherEventId,otherOrgId,screenedEventId,policyEventId;
 const syntheticUsers=[];
 try{
  const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
@@ -150,6 +150,56 @@ try{
  assert.equal(full.status,409,"full event without waitlist rejects reservation");
  assert.equal(full.error.code,"EVENT_FULL");
  assert.equal((await db.event.findUnique({where:{id:closedId}})).rsvpCount,1);
+
+ // Organizer-defined RSVP and cancellation cutoffs are distinct: an existing
+ // confirmed attendee can safely retry the same RSVP after the deadline,
+ // but a new attendee cannot join, even a waitlist. Earlier cancellations
+ // must be denied without deleting the seat or promoting other attendees.
+ const policyEvent=await db.event.create({data:{
+  ...fixture,title:"CI event with explicit RSVP and cancellation cutoffs",
+  capacity:2,waitlistEnabled:true,
+  rsvpDeadlineAt:new Date(Date.now()-60000),
+  cancellationDeadlineAt:new Date(Date.now()-60000),
+  cancellationTerms:"Cancellations close at the posted cutoff; contact the host."
+ }});
+ policyEventId=policyEvent.id;
+ const policyListing=await request("events/catalog?eventId="+policyEvent.id,"GET",null,memberToken);
+ assert.equal(policyListing.status,200);
+ assert.ok(policyListing.data.items[0].rsvpDeadlineAt,"client must receive the actual deadline");
+ assert.match(policyListing.data.items[0].cancellationTerms,/Cancellations close/);
+ const deniedJoin=await request("actions","POST",{kind:"rsvp",eventId:policyEvent.id},memberToken);
+ assert.equal(deniedJoin.status,409);
+ assert.equal(deniedJoin.error.code,"RSVP_CLOSED");
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:policyEvent.id}})).rsvpCount,0);
+ await db.event.update({where:{id:policyEvent.id},data:{
+  rsvpDeadlineAt:new Date(Date.now()+3600000)
+ }});
+ const firstPolicyJoin=await request("actions","POST",{kind:"rsvp",eventId:policyEvent.id},memberToken);
+ assert.equal(firstPolicyJoin.status,201);
+ assert.equal(firstPolicyJoin.data.status,"confirmed");
+ await db.event.update({where:{id:policyEvent.id},data:{
+  rsvpDeadlineAt:new Date(Date.now()-60000)
+ }});
+ const repeatedPolicyJoin=await request("actions","POST",{kind:"rsvp",eventId:policyEvent.id},memberToken);
+ assert.equal(repeatedPolicyJoin.status,201,"the same accepted RSVP remains idempotent after deadline");
+ assert.equal(repeatedPolicyJoin.data.alreadyJoined,true);
+ const lateJoin=await request("actions","POST",{kind:"rsvp",eventId:policyEvent.id},staffToken);
+ assert.equal(lateJoin.status,409);
+ assert.equal(lateJoin.error.code,"RSVP_CLOSED");
+ const lateCancel=await request("events/rsvp","DELETE",{eventId:policyEvent.id},memberToken);
+ assert.equal(lateCancel.status,409);
+ assert.equal(lateCancel.error.code,"CANCELLATION_CLOSED");
+ assert.equal((await db.eventRSVP.findUniqueOrThrow({where:{
+  eventId_userId:{eventId:policyEvent.id,userId:member.data.user.id}
+ }})).status,"confirmed","refused late cancellation preserves the accepted seat");
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:policyEvent.id}})).rsvpCount,1);
+ await db.event.update({where:{id:policyEvent.id},data:{
+  cancellationDeadlineAt:new Date(Date.now()+3600000)
+ }});
+ const validCancellation=await request("events/rsvp","DELETE",{eventId:policyEvent.id},memberToken);
+ assert.equal(validCancellation.status,200);
+ assert.equal(validCancellation.data.cancelled,true);
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:policyEvent.id}})).rsvpCount,0);
  // A second organization is never accessible to a member of the first one.
  const otherOrg=await db.organization.create({data:{slug:"gather-ci-"+Date.now(),name:"Isolated mosque"}});
  otherOrgId=otherOrg.id;
@@ -165,7 +215,7 @@ try{
  assert.equal(foreignCalendar.status,404,"public calendar rejects events from other mosques");
  console.log("Verified confirmed seats, eligible-only waitlist promotion, ineligible state preservation, notices, idempotency, capacity and organization isolation.");
 }finally{
- for(const id of [eventId,closedId,otherEventId,screenedEventId].filter(Boolean)){
+ for(const id of [eventId,closedId,otherEventId,screenedEventId,policyEventId].filter(Boolean)){
   await db.eventRSVP.deleteMany({where:{eventId:id}});
   await db.event.deleteMany({where:{id}});
  }

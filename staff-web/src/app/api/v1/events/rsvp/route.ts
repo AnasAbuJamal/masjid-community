@@ -26,6 +26,8 @@ export async function DELETE(req:NextRequest){
     if(!current)return {cancelled:true,alreadyCancelled:true,promotedWaitlist:false};
     if(current.checkedInAt)
      throw new HttpError(409,"ALREADY_CHECKED_IN","An attendee who has checked in requires an audited host correction before cancellation.");
+    if(event.cancellationDeadlineAt&&event.cancellationDeadlineAt<=new Date())
+     throw new HttpError(409,"CANCELLATION_CLOSED","The gathering's cancellation deadline has passed. Contact an assigned host.");
     await tx.eventRSVP.delete({where:{id:current.id}});
     let promotedWaitlist=false;
     if(current.status==="confirmed"){

@@ -4,7 +4,13 @@ type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<st
 type Kind="announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental"|"article"|"construction"|"milestone";
 const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
  announcement:[{key:"title",label:"Headline"},{key:"body",label:"Announcement",type:"textarea"}],
- event:[{key:"title",label:"Event title"},{key:"description",label:"Details",type:"textarea"},{key:"location",label:"Location"},{key:"startAt",label:"Start",type:"datetime-local"},{key:"endAt",label:"End",type:"datetime-local"},{key:"capacity",label:"Capacity",type:"number"}],
+ event:[{key:"title",label:"Event title"},{key:"description",label:"Details",type:"textarea"},{key:"location",label:"Location"},
+  {key:"startAt",label:"Start (local device time)",type:"datetime-local"},
+  {key:"endAt",label:"End (local device time)",type:"datetime-local"},
+  {key:"rsvpDeadlineAt",label:"RSVP deadline (optional, local time)",type:"datetime-local"},
+  {key:"cancellationDeadlineAt",label:"Cancellation cutoff (optional, local time)",type:"datetime-local"},
+  {key:"cancellationTerms",label:"Cancellation terms (optional)",type:"textarea"},
+  {key:"capacity",label:"Capacity",type:"number"}],
  program:[{key:"title",label:"Program"},{key:"description",label:"Description",type:"textarea"}],
  campaign:[{key:"title",label:"Campaign title"},{key:"purpose",label:"Purpose",type:"textarea"},{key:"goalMinor",label:"Goal in cents",type:"number"}],
  volunteer:[{key:"title",label:"Opportunity"},{key:"description",label:"Description",type:"textarea"},{key:"startsAt",label:"Start",type:"datetime-local"},{key:"capacity",label:"Capacity",type:"number"}],
@@ -30,8 +36,10 @@ export default function Admin(){
   setBusy(true);setError("");setNotice("");
   const raw:Record<string,unknown>={kind,published,...form,...(kind==="event"?{waitlistEnabled}:{})};
   for(const key of ["capacity","goalMinor"])if(raw[key]!==undefined&&raw[key]!=="")raw[key]=Number(raw[key]);
-  for(const key of ["startAt","endAt","startsAt","completedAt"])if(raw[key])raw[key]=new Date(String(raw[key])).toISOString();
-  if(raw.capacity==="")delete raw.capacity;if(raw.goalMinor==="")delete raw.goalMinor;if(raw.completedAt==="")delete raw.completedAt;
+  for(const key of ["startAt","endAt","startsAt","completedAt","rsvpDeadlineAt","cancellationDeadlineAt"])
+   if(raw[key])raw[key]=new Date(String(raw[key])).toISOString();
+  for(const key of ["capacity","goalMinor","completedAt","rsvpDeadlineAt","cancellationDeadlineAt","cancellationTerms"])
+   if(raw[key]==="")delete raw[key];
   try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(raw)});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");setNotice(names[kind]+" saved successfully.");setForm({});setPublished(false);setWaitlistEnabled(false);await reload();}
   catch(e){setError(e instanceof Error?e.message:"Save failed.");}
   finally{setBusy(false);}

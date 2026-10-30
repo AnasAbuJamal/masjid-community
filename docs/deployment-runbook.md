@@ -567,3 +567,19 @@ approved safeguarding/privacy/finance policies, and written release signoff
 are required before a production deployment. If auto-release protection
 cannot be verified, stop unsafe pushes. No production deployment or live
 database migration was authorized or performed in this increment.
+
+
+## Optional gathering policy migration gate (October 30, 2026)
+
+The additive migration `20261030233000_event_reservation_policy` introduces nullable
+RSVP deadline, cancellation deadline and cancellation-terms columns on Event.
+For existing gatherings, all three values remain NULL, preserving the prior
+registration and cancellation cutoff at gathering start. No backfill or
+destructive change is included. Newly configured cutoffs must be no later
+than start and are enforced by the existing serialized RSVP/cancellation APIs;
+the public and mobile details state the exact configured policy.
+
+**Do not apply this migration to production** until backup/restore rehearsal,
+migration-diff review, separate organizer policy approval, rollback plan,
+safeguarding/accessibility review, and written deployment sign-off are
+complete. This branch change only permits disposable CI database verification.

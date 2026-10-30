@@ -25,7 +25,9 @@ export default async function PublicDetail({ params }: Props) {
   if (kind === "gatherings") {
     const item = await db.event.findFirst({
       where: { id, organizationId, status: "published" },
-      select: { title: true, description: true, location: true, startAt: true, endAt: true, capacity: true, rsvpCount: true, waitlistEnabled: true },
+      select: { title: true, description: true, location: true, startAt: true, endAt: true,
+        capacity: true, rsvpCount: true, waitlistEnabled: true, rsvpDeadlineAt: true,
+        cancellationDeadlineAt: true, cancellationTerms: true },
     });
     if (!item) notFound();
     title = item.title; body = item.description; label = "PUBLIC GATHERING";
@@ -33,6 +35,9 @@ export default async function PublicDetail({ params }: Props) {
       weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: organization.timeZone, timeZoneName: "short",
     }).format(date);
     facts = [format(item.startAt), "Ends " + format(item.endAt), item.location,
+      "RSVP closes " + format(item.rsvpDeadlineAt ?? item.startAt),
+      "Cancellation closes " + format(item.cancellationDeadlineAt ?? item.startAt),
+      ...(item.cancellationTerms?["Cancellation terms: " + item.cancellationTerms]:[]),
       ...(item.capacity===null?[]:[
         String(item.rsvpCount)+" of "+String(item.capacity)+" places confirmed",
         item.waitlistEnabled?"Waitlist available if full":"No waitlist for this gathering"

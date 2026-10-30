@@ -8,7 +8,8 @@ import {api,apiPost} from "../../../src/api";
 import {useSession} from "../../../src/session";
 import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from "../../../src/searchScope";
 import {MemberScopeNotice} from "../../../src/MemberScopeNotice";
-type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;filled?:number;publishedAt?:string;currency?:string};
+type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
+ cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string};
 type Result={items:RecordItem[];organization?:{name:string;timeZone?:string}};
 type OwnRegistration={eventId:string;registration:{status:string;createdAt:string;checkedInAt:string|null}|null};
 const categories:{[key:string]:{label:string;subtitle:string}}={
@@ -68,11 +69,16 @@ export default function Details(){
  const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedSelected?`events/registration?eventId=${encodeURIComponent(id)}`:null);
  const [message,setMessage]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[letter,setLetter]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState("");
  const item=result.data?.items.find(x=>x.id===id);
+ const reservationClosed=kind==="events"&&!!item?.startAt&&
+  Date.now()>=new Date(item.rsvpDeadlineAt||item.startAt).getTime();
+ const cancellationClosed=kind==="events"&&!!item?.startAt&&
+  Date.now()>=new Date(item.cancellationDeadlineAt||item.startAt).getTime();
  async function perform(){
   if(blocked){setError("This action is unavailable at your selected mosque.");return;}
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError("Verify your email before participating.");return;}
   if(!item)return;
+  if(kind==="events"&&reservationClosed){setError("The RSVP deadline has passed.");return;}
   setBusy(true);setError("");setMessage("");
   try{
    const input=kind==="events"?{kind:"rsvp",eventId:item.id}
@@ -90,6 +96,7 @@ export default function Details(){
  }
  async function cancelEvent(){
   if(!item||!user?.isVerified)return;
+  if(cancellationClosed){setError("The cancellation deadline has passed. Contact an assigned host.");return;}
   setBusy(true);setError("");setMessage("");
   try{
    await api("events/rsvp",{method:"DELETE",body:JSON.stringify({eventId:item.id})});
@@ -114,6 +121,11 @@ export default function Details(){
    {item.startAt||item.startsAt?<Text style={S.muted}>Date: {kind==="events"?gatheringTime(item.startAt||item.startsAt||"",result.data?.organization?.timeZone):new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
    {kind==="events"&&item.capacity!==null&&item.capacity!==undefined?
     <Text style={S.muted}>{item.rsvpCount??0} of {item.capacity} places confirmed · {item.waitlistEnabled?"Waitlist available if full":"No waitlist"}</Text>:null}
+   {kind==="events"&&item.startAt?<View style={{gap:6}}>
+    <Text style={S.muted}>RSVP closes: {gatheringTime(item.rsvpDeadlineAt||item.startAt,result.data?.organization?.timeZone)}{reservationClosed?" · Closed":""}</Text>
+    <Text style={S.muted}>Cancellation closes: {gatheringTime(item.cancellationDeadlineAt||item.startAt,result.data?.organization?.timeZone)}{cancellationClosed?" · Closed":""}</Text>
+    <Text style={S.bodyText}>{item.cancellationTerms||"Cancellations are allowed before the stated cutoff, unless attendance was already checked in."}</Text>
+   </View>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
     <Text style={[S.label,{color:T.deep}]} accessibilityRole="text">
      Your registration: {own.data.registration.status==="waitlisted"?"Waitlisted — not confirmed":own.data.registration.checkedInAt?"Checked in — arrival confirmed":"Confirmed place"}
@@ -130,10 +142,10 @@ export default function Details(){
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
      <Action label={own.data.registration.status==="waitlisted"?"Leave waitlist":"Cancel my reservation"}
-      secondary disabled={busy||own.loading||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
+      secondary disabled={busy||own.loading||cancellationClosed||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
     :null}
    {kind==="campaigns"?<Action label="Choose a donation" icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
-    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?"Sign in to participate":kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(item.waitlistEnabled?"Join event waitlist":"Event full — no waitlist"):"RSVP to event"):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={own.loading||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
+    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?"Sign in to participate":kind==="events"&&reservationClosed?"RSVP closed":kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(item.waitlistEnabled?"Join event waitlist":"Event full — no waitlist"):"RSVP to event"):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={own.loading||!!reservationClosed||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
     :null}
   </Card>:null}
  </Shell>;

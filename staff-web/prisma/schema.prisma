@@ -281,6 +281,11 @@ model Event {
   location String
   startAt DateTime
   endAt DateTime
+  // NULL keeps legacy start-time registration/cancellation behavior.
+  // Set earlier cutoffs only after mosque policy review.
+  rsvpDeadlineAt DateTime?
+  cancellationDeadlineAt DateTime?
+  cancellationTerms String?
   capacity Int?
   rsvpCount Int @default(0)
   waitlistEnabled Boolean @default(false)

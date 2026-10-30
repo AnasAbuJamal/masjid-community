@@ -29,7 +29,8 @@ export async function GET(req:NextRequest){
   ]}:{};
   const select={
    id:true,title:true,description:true,location:true,startAt:true,endAt:true,
-   capacity:true,rsvpCount:true,waitlistEnabled:true
+   capacity:true,rsvpCount:true,waitlistEnabled:true,
+   rsvpDeadlineAt:true,cancellationDeadlineAt:true,cancellationTerms:true
   } as const;
   const items=eventId?await db.event.findMany({
    where:{id:eventId,organizationId:org.id,status:"published"},

@@ -8,7 +8,10 @@ const name=z.string().trim().min(3).max(150);
 const description=z.string().trim().min(10).max(4000);
 const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("announcement"),title:name,body:description,urgent:z.boolean().default(false),published:z.boolean().default(false)}),
- z.object({kind:z.literal("event"),title:name,description,location:z.string().trim().min(3).max(200),startAt:z.iso.datetime(),endAt:z.iso.datetime(),capacity:z.number().int().positive().optional(),waitlistEnabled:z.boolean().default(false),published:z.boolean().default(false)}),
+ z.object({kind:z.literal("event"),title:name,description,location:z.string().trim().min(3).max(200),startAt:z.iso.datetime(),endAt:z.iso.datetime(),
+  rsvpDeadlineAt:z.iso.datetime().optional(),cancellationDeadlineAt:z.iso.datetime().optional(),
+  cancellationTerms:z.string().trim().min(10).max(1000).optional(),
+  capacity:z.number().int().positive().optional(),waitlistEnabled:z.boolean().default(false),published:z.boolean().default(false)}),
  z.object({kind:z.literal("program"),title:name,description,published:z.boolean().default(false)}),
  z.object({kind:z.literal("campaign"),title:name,purpose:description,goalMinor:z.number().int().positive().optional(),published:z.boolean().default(false)}),
  z.object({kind:z.literal("volunteer"),title:name,description,startsAt:z.iso.datetime(),capacity:z.number().int().positive(),published:z.boolean().default(false)}),
@@ -62,8 +65,17 @@ export async function POST(req:NextRequest){
   if(input.kind==="announcement"){
     result=await db.announcement.create({data:{organizationId:org.id,title:input.title,body:input.body,kind:input.urgent?"urgent":"general",status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});
   }else if(input.kind==="event"){
-    if(new Date(input.endAt)<=new Date(input.startAt))throw new HttpError(422,"INVALID_TIME","End date must be after start date.");
-    result=await db.event.create({data:{organizationId:org.id,title:input.title,description:input.description,location:input.location,startAt:new Date(input.startAt),endAt:new Date(input.endAt),capacity:input.capacity,waitlistEnabled:input.waitlistEnabled,status:input.published?"published":"draft"}});
+    const startAt=new Date(input.startAt),endAt=new Date(input.endAt);
+    if(endAt<=startAt)throw new HttpError(422,"INVALID_TIME","End date must be after start date.");
+    if((input.rsvpDeadlineAt&&new Date(input.rsvpDeadlineAt)>startAt)||
+       (input.cancellationDeadlineAt&&new Date(input.cancellationDeadlineAt)>startAt))
+      throw new HttpError(422,"INVALID_DEADLINE","RSVP and cancellation cutoffs must not be later than the gathering start.");
+    result=await db.event.create({data:{organizationId:org.id,title:input.title,description:input.description,
+      location:input.location,startAt,endAt,capacity:input.capacity,
+      rsvpDeadlineAt:input.rsvpDeadlineAt?new Date(input.rsvpDeadlineAt):null,
+      cancellationDeadlineAt:input.cancellationDeadlineAt?new Date(input.cancellationDeadlineAt):null,
+      cancellationTerms:input.cancellationTerms||null,
+      waitlistEnabled:input.waitlistEnabled,status:input.published?"published":"draft"}});
   }else if(input.kind==="program"){
     result=await db.schoolProgram.create({data:{organizationId:org.id,title:input.title,description:input.description,published:input.published}});
   }else if(input.kind==="campaign"){

@@ -41,6 +41,19 @@ const enabled=await request("auth/mfa-enable","POST",{code:otp},admin.data.token
 assert.equal(enabled.status,200,"valid authenticator enrolled");
 const allowed=await request("admin","GET",null,admin.data.token);
 assert.equal(allowed.status,200,"MFA-verified session can enter admin");
+const wrongCutoff={kind:"event",title:"CI invalid event policy",
+ description:"Fictional gathering for invalid RSVP policy validation.",
+ location:"Synthetic CI community hall",startAt:"2032-11-05T15:00:00.000Z",
+ endAt:"2032-11-05T16:00:00.000Z",rsvpDeadlineAt:"2032-11-05T15:01:00.000Z"};
+const rsvpAfterStart=await request("admin","POST",wrongCutoff,admin.data.token);
+assert.equal(rsvpAfterStart.status,422,"a posted RSVP deadline cannot be later than the event start");
+assert.equal(rsvpAfterStart.error.code,"INVALID_DEADLINE");
+const cancellationAfterStart=await request("admin","POST",{
+ ...wrongCutoff,rsvpDeadlineAt:"2032-11-05T14:00:00.000Z",
+ cancellationDeadlineAt:"2032-11-05T15:01:00.000Z"
+},admin.data.token);
+assert.equal(cancellationAfterStart.status,422);
+assert.equal(cancellationAfterStart.error.code,"INVALID_DEADLINE");
 const team=await request("admin/team","GET",null,admin.data.token);
 assert.equal(team.status,200,"verified admin can inspect scoped organization access");
 assert.ok(team.data.memberships.some(m=>m.user.email===staffEmail));

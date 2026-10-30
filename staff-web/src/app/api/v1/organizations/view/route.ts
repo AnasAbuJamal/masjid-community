@@ -88,7 +88,8 @@ export async function GET(req:NextRequest){
      organizationId:org.id,status:"published",startAt:{gte:now}
     },take:3,orderBy:{startAt:"asc"},select:{
      id:true,title:true,description:true,location:true,startAt:true,endAt:true,
-     capacity:true,rsvpCount:true,waitlistEnabled:true
+     capacity:true,rsvpCount:true,waitlistEnabled:true,
+     rsvpDeadlineAt:true,cancellationDeadlineAt:true,cancellationTerms:true
     }})
    ]);
    return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone},

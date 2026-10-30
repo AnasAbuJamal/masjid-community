@@ -25,7 +25,7 @@ export default function Search(){
  const limited=scope==="published_selected";
  const items=(results.data?.items||[]).map(item=>({
   ...item,kind:item.kind||"events"
- });
+ }));
  const choices=limited?["all","events","announcements","articles"]:categories;
  return <Shell><Action label="Back to Discover" secondary icon="arrow-left" onPress={()=>router.back()}/>
  <Head eyebrow="DISCOVER · SEARCH" title="Find your community."

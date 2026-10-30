@@ -486,3 +486,11 @@ No feature is considered production-complete until it meets the privacy, accurac
 
 ### Verification correction: source inventory for F-030
 - Replaced the obsolete source assertion that restricted published financial budgets to the pilot mosque. The corrected assertion requires the approved selected-mosque read-only path, guest public pilot fallback and a null path for unresolved or inactive member context. All backend treasury write restrictions remain unchanged.
+
+
+### Sixty-sixth implementation pass: F-008/F-009 organizer-defined gathering cutoffs
+- Added an additive nullable Event schema/migration for per-gathering RSVP deadline, cancellation deadline and written cancellation terms. NULL preserves the existing start-time cutoff; no existing reservations or seats are backfilled, deleted, or reallocated.
+- MFA-verified home-mosque administrators can enter optional cutoff times and display terms when creating events. Server validation rejects either cutoff later than the actual gathering start. The member RSVP transaction refuses new reservations/waitlist entries after the cutoff while keeping accepted duplicate retries idempotent; cancellation refuses existing seats after the configured cancellation cutoff, without deleting/presumptively promoting anyone.
+- Published public and authenticated gathering feeds and the guest detail website expose the exact policy. The native detail screen displays both cutoffs in the returned mosque's timezone (with explicit fallback), disables late join/cancellation controls, and still relies on server enforcement for races.
+- Disposable PostgreSQL/HTTP tests exercise closed RSVP admission, pre-cutoff successful admission, post-cutoff duplicate handling, denied late new RSVP, preserved reservations on denied cancellation, valid permitted cancellation, and rejected staff-authored cutoffs after event start. Source inventory checks assert enforcement remains in both API routes.
+- **Release blockers:** migration requires independent review of a restored production-like backup, written organizer cancellation terms/policy, safeguarding review, real-device Arabic/RTL and screen-reader testing, provider/operational approvals and all production secrets. No live database migration, provider action or production deployment was attempted.

@@ -45,8 +45,13 @@ export async function POST(req:NextRequest){
         joined:existing.status==="confirmed",alreadyJoined:true,status:existing.status,
         message:existing.status==="confirmed"?"You already have a confirmed place.":"You are already on the waitlist."
       };
+      // A confirmed attendee can safely retry even after an earlier cutoff.
+      // Only NEW reservations/waitlist requests are blocked by that cutoff.
+      if(event.rsvpDeadlineAt&&event.rsvpDeadlineAt<=new Date())
+        throw new HttpError(409,"RSVP_CLOSED","Reservations for this gathering have closed.");
       const claimed=await tx.event.updateMany({
         where:{id:event.id,status:"published",startAt:{gt:new Date()},
+          ...(event.rsvpDeadlineAt?{rsvpDeadlineAt:{gt:new Date()}}:{}),
           ...(event.capacity===null?{}:{rsvpCount:{lt:event.capacity}})},
         data:{rsvpCount:{increment:1}}
       });
@@ -54,6 +59,8 @@ export async function POST(req:NextRequest){
         await tx.eventRSVP.create({data:{eventId:event.id,userId:user.id,status:"confirmed"}});
         return {joined:true,alreadyJoined:false,status:"confirmed",message:"Your event reservation is confirmed."};
       }
+      if(event.rsvpDeadlineAt&&event.rsvpDeadlineAt<=new Date())
+        throw new HttpError(409,"RSVP_CLOSED","Reservations for this gathering have closed.");
       if(!event.waitlistEnabled)
         throw new HttpError(409,"EVENT_FULL","This gathering is full and has no waitlist.");
       await tx.eventRSVP.create({data:{eventId:event.id,userId:user.id,status:"waitlisted"}});
