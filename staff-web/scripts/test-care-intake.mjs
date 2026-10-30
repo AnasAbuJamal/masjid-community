@@ -205,6 +205,9 @@ try{
  if(foreignOrg)await db.organization.deleteMany({where:{id:foreignOrg.id}});
  if(sessionIds.length)await db.authSession.deleteMany({where:{id:{in:sessionIds}}});
  if(memberIds.length){
+  // These artificial reviewers leave audit records referencing their user IDs.
+  // Delete only CI-generated audit data before deleting disposable identities.
+  await db.auditEvent.deleteMany({where:{actorId:{in:memberIds}}});
   await db.roleGrant.deleteMany({where:{membership:{userId:{in:memberIds}}}});
   await db.organizationMembership.deleteMany({where:{userId:{in:memberIds}}});
   await db.user.deleteMany({where:{id:{in:memberIds}}});
