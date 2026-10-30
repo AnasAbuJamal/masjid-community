@@ -29,10 +29,21 @@ export async function GET(req:NextRequest){
      data:{status:"leased",leaseUntil:new Date(Date.now()+60_000),attempts:{increment:1}}});
    if(!acquired.count){skipped++;continue;}
    const row=await db.outboxEvent.findUnique({where:{id:item.id},include:{
-    user:{select:{email:true,status:true,verifiedAt:true}},notification:{select:{title:true}}}});
+    user:{select:{email:true,status:true,verifiedAt:true}},notification:{select:{title:true,userId:true,organizationId:true}}}});
    if(!row){skipped++;continue;}
-   if(row.user.status!=="active"||!row.user.verifiedAt){
-    await db.outboxEvent.update({where:{id:row.id},data:{status:"exhausted",leaseUntil:null,lastErrorCode:"recipient_unavailable"}});
+   // Legacy NULL organization messages have no provable owner. They must
+   // never be delivered or shown, and no recipient's other mosque membership
+   // may be used to justify a cross-tenant email.
+   const orgId=row.notification.organizationId;
+   const membership=orgId?await db.organizationMembership.findUnique({where:{
+    organizationId_userId:{organizationId:orgId,userId:row.userId}
+   },select:{status:true}}):null;
+   if(!orgId||row.notification.userId!==row.userId||
+    row.user.status!=="active"||!row.user.verifiedAt||
+    membership?.status!=="active"){
+    await db.outboxEvent.update({where:{id:row.id},data:{
+     status:"exhausted",leaseUntil:null,lastErrorCode:"tenant_recipient_unavailable"
+    }});
     skipped++;continue;
    }
    try{

@@ -11,7 +11,7 @@ export async function GET(req:NextRequest){
   const [donations,rsvps,notifications,children,classes,bookings,volunteerApplications,jobApplications]=await Promise.all([
     db.donation.findMany({where:{donorId:user.id,campaign:{organizationId:org.id}},orderBy:{createdAt:"desc"},take:30,select:{id:true,amountMinor:true,currency:true,status:true,createdAt:true,campaign:{select:{title:true}},receipt:{select:{id:true,receiptNumber:true,issuedAt:true,reversedAt:true}}}}),
     db.eventRSVP.findMany({where:{userId:user.id,event:{organizationId:org.id}},include:{event:{select:{id:true,title:true,startAt:true}}},take:30}),
-    db.notification.findMany({where:{userId:user.id},orderBy:{createdAt:"desc"},take:30}),
+    db.notification.findMany({where:{userId:user.id,organizationId:org.id},orderBy:{createdAt:"desc"},take:30}),
     db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,
       student:schoolStudentScope(org.id)},
       select:{student:{select:{id:true,firstName:true,lastName:true,
