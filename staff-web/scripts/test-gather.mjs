@@ -1,5 +1,6 @@
 // Full-event capacity, waitlist and promotion tests on an isolated CI database.
 import assert from "node:assert/strict";
+import {randomUUID} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {PrismaClient} from "@prisma/client";
 if(process.env.NODE_ENV==="production"||process.env.VERCEL||!process.env.DATABASE_URL?.includes("masjid_ci"))
@@ -15,7 +16,8 @@ async function request(path,method="GET",payload,token){
  const body=await response.json().catch(()=>({}));
  return {status:response.status,...body};
 }
-let eventId,closedId,otherEventId,otherOrgId;
+let eventId,closedId,otherEventId,otherOrgId,screenedEventId;
+const syntheticUsers=[];
 try{
  const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(organization);
@@ -97,6 +99,49 @@ try{
  assert.equal((await db.event.findUnique({where:{id:eventId}})).rsvpCount,0);
  const ownCancelled=await request("events/registration?eventId="+eventId,"GET",null,staffToken);
  assert.equal(ownCancelled.data.registration,null);
+
+ // Older waiters whose membership/account eligibility expired cannot be
+ // promoted, but their historical RSVP rows must not be silently deleted.
+ const screened=await db.event.create({data:{...fixture,title:"CI eligible-only waitlist"}});
+ screenedEventId=screened.id;
+ const initial=await request("actions","POST",{kind:"rsvp",eventId:screened.id},memberToken);
+ assert.equal(initial.data?.status,"confirmed");
+ for(const [index,reason] of ["suspended","unverified","disabled"].entries()){
+  const user=await db.user.create({data:{
+   email:"ci-waitlist-"+reason+"-"+randomUUID()+"@example.invalid",
+   firstName:"Synthetic",lastName:"Ineligible",
+   passwordHash:"not-a-valid-signin-hash",
+   verifiedAt:reason==="unverified"?null:new Date(),
+   status:reason==="disabled"?"disabled":"active"
+  }});
+  syntheticUsers.push(user.id);
+  await db.organizationMembership.create({data:{
+   organizationId:organization.id,userId:user.id,status:reason==="suspended"?"suspended":"active"
+  }});
+  await db.eventRSVP.create({data:{
+   eventId:screened.id,userId:user.id,status:"waitlisted",
+   createdAt:new Date(Date.UTC(2025,0,index+1))
+  }});
+ }
+ const eligible=await request("actions","POST",{kind:"rsvp",eventId:screened.id},staffToken);
+ assert.equal(eligible.data?.status,"waitlisted");
+ const promotion=await request("events/rsvp","DELETE",{eventId:screened.id},memberToken);
+ assert.equal(promotion.status,200,JSON.stringify(promotion));
+ assert.equal(promotion.data.promotedWaitlist,true);
+ const promotedStaff=await db.eventRSVP.findUniqueOrThrow({where:{
+  eventId_userId:{eventId:screened.id,userId:staff.data.user.id}
+ }});
+ assert.equal(promotedStaff.status,"confirmed","first currently eligible waiter promoted");
+ assert.equal(await db.eventRSVP.count({where:{
+  eventId:screened.id,status:"waitlisted",userId:{in:syntheticUsers}
+ }}),3,"ineligible historical waitlist rows remain untouched");
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:screened.id}})).rsvpCount,1);
+ const noEligible=await request("events/rsvp","DELETE",{eventId:screened.id},staffToken);
+ assert.equal(noEligible.status,200,JSON.stringify(noEligible));
+ assert.equal(noEligible.data.promotedWaitlist,false);
+ assert.equal((await db.event.findUniqueOrThrow({where:{id:screened.id}})).rsvpCount,0,
+  "confirmed seat released if no eligible waiter");
+ assert.equal(await db.eventRSVP.count({where:{eventId:screened.id,status:"confirmed"}}),0);
  const deniedEvent=await db.event.create({data:{...fixture,title:"CI gathering without waitlist",waitlistEnabled:false}});
  closedId=deniedEvent.id;
  const accepted=await request("actions","POST",{kind:"rsvp",eventId:closedId},memberToken);
@@ -118,11 +163,15 @@ try{
  assert.equal(foreignRegistration.status,404,"member cannot read foreign event registration state");
  const foreignCalendar=await fetch(base+"events/"+otherEventId+"/calendar");
  assert.equal(foreignCalendar.status,404,"public calendar rejects events from other mosques");
- console.log("Verified confirmed seats, honest waitlist, cancellation promotion, notices, idempotency, capacity and organization isolation.");
+ console.log("Verified confirmed seats, eligible-only waitlist promotion, ineligible state preservation, notices, idempotency, capacity and organization isolation.");
 }finally{
- for(const id of [eventId,closedId,otherEventId].filter(Boolean)){
+ for(const id of [eventId,closedId,otherEventId,screenedEventId].filter(Boolean)){
   await db.eventRSVP.deleteMany({where:{eventId:id}});
   await db.event.deleteMany({where:{id}});
+ }
+ if(syntheticUsers.length){
+  await db.organizationMembership.deleteMany({where:{userId:{in:syntheticUsers}}});
+  await db.user.deleteMany({where:{id:{in:syntheticUsers}}});
  }
  if(otherOrgId)await db.organization.deleteMany({where:{id:otherOrgId}});
  await db.$disconnect();

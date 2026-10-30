@@ -29,8 +29,14 @@ export async function DELETE(req:NextRequest){
     await tx.eventRSVP.delete({where:{id:current.id}});
     let promotedWaitlist=false;
     if(current.status==="confirmed"){
+     // Promote only active, verified members of this mosque; keep ineligible
+     // historical waitlist rows for explicit review without allocating a seat.
      const next=await tx.eventRSVP.findFirst({
-      where:{eventId,status:"waitlisted"},orderBy:[{createdAt:"asc"},{id:"asc"}]
+      where:{eventId,status:"waitlisted",checkedInAt:null,
+       user:{status:"active",verifiedAt:{not:null},memberships:{some:{
+        organizationId:organization.id,status:"active"
+       }}}
+      },orderBy:[{createdAt:"asc"},{id:"asc"}]
      });
      if(next){
       const updated=await tx.eventRSVP.updateMany({where:{id:next.id,status:"waitlisted"},data:{status:"confirmed"}});
