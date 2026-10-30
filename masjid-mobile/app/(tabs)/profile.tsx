@@ -7,13 +7,31 @@ import {useResource} from "../../src/useResource";
 import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {api} from "../../src/api";
-type Me={organization?:{name:string};bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;status:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;status:string;checkedInAt:string|null;event:{id:string;title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
+type Commitment={id:string;kind:"gathering"|"service_shift";title:string;status:string;startAt:string;eventId?:string};
+type Me={organization?:{name:string;timeZone?:string};upcoming?:Commitment[];bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;status:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;status:string;checkedInAt:string|null;event:{id:string;title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
 export default function Profile(){
  const {t,language}=useLanguage();
  const {user,logout,refresh:refreshUser}=useSession();
  const [error,setError]=useState(""),[busy,setBusy]=useState("");
  async function cancel(eventId:string){setBusy(eventId);setError("");try{await api("events/rsvp",{method:"DELETE",body:JSON.stringify({eventId})});await result.refresh();}catch(e){setError(e instanceof Error?e.message:"Could not cancel RSVP.");}finally{setBusy("");}}
  const result=useResource<Me>(user?"me":"public/announcements");
+ function upcomingWhen(iso:string){
+  const value=new Date(iso),timeZone=result.data?.organization?.timeZone;
+  if(!Number.isFinite(value.getTime()))return "Time unavailable";
+  if(!timeZone)return value.toLocaleString()+" (device time)";
+  try{
+   return new Intl.DateTimeFormat(undefined,{
+    timeZone,dateStyle:"medium",timeStyle:"short"
+   }).format(value)+" ("+timeZone+")";
+  }catch{return value.toISOString()+" (UTC)";}
+ }
+ function commitmentStatus(c:Commitment){
+  if(c.kind==="service_shift")return "Scheduled shift";
+  if(c.status==="waitlisted")return "Waitlisted — not confirmed";
+  if(c.status==="checked_in")return "Checked in — arrival recorded";
+  if(c.status==="confirmed")return "Confirmed reservation";
+  return "Reservation status: "+c.status;
+ }
  return <Shell>
  <Head eyebrow={t("profile.eyebrow")} title={user?(language==="ar"?"مرحبًا، "+user.firstName:"Welcome, "+user.firstName+"."):t("profile.guest")} subtitle={user?t("profile.member"):t("profile.subtitle")}/>
  {!user?<Card style={{gap:15}}><Text style={S.headline}>{t("profile.connect")}</Text><Text style={S.bodyText}>Create a member account or sign in to join events, donate, volunteer and view private records.</Text><Action label={t("profile.login")} icon="account-circle-outline" onPress={()=>router.push("/auth")}/></Card>:
@@ -21,6 +39,16 @@ export default function Profile(){
  {!user.isVerified?<Action secondary label="Refresh verification status" onPress={()=>void refreshUser()}/>:null}</Card>
  {result.data?.organization?.name?<Text style={S.muted}>{result.data.organization.name}</Text>:null}
  <Feedback loading={result.loading} error={result.error} empty={false} refresh={result.refresh}/>
+ {result.data?.upcoming?.length?<View style={S.section}>
+  <Text style={S.headline}>{language==="ar"?"التزاماتي القادمة":"Upcoming commitments"}</Text>
+  {result.data.upcoming.map(c=><PressRow key={c.kind+":"+c.id}
+   icon={c.kind==="gathering"?"calendar-check-outline":"hand-heart-outline"}
+   title={c.title}
+   subtitle={upcomingWhen(c.startAt)+" · "+commitmentStatus(c)}
+   onPress={()=>c.kind==="gathering"&&c.eventId
+    ?router.push({pathname:"/details/[kind]/[id]",params:{kind:"events",id:c.eventId}})
+    :router.push("/volunteer/shifts")}/>)}
+ </View>:null}
  {result.data?.donations?.length?<View style={S.section}><Text style={S.headline}>{t("profile.giving")}</Text>{result.data.donations.map(d=><Card key={d.id}><Text style={S.label}>{d.campaign.title}</Text><Text style={S.bodyText}>{(d.amountMinor/100).toLocaleString("en-US",{style:"currency",currency:d.currency.toUpperCase()})} · {d.status}</Text>
  {d.receipt?<Action label={"Receipt "+d.receipt.receiptNumber} secondary onPress={()=>router.push({pathname:"/receipt/[id]",params:{id:d.receipt!.id}})}/>:null}</Card>)}</View>:null}
  {result.data?.rsvps?.length?<View style={S.section}><Text style={S.headline}>{t("profile.events")}</Text>{result.data.rsvps.map(r=><Card key={r.id} style={{gap:10}}><Text style={S.label}>{r.event.title}</Text><Text style={S.muted}>{new Date(r.event.startAt).toLocaleString()} · {r.status==="waitlisted"?"Waitlisted — not confirmed":r.checkedInAt?"Checked in — arrival confirmed":"Confirmed reservation"}</Text>{new Date(r.event.startAt)>new Date()&&!r.checkedInAt?<Action label={r.status==="waitlisted"?"Leave waitlist":"Cancel my RSVP"} secondary disabled={!!busy} onPress={()=>void cancel(r.event.id)}/>:null}</Card>)}</View>:null}

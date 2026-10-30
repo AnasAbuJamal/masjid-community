@@ -11,7 +11,8 @@ if(process.env.GITHUB_ACTIONS!=="true"||process.env.NODE_ENV==="production"||
  throw Error("Cross-mosque context tests require disposable CI PostgreSQL.");
 const {adminEmail,memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
 const db=new PrismaClient(),base="http://127.0.0.1:3000/api/v1/";
-const fixture={notes:[],campaigns:[],donations:[],events:[],rsvps:[],prefs:[],invitations:[]};
+const fixture={notes:[],campaigns:[],donations:[],events:[],rsvps:[],prefs:[],invitations:[],
+ opportunities:[],volunteerApplications:[],shifts:[]};
 const createdAt=new Date();
 let foreignOrgId=null,foreignMembershipId=null,adminMembershipId=null;
 const tokens=[];
@@ -111,9 +112,33 @@ try{
   "known foreign event ID must not reveal its publication or metadata");
  const rsvp=await db.eventRSVP.create({data:{eventId:event.id,userId:member.id}});
  fixture.rsvps.push(rsvp.id);
+ // Two genuine future service shifts belong to the same person but different
+ // mosques. Their records must never mix in upcoming commitments.
+ const shifts={};
+ for(const [label,orgId] of [["HOME",home.id],["FOREIGN",foreign.id]]){
+  const opportunity=await db.volunteerOpportunity.create({data:{
+   organizationId:orgId,title:label+"_SYNTHETIC_UPCOMING_SHIFT",
+   description:"Synthetic test volunteer shift",startsAt:new Date(Date.now()+172800000),
+   capacity:3,published:true
+  }});
+  fixture.opportunities.push(opportunity.id);
+  const application=await db.volunteerApplication.create({data:{
+   opportunityId:opportunity.id,userId:member.id,status:"approved"
+  }});
+  fixture.volunteerApplications.push(application.id);
+  const shift=await db.volunteerShift.create({data:{
+   opportunityId:opportunity.id,applicationId:application.id,userId:member.id,
+   startAt:new Date(Date.now()+172800000),endAt:new Date(Date.now()+176400000)
+  }});
+  fixture.shifts.push(shift.id);
+  shifts[label]=shift;
+ }
  const homeInbox=await call("me","GET",undefined,first);
  assert.equal(homeInbox.status,200);
  assert.equal(homeInbox.data.organization.id,home.id);
+ assert.ok(homeInbox.data.upcoming.some(x=>x.id===shifts.HOME.id&&x.kind==="service_shift"));
+ assert.ok(!homeInbox.data.upcoming.some(x=>x.id===shifts.FOREIGN.id||x.eventId===event.id),
+  "home dashboard must exclude all foreign future commitments");
  assert.ok(homeInbox.data.notifications.some(n=>n.id===homeNote.id));
  assert.ok(homeInbox.data.donations.some(d=>d.campaign.title==="HOME_SYNTHETIC_FUND"));
  assert.ok(!JSON.stringify(homeInbox.data).includes("FOREIGN_PRIVATE_CONTEXT_ONLY"));
@@ -194,6 +219,13 @@ try{
  assert.ok(switched.data.notifications.some(n=>n.id===foreignNote.id));
  assert.ok(switched.data.donations.some(d=>d.campaign.title==="FOREIGN_SYNTHETIC_FUND"));
  assert.ok(switched.data.rsvps.some(r=>r.event.title==="FOREIGN_SYNTHETIC_PRIVATE_RSVP"));
+ assert.ok(switched.data.upcoming.some(x=>x.kind==="gathering"&&x.eventId===event.id&&x.status==="confirmed"));
+ assert.ok(switched.data.upcoming.some(x=>x.kind==="service_shift"&&x.id===shifts.FOREIGN.id&&x.status==="scheduled"));
+ assert.ok(!switched.data.upcoming.some(x=>x.id===shifts.HOME.id));
+ assert.ok(switched.data.upcoming.every((x,i,a)=>i===0||
+  new Date(a[i-1].startAt).getTime()<=new Date(x.startAt).getTime()),
+  "commitments are ordered by actual start instant");
+ assert.equal(switched.data.upcoming.length,2,"future RSVP and shift, not unrelated work, are returned");
  assert.ok(!JSON.stringify(switched.data).includes("HOME_PRIVATE_CONTEXT_ONLY"));
  assert.ok(!JSON.stringify(switched.data).includes("HOME_SYNTHETIC_FUND"));
  assert.ok(!JSON.stringify(switched.data).includes("LEGACY_UNOWNED_NEVER_PRESENT"));
@@ -355,7 +387,10 @@ try{
  const back=await call("organizations/context","POST",{organizationId:home.id},first);
  assert.equal(back.status,200);
  assert.equal(back.data.limited,false);
- assert.equal((await call("me","GET",undefined,first)).data.organization.id,home.id);
+ const homeAgain=await call("me","GET",undefined,first);
+ assert.equal(homeAgain.data.organization.id,home.id);
+ assert.ok(homeAgain.data.upcoming.some(x=>x.id===shifts.HOME.id));
+ assert.ok(!homeAgain.data.upcoming.some(x=>x.id===shifts.FOREIGN.id));
  assert.equal((await call("students","GET",undefined,first)).status,200,
   "original API pilot routes re-enable only after safe return to primary mosque");
  const entries=await db.auditEvent.findMany({where:{
@@ -376,6 +411,9 @@ try{
  }});
  if(fixture.invitations.length)await db.staffInvitation.deleteMany({where:{id:{in:fixture.invitations}}});
  if(fixture.prefs.length)await db.organizationDeliveryPreference.deleteMany({where:{id:{in:fixture.prefs}}});
+ if(fixture.shifts.length)await db.volunteerShift.deleteMany({where:{id:{in:fixture.shifts}}});
+ if(fixture.volunteerApplications.length)await db.volunteerApplication.deleteMany({where:{id:{in:fixture.volunteerApplications}}});
+ if(fixture.opportunities.length)await db.volunteerOpportunity.deleteMany({where:{id:{in:fixture.opportunities}}});
  if(fixture.events.length){
   await db.eventRSVP.deleteMany({where:{eventId:{in:fixture.events}}});
   await db.event.deleteMany({where:{id:{in:fixture.events}}});
