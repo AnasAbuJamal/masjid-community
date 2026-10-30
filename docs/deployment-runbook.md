@@ -173,3 +173,39 @@ The family's waiting status is visible only through a current approved
 guardian link. Review family-language wording, screen-reader usability,
 retention and migration rollback before use outside disposable CI tests.
 **No deployment or live migration was requested or performed.**
+
+
+## Confidential care intake: disabled-by-default operational gate
+
+The additive migration `20261030000000_private_care_intake` creates
+`CareRequest`, `CareCaseAccess`, the care-case/access enums and
+`care_manage` capability. It migrates **no old contact messages**. Case
+narratives are AES-256-GCM ciphertext, authenticated with
+`organizationId:caseId` associated data. Database backups contain only
+encrypted narratives, not the runtime encryption key.
+
+All of the following are required before *even staging* support intake:
+- Named mosque leadership and trained care/safeguarding officers approve hours,
+  turnaround expectations, limits of confidentiality and the emergency route.
+  The product is NOT an emergency, mental-health or legal response service.
+- Establish and test an independent, access-controlled, separately backed-up
+  `SILA_CARE_ENCRYPTION_KEY` (64 hex characters, 32 bytes). Key loss makes
+  existing case text unrecoverable; careless rotation also makes it unreadable.
+  Key escrow, rotation, restoration drills and incident response are mandatory.
+- Set `SILA_CARE_INTAKE_ENABLED=true`, `SILA_CARE_POLICY_HOURS`,
+  `SILA_CARE_POLICY_RESPONSE`, `SILA_CARE_POLICY_LIMITS` and
+  `SILA_CARE_POLICY_EMERGENCY` with legal/operations-reviewed texts, and
+  rehearse disabled-state and provider-outage behavior.
+- Approve training and due process for creating `care_manage` grants (MFA and
+  maximum 30-day expiry), assigning an individual case via two separately
+  authorized people, expiring access, documenting outcomes, and retaining or
+  securely disposing of case data after the approved period.
+- Test organizational isolation, access-log review, verified identity and
+  revocation in a restored staging environment. Never store case narratives
+  or personally identifying details in audit reasons, routine email, logs,
+  search, aggregate reports or analytics.
+
+CI enables the endpoint **only for synthetic fixtures**, with a disposable
+test key and fictional policy text. This does NOT constitute organizational
+approval or permit production enablement. No deployment or live migration
+was authorized by the user.
