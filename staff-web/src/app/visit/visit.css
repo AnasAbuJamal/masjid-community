@@ -103,3 +103,18 @@
 .visit-detail-facts li { margin: 7px 0; font-weight: 650; }
 .visit-detail-body { color: var(--v-ink); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.05rem; line-height: 1.8; }
 .visit-back { font-weight: 750; font-size: .9rem; }
+
+/* Native HTML form controls, visible keyboard focus and responsive layout. */
+.visit-gathering-filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(155px,1fr));
+  gap: 12px; margin: 0 0 24px; padding: 18px; border: 1px solid var(--v-line);
+  border-radius: 16px; background: var(--v-soft); }
+.visit-gathering-filters label { display: flex; flex-direction: column; gap: 6px;
+  font-size: .8rem; font-weight: 700; color: var(--v-ink); }
+.visit-gathering-filters select, .visit-gathering-filters input {
+  width: 100%; min-height: 44px; border: 1px solid #9cb9bd;
+  background: white; color: var(--v-ink); border-radius: 10px; padding: 8px; }
+.visit-gathering-filters button { border: 0; border-radius: 10px; min-height: 44px;
+  background: var(--v-primary); color: white; font-weight: 750; cursor: pointer; }
+.visit-gathering-filters a { align-self: center; font-size: .84rem; }
+.visit-gathering-filters :is(input,select,button,a):focus-visible {
+  outline: 3px solid var(--v-primary); outline-offset: 3px; }

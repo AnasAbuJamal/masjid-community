@@ -65,12 +65,43 @@ try{
 
  const marker="CI SECOND VENUE";
  const other=await db.venue.create({data:{organizationId:org.id,name:marker,timeZone:"America/New_York"}});
+ let filteredEventId=null;
  try{
   const todayParts=new Intl.DateTimeFormat("en-US",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"America/New_York"}).formatToParts(new Date());
   const field=(type)=>todayParts.find(x=>x.type===type)?.value||"";
   const today=field("year")+"-"+field("month")+"-"+field("day");
   await db.prayerDay.create({data:{venueId:other.id,localDate:today,published:true,
    fajr:"04:17",sunrise:"06:21",dhuhr:"12:44",asr:"15:37",maghrib:"18:20",isha:"19:39",source:"CI source"}});
+  const filtered=await db.event.create({data:{
+   organizationId:org.id,title:"CI_WEB_FILTERED_GATHERING",
+   description:"A synthetic public filtered community workshop.",
+   location:"CI SECOND VENUE",
+   status:"published",startAt:new Date(Date.now()+86400000*7),
+   endAt:new Date(Date.now()+86400000*7+3600000),
+   venueId:other.id,category:"workshop",audience:"families",
+   accessibilityFeatures:["step_free"],accessibilityNotes:"Synthetic step-free access only."
+  }});
+  filteredEventId=filtered.id;
+  const filterUrl="http://127.0.0.1:3000/visit";
+  const good=await fetch(filterUrl+"?gatherVenue="+encodeURIComponent(other.id)+
+   "&category=workshop&audience=families&accessibility=step_free");
+  assert.equal(good.status,200);
+  const goodHtml=await good.text();
+  assert.match(goodHtml,/CI_WEB_FILTERED_GATHERING/);
+  assert.match(goodHtml,/Confirmed accommodations:/);
+  assert.match(goodHtml,/Verified venue:/);
+  const noMatch=await fetch(filterUrl+"?category=lecture&audience=families");
+  assert.equal(noMatch.status,200);
+  assert.doesNotMatch(await noMatch.text(),/CI_WEB_FILTERED_GATHERING/);
+  const wrongTenant=await fetch(filterUrl+"?gatherVenue=foreign-venue-id&category=workshop");
+  assert.equal(wrongTenant.status,200);
+  const invalidFilterPage=await wrongTenant.text();
+  assert.match(invalidFilterPage,/filter was invalid or does not belong to this mosque/);
+  assert.doesNotMatch(invalidFilterPage,/CI_WEB_FILTERED_GATHERING/);
+  const filteredQuery=await fetch(filterUrl+"?gatherQ=CI_WEB_FILTERED_GATHERING");
+  assert.match(await filteredQuery.text(),/CI_WEB_FILTERED_GATHERING/);
+  const duplicate=await fetch(filterUrl+"?category=workshop&category=lecture");
+  assert.match(await duplicate.text(),/filter was invalid or does not belong to this mosque/);
   const available=await get("public/venues");
   assert.equal(available.status,200);
   assert.ok(available.data.data.venues.some(v=>v.id===other.id));
@@ -90,6 +121,7 @@ try{
   const unknownHtml=await unknown.text();
   assert.doesNotMatch(unknownHtml,/04:17/,"unrecognized venue IDs cannot select another venue");
  }finally{
+  if(filteredEventId)await db.event.deleteMany({where:{id:filteredEventId}});
   await db.prayerDay.deleteMany({where:{venueId:other.id}});
   await db.venue.delete({where:{id:other.id}});
  }

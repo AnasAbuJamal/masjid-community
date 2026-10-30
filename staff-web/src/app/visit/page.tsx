@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { localDate } from "@/lib/http";
+import {GATHERING_CATEGORIES,GATHERING_AUDIENCES,GATHERING_ACCESSIBILITY,
+ publicGatheringItems} from "@/lib/gathering-filters";
 import "./visit.css";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +11,10 @@ export const metadata: Metadata = {
   description: "Published prayer times, Friday prayer, official notices, and gatherings from your mosque.",
 };
 
-type PageProps = { searchParams: Promise<{ venue?: string | string[] }> };
+type VisitFilters={venue?:string|string[];gatherVenue?:string|string[];
+ category?:string|string[];audience?:string|string[];
+ accessibility?:string|string[];gatherQ?:string|string[]};
+type PageProps = { searchParams: Promise<VisitFilters> };
 const prayerRows = [
   ["Fajr", "fajr", "fajrIqamah"],
   ["Sunrise", "sunrise", null],
@@ -37,8 +42,20 @@ function localClockLabel(date: string) {
 }
 
 export default async function VisitPage({ searchParams }: PageProps) {
-  const { venue: requested } = await searchParams;
-  const selectedId = typeof requested === "string" ? requested : "";
+  const search=await searchParams;
+  const {venue:requested}=search;
+  const selectedId=typeof requested==="string"?requested:"";
+  // All form values are treated as UNTRUSTED filters, never an organization
+  // selector. Unknown/duplicate values fail closed rather than broadening.
+  const value=(key:keyof VisitFilters)=>{
+   const raw=search[key];
+   return raw===undefined?"":typeof raw==="string"?raw.trim():"__invalid__";
+  };
+  const gatherQuery=value("gatherQ");
+  const category=value("category");
+  const audience=value("audience");
+  const accessibility=value("accessibility");
+  const gatherVenue=value("gatherVenue");
   const organization = await db.organization.findFirst({ orderBy: { createdAt: "asc" } });
   const venues = organization
     ? await db.venue.findMany({
@@ -50,6 +67,12 @@ export default async function VisitPage({ searchParams }: PageProps) {
     : [];
   // Never accept a venue from another mosque or display an old venue's data.
   const venue = venues.find((item) => item.id === selectedId) ?? venues[0] ?? null;
+  const filterInvalid=
+    (gatherQuery.length===1||gatherQuery.length>80||gatherQuery==="__invalid__")||
+    (!!category&&!GATHERING_CATEGORIES.includes(category as typeof GATHERING_CATEGORIES[number]))||
+    (!!audience&&!GATHERING_AUDIENCES.includes(audience as typeof GATHERING_AUDIENCES[number]))||
+    (!!accessibility&&!GATHERING_ACCESSIBILITY.includes(accessibility as typeof GATHERING_ACCESSIBILITY[number]))||
+    (!!gatherVenue&&!venues.some(v=>v.id===gatherVenue));
   const now = new Date();
   const today = venue ? localDate(now, venue.timeZone) : null;
   const [prayer, jummah, announcements, events, faithNotices, programs] = await Promise.all([
@@ -73,12 +96,22 @@ export default async function VisitPage({ searchParams }: PageProps) {
           select: { id: true, title: true, body: true, kind: true },
         })
       : [],
-    organization
+    organization&&!filterInvalid
       ? db.event.findMany({
-          where: { organizationId: organization.id, status: "published", startAt: { gte: now } },
-          orderBy: { startAt: "asc" },
-          take: 6,
-          select: { id: true, title: true, description: true, location: true, startAt: true },
+          where: {organizationId:organization.id,status:"published",startAt:{gte:now},
+            ...(gatherQuery?{OR:[
+              {title:{contains:gatherQuery,mode:"insensitive" as const}},
+              {description:{contains:gatherQuery,mode:"insensitive" as const}},
+              {location:{contains:gatherQuery,mode:"insensitive" as const}}
+            ]}:{}),
+            ...(category?{category}:{}),...(audience?{audience}:{}),
+            ...(accessibility?{accessibilityFeatures:{has:accessibility}}:{}),
+            ...(gatherVenue?{venueId:gatherVenue}:{})
+          },
+          orderBy:[{startAt:"asc"},{id:"asc"}],take:20,
+          select:{id:true,title:true,description:true,location:true,startAt:true,
+            category:true,audience:true,accessibilityFeatures:true,
+            venue:{select:{id:true,name:true,timeZone:true,organizationId:true}}}
         })
       : [],
     organization && today
@@ -102,6 +135,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
       : [],
   ]);
   const timeZone = venue?.timeZone ?? organization?.timeZone ?? "UTC";
+  const safeEvents=publicGatheringItems(events,organization?.id||"");
 
   return (
     <main className="visit">
@@ -199,15 +233,49 @@ export default async function VisitPage({ searchParams }: PageProps) {
           </section>
           <section className="visit-panel" id="gatherings" aria-labelledby="gather-heading">
             <div className="visit-section-heading"><div><span className="visit-kicker">GATHER TOGETHER</span><h2 id="gather-heading">Upcoming gatherings</h2></div></div>
-            {events.length ? (
-              <div className="visit-list">{events.map((item) => (
+            <form method="get" action="/visit" className="visit-gathering-filters"
+             aria-label="Filter published gatherings">
+             {selectedId?<input type="hidden" name="venue" value={selectedId}/>:null}
+             <label>Search name or location<input type="search" name="gatherQ"
+              defaultValue={gatherQuery==="__invalid__"?"":gatherQuery} minLength={2} maxLength={80}/></label>
+             <label>Verified venue<select name="gatherVenue" defaultValue={gatherVenue}>
+              <option value="">Any venue</option>
+              {venues.map(v=><option value={v.id} key={v.id}>{v.name}</option>)}
+             </select></label>
+             <label>Category<select name="category" defaultValue={category}>
+              <option value="">All categories</option>
+              {GATHERING_CATEGORIES.map(x=><option key={x} value={x}>{x.replaceAll("_"," ")}</option>)}
+             </select></label>
+             <label>Intended audience<select name="audience" defaultValue={audience}>
+              <option value="">Any audience</option>
+              {GATHERING_AUDIENCES.map(x=><option key={x} value={x}>{x}</option>)}
+             </select></label>
+             <label>Confirmed accessibility<select name="accessibility" defaultValue={accessibility}>
+              <option value="">Any (including unverified)</option>
+              {GATHERING_ACCESSIBILITY.map(x=><option key={x} value={x}>{x.replaceAll("_"," ")}</option>)}
+             </select></label>
+             <button type="submit">Apply filters</button>
+             <a href={selectedId?"/visit?venue="+encodeURIComponent(selectedId)+"#gatherings":"/visit#gatherings"}>Clear filters</a>
+            </form>
+            {filterInvalid?<p role="alert" className="visit-empty">A gathering filter was invalid or does not belong to this mosque. Clear filters and try again.</p>:null}
+            {safeEvents.length ? (
+              <div className="visit-list">{safeEvents.map((item) => (
                 <article key={item.id}>
-                  <span className="visit-date">{eventTime(item.startAt, timeZone)}</span>
+                  <span className="visit-date">{eventTime(item.startAt,item.venue?.timeZone||timeZone)}</span>
                   <h3><a href={`/visit/content/gatherings/${item.id}`}>{item.title}</a></h3><p>{item.description}</p>
                   <p className="visit-event-place">{item.location}</p>
+                  {item.venue?<p className="visit-footnote">Verified venue: {item.venue.name}</p>:null}
+                  {item.category||item.audience?<p className="visit-footnote">
+                   {item.category?"Category: "+item.category.replaceAll("_"," "):""}
+                   {item.category&&item.audience?" · ":""}
+                   {item.audience?"Audience: "+item.audience:""}
+                  </p>:null}
+                  {item.accessibilityFeatures.length?<p className="visit-footnote">
+                    Confirmed accommodations: {item.accessibilityFeatures.map(x=>x.replaceAll("_"," ")).join(", ")}
+                  </p>:null}
                 </article>
               ))}</div>
-            ) : <p className="visit-empty">No upcoming public gatherings have been published.</p>}
+            ) : !filterInvalid?<p className="visit-empty">No upcoming published gatherings match these filters.</p>:null}
           </section>
         </div>
 
