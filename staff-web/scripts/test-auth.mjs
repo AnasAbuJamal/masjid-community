@@ -91,6 +91,23 @@ assert.equal(member.data.user.mfaRequired,false,"ordinary members can sign in wi
  assert.equal(acceptedOrigin.status,422,"same origin reaches ordinary payload validation");
  assert.equal((await probeOrigin()).status,422,
   "native authenticated Bearer clients without browser Origin remain supported");
+ async function cookieMutation(origin){
+  const headers={"Content-Type":"application/json",
+   Cookie:"masjid_session="+member.data.token};
+  if(origin!==undefined)headers.Origin=origin;
+  const response=await fetch(host+"actions",{method:"POST",headers,
+   body:JSON.stringify({kind:"__synthetic_invalid_action__"})});
+  return {status:response.status,...await response.json().catch(()=>({}))};
+ }
+ const missingCookieOrigin=await cookieMutation(undefined);
+ assert.equal(missingCookieOrigin.status,403,
+  "browser cookie state change must not bypass CSRF origin check by stripping Origin");
+ assert.equal(missingCookieOrigin.error.code,"ORIGIN");
+ const validCookieOrigin=await cookieMutation("http://127.0.0.1:3000");
+ assert.equal(validCookieOrigin.status,422,"valid same-origin cookie request reaches normal validation");
+ const wrongCookieOrigin=await cookieMutation("https://127.0.0.1:3000");
+ assert.equal(wrongCookieOrigin.status,403);
+ assert.equal(wrongCookieOrigin.error.code,"ORIGIN");
 
  // Enforce the real JSON body byte count even when Transfer-Encoding is
  // chunked and no Content-Length header is present. Multiple UTF-8 bytes

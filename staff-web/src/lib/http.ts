@@ -25,8 +25,12 @@ export function assertSameOrigin(req: NextRequest) {
   // the incoming HTTP Host is 127.0.0.1. Match the actual request authority
   // instead; the Host header is set by the browser's destination request.
   // Reject malformed, opaque, path-bearing, wrong-port and wrong-scheme
-  // origins with 403. Missing Origin is allowed for native Bearer clients;
-  // browser cookie sessions still have HttpOnly, SameSite=strict cookies.
+  // origins with 403. Native Bearer clients may omit Origin, but a browser
+  // session authenticated by cookie MUST supply it on every protected write.
+  // SameSite=strict alone is not a substitute for checking browser origins.
+  const bearer = req.headers.get("authorization")?.startsWith("Bearer ");
+  if (origin === null && req.cookies.has("masjid_session") && !bearer)
+    throw new HttpError(403, "ORIGIN", "Origin required for browser session writes.");
   const authority = req.headers.get("host");
   if (origin !== null && (!authority || origin !== req.nextUrl.protocol + "//" + authority))
     throw new HttpError(403, "ORIGIN", "Origin not allowed.");
