@@ -3,6 +3,7 @@ import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
+import {appendIntegrityAudit} from "@/lib/integrity-audit";
 import {inviteCiCaptureEnabled,inviteEmailConfigured,makeStaffInvitationToken,sendStaffInvite} from "@/lib/staff-invitations";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 
@@ -44,6 +45,9 @@ export async function POST(req:NextRequest){
     await tx.auditEvent.create({data:{actorId:admin.id,action:"staff.invitation.revoke",
      entity:"StaffInvitation",entityId:values.id,
      detail:JSON.stringify({organizationId:org.id})}});
+    await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:admin.id,
+     action:"staff.invitation.revoke",entity:"StaffInvitation",entityId:values.id,
+     evidence:{to:"revoked",scope:"organization"}});
     return changed.count;
    });
    return ok({revoked:updated===1});
@@ -82,6 +86,9 @@ export async function POST(req:NextRequest){
     await tx.auditEvent.create({data:{actorId:admin.id,action:"staff.invitation.issue",
      entity:"StaffInvitation",entityId:created.id,
      detail:JSON.stringify({organizationId:org.id,capabilities:values.capabilities,expiresAt})}});
+    await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:admin.id,
+     action:"staff.invitation.issue",entity:"StaffInvitation",entityId:created.id,
+     evidence:{to:"issued",scope:"organization",expiresAt:expiresAt.toISOString()}});
     return created;
    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
    if(!capture){

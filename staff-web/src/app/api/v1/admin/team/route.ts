@@ -2,6 +2,7 @@ import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {notifyUser} from "@/lib/notifications";
+import {appendIntegrityAudit} from "@/lib/integrity-audit";
 import {requireVerified} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const capability=z.enum(["worship_publish","facilities_manage","volunteers_manage","community_moderate","care_manage"]);
@@ -40,6 +41,9 @@ export async function POST(req:NextRequest){
     const updated=await tx.organizationMembership.update({where:{id:membership.id},data:{status:input.status}});
     if(input.status==="suspended")await tx.authSession.updateMany({where:{userId:membership.userId,revokedAt:null},data:{revokedAt:new Date()}});
     await tx.auditEvent.create({data:{actorId:admin.id,action:"team.membership."+input.status,entity:"OrganizationMembership",entityId:updated.id}});
+    await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:admin.id,
+     action:"team.membership."+input.status,entity:"OrganizationMembership",entityId:updated.id,
+     evidence:{from:membership.status,to:input.status,scope:"membership",sessionRevoked:input.status==="suspended"}});
     return updated;
    });
    return ok({id:result.id,status:result.status});
@@ -57,6 +61,9 @@ export async function POST(req:NextRequest){
     await tx.authSession.updateMany({where:{userId:input.userId,revokedAt:null},data:{revokedAt:new Date()}});
     if(input.role!=="staff")await tx.roleGrant.updateMany({where:{membershipId:membership.id,revokedAt:null},data:{revokedAt:new Date()}});
     await tx.auditEvent.create({data:{actorId:admin.id,action:"team.role."+input.role,entity:"User",entityId:input.userId}});
+    await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:admin.id,
+     action:"team.role."+input.role,entity:"User",entityId:input.userId,
+     evidence:{from:membership.user.role,to:input.role,scope:"account_global",sessionRevoked:true}});
     await notifyUser(tx,org.id,input.userId,"Your community access was updated","Please sign in again to review your updated community permissions.");
    });
    return ok({id:input.userId,role:input.role,sessionRevoked:true});
@@ -68,6 +75,9 @@ export async function POST(req:NextRequest){
     if(!changed.count)throw new HttpError(404,"GRANT_NOT_FOUND","No active grant for this capability.");
     await tx.authSession.updateMany({where:{userId:input.userId,revokedAt:null},data:{revokedAt:new Date()}});
     await tx.auditEvent.create({data:{actorId:admin.id,action:"team.capability.revoke."+input.capability,entity:"OrganizationMembership",entityId:membership.id}});
+    await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:admin.id,
+     action:"team.capability.revoke",entity:"OrganizationMembership",entityId:membership.id,
+     evidence:{capability:input.capability,to:"revoked",scope:"organization",sessionRevoked:true}});
     return changed.count;
    });
    return ok({id:input.userId,capability:input.capability,revoked:true});
@@ -87,6 +97,10 @@ export async function POST(req:NextRequest){
     create:{membershipId:membership.id,capability:input.capability,grantedById:admin.id,expiresAt}});
    await tx.authSession.updateMany({where:{userId:input.userId,revokedAt:null},data:{revokedAt:new Date()}});
    await tx.auditEvent.create({data:{actorId:admin.id,action:"team.capability.grant."+input.capability,entity:"RoleGrant",entityId:saved.id}});
+   await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:admin.id,
+    action:"team.capability.grant",entity:"RoleGrant",entityId:saved.id,
+    evidence:{capability:input.capability,to:"active",scope:"organization",
+     expiresAt:expiresAt?.toISOString()||null,sessionRevoked:true}});
    return saved;
   });
   return ok({id:grant.id,capability:grant.capability,expiresAt:grant.expiresAt,sessionRevoked:true});

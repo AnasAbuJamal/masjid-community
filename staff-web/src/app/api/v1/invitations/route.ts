@@ -3,6 +3,7 @@ import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireActor,sessionFrom,tokenHash} from "@/lib/auth";
+import {appendIntegrityAudit} from "@/lib/integrity-audit";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const command=z.discriminatedUnion("action",[
  z.object({action:z.literal("preview"),token:z.string().regex(/^[a-f0-9]{64}$/i)}),
@@ -99,6 +100,10 @@ export async function POST(req:NextRequest){
      detail:JSON.stringify({organizationId:org.id,issuedById:issuer.id,
       capabilities:current.capabilities,grantExpiresAt})
     }});
+    await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:user.id,
+     action:"staff.invitation.accept",entity:"StaffInvitation",entityId:invite.id,
+     evidence:{from:"member",to:"staff",scope:"organization",
+      expiresAt:grantExpiresAt.toISOString(),sessionRevoked:true}});
     return {organization:org.name,role:"staff",capabilities:current.capabilities,
      grantExpiresAt,sessionRevoked:true};
    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});

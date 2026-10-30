@@ -28,7 +28,7 @@ export default function Team(){
    setNotice("Permissions updated and logged. Affected active sessions were revoked.");await load();
   }catch(e){setError(e instanceof Error?e.message:"Cannot update permissions.");}finally{setBusy(false);}
  }
- return <><header className="masthead"><div className="brand"><span className="mark">✧</span>Roles & access</div><div className="actions"><a className="secondary" href="/admin">Control center</a>
+ return <><header className="masthead"><div className="brand"><span className="mark">✧</span>Roles & access</div><div className="actions"><a className="secondary" href="/admin">Control center</a><a className="secondary" href="/admin/integrity-audit">Protected audit</a>
  <a className="secondary" href="/admin/invitations">Invite staff</a></div></header>
  <main className="container"><div className="hero"><p className="eyebrow">ORGANIZATION · ACCOUNTABILITY</p><h1>Give access intentionally.</h1>
  <p>Assign only the permissions each colleague needs. Every grant, revocation and role change is audited and invalidates active sessions.</p></div>
