@@ -22,10 +22,13 @@ async function request(path,method="GET",payload,token){
 const fixtureIds={};
 let foreignOrg=null;
 let adminSession=null;
+let exportOrgId=null,exportActorId=null;
 try {
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org,"CI mosque exists");
+ exportOrgId=org.id;
  const member=await db.user.findUniqueOrThrow({where:{email:memberEmail}});
+ exportActorId=member.id;
  const admin=await db.user.findUniqueOrThrow({where:{email:adminEmail}});
  const signedIn=await request("auth/login","POST",{email:memberEmail,password});
  assert.equal(signedIn.status,200);
@@ -136,10 +139,10 @@ try {
  assert.ok(!me.data.volunteerApplications.some(x=>x.id===foreignApplication.id),"foreign volunteering hidden");
  assert.ok(!me.data.jobApplications.some(x=>x.id===foreignJobApp.id),"foreign job application hidden");
  assert.ok(!me.data.bookings.some(x=>x.id===foreignBooking.id),"foreign booking hidden");
- const exportBefore=await request("account/export","GET",null,memberToken);
+ const exportBefore=await request("account/export","POST",{password,confirm:true},memberToken);
  assert.equal(exportBefore.status,200);
  assert.equal(exportBefore.data.organization.id,org.id);
- const forbiddenExport=await request("account/export");
+ const forbiddenExport=await request("account/export","POST",{password,confirm:true});
  assert.equal(forbiddenExport.status,401,"guest cannot retrieve private export");
  const exportText=JSON.stringify(exportBefore.data);
  for(const phrase of [
@@ -264,7 +267,7 @@ try {
   campaignId:localCampaign.id,donorId:member.id,amountMinor:2500,status:"pending"
  }});
  fixtureIds.localDonation=localDonation.id;
- const ownExport=await request("account/export","GET",null,memberToken);
+ const ownExport=await request("account/export","POST",{password,confirm:true},memberToken);
  assert.equal(ownExport.status,200);
  assert.equal(ownExport.data.organization.id,org.id);
  assert.ok(ownExport.data.donations.some(x=>x.campaign.title==="Home mosque giving CI"),
@@ -283,6 +286,9 @@ try {
 }finally{
  // Test fixtures are deliberately synthetic and must never run against live DB.
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
+ if(exportOrgId&&exportActorId)await db.auditEvent.deleteMany({where:{
+  actorId:exportActorId,entity:"Organization",entityId:exportOrgId,action:"account.export.read"
+ }});
  for(const id of [fixtureIds.localBooking,fixtureIds.booking].filter(Boolean))
   await db.rentalBooking.deleteMany({where:{id}});
  for(const id of [fixtureIds.localResource,fixtureIds.resource].filter(Boolean))
