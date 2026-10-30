@@ -35,7 +35,7 @@ export async function POST(req:NextRequest){
    const updated=await tx.rentalBooking.updateMany({where:{id:booking.id,status:"requested",resource:{organizationId:org.id}},data:{status:value.decision}});
    if(!updated.count)throw new HttpError(409,"STALE_BOOKING","Booking already updated.");
    await tx.auditEvent.create({data:{actorId:user.id,action:"booking."+value.decision,entity:"RentalBooking",entityId:booking.id}});
-   await notifyUser(tx,booking.userId,"Your facility request was reviewed","Your booking request is "+value.decision+". View your account for details.");
+   await notifyUser(tx,org.id,booking.userId,"Your facility request was reviewed","Your booking request is "+value.decision+". View your account for details.");
    return {bookingId:booking.id,status:value.decision};
   },{isolationLevel:"Serializable"});
   return ok(result);

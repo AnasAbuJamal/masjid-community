@@ -32,7 +32,7 @@ export async function DELETE(req:NextRequest){
      if(next){
       const updated=await tx.eventRSVP.updateMany({where:{id:next.id,status:"waitlisted"},data:{status:"confirmed"}});
       if(!updated.count)throw new HttpError(409,"RESERVATION_CHANGED","The waitlist has changed. Please retry.");
-      await notifyUser(tx,next.userId,"Your event place is confirmed",
+      await notifyUser(tx,organization.id,next.userId,"Your event place is confirmed",
        "You have been promoted from the event waitlist to a confirmed reservation. Review your account for details.");
       promotedWaitlist=true;
      }else{

@@ -55,7 +55,7 @@ export async function POST(req:NextRequest){
     },select:{id:true}});
     if(conflict)throw new HttpError(409,"OVERLAPPING_SHIFT","This volunteer has an overlapping shift.");
     const shift=await tx.volunteerShift.create({data:{applicationId:app.id,opportunityId:app.opportunityId,userId:app.userId,startAt:start,endAt:end}});
-    await notifyUser(tx,app.userId,"Volunteer shift scheduled","You have a new volunteer shift. View your volunteer schedule.");
+    await notifyUser(tx,org.id,app.userId,"Volunteer shift scheduled","You have a new volunteer shift. View your volunteer schedule.");
     await tx.auditEvent.create({data:{actorId:actor.id,action:"volunteer.shift.schedule",entity:"VolunteerShift",entityId:shift.id}});
     return {id:shift.id,status:shift.status};
    });
@@ -86,7 +86,7 @@ export async function POST(req:NextRequest){
     data:input.action==="check-in"?{checkedInAt:new Date()}:{status:input.action==="complete"?"completed":"cancelled"}});
    if(!updated.count)throw new HttpError(409,"SHIFT_CHANGED","Shift already changed.");
    await tx.auditEvent.create({data:{actorId:actor.id,action:"volunteer.shift."+input.action,entity:"VolunteerShift",entityId:shift.id}});
-   if(input.action==="cancel")await notifyUser(tx,shift.userId,"Volunteer shift cancelled","The mosque has cancelled a scheduled volunteer shift.");
+   if(input.action==="cancel")await notifyUser(tx,org.id,shift.userId,"Volunteer shift cancelled","The mosque has cancelled a scheduled volunteer shift.");
    return {id:shift.id,action:input.action};
   });
   return ok(result);

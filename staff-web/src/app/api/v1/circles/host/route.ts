@@ -91,7 +91,7 @@ export async function POST(req:NextRequest){
      detail:JSON.stringify({circleId:circle.id,organizationId:org.id,reason:input.reason})}});
     // Keep email/push generic: circle identities and membership decisions are
     // never disclosed via an external notification's subject/body.
-    await notifyUser(tx,membership.userId,"Your community request has been reviewed",
+    await notifyUser(tx,org.id,membership.userId,"Your community request has been reviewed",
      "Check your account for the status of your community request.");
     return {id:membership.id,status:input.decision};
    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
