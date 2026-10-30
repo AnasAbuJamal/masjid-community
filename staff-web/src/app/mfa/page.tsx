@@ -9,7 +9,7 @@ export default function MfaGate(){
   const r=await fetch("/api/v1/auth/me",{cache:"no-store"});const v=await r.json();
   if(!v.data){window.location.replace("/");return;}
   setUser(v.data);
-  if(!v.data.mfaRequired){window.location.replace(v.data.role==="finance"?"/admin/finance":v.data.role==="staff"?"/staff":"/admin");}
+  if(!v.data.mfaRequired&&(v.data.role!=="staff"||!v.data.mfaSetupRequired)){window.location.replace(v.data.role==="finance"?"/admin/finance":v.data.role==="staff"?"/staff":"/admin");}
  }catch{setError("Could not check your current sign-in status.");}},[]);
  useEffect(()=>{void read()},[read]);
  async function action(endpoint:string,body:unknown){

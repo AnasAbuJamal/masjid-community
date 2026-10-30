@@ -102,6 +102,14 @@ try{
  assert.equal(adminDesk.status,403,"even MFA administrator cannot read care case index implicitly");
  assert.equal((await request("care/desk","GET",undefined,ordinaryStaffToken)).status,403,
   "ordinary community moderation capability never authorizes care");
+ const staffAuth=await request("auth/me","GET",undefined,ordinaryStaffToken);
+ assert.equal(staffAuth.status,200);
+ assert.equal(staffAuth.data.mfaSetupRequired,true,
+  "staff can deliberately enroll an authenticator before receiving a confidential capability");
+ const enrolledStaffAuth=await request("auth/me","GET",undefined,noMfa);
+ assert.equal(enrolledStaffAuth.status,200);
+ assert.equal(enrolledStaffAuth.data.mfaRequired,true,
+  "MFA-enrolled coordinator must verify every new session");
  const staffNeedsMfa=await request("care/desk","GET",undefined,noMfa);
  assert.equal(staffNeedsMfa.status,403);
  assert.equal(staffNeedsMfa.error.code,"CARE_MFA_REQUIRED");
