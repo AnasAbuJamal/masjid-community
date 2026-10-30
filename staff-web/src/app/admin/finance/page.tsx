@@ -5,7 +5,7 @@ type Finance={payments:Payment[];totalsMinor:Record<string,number>;caution:strin
 export default function FinancePage(){
  const [data,setData]=useState<Finance|null>(null),[error,setError]=useState("");
  useEffect(()=>{let active=true;void fetch("/api/v1/admin/finance",{cache:"no-store"}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Access denied.");if(active)setData(j.data)}).catch(e=>{if(active)setError(String(e.message||e))});return()=>{active=false}},[]);
- return <><header className="masthead"><span className="brand"><span className="mark">✧</span>Verified giving</span><div className="actions"><a href="/admin/finance/manage" className="secondary">Manage budgets & expenses</a><a href="/admin/refunds" className="secondary">Refund controls</a><a href="/admin" className="secondary">Control center</a></div></header>
+ return <><header className="masthead"><span className="brand"><span className="mark">✧</span>Verified giving</span><div className="actions"><a href="/admin/finance/manage" className="secondary">Manage budgets & expenses</a><a href="/admin/refunds" className="secondary">Refund controls</a><a href="/admin/payouts" className="secondary">Provider payouts (unreconciled)</a><a href="/admin" className="secondary">Control center</a></div></header>
  <main className="container"><div className="hero"><p className="eyebrow">FINANCE · PROVIDER-VERIFIED</p><h1>Giving with clarity.</h1><p>Completed donation records only; not an accounting ledger.</p></div>
  {error?<p className="error" role="alert">{error}</p>:null}
  {!data?<div className="panel">Loading protected donation information…</div>:<>
