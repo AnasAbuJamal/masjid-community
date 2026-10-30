@@ -486,3 +486,56 @@ publishes a production key and does not deploy anything. Before any
 real privilege administration rollout, rehearse independent key
 custody, old-key verification after rotation, external head
 notarization and recovery/incident exercises with approved owners.
+
+
+## Session-bound second-mosque member context (October 30, 2026)
+
+`20261030220000_session_tenant_context` adds nullable
+`AuthSession.selectedOrganizationId`. NULL denotes the original
+pilot home mosque. No existing session is switched or assigned a
+tenant by a guessed role/membership; the account's global `User.role`
+remains unsuitable for multi-mosque staff authority.
+
+`GET /api/v1/organizations/context` is authenticated and lists
+only currently **active** membership organizations. `POST` accepts
+only `{organizationId}` and requires origin verification and a
+present, currently active verified membership; selected organization
+is updated on just that authenticated session, with audit evidence.
+No `X-Organization-Id`, client query string, cached display name
+or submitted organization ID on business endpoints is trusted.
+A lost membership causes immediate denial on private requests;
+the context endpoint remains usable to select an active alternative.
+Revoking a session still revokes its context.
+
+**Strictly supported on a second mosque:** verified member
+`/api/v1/me` dashboard, `/api/v1/me/preferences`,
+`PATCH /api/v1/notifications/[id]` and the global account profile
+with private deletion-request status scoped to active selected mosque.
+All other privileged/private workflows using `requireVerified`
+return `409 TENANT_CONTEXT_UNSUPPORTED` if a second mosque is
+selected. Staff invitation preview/acceptance also denies that
+selection. Global administrator/staff/teacher/finance roles cannot
+switch to another mosque because they are not per-membership roles.
+Do **not** use these limited flows to claim full multi-organization
+support, and do not remove the fail-closed guard until each endpoint
+is migrated with adversarial object-scope tests.
+
+The mobile membership picker labels its limitations in English and
+Arabic. Changing mosque increments a session context generation and
+invalidates every mounted `useResource` response; stale or in-flight
+private data must not remain visible while the new mosque loads.
+The mobile client does not persist selected mosque IDs separately
+from the credential and does not supply untrusted tenant headers.
+Public discovery content may still use pilot defaults and must not
+be assumed scoped to the selected mosque.
+
+Before expanding beyond the pilot, design and migrate per-membership
+roles, a single verified request-tenant middleware/service, active
+organization directories, school/care/finance resource authorization,
+checkout and webhook provider-account mapping, tenant-bound
+invitations and role grants, multi-venue content, and full native/
+web cache invalidation. Carry out cross-tenant E2E, privacy,
+safeguarding, finance, accessibility and device tests with
+synthetic records; obtain owner approvals. This pass performs no
+deployment, production database migration, credential provisioning
+or public release.
