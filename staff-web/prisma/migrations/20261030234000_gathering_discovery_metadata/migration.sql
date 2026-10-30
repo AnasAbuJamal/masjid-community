@@ -17,7 +17,7 @@ CREATE INDEX "Event_organizationId_status_category_startAt_idx"
 -- Reject cross-mosque venue links even from non-HTTP database writers.
 -- The nullable FK alone cannot compare Event.organizationId with Venue.organizationId.
 CREATE FUNCTION sila_guard_event_venue_tenant()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $sila_venue_guard$sila_event_guard$
 BEGIN
  IF NEW."venueId" IS NOT NULL AND NOT EXISTS(
   SELECT 1 FROM "Venue" v
@@ -28,7 +28,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END;
-$;
+$sila_event_guard$;
 CREATE TRIGGER sila_guard_event_venue_tenant_before_write
 BEFORE INSERT OR UPDATE OF "venueId", "organizationId" ON "Event"
 FOR EACH ROW EXECUTE FUNCTION sila_guard_event_venue_tenant();
@@ -43,7 +43,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END;
-$;
+$sila_venue_guard$;
 CREATE TRIGGER sila_block_venue_transfer_before_write
 BEFORE UPDATE OF "organizationId" ON "Venue"
 FOR EACH ROW EXECUTE FUNCTION sila_block_venue_transfer();
