@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { localDate } from "@/lib/http";
 import {GATHERING_CATEGORIES,GATHERING_AUDIENCES,GATHERING_ACCESSIBILITY,
  publicGatheringItems} from "@/lib/gathering-filters";
+import {civilDayStart,nextCivilDay} from "@/lib/civil-day";
 import "./visit.css";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,8 @@ export const metadata: Metadata = {
 
 type VisitFilters={venue?:string|string[];gatherVenue?:string|string[];
  category?:string|string[];audience?:string|string[];
- accessibility?:string|string[];gatherQ?:string|string[]};
+ accessibility?:string|string[];gatherQ?:string|string[];
+ fromDay?:string|string[];toDay?:string|string[]};
 type PageProps = { searchParams: Promise<VisitFilters> };
 const prayerRows = [
   ["Fajr", "fajr", "fajrIqamah"],
@@ -56,6 +58,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
   const audience=value("audience");
   const accessibility=value("accessibility");
   const gatherVenue=value("gatherVenue");
+  const fromDay=value("fromDay"),toDay=value("toDay");
   const organization = await db.organization.findFirst({ orderBy: { createdAt: "asc" } });
   const venues = organization
     ? await db.venue.findMany({
@@ -67,7 +70,14 @@ export default async function VisitPage({ searchParams }: PageProps) {
     : [];
   // Never accept a venue from another mosque or display an old venue's data.
   const venue = venues.find((item) => item.id === selectedId) ?? venues[0] ?? null;
-  const filterInvalid=
+  const filterZone=venues.find(v=>v.id===gatherVenue)?.timeZone||
+   organization?.timeZone||"UTC";
+  const fromStart=fromDay?civilDayStart(fromDay,filterZone):null;
+  const nextDay=toDay?nextCivilDay(toDay):null;
+  const untilStart=nextDay?civilDayStart(nextDay,filterZone):null;
+  const invalidDates=(!!fromDay&&!fromStart)||(!!toDay&&!untilStart)||
+   (!!fromStart&&!!untilStart&&untilStart<=fromStart);
+  const filterInvalid=invalidDates||
     (gatherQuery.length===1||gatherQuery.length>80||gatherQuery==="__invalid__")||
     (!!category&&!GATHERING_CATEGORIES.includes(category as typeof GATHERING_CATEGORIES[number]))||
     (!!audience&&!GATHERING_AUDIENCES.includes(audience as typeof GATHERING_AUDIENCES[number]))||
@@ -98,7 +108,9 @@ export default async function VisitPage({ searchParams }: PageProps) {
       : [],
     organization&&!filterInvalid
       ? db.event.findMany({
-          where: {organizationId:organization.id,status:"published",startAt:{gte:now},
+          where: {organizationId:organization.id,status:"published",
+            startAt:{gte:fromStart&&fromStart>now?fromStart:now,
+              ...(untilStart?{lt:untilStart}:{})},
             ...(gatherQuery?{OR:[
               {title:{contains:gatherQuery,mode:"insensitive" as const}},
               {description:{contains:gatherQuery,mode:"insensitive" as const}},
@@ -254,6 +266,9 @@ export default async function VisitPage({ searchParams }: PageProps) {
               <option value="">Any (including unverified)</option>
               {GATHERING_ACCESSIBILITY.map(x=><option key={x} value={x}>{x.replaceAll("_"," ")}</option>)}
              </select></label>
+             <label>From day<input type="date" name="fromDay" defaultValue={fromDay==="__invalid__"?"":fromDay}/></label>
+             <label>Through day<input type="date" name="toDay" defaultValue={toDay==="__invalid__"?"":toDay}/></label>
+             <p className="visit-filter-timezone">Dates use the chosen venue timezone, or the mosque timezone when all venues are included: {filterZone}. Daylight-saving adjustments are included.</p>
              <button type="submit">Apply filters</button>
              <a href={selectedId?"/visit?venue="+encodeURIComponent(selectedId)+"#gatherings":"/visit#gatherings"}>Clear filters</a>
             </form>

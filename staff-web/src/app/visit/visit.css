@@ -118,3 +118,6 @@
 .visit-gathering-filters a { align-self: center; font-size: .84rem; }
 .visit-gathering-filters :is(input,select,button,a):focus-visible {
   outline: 3px solid var(--v-primary); outline-offset: 3px; }
+
+.visit-filter-timezone { grid-column: 1 / -1; margin: 0; font-size: .82rem;
+  line-height: 1.5; color: var(--v-muted); }

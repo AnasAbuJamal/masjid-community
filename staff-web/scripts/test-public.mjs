@@ -100,6 +100,22 @@ try{
   assert.doesNotMatch(invalidFilterPage,/CI_WEB_FILTERED_GATHERING/);
   const filteredQuery=await fetch(filterUrl+"?gatherQ=CI_WEB_FILTERED_GATHERING");
   assert.match(await filteredQuery.text(),/CI_WEB_FILTERED_GATHERING/);
+  const parts=new Intl.DateTimeFormat("en-US",{
+   timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"
+  }).formatToParts(filtered.startAt);
+  const datePart=(type)=>parts.find(x=>x.type===type)?.value||"";
+  const gatheringDay=datePart("year")+"-"+datePart("month")+"-"+datePart("day");
+  const matchingDate=await fetch(filterUrl+"?fromDay="+gatheringDay+"&toDay="+gatheringDay+
+   "&gatherVenue="+encodeURIComponent(other.id));
+  assert.equal(matchingDate.status,200);
+  assert.match(await matchingDate.text(),/CI_WEB_FILTERED_GATHERING/,
+   "venue-local inclusive civil day contains the real gathering instant");
+  const outOfDate=await fetch(filterUrl+"?fromDay=2026-01-01&toDay=2026-01-01");
+  assert.equal(outOfDate.status,200);
+  assert.doesNotMatch(await outOfDate.text(),/CI_WEB_FILTERED_GATHERING/);
+  const impossibleDay=await fetch(filterUrl+"?fromDay=2032-02-30");
+  assert.equal(impossibleDay.status,200);
+  assert.match(await impossibleDay.text(),/filter was invalid or does not belong to this mosque/);
   const duplicate=await fetch(filterUrl+"?category=workshop&category=lecture");
   assert.match(await duplicate.text(),/filter was invalid or does not belong to this mosque/);
   const available=await get("public/venues");
