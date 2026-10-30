@@ -333,3 +333,48 @@ legal/privacy staff and run fixture-backed migration and restoring
 tests against a nonproduction copy first. Real provider credentials
 and production delivery remain unconfigured under this work; no
 deployment or production data migration was performed.
+
+
+## Email delivery consent and quiet-hour rollout (October 30, 2026)
+
+The additive migration `20261030180000_org_delivery_consent`
+introduces `OrganizationDeliveryPreference`, `DeliveryPurpose`,
+`DeliveryChannel` and `Notification.purpose`. Old notifications
+are classified as operational `service` records solely for schema
+compatibility; historic `Notification.organizationId IS NULL` records
+**remain permanently held** until manually assessed. A global
+`UserPreference.newsletterOptIn` or `eventEmailOptIn` is NOT
+permission from any particular mosque. No legacy flag is migrated or
+accepted as effective consent.
+
+Only an active verified user within the request's authorized
+organization may set purpose-specific optional email choices. The
+server audits changes, not private notification text. Opting out
+must stop **pending as well as future** optional email. The worker
+checks organization, active membership, consent and valid quiet hours
+again at dispatch. User-selected quiet windows use the mosque's
+IANA timezone and defer optional email to a next permitted time
+without increasing the provider error budget. Operational service
+notices are distinct; an optional unsubscribe never suppresses
+a genuine booking/school/registration decision message.
+
+`SILA_DELIVERY_CI_CAPTURE=test-only` is a disposable **synthetic
+worker** setting that ONLY works when `GITHUB_ACTIONS=true`,
+`DATABASE_URL` ends in `/masjid_ci`, and
+`NEXT_PUBLIC_APP_URL=http://localhost:3000`. It never contacts
+an email provider and must **not** be configured in staging or
+production. The CI worker uses a CI-only `CRON_SECRET`. It proves
+application gating/queue transitions, not external inbox arrival,
+real bounce behavior or production email deliverability. Ordinary
+deployment requires a distinct protected worker secret and
+configured verified email provider, and no actual sending is
+authorized by this implementation pass.
+
+Before enabling real optional delivery, approve opt-in copy and
+recipient purposes, explicit user notice and unsubscribe/withdrawal,
+double-opt-in needs, quiet-hours policy, list-limiting/rate controls,
+maker/checker publication, provider receipt and bounce handling,
+idempotent worker recovery, tenant-specific sender credentials,
+support routes and end-to-end assistive-tech tests. All changes
+in this pass remain code and CI-only synthetic tests; no deployment,
+production migration or real email has been initiated.
