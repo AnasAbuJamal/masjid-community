@@ -80,6 +80,7 @@ model Organization {
   opportunities VolunteerOpportunity[]
   jobs JobPosting[]
   contactRequests ContactSubmission[]
+  careRequests CareRequest[]
   articles CommunityArticle[]
   constructionProjects ConstructionProject[]
   budgets FinanceBudget[]
@@ -127,6 +128,8 @@ model User {
   hostedCircles Circle[] @relation("CircleHost")
   circleMemberships CircleMember[]
   circleUpdates CircleUpdate[] @relation("CircleUpdateAuthor")
+  careRequests CareRequest[] @relation("CareRequester")
+  careAssignments CareCaseAccess[] @relation("CareAssignee")
   volunteerApplications VolunteerApplication[]
   studentAccount Student? @relation("StudentAccount")
   guardianLinks GuardianLink[]
@@ -676,6 +679,54 @@ enum ContactStatus {
   in_review
   closed
 }
+enum CareCaseStatus {
+  submitted
+  in_review
+  closed
+}
+enum CareAccessStatus {
+  proposed
+  approved
+  revoked
+}
+model CareRequest {
+  id String @id @default(cuid())
+  reference String @unique
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  requesterId String
+  requester User @relation("CareRequester",fields:[requesterId],references:[id],onDelete:Restrict)
+  // Authenticated ciphertext only; no plaintext, category, or sensitive message in email.
+  encryptedMessage String
+  consentVersion String
+  consentedAt DateTime
+  status CareCaseStatus @default(submitted)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  closedAt DateTime?
+  retentionAt DateTime
+  access CareCaseAccess[]
+  @@index([organizationId,status,createdAt])
+  @@index([requesterId,organizationId,createdAt])
+}
+model CareCaseAccess {
+  id String @id @default(cuid())
+  caseId String
+  careCase CareRequest @relation(fields:[caseId],references:[id],onDelete:Restrict)
+  assigneeId String
+  assignee User @relation("CareAssignee",fields:[assigneeId],references:[id],onDelete:Restrict)
+  proposedById String
+  approvedById String?
+  reason String
+  status CareAccessStatus @default(proposed)
+  createdAt DateTime @default(now())
+  approvedAt DateTime?
+  expiresAt DateTime
+  revokedAt DateTime?
+  @@unique([caseId,assigneeId])
+  @@index([caseId,status,expiresAt])
+  @@index([assigneeId,status,expiresAt])
+}
 model ContactSubmission {
   id String @id @default(cuid())
   organizationId String
@@ -958,6 +1009,7 @@ enum RoleCapability {
   facilities_manage
   volunteers_manage
   community_moderate
+  care_manage
 }
 model OrganizationMembership {
   id String @id @default(cuid())
