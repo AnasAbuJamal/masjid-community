@@ -29,6 +29,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://masjid_ci:ci_only_password@127.0.0.1:5432/masjid_ci
       AUTH_SECRET: ci-not-for-production-000000000000000000000
+      SILA_AUDIT_HMAC_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef # disposable CI only
       MFA_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       STRIPE_SECRET_KEY: sk_test_ci_synthetic_no_network
       STRIPE_WEBHOOK_SECRET: whsec_ci_synthetic_no_network
@@ -105,6 +106,7 @@ jobs:
           node -e "const d=require('/tmp/prayers.json');if(!Array.isArray(d.data?.days))process.exit(1);"
           node scripts/test-auth.mjs
           node scripts/test-staff-invitations.mjs
+          node scripts/test-integrity-audit.mjs
           node scripts/test-gather.mjs
           node scripts/test-event-checkin.mjs
           node scripts/test-circles.mjs

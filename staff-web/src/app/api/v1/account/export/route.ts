@@ -1,6 +1,7 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
+import {appendIntegrityAudit} from "@/lib/integrity-audit";
 import {requireVerified,checkLoginThrottle,checkPassword,recordFailedLogin,clearLoginThrottle,sessionFrom,tokenHash} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 
@@ -69,9 +70,14 @@ export async function POST(req:NextRequest){
    circleMemberships:circles,careRequestReferences:careReferences};
   const limited=Object.fromEntries(Object.entries(lists).map(([key,items])=>[key,items.slice(0,200)]));
   const truncatedCategories=Object.entries(lists).filter(([,items])=>items.length>200).map(([key])=>key);
-  await db.auditEvent.create({data:{actorId:user.id,action:"account.export.read",
-   entity:"Organization",entityId:org.id,
-   detail:JSON.stringify({organizationId:org.id,categories:Object.keys(lists),truncatedCategories})}});
+  await db.$transaction(async tx=>{
+   await tx.auditEvent.create({data:{actorId:user.id,action:"account.export.read",
+    entity:"Organization",entityId:org.id,
+    detail:JSON.stringify({organizationId:org.id,categories:Object.keys(lists),truncatedCategories})}});
+   await appendIntegrityAudit(tx,{request:req,organizationId:org.id,actorId:user.id,
+    action:"account.export.read",entity:"Organization",entityId:org.id,
+    evidence:{scope:"owner",to:truncatedCategories.length?"partial":"limited"}});
+  });
   return ok({
    exportedAt:new Date().toISOString(),
    organization:{id:org.id,name:org.name},

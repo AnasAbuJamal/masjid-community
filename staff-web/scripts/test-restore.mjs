@@ -27,6 +27,7 @@ const restored=new PrismaClient({datasources:{db:{url:targetUrl}}});
 const fixture=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
 const models=[
  "organization","venue","user","authSession","organizationMembership",
+ "integrityAuditEvent",
  "roleGrant","student","guardianLink","schoolProgram","classSection",
  "classSession","attendance","enrollment","enrollmentApplication",
  "teacherAssignment","studentSubmission","studentReport","schoolInvoice",
