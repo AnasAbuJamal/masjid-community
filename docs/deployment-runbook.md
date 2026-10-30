@@ -438,3 +438,51 @@ stale prayer schedule correction and Stripe payout/refund incident
 handling with the real responsible teams. Establish quantitative
 service monitoring, paging, on-call runbooks and signed evidence.
 This code change performs no deployment or production migration.
+
+
+## F-044 integrity-audit pilot: keyed chains and limits (October 30, 2026)
+
+The additive `20261030210000_integrity_audit_chain` migration adds a
+separate `IntegrityAuditEvent` table. It does **not** backfill the
+historical mutable `AuditEvent` records: old audit entries have no
+authentic per-event organization and cannot be retroactively certified.
+The new trail is organization-specific and protects only the
+explicitly instrumented privilege, invitation and privacy-export
+operations. Every sealed event includes actor reference, request
+correlation ID, object scope, bounded transition evidence, server time
+and a unique sequence. Its HMAC-SHA256 incorporates the previous
+hash; normal application UPDATE/DELETE/TRUNCATE is blocked by database
+triggers. Hashes are verified server-side against an independent
+runtime key and never presented as a substitute for signed external
+evidence.
+
+High-risk instrumented operations require `SILA_AUDIT_HMAC_KEY`
+exactly 64 hexadecimal characters (32 bytes), generated and held in
+approved secure secret management independently of `AUTH_SECRET`,
+`MFA_ENCRYPTION_KEY`, `SILA_CARE_ENCRYPTION_KEY` and delivery
+credentials. **Never configure the CI example key in a real
+environment.** Missing/invalid key fails those actions with 503.
+Losing or replacing the key without a versioned rotation plan makes
+the existing chain unverifiable. A rollback to code that does not
+understand the integrity trail is not an approved security rollback.
+
+`GET /api/v1/admin/integrity-audit` is currently restricted to
+MFA-verified home-mosque administrators, not a full auditor role.
+It checks up to 10,000 records and reports an explicit `incomplete`
+result above that limit. Masked review metadata may support incident
+triage, but no child/case/payment content or raw invitation tokens
+should be recorded in the chain. The HMAC protects against casual
+database row edits without the key, not against a database
+administrator who can disable triggers or against an attacker who
+obtains the application HMAC key. A complete deployment needs
+independent, append-only **offsite chain-head anchoring**, dedicated
+auditor identity, explicit denied-action trace policy, key rotation/
+escrow and custody, monitoring and separation of duties.
+
+CI uses a disposable HMAC key and synthetic PostgreSQL, proving
+concurrent writes/links, isolation, mutation rejection, authentic
+verification and read-only access. It neither provisions nor
+publishes a production key and does not deploy anything. Before any
+real privilege administration rollout, rehearse independent key
+custody, old-key verification after rotation, external head
+notarization and recovery/incident exercises with approved owners.
