@@ -49,7 +49,9 @@ async function result(item){return db.outboxEvent.findUniqueOrThrow({where:{id:i
 async function flush(item){
  for(let n=0;n<8;n++){
   const state=await result(item);
-  if(["delivered","exhausted","retry"].includes(state.status))return state;
+  if(["delivered","exhausted"].includes(state.status))return state;
+  // "retry" may mean quiet-hour deferral; once made due again it is
+  // eligible for a subsequent worker pass, not a terminal result.
   await deliver();
  }
  throw Error("Synthetic worker did not process targeted outbox item.");
