@@ -96,6 +96,7 @@ model Organization {
   deletionRequests DeletionRequest[]
   notifications Notification[]
   deliveryPreferences OrganizationDeliveryPreference[]
+  integrityAuditEvents IntegrityAuditEvent[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -146,6 +147,7 @@ model User {
   deliveryPreferences OrganizationDeliveryPreference[]
   outboxEvents OutboxEvent[]
   auditEvents AuditEvent[]
+  integrityAuditEvents IntegrityAuditEvent[]
   payoutReviewNotes PayoutReviewNote[]
   invitationsIssued StaffInvitation[] @relation("StaffInvitationIssuer")
   invitationsAccepted StaffInvitation[] @relation("StaffInvitationAccepter")
@@ -657,6 +659,27 @@ model Notification {
   outboxEvents OutboxEvent[]
   @@index([organizationId,userId,createdAt])
   @@index([userId,organizationId,readAt])
+}
+// Separate append-only integrity pilot. Existing AuditEvent rows remain
+// historical/unsealed and are never presented as cryptographically verified.
+model IntegrityAuditEvent {
+  id String @id
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  actorId String
+  actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+  sequence Int
+  occurredAt DateTime
+  requestId String
+  action String
+  entity String
+  entityId String
+  outcome String
+  evidence Json
+  previousHash String
+  recordHash String
+  @@unique([organizationId,sequence])
+  @@index([organizationId,occurredAt])
 }
 model AuditEvent {
   id String @id @default(cuid())
