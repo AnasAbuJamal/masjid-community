@@ -89,6 +89,7 @@ model Organization {
   ledgerAccounts LedgerAccount[]
   journals JournalEntry[]
   refundRequests RefundRequest[]
+  payouts ProviderPayout[]
   faithNotices FaithNotice[]
   memberships OrganizationMembership[]
   staffInvitations StaffInvitation[]
@@ -142,6 +143,7 @@ model User {
   notifications Notification[]
   outboxEvents OutboxEvent[]
   auditEvents AuditEvent[]
+  payoutReviewNotes PayoutReviewNote[]
   invitationsIssued StaffInvitation[] @relation("StaffInvitationIssuer")
   invitationsAccepted StaffInvitation[] @relation("StaffInvitationAccepter")
   authoredAssignments SchoolAssignment[] @relation("AssignmentAuthor")
@@ -508,6 +510,43 @@ model Donation {
   status PaymentStatus @default(pending)
   stripeSessionId String? @unique
   createdAt DateTime @default(now())
+}
+enum ProviderPayoutState {
+  pending
+  in_transit
+  paid
+  failed
+  canceled
+}
+// A signed provider report is not a settlement reconciliation.
+// Gross, processor fees, disputes and bank credit remain unknown until
+// verified provider balance transactions and actual bank settlement are matched.
+model ProviderPayout {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  providerPayoutId String @unique
+  amountMinor Int
+  currency String
+  state ProviderPayoutState
+  arrivalAt DateTime?
+  failureCode String?
+  lastProviderEventId String
+  lastProviderEventCreated Int
+  observedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notes PayoutReviewNote[]
+  @@index([organizationId,state,observedAt])
+}
+model PayoutReviewNote {
+  id String @id @default(cuid())
+  payoutId String
+  payout ProviderPayout @relation(fields:[payoutId],references:[id],onDelete:Restrict)
+  authorId String
+  author User @relation(fields:[authorId],references:[id],onDelete:Restrict)
+  body String
+  createdAt DateTime @default(now())
+  @@index([payoutId,createdAt])
 }
 model PaymentEvent {
   id String @id @default(cuid())
