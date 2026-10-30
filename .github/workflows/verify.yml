@@ -41,6 +41,10 @@ jobs:
       SILA_CARE_POLICY_LIMITS: "Synthetic CI: requests are reviewed by explicitly assigned, trained volunteers. Confidentiality may be limited by safety and reporting obligations."
       SILA_CARE_POLICY_EMERGENCY: "Synthetic CI: this is not an emergency service. For immediate danger contact local emergency services or a qualified crisis provider."
       SILA_INVITE_CI_CAPTURE: "test-only" # only on disposable /masjid_ci, never a production feature
+      # Signed synthetic worker in a disposable CI database; never contacts
+      # Resend or other external mail providers.
+      CRON_SECRET: ci-internal-worker-secret-000000000000000000000000
+      SILA_DELIVERY_CI_CAPTURE: "test-only"
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +90,7 @@ jobs:
           node scripts/test-payments.mjs
           node scripts/test-payout-register.mjs
           node scripts/test-public.mjs
+          node scripts/test-delivery-consent.mjs
           node scripts/test-delivery.mjs
 
   verify-mobile:
