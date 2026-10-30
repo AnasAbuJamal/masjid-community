@@ -52,6 +52,13 @@ export async function POST(req:NextRequest){
   if(!capture&&!inviteEmailConfigured())throw new HttpError(503,"INVITE_DELIVERY_UNAVAILABLE",
    "Staff invitations require a configured, verified email delivery service.");
   const email=values.email.trim().toLowerCase();
+  const hourAgo=new Date(Date.now()-3600000);
+  const [orgRecent,addressRecent]=await Promise.all([
+   db.staffInvitation.count({where:{organizationId:org.id,createdAt:{gte:hourAgo}}}),
+   db.staffInvitation.count({where:{organizationId:org.id,invitedEmail:email,createdAt:{gte:hourAgo}}})
+  ]);
+  if(orgRecent>=20||addressRecent>=4)throw new HttpError(429,"INVITATION_RATE_LIMIT",
+   "Staff invitation volume is limited. Review prior attempts before retrying.");
   const member=await db.user.findUnique({where:{email},select:{
    id:true,role:true,status:true,memberships:{where:{status:"active"},select:{organizationId:true}}
   }});

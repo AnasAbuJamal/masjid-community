@@ -101,6 +101,17 @@ try{
  assert.deepEqual(preview.data.capabilities.sort(),pendingInput.capabilities.sort());
  assert.equal(preview.data.mfaEnabled,true);
  assert.equal(preview.data.mfaVerified,false);
+ const staleToken=await session(primary,true);
+ await db.authSession.updateMany({where:{
+  tokenHash:createHash("sha256").update(staleToken).digest("hex")
+ },data:{mfaVerifiedAt:new Date(Date.now()-12*60000)}});
+ const stalePreview=await request("invitations","POST",{action:"preview",token},staleToken);
+ assert.equal(stalePreview.status,200);
+ assert.equal(stalePreview.data.mfaVerified,false,
+  "a stale authenticator check cannot authorize new privileges");
+ const staleAccept=await request("invitations","POST",{action:"accept",token},staleToken);
+ assert.equal(staleAccept.status,403);
+ assert.equal(staleAccept.error.code,"INVITE_MFA_REQUIRED");
  const premature=await request("invitations","POST",{action:"accept",token},primaryWithoutMfa);
  assert.equal(premature.status,403,"even authenticator-enrolled accounts must verify the current session");
  assert.equal(premature.error.code,"INVITE_MFA_REQUIRED");

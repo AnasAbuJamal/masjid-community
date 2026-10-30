@@ -2,7 +2,7 @@ import {NextRequest} from "next/server";
 import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireActor,tokenHash} from "@/lib/auth";
+import {requireActor,sessionFrom,tokenHash} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const command=z.discriminatedUnion("action",[
  z.object({action:z.literal("preview"),token:z.string().regex(/^[a-f0-9]{64}$/i)}),
@@ -22,15 +22,22 @@ export async function POST(req:NextRequest){
    invite.expiresAt<=new Date()||invite.invitedEmail!==user.email.trim().toLowerCase())
    throw new HttpError(404,"INVITATION_UNAVAILABLE",
     "This invitation is unavailable, expired or not issued to the signed-in identity.");
+  // Accepting new privileges requires a fresh authenticator check, not a
+  // potentially week-old session MFA claim.
+  const freshMfa=!!user.mfaVerified&&!!await db.authSession.findFirst({where:{
+   userId:user.id,tokenHash:tokenHash(sessionFrom(req)),revokedAt:null,
+   expiresAt:{gt:new Date()},
+   mfaVerifiedAt:{gt:new Date(Date.now()-10*60000)}
+  },select:{id:true}});
   if(input.action==="preview")return ok({
    organization:{name:org.name},capabilities:invite.capabilities,
    role:"staff",expiresAt:invite.expiresAt,
-   verified:!!user.verifiedAt,mfaEnabled:user.mfaEnabled,mfaVerified:user.mfaVerified,
+   verified:!!user.verifiedAt,mfaEnabled:user.mfaEnabled,mfaVerified:freshMfa,
    policy:"No authority changes until you verify your email, enable your authenticator, and explicitly accept. This pilot does not support accounts active in multiple organizations."
   });
   if(!user.verifiedAt)throw new HttpError(403,"EMAIL_NOT_VERIFIED","Verify your email first.");
-  if(!user.mfaEnabled||!user.mfaVerified)throw new HttpError(403,"INVITE_MFA_REQUIRED",
-   "Enroll and verify an authenticator in your current session before accepting staff duties.");
+  if(!user.mfaEnabled||!freshMfa)throw new HttpError(403,"INVITE_MFA_REQUIRED",
+   "Enroll and freshly verify an authenticator within 10 minutes of accepting staff duties.");
   try{
    const result=await db.$transaction(async tx=>{
     const now=new Date();
