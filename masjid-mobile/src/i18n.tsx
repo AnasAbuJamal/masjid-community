@@ -24,6 +24,7 @@ const words={
  "care.transparencyDesc":{en:"See publicly published budget allocations, not account balances.",ar:"اطّلع على مخصصات الميزانية المنشورة، وليست أرصدة الحسابات."},
  "care.support":{en:"Requesting assistance",ar:"طلب المساعدة"},
  "care.supportDesc":{en:"Confidential support intake is not yet available online. Contact mosque staff for their current support process.",ar:"لا تتوفر طلبات الدعم السرية إلكترونيًا بعد. تواصل مع إدارة المسجد لمعرفة الإجراءات الحالية."},
+ "care.supportActiveDesc":{en:"This mosque has enabled private, human-led care requests. Review its operating hours, confidentiality limits and emergency alternatives before deciding whether to submit.",ar:"فعّل هذا المسجد طلبات المساعدة الخاصة التي يراجعها أشخاص مختصون. اطلع على ساعات العمل وحدود السرية وبدائل الطوارئ قبل تقديم الطلب."},
  "care.contact":{en:"Contact the mosque",ar:"تواصل مع المسجد"},
  "care.privateRequest":{en:"Request a private conversation",ar:"طلب محادثة خاصة"},
  "care.privateRequestDesc":{en:"Available only when this mosque has approved confidential human support",ar:"متاح فقط عند اعتماد المسجد لخدمة الدعم الإنساني السرية"},

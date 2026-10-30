@@ -25,7 +25,7 @@ export default function CareScreen(){
   </View>
   <Card style={{gap:12,backgroundColor:T.ice}}>
    <Text style={[S.headline,{textAlign:isRTL?"right":"left"}]}>{t("care.support")}</Text>
-   <Text style={[S.bodyText,{textAlign:isRTL?"right":"left"}]}>{t("care.supportDesc")}</Text>
+   <Text style={[S.bodyText,{textAlign:isRTL?"right":"left"}]}>{policy.data?.enabled?t("care.supportActiveDesc"):t("care.supportDesc")}</Text>
    {policy.data?.enabled?<PressRow icon="hand-heart-outline"
     title={t("care.privateRequest")} subtitle={t("care.privateRequestDesc")}
     onPress={()=>router.push("/care/request")}/>:null}
