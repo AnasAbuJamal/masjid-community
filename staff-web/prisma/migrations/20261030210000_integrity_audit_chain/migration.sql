@@ -29,8 +29,6 @@ CREATE INDEX "IntegrityAuditEvent_organizationId_occurredAt_idx"
  ON "IntegrityAuditEvent"("organizationId","occurredAt");
 ALTER TABLE "IntegrityAuditEvent" ADD CONSTRAINT "IntegrityAuditEvent_organizationId_fkey"
  FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "IntegrityAuditEvent" ADD CONSTRAINT "IntegrityAuditEvent_actorId_fkey"
- FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 -- Application-level updates, deletes and TRUNCATE are forbidden even for
 -- the usual app DB account. This is NOT protection against a DBA who can
 -- drop triggers/rewrite tables; independent head anchoring remains missing.

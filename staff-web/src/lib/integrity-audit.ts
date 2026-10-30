@@ -1,6 +1,7 @@
 import {createHmac,randomUUID,timingSafeEqual} from "node:crypto";
 import type {NextRequest} from "next/server";
 import type {Prisma} from "@prisma/client";
+import {db} from "./db";
 import {HttpError} from "./http";
 
 // New critical-operation audit only. Old AuditEvent records are neither
@@ -28,7 +29,7 @@ export function auditRequestId(req:NextRequest){
  return caller&&/^[a-zA-Z0-9_-]{8,64}$/.test(caller)?caller:randomUUID();
 }
 function canonical(value:unknown):string{
- if(value===null||typeof value!=="object")return JSON.stringify(value);
+ if(value===null||typeof value!=="object")return JSON.stringify(value)??"null";
  if(Array.isArray(value))return "["+value.map(canonical).join(",")+"]";
  const record=value as Record<string,unknown>;
  return "{"+Object.keys(record).sort().map(k=>
@@ -83,7 +84,7 @@ export async function appendIntegrityAudit(tx:Db,command:Command){
  },select:{status:true}});
  if(!belongs||belongs.status!=="active")
   throw new HttpError(403,"AUDIT_ACTOR_SCOPE","A sealed action must have an active mosque actor.");
- await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${command.organizationId}::text, 785::bigint))`;
+ await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${command.organizationId}::text, 785::bigint))`;
  const previous=await tx.integrityAuditEvent.findFirst({
   where:{organizationId:command.organizationId},orderBy:{sequence:"desc"},
   select:{sequence:true,recordHash:true}
@@ -114,7 +115,7 @@ export async function verifyIntegrityAudit(organizationId:string):Promise<AuditV
  let sequence=0,hash=ZERO;
  const max=10000,page=250;
  for(;;){
-  const rows=await (await import("./db")).db.integrityAuditEvent.findMany({where:{
+  const rows=await db.integrityAuditEvent.findMany({where:{
    organizationId,sequence:{gt:sequence}
   },orderBy:{sequence:"asc"},take:page,
    select:{id:true,organizationId:true,actorId:true,sequence:true,
