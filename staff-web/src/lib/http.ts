@@ -20,7 +20,14 @@ export async function handled(action: () => Promise<Response>): Promise<Response
 }
 export function assertSameOrigin(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (origin && new URL(origin).host !== req.nextUrl.host) throw new HttpError(403, "ORIGIN", "Origin not allowed.");
+  // Browsers serialize Origin as an exact scheme://host[:port] value.
+  // Comparing only host permits an HTTP origin to post to an HTTPS session.
+  // Malformed, opaque ("null"), multi-origin and path-bearing values must
+  // be rejected with 403, not thrown through to a generic 500 response.
+  // Missing Origin remains permitted for native Bearer-token API clients;
+  // browser cookie sessions also use HttpOnly, SameSite=strict cookies.
+  if (origin !== null && origin !== req.nextUrl.origin)
+    throw new HttpError(403, "ORIGIN", "Origin not allowed.");
 }
 export async function jsonBody(req: NextRequest) {
   if (Number(req.headers.get("content-length") || 0) > 65536) throw new HttpError(413, "TOO_LARGE", "Payload too large.");

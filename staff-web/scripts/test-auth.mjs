@@ -54,6 +54,30 @@ assert.equal(replay.status,409,"already used code cannot authorize another sessi
 const member=await request("auth/login","POST",{email:memberEmail,password});
 assert.equal(member.status,200);
 assert.equal(member.data.user.mfaRequired,false,"ordinary members can sign in without privileged MFA");
+
+ // Cross-site writes must reject the full serialized Origin, including
+ // scheme, port and invalid/opaque values. Native Bearer requests without an
+ // Origin still work; a well-formed same-origin request reaches validation.
+ async function probeOrigin(origin){
+  const headers={Authorization:"Bearer "+member.data.token,"Content-Type":"application/json"};
+  if(origin!==undefined)headers.Origin=origin;
+  const response=await fetch(host+"actions",{method:"POST",headers,
+   body:JSON.stringify({kind:"__synthetic_invalid_action__"})});
+  return {status:response.status,...await response.json().catch(()=>({}))};
+ }
+ for(const origin of [
+  "https://127.0.0.1:3000","http://localhost:3000","http://127.0.0.1:3001",
+  "null","not-a-url","http://127.0.0.1:3000/path",
+  "http://127.0.0.1:3000 http://evil.example"
+ ]){
+  const rejected=await probeOrigin(origin);
+  assert.equal(rejected.status,403,"Origin must match scheme, hostname and port exactly: "+origin);
+  assert.equal(rejected.error.code,"ORIGIN","bad Origin fails closed instead of 500");
+ }
+ const acceptedOrigin=await probeOrigin("http://127.0.0.1:3000");
+ assert.equal(acceptedOrigin.status,422,"same origin reaches ordinary payload validation");
+ assert.equal((await probeOrigin()).status,422,
+  "native authenticated Bearer clients without browser Origin remain supported");
 const memberForbidden=await request("admin","GET",null,member.data.token);
 assert.equal(memberForbidden.status,403,"member must not be able to read admin data");
 const staff=await request("auth/login","POST",{email:staffEmail,password});
