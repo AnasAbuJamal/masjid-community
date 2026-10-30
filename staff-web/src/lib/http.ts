@@ -21,12 +21,14 @@ export async function handled(action: () => Promise<Response>): Promise<Response
 export function assertSameOrigin(req: NextRequest) {
   const origin = req.headers.get("origin");
   // Browsers serialize Origin as an exact scheme://host[:port] value.
-  // Comparing only host permits an HTTP origin to post to an HTTPS session.
-  // Malformed, opaque ("null"), multi-origin and path-bearing values must
-  // be rejected with 403, not thrown through to a generic 500 response.
-  // Missing Origin remains permitted for native Bearer-token API clients;
-  // browser cookie sessions also use HttpOnly, SameSite=strict cookies.
-  if (origin !== null && origin !== req.nextUrl.origin)
+  // Next.js may canonicalize req.nextUrl.hostname to "localhost" even when
+  // the incoming HTTP Host is 127.0.0.1. Match the actual request authority
+  // instead; the Host header is set by the browser's destination request.
+  // Reject malformed, opaque, path-bearing, wrong-port and wrong-scheme
+  // origins with 403. Missing Origin is allowed for native Bearer clients;
+  // browser cookie sessions still have HttpOnly, SameSite=strict cookies.
+  const authority = req.headers.get("host");
+  if (origin !== null && (!authority || origin !== req.nextUrl.protocol + "//" + authority))
     throw new HttpError(403, "ORIGIN", "Origin not allowed.");
 }
 export async function jsonBody(req: NextRequest) {
