@@ -11,7 +11,7 @@ if(process.env.GITHUB_ACTIONS!=="true"||process.env.NODE_ENV==="production"||
  throw Error("Cross-mosque context tests require disposable CI PostgreSQL.");
 const {adminEmail,memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
 const db=new PrismaClient(),base="http://127.0.0.1:3000/api/v1/";
-const fixture={notes:[],campaigns:[],donations:[],events:[],rsvps:[],prefs:[]};
+const fixture={notes:[],campaigns:[],donations:[],events:[],rsvps:[],prefs:[],invitations:[]};
 const createdAt=new Date();
 let foreignOrgId=null,foreignMembershipId=null,adminMembershipId=null;
 const tokens=[];
@@ -145,6 +145,44 @@ try{
  assert.equal((await call("notifications/"+foreignNote.id,"PATCH",undefined,first)).status,200);
  assert.ok((await db.notification.findUniqueOrThrow({where:{id:foreignNote.id}})).readAt);
  assert.equal((await db.notification.findUniqueOrThrow({where:{id:homeNote.id}})).readAt,null);
+ // A shared account still has its own profile, but its private deletion
+ // status must be scoped to the currently selected membership.
+ const accountForeign=await call("account","GET",undefined,first);
+ assert.equal(accountForeign.status,200);
+ const scopedDeletion=await db.deletionRequest.create({data:{
+  userId:member.id,organizationId:home.id
+ }});
+ try{
+  const privateAccount=await call("account","GET",undefined,first);
+  assert.equal(privateAccount.status,200);
+  assert.equal(privateAccount.data.deletion,null,
+   "home privacy request must not be shown inside foreign mosque context");
+  const ownAccount=await call("account","GET",undefined,second);
+  assert.equal(ownAccount.status,200);
+  assert.equal(ownAccount.data.deletion?.id,scopedDeletion.id);
+ }finally{await db.deletionRequest.delete({where:{id:scopedDeletion.id}});}
+ // Staff onboarding also uses requireActor (to allow invitation preview
+ // before email verification), so it must explicitly reject foreign
+ // selected sessions rather than silently use home organization authority.
+ const invitationToken=randomBytes(32).toString("hex");
+ const invitation=await db.staffInvitation.create({data:{
+  organizationId:home.id,invitedEmail:member.email,
+  tokenHash:createHash("sha256").update(invitationToken).digest("hex"),
+  capabilities:["community_moderate"],issuedById:admin.id,
+  expiresAt:new Date(Date.now()+3600000)
+ }});
+ fixture.invitations.push(invitation.id);
+ const blockedInvitation=await call("invitations","POST",{
+  action:"preview",token:invitationToken
+ },first);
+ assert.equal(blockedInvitation.status,409,
+  "a member in foreign selected context cannot preview or accept home-mosque staff authority");
+ assert.equal(blockedInvitation.error.code,"TENANT_CONTEXT_UNSUPPORTED");
+ const homeInvitation=await call("invitations","POST",{
+  action:"preview",token:invitationToken
+ },second);
+ assert.equal(homeInvitation.status,200,
+  "original pilot session retains its independently authorized onboarding context");
  const unrelatedRoutes=["students","invoices","shifts","circles/mine","account/deletion-request"];
  for(const path of unrelatedRoutes){
   const result=await call(path,"GET",undefined,first);
@@ -225,6 +263,7 @@ try{
   action:"membership.context.select",actorId:(await db.user.findUnique({where:{email:memberEmail}}))?.id||"",
   occurredAt:{gte:createdAt}
  }});
+ if(fixture.invitations.length)await db.staffInvitation.deleteMany({where:{id:{in:fixture.invitations}}});
  if(fixture.prefs.length)await db.organizationDeliveryPreference.deleteMany({where:{id:{in:fixture.prefs}}});
  if(fixture.rsvps.length)await db.eventRSVP.deleteMany({where:{id:{in:fixture.rsvps}}});
  if(fixture.events.length)await db.event.deleteMany({where:{id:{in:fixture.events}}});

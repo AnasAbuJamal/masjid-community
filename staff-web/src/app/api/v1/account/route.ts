@@ -1,23 +1,30 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
-import {requireActor} from "@/lib/auth";
+import {requireActor,sessionFrom,tokenHash} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const update=z.object({firstName:z.string().trim().min(1).max(100).optional(),lastName:z.string().trim().min(1).max(100).optional(),
  newsletterOptIn:z.boolean().optional(),eventEmailOptIn:z.boolean().optional(),quietHoursEnabled:z.boolean().optional()});
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireActor(req);
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
-  const membership=org?await db.organizationMembership.findUnique({where:{
-   organizationId_userId:{organizationId:org.id,userId:user.id}
+  // Account identity fields and device sessions are global to the user, but
+  // even a privacy-request status must be scoped to the selected active
+  // mosque rather than silently reading the first mosque's records.
+  const home=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}],
+   select:{id:true}});
+  const session=await db.authSession.findUnique({where:{tokenHash:tokenHash(sessionFrom(req))},
+   select:{userId:true,selectedOrganizationId:true}});
+  const orgId=session?.userId===user.id?(session.selectedOrganizationId||home?.id):null;
+  const membership=orgId?await db.organizationMembership.findUnique({where:{
+   organizationId_userId:{organizationId:orgId,userId:user.id}
   },select:{status:true}}):null;
   const [preferences,sessions,deletion]=await Promise.all([
    db.userPreference.findUnique({where:{userId:user.id}}),
    db.authSession.findMany({where:{userId:user.id,revokedAt:null,expiresAt:{gt:new Date()}},take:30,
     orderBy:{createdAt:"desc"},select:{id:true,createdAt:true,expiresAt:true}}),
-   org&&membership?.status==="active"?
-    db.deletionRequest.findFirst({where:{userId:user.id,organizationId:org.id},
+   orgId&&membership?.status==="active"?
+    db.deletionRequest.findFirst({where:{userId:user.id,organizationId:orgId},
      orderBy:{createdAt:"desc"},select:{id:true,status:true,createdAt:true}}):Promise.resolve(null)
   ]);
   return ok({profile:{firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,verified:!!user.verifiedAt},

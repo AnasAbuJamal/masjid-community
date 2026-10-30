@@ -14,8 +14,16 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const user=await requireActor(req);
   const input=command.parse(await jsonBody(req));
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true}});
+  const org=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}],
+   select:{id:true,name:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const activeSession=await db.authSession.findUnique({where:{tokenHash:tokenHash(sessionFrom(req))},
+   select:{userId:true,selectedOrganizationId:true}});
+  if(!activeSession||activeSession.userId!==user.id)
+   throw new HttpError(401,"UNAUTHENTICATED","Please sign in.");
+  if(activeSession.selectedOrganizationId&&activeSession.selectedOrganizationId!==org.id)
+   throw new HttpError(409,"TENANT_CONTEXT_UNSUPPORTED",
+    "Switch to the primary mosque before previewing or accepting staff authority.");
   const invite=await db.staffInvitation.findUnique({where:{tokenHash:tokenHash(input.token)},
    select:{id:true,organizationId:true,invitedEmail:true,capabilities:true,issuedById:true,
     expiresAt:true,acceptedAt:true,revokedAt:true}});
