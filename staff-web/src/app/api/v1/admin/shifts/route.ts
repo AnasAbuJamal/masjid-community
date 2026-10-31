@@ -40,7 +40,7 @@ const command=z.discriminatedUnion("kind",[
 export async function GET(req:NextRequest){
  return handled(async()=>{
   await requireCapability(req,"volunteers_manage");
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},
+  const org=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}],
    select:{id:true,name:true,timeZone:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   const [applications,shifts]=await Promise.all([
@@ -61,7 +61,7 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const actor=await requireCapability(req,"volunteers_manage");
   const input=command.parse(await jsonBody(req));
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},
+  const org=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}],
    select:{id:true,name:true,timeZone:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(input.kind==="schedule"||input.kind==="schedule-local"){
