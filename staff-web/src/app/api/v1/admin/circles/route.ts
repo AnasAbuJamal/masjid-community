@@ -1,5 +1,6 @@
 import {NextRequest} from "next/server";
 import {z} from "zod";
+import {Prisma} from "@prisma/client";
 import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
@@ -9,9 +10,9 @@ const create=z.object({action:z.literal("create"),
  summary:z.string().trim().min(20).max(1500),
  cadence:z.string().trim().min(4).max(140),
  guidelines:z.string().trim().min(20).max(1600),
- hostId:z.string().min(8),published:z.boolean().default(false)});
+ hostId:z.string().min(8),published:z.boolean().default(false)}).strict();
 const change=z.object({action:z.literal("change-status"),circleId:z.string().min(8),
- status:z.enum(["published","archived"])});
+ status:z.enum(["published","archived"])}).strict();
 
 export async function GET(req:NextRequest){
  return handled(async()=>{
@@ -38,22 +39,34 @@ export async function POST(req:NextRequest){
   const input=create.parse(await jsonBody(req));
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
-  const host=await db.user.findFirst({where:{
-   id:input.hostId,status:"active",verifiedAt:{not:null},role:{not:"student"},
-   memberships:{some:{organizationId:org.id,status:"active"}}
-  },select:{id:true}});
-  if(!host)throw new HttpError(422,"INVALID_HOST","Choose a verified adult member of this mosque.");
-  const result=await db.$transaction(async tx=>{
-   const circle=await tx.circle.create({data:{
-    organizationId:org.id,hostId:host.id,title:input.title,
-    summary:input.summary,cadence:input.cadence,guidelines:input.guidelines,
-    status:input.published?"published":"draft"
-   }});
-   await tx.auditEvent.create({data:{actorId:admin.id,action:"circle.create",entity:"Circle",
-    entityId:circle.id,detail:JSON.stringify({organizationId:org.id,hostId:host.id,published:input.published})}});
-   return {id:circle.id,status:circle.status};
-  });
-  return ok(result,201);
+  // A preflight check is insufficient: check host eligibility and write
+  // the circle/audit inside one serializable database transaction.
+  try{
+   const result=await db.$transaction(async tx=>{
+    const host=await tx.user.findFirst({where:{
+     id:input.hostId,status:"active",verifiedAt:{not:null},role:{not:"student"},
+     memberships:{some:{organizationId:org.id,status:"active"}}
+    },select:{id:true}});
+    if(!host)throw new HttpError(422,"INVALID_HOST",
+     "Choose a verified active non-student member of this mosque.");
+    const circle=await tx.circle.create({data:{
+     organizationId:org.id,hostId:host.id,title:input.title,
+     summary:input.summary,cadence:input.cadence,guidelines:input.guidelines,
+     status:input.published?"published":"draft"
+    }});
+    await tx.auditEvent.create({data:{actorId:admin.id,action:"circle.create",entity:"Circle",
+     entityId:circle.id,
+     detail:JSON.stringify({organizationId:org.id,hostId:host.id,published:input.published})}});
+    return {id:circle.id,status:circle.status};
+   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+   return ok(result,201);
+  }catch(error){
+   if(error instanceof Prisma.PrismaClientKnownRequestError&&
+      ["P2002","P2034"].includes(error.code))
+    throw new HttpError(409,"CIRCLE_CHANGED",
+     "Circle authorization changed during creation. Refresh and retry.");
+   throw error;
+  }
  });
 }
 

@@ -130,6 +130,24 @@ try{
  const afterApproval=await request("circles/mine","GET",undefined,memberToken);
  assert.ok(afterApproval.data.memberships.some(m=>m.circle.id===draft.data.id&&m.status==="approved"));
  assert.ok(afterApproval.data.updates.some(u=>u.id===posted.data.id&&u.body===body));
+ // A previously approved adult member becomes ineligible for private
+ // circle updates after a student-role reclassification. Do not rely on
+ // the historical approved circle membership status.
+ const originalRole=member.role;
+ try{
+  await db.user.update({where:{id:member.id},data:{role:"student"}});
+  const blockedMine=await request("circles/mine","GET",undefined,memberToken);
+  assert.equal(blockedMine.status,403,"reclassified student cannot read private updates");
+  assert.equal(blockedMine.error.code,"ADULT_ONLY");
+  assert.ok(!JSON.stringify(blockedMine).includes(body));
+  assert.equal((await request("circles","POST",{circleId:draft.data.id},memberToken)).status,403);
+ }finally{
+  await db.user.update({where:{id:member.id},data:{role:originalRole}});
+ }
+ const adultMine=await request("circles/mine","GET",undefined,memberToken);
+ assert.equal(adultMine.status,200);
+ assert.ok(adultMine.data.updates.some(u=>u.id===posted.data.id));
+
  assert.ok(!JSON.stringify(afterApproval.data).includes(staff.email),
   "member's private updates must not expose host contact details");
  const doubleReview=await request("circles/host","POST",{

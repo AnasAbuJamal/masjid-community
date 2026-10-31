@@ -704,3 +704,18 @@ names**, nor provide instant revocation between polling intervals.
 Independent checks of actual browser visibility behavior, device lock
 policies, trained staff supervision and safeguarding escalation are still
 required before real attendees are shown.
+
+
+## F-011/F-012 circle account reclassification and host creation
+
+A private Circle approval is not perpetual authorization. The original pilot's
+adult-only circle policy requires an active, verified, non-student account
+and currently active mosque membership on private reads. A historical
+`approved` member row must not allow a subsequently student-reclassified
+account to read private circle updates. Administrative circle creation must
+verify its proposed moderator within the transaction that creates the circle
+and its audit event; preflight UI choices have no authorization authority.
+
+Role exclusion is not proof of legal adulthood, independent safeguarding
+clearance, or certified moderator training. These require separate human
+approval and recorded operational policy before production usage.

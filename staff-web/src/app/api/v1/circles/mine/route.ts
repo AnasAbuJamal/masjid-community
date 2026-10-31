@@ -6,6 +6,12 @@ import {handled,HttpError,ok} from "@/lib/http";
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const member=await requireVerified(req);
+  // F-011/F-012 pilot circles are not approved for student accounts. A
+  // previously approved member must lose private updates immediately if
+  // their account is later reclassified, regardless of stored membership.
+  if(member.role==="student")
+   throw new HttpError(403,"ADULT_ONLY",
+    "This pilot circle program is not available to student accounts.");
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   const memberships=await db.circleMember.findMany({
