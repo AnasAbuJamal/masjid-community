@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handled, HttpError, localDate, ok } from "@/lib/http";
-import {gatheringFilters,publishedGatheringWhere,GATHERING_SELECT,publicGatheringItems} from "@/lib/gathering-filters";
+import {gatheringFilters,publishedGatheringPage} from "@/lib/gathering-filters";
 import {currentVenueEmergency} from "@/lib/venue-emergencies";
 type Context={params:Promise<{resource:string}>};
 const limit=25;
@@ -15,13 +15,10 @@ export async function GET(req:NextRequest,{params}:Context){
     if(parts.venueId&&!await db.venue.findFirst({
       where:{id:parts.venueId,organizationId:org.id},select:{id:true}
     }))throw new HttpError(404,"VENUE_NOT_FOUND","Venue unavailable.");
-    const items=await db.event.findMany({
-      where:publishedGatheringWhere(org.id,parts),select:GATHERING_SELECT,
-      orderBy:[{startAt:"asc"},{id:"asc"}],take:parts.id?1:50
-    });
-    if(parts.id&&!items.length)throw new HttpError(404,"NOT_FOUND","Gathering unavailable.");
+    const page=await publishedGatheringPage(org.id,parts);
+    if(parts.id&&!page.items.length)throw new HttpError(404,"NOT_FOUND","Gathering unavailable.");
     return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone},
-      items:publicGatheringItems(items,org.id),
+      ...page,
       note:"Published gathering categories, audience and verified accessibility information only."});
   }
   if(resource==="financials"){

@@ -1,6 +1,7 @@
 import {z} from "zod";
 import type {Prisma} from "@prisma/client";
 import {HttpError} from "./http";
+import {db} from "./db";
 
 // Fixed, reviewable public categories. Never claim that an omitted feature
 // exists on an older gathering, or infer audience from attendance demographics.
@@ -22,7 +23,7 @@ export const GATHERING_SELECT={
 } as const;
 
 export function gatheringFilters(params:URLSearchParams){
- const keys=["eventId","q","from","to","venueId","category","audience","accessibility"];
+ const keys=["eventId","q","from","to","venueId","category","audience","accessibility","cursor"];
  if([...params.keys()].some(k=>!keys.includes(k))||
     keys.some(k=>params.getAll(k).length>1)||
     (params.has("eventId")&&keys.some(k=>k!=="eventId"&&params.has(k))))
@@ -30,6 +31,11 @@ export function gatheringFilters(params:URLSearchParams){
  const optional=(key:string)=>params.get(key)||null;
  const eventId=optional("eventId");
  const id=eventId?z.string().min(8).max(128).parse(eventId):null;
+ if(params.has("cursor")&&!optional("cursor"))
+  throw new HttpError(422,"BAD_CURSOR","A nonempty page cursor is required.");
+ const cursor=optional("cursor")?z.string()
+  .regex(/^[A-Za-z0-9_-]{8,128}$/,"Invalid page cursor.")
+  .parse(optional("cursor")):null;
  const qRaw=optional("q");
  const q=qRaw?z.string().trim().min(2).max(80).parse(qRaw):null;
  const fromRaw=optional("from"),toRaw=optional("to");
@@ -54,7 +60,7 @@ export function gatheringFilters(params:URLSearchParams){
   ...(audience?{audience}:{}),
   ...(accessibility?{accessibilityFeatures:{has:accessibility}}:{})
  };
- return {id,filters,from,to,venueId};
+ return {id,cursor,filters,from,to,venueId};
 }
 
 export function publishedGatheringWhere(
@@ -79,4 +85,34 @@ export function publicGatheringItems<T extends {
   ...event,venue:venue?.organizationId===organizationId
    ?{id:venue.id,name:venue.name,timeZone:venue.timeZone}:null
  }));
+}
+
+// Keyset pagination (startAt, id) avoids offset drift and duplicates where
+// events share a start instant. Cursor IDs are never authorities: every
+// cursor is resolved inside the identical tenant, publication and filter set.
+// If a cursor is removed, unpublished, starts in the past, or belongs to a
+// different organization/filter, it is rejected without an existence oracle.
+export const GATHERING_PAGE_SIZE=25;
+export async function publishedGatheringPage(
+ organizationId:string,parts:ReturnType<typeof gatheringFilters>,now=new Date()
+){
+ const base=publishedGatheringWhere(organizationId,parts,now);
+ const pivot=parts.cursor?await db.event.findFirst({
+  where:{AND:[base,{id:parts.cursor}]},
+  select:{id:true,startAt:true}
+ }):null;
+ if(parts.cursor&&!pivot)
+  throw new HttpError(404,"CURSOR_UNAVAILABLE","This gathering page is unavailable. Restart the search.");
+ const where:Prisma.EventWhereInput=pivot?{AND:[base,{OR:[
+  {startAt:{gt:pivot.startAt}},
+  {startAt:pivot.startAt,id:{gt:pivot.id}}
+ ]}]}:base;
+ const rows=await db.event.findMany({
+  where,select:GATHERING_SELECT,orderBy:[{startAt:"asc"},{id:"asc"}],
+  take:parts.id?1:GATHERING_PAGE_SIZE+1
+ });
+ const hasMore=!parts.id&&rows.length>GATHERING_PAGE_SIZE;
+ const items=hasMore?rows.slice(0,GATHERING_PAGE_SIZE):rows;
+ return {items:publicGatheringItems(items,organizationId),
+  hasMore,nextCursor:hasMore?items[items.length-1].id:null,pageSize:GATHERING_PAGE_SIZE};
 }

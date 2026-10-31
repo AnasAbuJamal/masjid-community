@@ -10,11 +10,13 @@ import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from 
 import {MemberScopeNotice} from "../../../src/MemberScopeNotice";
 import {useVenue} from "../../../src/venue";
 import {CATEGORIES,AUDIENCES,ACCESSIBILITY,gatheringCatalogPath,gatheringFilterError} from "../../../src/gatheringFilters";
+import {useGatheringPages} from "../../../src/useGatheringPages";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
  cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string;
  category?:string|null;audience?:string|null;accessibilityFeatures?:string[];
  accessibilityNotes?:string|null;venue?:{id:string;name:string;timeZone:string}|null};
-type Result={items:RecordItem[];organization?:{name:string;timeZone?:string}};
+type Result={items:RecordItem[];organization?:{id?:string;name:string;timeZone?:string};
+ hasMore?:boolean;nextCursor?:string|null;pageSize?:number};
 type OwnRegistration={eventId:string;registration:{status:string;createdAt:string;checkedInAt:string|null}|null};
 const categories:{[key:string]:{label:string;subtitle:string}}={
  events:{label:"Events",subtitle:"Discover upcoming gatherings."},
@@ -45,7 +47,7 @@ export default function Details(){
  const params=useLocalSearchParams<{kind:string;id:string}>();
  const kind=String(params.kind||""),id=String(params.id||"all");
  const config=categories[kind];
- const {user}=useSession();
+ const {user,contextVersion}=useSession();
  const {venues}=useVenue();
  const [category,setCategory]=useState("");
  const [audience,setAudience]=useState("");
@@ -81,6 +83,11 @@ export default function Details(){
    ?authorizedSelected?"organizations/view?resource="+kind+(id==="all"?"":"&itemId="+encodeURIComponent(id)):null
    :pilotContent?"public/"+(config?kind:"events"):null;
  const result=useResource<Result>(path);
+ const paged=useGatheringPages<RecordItem>(
+  kind==="events"&&id==="all"?path:null,contextVersion,
+  kind==="events"&&id==="all"?result.data:null
+ );
+ const displayItems=kind==="events"&&id==="all"?paged.items:result.data?.items||[];
  const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedSelected?`events/registration?eventId=${encodeURIComponent(id)}`:null);
  const [message,setMessage]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[letter,setLetter]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState("");
  const item=result.data?.items.find(x=>x.id===id);
@@ -161,7 +168,21 @@ export default function Details(){
    </Card>:null}
   {blocked?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
   {!blocked?<Feedback loading={result.loading} error={result.error} empty={!result.data?.items.length} refresh={result.refresh}/>:null}
-  {!blocked&&(id==="all")?<View style={S.section}>{result.data?.items.map(x=><PressRow key={x.id} title={x.title} subtitle={x.description||x.body||x.purpose||x.company||"View details and next steps"} icon="chevron-right-circle-outline" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind,id:x.id}})}/>)}</View>
+  {!blocked&&(id==="all")?<View style={S.section}>
+   {displayItems.map(x=><PressRow key={x.id} title={x.title}
+    subtitle={x.description||x.body||x.purpose||x.company||"View details and next steps"}
+    icon="chevron-right-circle-outline"
+    onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind,id:x.id}})}/>)}
+   {kind==="events"&&paged.error?<Card><Text accessibilityRole="alert" style={{color:T.danger}}>{paged.error}</Text>
+    <Action label="Refresh list to restart" secondary onPress={()=>void result.refresh()}/></Card>:null}
+   {kind==="events"&&paged.hasMore?<Action
+    label={paged.busy?"Loading gatherings…":"Load more published gatherings"}
+    secondary disabled={paged.busy} icon="chevron-down"
+    onPress={()=>void paged.loadMore()}/>:null}
+   {kind==="events"&&displayItems.length>0?<Text style={S.muted}>
+    Showing {displayItems.length} published gatherings{paged.hasMore?" · more available":""}
+   </Text>:null}
+  </View>
   :!blocked&&item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
    {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
    {item.startAt||item.startsAt?<Text style={S.muted}>Date: {kind==="events"?gatheringTime(item.startAt||item.startsAt||"",item.venue?.timeZone||result.data?.organization?.timeZone):new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}

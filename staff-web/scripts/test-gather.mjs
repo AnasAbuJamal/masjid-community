@@ -18,6 +18,7 @@ async function request(path,method="GET",payload,token){
 }
 let eventId,closedId,otherEventId,otherOrgId,screenedEventId,policyEventId;
 let categorizedEventId,homeVenueId,otherVenueId;
+const pageIds=[];
 const syntheticUsers=[];
 try{
  const organization=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
@@ -101,6 +102,54 @@ try{
  assert.equal(oldDetails.status,200);
  assert.equal(oldDetails.data.items[0].venue,null,"legacy gatherings do not invent a venue");
  assert.deepEqual(oldDetails.data.items[0].accessibilityFeatures,[]);
+
+ // F-007: more than one page of equally timed upcoming gatherings must be
+ // navigable in exact (startAt,id) order, including all final-page records.
+ const pages=Array.from({length:55},(_,i)=>({
+  id:randomUUID(),...fixture,title:"CI KEYSET PAGE TEST "+String(i).padStart(3,"0"),
+  description:"Synthetic keyset-only event for paging and tenant isolation.",
+  startAt:new Date("2032-12-06T15:00:00.000Z"),
+  endAt:new Date("2032-12-06T16:00:00.000Z"),
+  category:"other",capacity:null
+ }));
+ pageIds.push(...pages.map(x=>x.id));
+ await db.event.createMany({data:pages});
+ const pagingFilter="?q="+encodeURIComponent("CI KEYSET PAGE TEST")+"&category=other";
+ for(const endpoint of ["public/events","events/catalog"]){
+  const credentials=endpoint==="events/catalog"?memberToken:undefined;
+  let cursor=null;
+  const seen=[],idsSorted=pages.map(x=>x.id).sort();
+  for(let pageNo=0;pageNo<3;pageNo++){
+   const result=await request(endpoint+pagingFilter+
+    (cursor?"&cursor="+encodeURIComponent(cursor):""),
+    "GET",undefined,credentials);
+   assert.equal(result.status,200,JSON.stringify(result));
+   assert.equal(result.data.pageSize,25);
+   assert.equal(result.data.items.length,pageNo===2?5:25);
+   assert.equal(result.data.hasMore,pageNo<2);
+   seen.push(...result.data.items.map(x=>x.id));
+   cursor=result.data.nextCursor;
+   if(pageNo<2)assert.equal(cursor,seen[seen.length-1]);
+   else assert.equal(cursor,null);
+  }
+  assert.deepEqual(seen,idsSorted,"stable composite sort must visit all 55 records exactly once");
+  for(const bad of [
+   "&cursor=",
+   "&cursor=bad",
+   "&cursor="+randomUUID(),
+   "&cursor="+encodeURIComponent(event.id),
+   "&cursor="+encodeURIComponent(pageIds[0])+"&cursor="+encodeURIComponent(pageIds[1]),
+   "&eventId="+encodeURIComponent(event.id)+"&cursor="+encodeURIComponent(pageIds[0])
+  ]){
+   const result=await request(endpoint+pagingFilter+bad,"GET",undefined,credentials);
+   assert.ok([404,422].includes(result.status),
+    "forged, mismatched or duplicated cursor must fail closed: "+bad);
+  }
+  const details=await request(endpoint+"?eventId="+event.id,"GET",undefined,credentials);
+  assert.equal(details.status,200);
+  assert.equal(details.data.hasMore,false);
+  assert.equal(details.data.nextCursor,null);
+ }
  const listing=await request("public/events");
  assert.equal(listing.status,200);
  assert.ok(listing.data.items.some(x=>x.id===eventId&&x.waitlistEnabled&&x.capacity===1),"public event shows waitlist policy");
@@ -282,6 +331,12 @@ try{
  }});
  otherEventId=otherEvent.id;
  for(const endpoint of ["public/events","events/catalog"]){
+  const credentials=endpoint==="events/catalog"?memberToken:undefined;
+  const response=await request(endpoint+"?cursor="+encodeURIComponent(otherEvent.id),
+    "GET",undefined,credentials);
+  assert.equal(response.status,404,"a cross-tenant cursor must not disclose events");
+ }
+ for(const endpoint of ["public/events","events/catalog"]){
   const selected=endpoint==="events/catalog"?memberToken:undefined;
   const forbidden=await request(endpoint+"?venueId="+otherVenue.id,"GET",null,selected);
   assert.equal(forbidden.status,404,"venue filter may not select a foreign mosque");
@@ -305,6 +360,7 @@ try{
  assert.equal(foreignCalendar.status,404,"public calendar rejects events from other mosques");
  console.log("Verified confirmed seats, eligible-only waitlist promotion, ineligible state preservation, notices, idempotency, capacity and organization isolation.");
 }finally{
+ if(pageIds.length)await db.event.deleteMany({where:{id:{in:pageIds}}});
  for(const id of [eventId,closedId,otherEventId,screenedEventId,policyEventId,categorizedEventId].filter(Boolean)){
   await db.eventRSVP.deleteMany({where:{eventId:id}});
   await db.event.deleteMany({where:{id}});

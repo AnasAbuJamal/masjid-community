@@ -443,6 +443,12 @@ try{
  assert.equal(selectedCatalog.data.organization.id,foreign.id,"server session chooses mosque");
  assert.ok(selectedCatalog.data.items.some(x=>x.id===event.id));
  assert.ok(!selectedCatalog.data.items.some(x=>x.id===homeEvent.id||x.id===foreignDraft.id));
+ assert.equal((await call("events/catalog?cursor="+homeEvent.id,
+  "GET",undefined,first)).status,404,
+  "a foreign-session cursor cannot pivot inside a member's selected mosque");
+ assert.equal((await call("events/catalog?cursor="+foreignDraft.id,
+  "GET",undefined,first)).status,404,
+  "draft content cannot become a page cursor");
  assert.ok(!JSON.stringify(selectedCatalog).includes("FOREIGN_SYNTHETIC_UNPUBLISHED_EVENT"));
  const byTitle=await call("events/catalog?q="+encodeURIComponent("foreign_synthetic"),"GET",undefined,first);
  assert.equal(byTitle.status,200);
@@ -629,6 +635,8 @@ try{
  assert.equal(revoked.error.code,"MEMBERSHIP_REQUIRED");
  const blockedCatalog=await call("events/catalog","GET",undefined,first);
  assert.equal(blockedCatalog.status,403,"suspended membership cannot browse selected catalog");
+ assert.equal((await call("events/catalog?cursor="+event.id,"GET",undefined,first)).status,403,
+  "revoked membership blocks cursor pagination before any page lookup");
  assert.equal((await calendar("events/calendar?eventId="+event.id,first)).status,403,
   "revocation blocks authenticated calendar export immediately");
  const deniedDiscovery=await call("organizations/search?q=FOREIGN&kind=all","GET",undefined,first);
