@@ -41,8 +41,7 @@ test("emergency instructions are visible at each actual selected venue",()=>{
  ]){
   const source=read(path);
   assert.match(source,/data\?\.emergency/);
-  assert.match(source,/accessibilityRole="alert"/);
-  assert.match(source,/instructions/);
+  assert.match(source,/VenueEmergencyAlert/);
  }
  assert.match(read(".github/workflows/verify.yml"),/scripts\/test-venue-emergencies\.mjs/);
 });
@@ -52,21 +51,21 @@ test("Today and Salah use the same accessible RTL-aware translated emergency chr
  const locale=read("masjid-mobile/src/i18n.tsx");
  for(const key of ["venueNotice","closure","accessChange","safety","other",
   "instructions","revision","expires","refresh"]){
-  const translation=new RegExp('"emergency\\.'+key+'":\\{en:"[^"]+",ar:"[^"]+"\\}');
-  assert.match(locale,translation,"both labels must be available for "+key);
+  const record=locale.split('"emergency.'+key+'":')[1]?.split("\n")[0];
+  assert.ok(record?.startsWith('{en:"')&&record.includes('",ar:"')&&record.trim().endsWith('},'),
+   "English and Arabic labels required for "+key);
   assert.ok(alert.includes('t("emergency.'+key+'")'),"shared alert uses "+key);
  }
- assert.match(alert,/accessibilityRole="alert"/);
- assert.match(alert,/const align=isRTL\\?"right":"left"/);
- assert.match(alert,/\\{notice\\.title\\}/);
- assert.match(alert,/\\{notice\\.body\\}/);
- assert.match(alert,/\\{notice\\.instructions\\}/);
- assert.match(alert,/onPress=\\{onRefresh\\}/);
+ for(const fragment of ['accessibilityRole="alert"',
+  'const align=isRTL?"right":"left"','{notice.title}','{notice.body}',
+  '{notice.instructions}','onPress={onRefresh}']){
+  assert.ok(alert.includes(fragment),"emergency alert must include "+fragment);
+ }
  for(const path of ["masjid-mobile/app/(tabs)/index.tsx",
   "masjid-mobile/app/(tabs)/salah.tsx"]){
   const screen=read(path);
-  assert.match(screen,/VenueEmergencyAlert notice=\\{data\\.emergency\\}/);
-  assert.match(screen,/onRefresh=\\{\\(\\)=>void refresh\\(\\)\\}/);
+  assert.ok(screen.includes('<VenueEmergencyAlert notice={data.emergency}'));
+  assert.ok(screen.includes('onRefresh={()=>void refresh()}'));
   assert.doesNotMatch(screen,/VENUE NOTICE|What to do:/,
    "no hard-coded English emergency label outside the shared component");
  }
