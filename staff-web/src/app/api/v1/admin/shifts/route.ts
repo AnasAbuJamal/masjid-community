@@ -3,6 +3,7 @@ import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {notifyUser} from "@/lib/notifications";
+import {resolveMosqueLocalTime} from "@/lib/zoned-schedule-time";
 import {requireCapability} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 // Serializable shift writes return explicit conflicts, never false completion.
@@ -14,18 +15,33 @@ async function shiftTransaction<T>(action:(tx:Prisma.TransactionClient)=>Promise
   throw error;
  }
 }
+function mosqueInstant(local:string,timeZone:string):Date{
+ const result=resolveMosqueLocalTime(local,timeZone);
+ if(!result.ok)throw new HttpError(422,result.reason,
+  result.reason==="AMBIGUOUS_LOCAL_TIME"?
+   "This mosque clock time repeats when daylight saving ends. Choose an unambiguous time.":
+  result.reason==="NONEXISTENT_LOCAL_TIME"?
+   "This clock time does not exist at the mosque when daylight saving begins.":
+   "Enter a valid time for the configured mosque timezone.");
+ return result.date;
+}
+const localClock=z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 const command=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("schedule"),applicationId:z.string().min(8),startAt:z.iso.datetime(),endAt:z.iso.datetime()}).strict(),
+ z.object({kind:z.literal("schedule-local"),applicationId:z.string().min(8),
+  startLocal:localClock,endLocal:localClock}).strict(),
  z.object({kind:z.literal("update"),shiftId:z.string().min(8),action:z.enum(["check-in","complete","cancel"])}).strict(),
  z.object({kind:z.literal("correct"),shiftId:z.string().min(8),
   action:z.enum(["adjust-arrival","remove-arrival"]),
-  checkedInAt:z.iso.datetime().optional(),reason:z.string().trim().min(12).max(500)
+  checkedInAt:z.iso.datetime().optional(),checkedInLocal:localClock.optional(),
+  reason:z.string().trim().min(12).max(500)
  }).strict()
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
   await requireCapability(req,"volunteers_manage");
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},
+   select:{id:true,name:true,timeZone:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   const [applications,shifts]=await Promise.all([
    db.volunteerApplication.findMany({where:{
@@ -37,7 +53,7 @@ export async function GET(req:NextRequest){
    db.volunteerShift.findMany({where:{opportunity:{organizationId:org.id}},take:100,orderBy:{startAt:"desc"},include:{
      volunteer:{select:{firstName:true,lastName:true}},opportunity:{select:{title:true}}}})
   ]);
-  return ok({applications,shifts});
+  return ok({organization:{name:org.name,timeZone:org.timeZone},applications,shifts});
  });
 }
 export async function POST(req:NextRequest){
@@ -45,10 +61,14 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const actor=await requireCapability(req,"volunteers_manage");
   const input=command.parse(await jsonBody(req));
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},
+   select:{id:true,name:true,timeZone:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
-  if(input.kind==="schedule"){
-   const start=new Date(input.startAt),end=new Date(input.endAt);
+  if(input.kind==="schedule"||input.kind==="schedule-local"){
+   const start=input.kind==="schedule-local"
+    ?mosqueInstant(input.startLocal,org.timeZone):new Date(input.startAt);
+   const end=input.kind==="schedule-local"
+    ?mosqueInstant(input.endLocal,org.timeZone):new Date(input.endAt);
    if(start<=new Date()||end<=start||end.getTime()-start.getTime()>24*60*60*1000)
     throw new HttpError(422,"INVALID_SHIFT","Choose a future shift up to 24 hours long.");
    const result=await shiftTransaction(async tx=>{
@@ -76,9 +96,12 @@ export async function POST(req:NextRequest){
    // Historical attendance may be corrected even if a member has since been
    // suspended. This never confers new attendance eligibility or grants a
    // volunteer permission to revise their own record.
-   if((input.action==="adjust-arrival")!==Boolean(input.checkedInAt))
-    throw new HttpError(422,"INVALID_CORRECTION","A time is required only for an arrival-time adjustment.");
-   const correctedAt=input.checkedInAt?new Date(input.checkedInAt):null;
+   const provided=Number(Boolean(input.checkedInAt))+Number(Boolean(input.checkedInLocal));
+   if(input.action==="adjust-arrival"?provided!==1:provided!==0)
+    throw new HttpError(422,"INVALID_CORRECTION",
+     "Supply exactly one corrected arrival time for an adjustment and no time for a removal.");
+   const correctedAt=input.checkedInLocal?mosqueInstant(input.checkedInLocal,org.timeZone):
+    input.checkedInAt?new Date(input.checkedInAt):null;
    const result=await shiftTransaction(async tx=>{
     const shift=await tx.volunteerShift.findFirst({where:{
      id:input.shiftId,opportunity:{organizationId:org.id}
