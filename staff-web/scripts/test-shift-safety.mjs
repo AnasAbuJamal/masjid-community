@@ -15,6 +15,13 @@ async function request(path,method="GET",body,token){
  },body:body?JSON.stringify(body):undefined});
  return {status:response.status,...await response.json().catch(()=>({}))};
 }
+function localClock(date,timeZone){
+ const parts=new Intl.DateTimeFormat("en-US",{timeZone,
+  year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"
+ }).formatToParts(date);
+ const p=key=>parts.find(part=>part.type===key)?.value;
+ return p("year")+"-"+p("month")+"-"+p("day")+"T"+p("hour")+":"+p("minute");
+}
 let adminSession,memberSession,foreignOrgId;
 const opportunities=[];
 try{
@@ -169,6 +176,7 @@ try{
 
  const list=await request("admin/shifts","GET",null,adminToken);
  assert.equal(list.status,200);
+ assert.equal(list.data.organization.timeZone,org.timeZone);
  assert.ok(!list.data.shifts.some(x=>x.id===foreignShift.id),"foreign volunteer shifts hidden");
  const foreignEdit=await request("admin/shifts","POST",{
   kind:"update",shiftId:foreignShift.id,action:"cancel"
@@ -202,6 +210,33 @@ try{
   opportunityId:localOpp.id,startAt:new Date(now+9*hour)
  }}),1);
  const futureId=concurrent.find(x=>x.status===201).data.id;
+ // Browser wall-clock entry is now resolved by the server in mosque-local time,
+ // never interpreted through the remote coordinator's device timezone.
+ const localStart=localClock(new Date(now+16*hour),org.timeZone);
+ const localEnd=localClock(new Date(now+17*hour),org.timeZone);
+ const scheduledLocal=await request("admin/shifts","POST",{
+  kind:"schedule-local",applicationId:localApp.id,
+  startLocal:localStart,endLocal:localEnd
+ },adminToken);
+ assert.equal(scheduledLocal.status,201,"a unique future mosque-local shift can be scheduled");
+ const persistedLocal=await db.volunteerShift.findUniqueOrThrow({
+  where:{id:scheduledLocal.data.id}
+ });
+ assert.equal(localClock(persistedLocal.startAt,org.timeZone),localStart);
+ assert.equal(localClock(persistedLocal.endAt,org.timeZone),localEnd);
+ if(org.timeZone==="America/New_York"){
+  for(const [clock,expected] of [
+   ["2027-03-14T02:30","NONEXISTENT_LOCAL_TIME"],
+   ["2026-11-01T01:30","AMBIGUOUS_LOCAL_TIME"]
+  ]){
+   const declined=await request("admin/shifts","POST",{
+    kind:"schedule-local",applicationId:localApp.id,startLocal:clock,
+    endLocal:"2027-04-01T12:00"
+   },adminToken);
+   assert.equal(declined.status,422,"DST gap/overlap must not guess an instant");
+   assert.equal(declined.error.code,expected);
+  }
+ }
  const personal=await request("shifts","GET",null,memberToken);
  assert.equal(personal.status,200,"verified member reads only own volunteer commitments");
  assert.equal(personal.data.organization.name,org.name);
@@ -289,6 +324,15 @@ try{
  },adminToken);
  assert.equal(completedUndo.status,409,"do not silently undo a completed service shift");
  assert.equal(completedUndo.error.code,"COMPLETED_SHIFT");
+ const correctedLocal=localClock(new Date(now-6*60000),org.timeZone);
+ const localCorrection=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:activeShift.id,action:"adjust-arrival",
+  checkedInLocal:correctedLocal,
+  reason:"Coordinator checked the original arrival notes and mosque clock time"
+ },adminToken);
+ assert.equal(localCorrection.status,200,"coordinator correction resolves mosque-local time");
+ const adjusted=await db.volunteerShift.findUniqueOrThrow({where:{id:activeShift.id}});
+ assert.equal(localClock(adjusted.checkedInAt,org.timeZone),correctedLocal);
  const soonShift=await db.volunteerShift.create({data:{
   opportunityId:localOpp.id,applicationId:localApp.id,userId:member.id,
   startAt:new Date(now+8*60000),endAt:new Date(now+60*60000)
