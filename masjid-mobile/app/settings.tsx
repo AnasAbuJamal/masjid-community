@@ -9,7 +9,7 @@ import {S,T} from "../src/theme";
 import {useLanguage} from "../src/i18n";
 type Session={id:string;createdAt:string;expiresAt:string};
 type Data={profile:{firstName:string;lastName:string;email:string;role:string};
- sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
+ currentSessionId:string;sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
 type DeliveryPreference={purpose:"community_news"|"event_updates";enabled:boolean;quietStartHour:number|null;quietEndHour:number|null};
 type DeliveryData={organization:{name:string;timeZone:string};optional:DeliveryPreference[];policy:string};
 type ContextData={selectedOrganizationId:string;selectedActive:boolean;organizations:{id:string;name:string;slug:string;timeZone:string;selectable:boolean;memberWorkspace:string}[];policy:string};
@@ -69,9 +69,19 @@ export default function Settings(){
   }finally{setBusy(false);}
  }
  async function revoke(id:string){
+  const current=id===result.data?.currentSessionId;
   setBusy(true);setError("");setNotice("");
-  try{await api("account/sessions/"+id,{method:"DELETE"});setNotice("Session revoked.");await result.refresh();}
-  catch(e){setError(e instanceof Error?e.message:"Could not revoke session.");}
+  try{
+   await api("account/sessions/"+encodeURIComponent(id),{method:"DELETE"});
+   if(current){
+    // Once this token is revoked server-side, clear SecureStore and all
+    // session-keyed private responses before leaving the Settings screen.
+    await logout();
+    router.replace("/(tabs)/profile");
+    return;
+   }
+   setNotice(t("settings.sessionRevoked"));await result.refresh();
+  }catch(e){setError(e instanceof Error?e.message:t("settings.sessionError"));}
   finally{setBusy(false);}
  }
  async function exportData(){
@@ -144,10 +154,24 @@ export default function Settings(){
  <Text style={S.muted}>{t("settings.deliveryPolicy")}</Text>
  <Action label={t("settings.saveDelivery")} loading={busy} disabled={busy||!delivery.data}
  onPress={()=>void saveDelivery()}/></Card>
- <Card style={{gap:13}}><Text style={S.headline}>Your sessions</Text>
- {result.data.sessions.map(s=><View key={s.id} style={[S.row,{paddingVertical:8}]}><View style={{flex:1}}><Text style={S.label}>Signed in {new Date(s.createdAt).toLocaleDateString()}</Text>
- <Text style={S.muted}>Expires {new Date(s.expiresAt).toLocaleDateString()}</Text></View>
- <Action label="Revoke" secondary disabled={busy} onPress={()=>void revoke(s.id)}/></View>)}
+ <Card style={{gap:13}}><Text style={S.headline}>{t("settings.sessionsTitle")}</Text>
+ {result.data.sessions.map(s=><View key={s.id} style={[S.row,{paddingVertical:8,
+  flexDirection:language==="ar"?"row-reverse":"row"}]}>
+  <View style={{flex:1}}>
+   <Text style={S.label}>{t("settings.signedIn")} {new Date(s.createdAt).toLocaleDateString(language==="ar"?"ar":"en-US")}
+    {s.id===result.data.currentSessionId?" · "+t("settings.currentDevice"):""}</Text>
+   <Text style={S.muted}>{t("settings.sessionExpires")} {new Date(s.expiresAt).toLocaleDateString(language==="ar"?"ar":"en-US")}</Text>
+  </View>
+  <Action label={t("settings.sessionRevoke")} secondary disabled={busy}
+   onPress={()=>{
+    if(s.id===result.data.currentSessionId){
+     Alert.alert(t("settings.selfRevokeTitle"),t("settings.selfRevokeBody"),[
+      {text:t("settings.cancel"),style:"cancel"},
+      {text:t("settings.sessionRevoke"),style:"destructive",onPress:()=>void revoke(s.id)}
+     ]);
+    }else void revoke(s.id);
+   }}/>
+ </View>)}
  <Action label="Sign out on all devices" secondary icon="shield-lock-outline" disabled={busy} onPress={()=>Alert.alert("Sign out all sessions?","You will need to sign in again on every device.",[
   {text:"Cancel",style:"cancel"},{text:"Sign out all",style:"destructive",onPress:()=>void logoutEverywhere()}])}/>
  </Card>

@@ -82,6 +82,46 @@ assert.equal(replay.status,409,"already used code cannot authorize another sessi
 const member=await request("auth/login","POST",{email:memberEmail,password});
 assert.equal(member.status,200);
 assert.equal(member.data.user.mfaRequired,false,"ordinary members can sign in without privileged MFA");
+ // A user can identify their CURRENT session, revoke another own device,
+ // and revoke the active device. Both become unauthorized immediately.
+ const ownAccount=await request("account","GET",undefined,member.data.token);
+ assert.equal(ownAccount.status,200);
+ assert.ok(ownAccount.data.currentSessionId);
+ assert.ok(ownAccount.data.sessions.some(s=>s.id===ownAccount.data.currentSessionId));
+ const remoteLogin=await request("auth/login","POST",{email:memberEmail,password});
+ assert.equal(remoteLogin.status,200);
+ const remoteAccount=await request("account","GET",undefined,remoteLogin.data.token);
+ assert.equal(remoteAccount.status,200);
+ assert.notEqual(remoteAccount.data.currentSessionId,ownAccount.data.currentSessionId);
+ const ownSessions=await request("account","GET",undefined,member.data.token);
+ assert.ok(ownSessions.data.sessions.some(s=>s.id===remoteAccount.data.currentSessionId));
+ const adminAccount=await request("account","GET",undefined,admin.data.token);
+ assert.equal(adminAccount.status,200);
+ assert.notEqual(adminAccount.data.currentSessionId,ownAccount.data.currentSessionId);
+ assert.equal((await request("account/sessions/"+adminAccount.data.currentSessionId,
+  "DELETE",undefined,member.data.token)).status,404,
+  "a member cannot revoke another user's session by guessed ID");
+ assert.equal((await request("account/sessions/"+remoteAccount.data.currentSessionId,
+  "DELETE")).status,401,"anonymous session revocation denied");
+ const remoteRevoked=await request("account/sessions/"+remoteAccount.data.currentSessionId,
+  "DELETE",undefined,member.data.token);
+ assert.equal(remoteRevoked.status,200);
+ assert.equal((await request("account","GET",undefined,remoteLogin.data.token)).status,401,
+  "revoked remote token cannot access even own account");
+ assert.equal((await request("account","GET",undefined,member.data.token)).status,200,
+  "revoking another device cannot invalidate this device");
+ assert.equal((await request("account/sessions/"+remoteAccount.data.currentSessionId,
+  "DELETE",undefined,member.data.token)).status,404,"repeated revocation is not a new action");
+ const selfLogin=await request("auth/login","POST",{email:memberEmail,password});
+ assert.equal(selfLogin.status,200);
+ const selfAccount=await request("account","GET",undefined,selfLogin.data.token);
+ assert.equal(selfAccount.status,200);
+ const selfId=selfAccount.data.currentSessionId;
+ assert.ok(selfId);
+ const selfRevoked=await request("account/sessions/"+selfId,"DELETE",undefined,selfLogin.data.token);
+ assert.equal(selfRevoked.status,200,"current session may be revoked by its own user");
+ assert.equal((await request("account","GET",undefined,selfLogin.data.token)).status,401,
+  "revoked current token is rejected on the next protected request");
 
  // Cross-site writes must reject the full serialized Origin, including
  // scheme, port and invalid/opaque values. Native Bearer requests without an
@@ -174,6 +214,14 @@ console.log("Verified admin MFA, team access, role separation, staff grant allow
 const {PrismaClient}=await import("@prisma/client");
 const worshipDb=new PrismaClient();
 try{
+ const revokedAudit=await worshipDb.auditEvent.findMany({where:{
+  actorId:member.data.user.id,action:"account.session.revoke",
+  entityId:{in:[remoteAccount.data.currentSessionId,selfId]}
+ }});
+ assert.equal(revokedAudit.length,2,"only successful session revocations create durable audit entries");
+ assert.ok(revokedAudit.every(row=>row.entity==="AuthSession"));
+ assert.ok(!revokedAudit.some(row=>row.entityId===adminAccount.data.currentSessionId),
+  "foreign session ID must never create an audit event");
  const org=await worshipDb.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
  const venue=await worshipDb.venue.findFirst({where:{organizationId:org.id},orderBy:{id:"asc"}});

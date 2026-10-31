@@ -14,8 +14,10 @@ export async function GET(req:NextRequest){
   const home=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}],
    select:{id:true}});
   const session=await db.authSession.findUnique({where:{tokenHash:tokenHash(sessionFrom(req))},
-   select:{userId:true,selectedOrganizationId:true}});
-  const orgId=session?.userId===user.id?(session.selectedOrganizationId||home?.id):null;
+   select:{id:true,userId:true,selectedOrganizationId:true}});
+  if(!session||session.userId!==user.id)
+   throw new HttpError(401,"SESSION_EXPIRED","Sign in again to manage this device.");
+  const orgId=session.selectedOrganizationId||home?.id;
   const membership=orgId?await db.organizationMembership.findUnique({where:{
    organizationId_userId:{organizationId:orgId,userId:user.id}
   },select:{status:true}}):null;
@@ -30,7 +32,7 @@ export async function GET(req:NextRequest){
   return ok({profile:{firstName:user.firstName,lastName:user.lastName,email:user.email,role:user.role,verified:!!user.verifiedAt},
    preferences:{newsletterOptIn:preferences?.newsletterOptIn||false,eventEmailOptIn:preferences?.eventEmailOptIn||false,quietHoursEnabled:preferences?.quietHoursEnabled||false,
     deprecated:true,effectiveForDelivery:false},
-   sessions,deletion});
+   currentSessionId:session.id,sessions,deletion});
  });
 }
 export async function PATCH(req:NextRequest){
