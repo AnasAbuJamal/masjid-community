@@ -111,6 +111,7 @@ export default function Settings(){
   try{await apiPost("auth/logout-all",{});}catch{}
   finally{await logout();setBusy(false);router.replace("/(tabs)/profile");}
  }
+ const currentSessionId=result.data?.currentSessionId;
  const pref=(label:string,value:boolean,onValueChange:(v:boolean)=>void)=><View key={label} style={[S.row,{paddingVertical:7}]}><Text style={[S.label,{flex:1}]}>{label}</Text>
   <Switch accessibilityLabel={label} value={value} onValueChange={onValueChange} trackColor={{true:T.blue}}/></View>;
  return <Shell><Action label="Back to profile" secondary icon="arrow-left" onPress={()=>router.back()}/>
@@ -159,12 +160,12 @@ export default function Settings(){
   flexDirection:language==="ar"?"row-reverse":"row"}]}>
   <View style={{flex:1}}>
    <Text style={S.label}>{t("settings.signedIn")} {new Date(s.createdAt).toLocaleDateString(language==="ar"?"ar":"en-US")}
-    {s.id===result.data.currentSessionId?" · "+t("settings.currentDevice"):""}</Text>
+    {s.id===currentSessionId?" · "+t("settings.currentDevice"):""}</Text>
    <Text style={S.muted}>{t("settings.sessionExpires")} {new Date(s.expiresAt).toLocaleDateString(language==="ar"?"ar":"en-US")}</Text>
   </View>
   <Action label={t("settings.sessionRevoke")} secondary disabled={busy}
    onPress={()=>{
-    if(s.id===result.data.currentSessionId){
+    if(s.id===currentSessionId){
      Alert.alert(t("settings.selfRevokeTitle"),t("settings.selfRevokeBody"),[
       {text:t("settings.cancel"),style:"cancel"},
       {text:t("settings.sessionRevoke"),style:"destructive",onPress:()=>void revoke(s.id)}
