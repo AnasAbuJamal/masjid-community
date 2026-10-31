@@ -561,3 +561,8 @@ No feature is considered production-complete until it meets the privacy, accurac
 - Source-inventory and TypeScript failures observed on the first intermediate pagination SHA `1867d639d116bdf676084a69efdfe2f06d52aa22` were corrected by subsequent commits. Their presence on that failed SHA does **not** prove that the latest branch passes CI.
 - As of this update, new GitHub Actions push runs have not been scheduled for the subsequent correction and public-website pagination commits even though the branch ref advanced. The exact latest development revision must receive a fresh full `Verify rebuilt apps` workflow run (GitHub Actions > Verify rebuilt apps > Run workflow > `development`) before claiming these changes are CI-green.
 - Keep Vercel production hold, all live migrations, provider credentials and real member operations disabled while unverified. The previous fully green SHA remains `763742f923c0a123fe73f51bd6f32058e59ef254` for already verified F-006 behavior.
+
+
+### Seventy-fifth implementation pass: visitor filter message compatibility
+- Restored the established public visitor invalid-filter message wording while retaining explicit page-cursor restart guidance. Earlier regression tests cover malformed categories, venue IDs and dates, while new tests cover stale/forged pagination cursors. This is a user-visible copy compatibility fix rather than an authorization policy change.
+- The intermediate `47ab0b7` CI run reached real HTTP SSR tests and failed on the changed message; the latest revision must pass a fresh full run before this pagination work can be marked verified.

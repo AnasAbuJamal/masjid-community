@@ -158,15 +158,15 @@ try{
   const staleCursor=await fetch(pBase+"&gatherCursor="+encodeURIComponent(filtered.id));
   assert.equal(staleCursor.status,200);
   const staleHtml=await staleCursor.text();
-  assert.match(staleHtml,/filter or page cursor was invalid/);
+  assert.match(staleHtml,/filter was invalid or does not belong to this mosque/);
   assert.doesNotMatch(staleHtml,/CI_WEB_PAGED_GATHERING 0[0-9][0-9]/);
   const malformedCursor=await fetch(pBase+"&gatherCursor=short");
   assert.equal(malformedCursor.status,200);
-  assert.match(await malformedCursor.text(),/filter or page cursor was invalid/);
+  assert.match(await malformedCursor.text(),/filter was invalid or does not belong to this mosque/);
   const duplicateCursor=await fetch(pBase+"&gatherCursor="+staged[0].id+
    "&gatherCursor="+staged[1].id);
   assert.equal(duplicateCursor.status,200);
-  assert.match(await duplicateCursor.text(),/filter or page cursor was invalid/);
+  assert.match(await duplicateCursor.text(),/filter was invalid or does not belong to this mosque/);
   const available=await get("public/venues");
   assert.equal(available.status,200);
   assert.ok(available.data.data.venues.some(v=>v.id===other.id));

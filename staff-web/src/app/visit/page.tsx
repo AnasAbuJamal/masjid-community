@@ -302,7 +302,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
              <button type="submit">Apply filters</button>
              <a href={selectedId?"/visit?venue="+encodeURIComponent(selectedId)+"#gatherings":"/visit#gatherings"}>Clear filters</a>
             </form>
-            {filterInvalid||invalidCursor?<p role="alert" className="visit-empty">A gathering filter or page cursor was invalid or does not belong to this mosque. Restart the listing or clear filters.</p>:null}
+            {filterInvalid||invalidCursor?<p role="alert" className="visit-empty">A gathering filter was invalid or does not belong to this mosque, or its page cursor is unavailable. Restart the listing or clear filters.</p>:null}
             {safeEvents.length ? (
               <div className="visit-list">{safeEvents.map((item) => (
                 <article key={item.id}>
