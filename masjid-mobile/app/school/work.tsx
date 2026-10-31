@@ -7,7 +7,7 @@ import {useResource} from "../../src/useResource";
 import {apiPost} from "../../src/api";
 import {useLanguage} from "../../src/i18n";
 type Assignment={id:string;title:string;instructions:string;dueAt:string;classSection:{name:string};studentIds:string[]};
-type Schoolwork={mode:"family"|"teacher";organization?:{name:string;timeZone:string};assignments?:Assignment[];selfStudentId?:string|null;reports?:{id:string;studentId:string;summary:string;classSection:{name:string};student:{firstName:string;lastName:string}}[];submissions?:{assignmentId:string;studentId:string}[];classes?:{id:string;name:string;assignments:{id:string;title:string;published:boolean;dueAt:string}[]}[]};
+type Schoolwork={mode:"family"|"teacher";organization?:{name:string;timeZone:string};assignments?:Assignment[];selfStudentId?:string|null;reports?:{id:string;studentId:string;summary:string;classSection:{name:string};student:{firstName:string;lastName:string}}[];submissions?:{id:string;assignmentId:string;studentId:string;submittedAt:string}[];classes?:{id:string;name:string;assignments:{id:string;title:string;published:boolean;dueAt:string}[]}[]};
 export default function Work(){
  const {t,language}=useLanguage();
  const result=useResource<Schoolwork>("schoolwork");
@@ -40,7 +40,7 @@ export default function Work(){
   {a.studentIds.includes(result.data?.selfStudentId||"")&&!result.data?.submissions?.some(s=>s.assignmentId===a.id&&s.studentId===result.data?.selfStudentId)&&new Date(a.dueAt)>new Date()?
     expanded===a.id?<View style={{gap:12}}><Field label="Your submission" value={body} onChange={setBody} multiline/><Text style={S.muted}>{t("schoolwork.finalHint")}</Text><Action label="Submit assignment" loading={busy} disabled={busy||!body.trim()} onPress={()=>void submit(a.id)}/><Action label="Cancel" secondary onPress={()=>setExpanded("")}/></View>
      :<Action label="Write your submission" secondary onPress={()=>setExpanded(a.id)}/>:null}
-  {result.data?.submissions?.some(s=>s.assignmentId===a.id&&s.studentId===result.data?.selfStudentId)?<Text style={{color:T.success,fontWeight:"700"}}>Submitted</Text>:null}
+  {result.data?.submissions?.some(s=>s.assignmentId===a.id&&s.studentId===result.data?.selfStudentId)?<View accessibilityRole="text" style={{gap:4}}><Text style={{color:T.success,fontWeight:"700"}}>{t("schoolwork.received")}</Text><Text style={S.muted}>{t("schoolwork.receivedAt")} {dueLabel(result.data.submissions.find(s=>s.assignmentId===a.id&&s.studentId===result.data?.selfStudentId)!.submittedAt)}</Text><Text style={S.muted}>{t("schoolwork.receiptId")} {result.data.submissions.find(s=>s.assignmentId===a.id&&s.studentId===result.data?.selfStudentId)!.id}</Text></View>:null}
  </Card>)}
  {result.data?.reports?.length?<View style={S.section}><Text style={S.headline}>Published progress reports</Text>{result.data.reports.map(r=><Card key={r.id} style={{gap:9}}><Text style={S.label}>{r.student.firstName} {r.student.lastName} · {r.classSection.name}</Text><Text style={S.bodyText}>{r.summary}</Text></Card>)}</View>:null}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}{notice?<Text style={{color:T.success}}>{notice}</Text>:null}

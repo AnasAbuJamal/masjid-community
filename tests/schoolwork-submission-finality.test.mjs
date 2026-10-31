@@ -27,3 +27,16 @@ test("native learner sees explicit bilingual final-submit policy",()=>{
  }
  assert.match(read(".github/workflows/verify.yml"),/test-schoolwork-submissions\.mjs/);
 });
+
+test("learner sees a persisted, mosque-local submission receipt after reload",()=>{
+ const api=read("staff-web/src/app/api/v1/schoolwork/route.ts");
+ const mobile=read("masjid-mobile/app/school/work.tsx");
+ const locale=read("masjid-mobile/src/i18n.tsx");
+ assert.match(api,/select:\{id:true,studentId:true,assignmentId:true,submittedAt:true\}/);
+ assert.match(mobile,/schoolwork\.receivedAt/);
+ assert.match(mobile,/schoolwork\.receiptId/);
+ assert.match(mobile,/dueLabel\(result\.data\.submissions\.find/);
+ for(const key of ["schoolwork.received","schoolwork.receivedAt","schoolwork.receiptId"]){
+  assert.ok(locale.includes('"'+key+'":{en:')&&locale.includes("ar:"),key);
+ }
+});
