@@ -30,7 +30,7 @@ export async function GET(req:NextRequest){
   const [applications,shifts]=await Promise.all([
    db.volunteerApplication.findMany({where:{
     status:"approved",opportunity:{organizationId:org.id,published:true},
-    user:{status:"active",verifiedAt:{not:null},
+    user:{status:"active",role:{not:"student"},verifiedAt:{not:null},
      memberships:{some:{organizationId:org.id,status:"active"}}}
    },take:100,include:{
      user:{select:{firstName:true,lastName:true,email:true}},opportunity:{select:{title:true,startsAt:true}}}}),
@@ -55,7 +55,7 @@ export async function POST(req:NextRequest){
     const app=await tx.volunteerApplication.findFirst({where:{
       id:input.applicationId,status:"approved",
       opportunity:{organizationId:org.id,published:true},
-      user:{status:"active",verifiedAt:{not:null},
+      user:{status:"active",role:{not:"student"},verifiedAt:{not:null},
        memberships:{some:{organizationId:org.id,status:"active"}}}
     }});
     if(!app)throw new HttpError(404,"NOT_APPROVED","Application is not approved.");
@@ -125,7 +125,7 @@ export async function POST(req:NextRequest){
     // Approved applications and shifts are historical records, not permanent
     // permission to check in a suspended or unverified volunteer.
     const eligible=await tx.user.findFirst({where:{
-     id:shift.userId,status:"active",verifiedAt:{not:null},
+     id:shift.userId,status:"active",role:{not:"student"},verifiedAt:{not:null},
      memberships:{some:{organizationId:org.id,status:"active"}}
     },select:{id:true}});
     const stillApproved=await tx.volunteerApplication.findFirst({where:{
