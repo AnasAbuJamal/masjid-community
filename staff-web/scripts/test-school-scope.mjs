@@ -15,7 +15,7 @@ async function request(path,method="GET",payload,token){
  },body:payload?JSON.stringify(payload):undefined});
  return {status:response.status,...await response.json()};
 }
-let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId,localAcknowledgedApplicationId,currentTestSessionId,concurrencyLabel;
+let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId,localAcknowledgedApplicationId,currentTestSessionId,concurrencyLabel,createdGuardianLinkId;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -126,7 +126,8 @@ try{
  assert.ok(!adminList.data.sessions.some(s=>s.id===foreignSession.id),"foreign class session is not listed");
  assert.ok(!adminList.data.programs.some(p=>p.id===foreignProgram.id),"foreign program is not listed");
  assert.ok(!adminList.data.users.some(u=>u.id===foreignTeacher.id),"staff selector excludes another organization's users");
- const linkForeignStudent=await request("admin/school","POST",{kind:"guardian-link",studentId:foreignStudent.id,guardianId:member.id},adminToken);
+ const linkForeignStudent=await request("admin/school","POST",{kind:"guardian-link",studentId:foreignStudent.id,guardianId:member.id,
+  verificationConfirmed:true,verificationBasis:"school_record"},adminToken);
  assert.equal(linkForeignStudent.status,404,"admin cannot link home guardian to foreign child");
  const enrollForeignStudent=await request("admin/school","POST",{kind:"enrollment",classId:localClass.id,studentId:foreignStudent.id},adminToken);
  assert.equal(enrollForeignStudent.status,404,"admin cannot import foreign child by identifier");
@@ -160,6 +161,49 @@ try{
  assert.equal(newLocalStudent.status,201,"registered student is assigned to current mosque");
  newLocalStudentId=newLocalStudent.data.id;
  assert.equal((await db.student.findUniqueOrThrow({where:{id:newLocalStudentId}})).organizationId,org.id);
+ // F-015 pilot safeguard: direct guardian links require a reviewed evidence
+ // category, explicit affirmative confirmation and an internal audit.
+ const noVerifiedEvidence=await request("admin/school","POST",{
+  kind:"guardian-link",studentId:newLocalStudentId,guardianId:member.id,
+  verificationConfirmed:false,verificationBasis:"school_record"
+ },adminToken);
+ assert.equal(noVerifiedEvidence.status,422,
+  "guardian link cannot be created with unconfirmed relationship");
+ const missingBasis=await request("admin/school","POST",{
+  kind:"guardian-link",studentId:newLocalStudentId,guardianId:member.id,
+  verificationConfirmed:true
+ },adminToken);
+ assert.equal(missingBasis.status,422,
+  "review evidence category is mandatory");
+ assert.equal(await db.guardianLink.count({where:{
+  studentId:newLocalStudentId,guardianId:member.id
+ }}),0,"denied guardian-link validation does not mutate child access");
+ const linked=await request("admin/school","POST",{
+  kind:"guardian-link",studentId:newLocalStudentId,guardianId:member.id,
+  verificationConfirmed:true,verificationBasis:"school_record"
+ },adminToken);
+ assert.equal(linked.status,201,JSON.stringify(linked));
+ createdGuardianLinkId=linked.data.id;
+ const evidenceAudit=await db.auditEvent.findMany({where:{
+  entity:"GuardianLink",entityId:createdGuardianLinkId,
+  action:"school.guardian.verified"
+ }});
+ assert.equal(evidenceAudit.length,1);
+ const basis=JSON.parse(evidenceAudit[0].detail);
+ assert.equal(basis.verificationBasis,"school_record");
+ assert.equal(basis.reviewStage,"single_admin_pilot");
+ assert.ok(!JSON.stringify(basis).includes(member.email),
+  "guardian verification audit omits private email and document contents");
+ const duplicateLink=await request("admin/school","POST",{
+  kind:"guardian-link",studentId:newLocalStudentId,guardianId:member.id,
+  verificationConfirmed:true,verificationBasis:"staff_confirmation"
+ },adminToken);
+ assert.equal(duplicateLink.status,200);
+ assert.equal(duplicateLink.data.created,false);
+ assert.equal((await db.auditEvent.count({where:{
+  entity:"GuardianLink",entityId:createdGuardianLinkId
+ }})),1,"idempotent guardian recheck must not falsely record another approval");
+
  const afterRegister=await request("admin/school","GET",null,adminToken);
  assert.equal(afterRegister.status,200);
  assert.ok(afterRegister.data.students.some(s=>s.id===newLocalStudentId),"newly registered owned student is available to school staff");
@@ -308,7 +352,8 @@ try{
  try{
   await db.guardianLink.update({where:{id:localLink.id},data:{revokedAt:new Date()}});
   const restoreAttempt=await request("admin/school","POST",{kind:"guardian-link",
-   studentId:localEnrollment.studentId,guardianId:member.id},adminToken);
+   studentId:localEnrollment.studentId,guardianId:member.id,
+   verificationConfirmed:true,verificationBasis:"legal_document"},adminToken);
   assert.equal(restoreAttempt.status,409,"school administrator cannot reactivate a revoked guardian without separate safeguarding review");
   assert.equal(restoreAttempt.error.code,"GUARDIAN_REVOKED");
   assert.ok((await db.guardianLink.findUniqueOrThrow({where:{id:localLink.id}})).revokedAt,
@@ -336,7 +381,13 @@ try{
   studentFirstName:concurrencyLabel,studentLastName:"Fixture"
  }});
  if(schoolAdminSession)await db.authSession.deleteMany({where:{id:schoolAdminSession.id}});
- if(newLocalStudentId)await db.student.delete({where:{id:newLocalStudentId}});
+ if(createdGuardianLinkId)await db.auditEvent.deleteMany({where:{
+  entity:"GuardianLink",entityId:createdGuardianLinkId
+ }});
+ if(newLocalStudentId){
+  await db.guardianLink.deleteMany({where:{studentId:newLocalStudentId}});
+  await db.student.delete({where:{id:newLocalStudentId}});
+ }
  if(foreignClass){
   await db.schoolInvoice.deleteMany({where:{organizationId:foreignOrg.id}});
   await db.studentSubmission.deleteMany({where:{assignment:{classId:foreignClass.id}}});

@@ -9,6 +9,7 @@ const types:Kind[]=["class","student","guardian-link","teacher-assignment","enro
 const titles:Record<Kind,string>={class:"Create class",student:"Register student","guardian-link":"Approve guardian link","teacher-assignment":"Assign teacher",enrollment:"Enroll student","class-session":"Schedule class session"};
 export default function SchoolAdmin(){
  const [data,setData]=useState<Data|null>(null),[kind,setKind]=useState<Kind>("class"),[form,setForm]=useState<Record<string,string>>({}),[notice,setNotice]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const [guardianConfirmed,setGuardianConfirmed]=useState(false);
  const refresh=useCallback(async()=>{
   try{const res=await fetch("/api/v1/admin/school",{cache:"no-store"});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Access denied.");setData(json.data);setError("");}
   catch(e){setError(e instanceof Error?e.message:"Unable to load school data.");}
@@ -22,12 +23,14 @@ export default function SchoolAdmin(){
   if(!data||busy)return;
   setBusy(true);setError("");setNotice("");
   const payload:Record<string,unknown>={kind,...form};
+  if(kind==="guardian-link")payload.verificationConfirmed=guardianConfirmed;
   if(payload.capacity)payload.capacity=Number(payload.capacity);
   if(payload.startsAt)payload.startsAt=new Date(String(payload.startsAt)).toISOString();
   try{
    const res=await fetch("/api/v1/admin/school",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
    const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Unable to save.");
-   setNotice(titles[kind]+" completed.");setForm({});await refresh();
+   setNotice(titles[kind]+" completed.");setForm({});
+   setGuardianConfirmed(false);await refresh();
   }catch(e){setError(e instanceof Error?e.message:"Save failed.");}
   finally{setBusy(false);}
  }
@@ -35,15 +38,33 @@ export default function SchoolAdmin(){
  <main className="container"><div className="hero"><p className="eyebrow">EDUCATION · PROTECTED RECORDS</p><h1>Every learner matters.</h1><p>Verified relationships, assigned teachers, and explicit class enrollment.</p></div>
  {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
  <div className="split section"><section className="panel"><h2>School operations</h2>
- <div className="tabs">{types.map(t=><button key={t} className={t===kind?"primary":"secondary"} onClick={()=>{setKind(t);setForm({})}}>{titles[t]}</button>)}</div>
+ <div className="tabs">{types.map(t=><button key={t} className={t===kind?"primary":"secondary"} onClick={()=>{setKind(t);setForm({});setGuardianConfirmed(false)}}>{titles[t]}</button>)}</div>
  <div className="form">
  {kind==="class"?<>{field("programId","Program",data?.programs.map(x=>({id:x.id,title:x.title})))}{field("name","Class name")}{field("schedule","Schedule")}{field("capacity","Class capacity",undefined,"number")}</>:null}
  {kind==="student"?<>{field("studentNumber","School student number")}{field("firstName","First name")}{field("lastName","Last name")}</>:null}
- {kind==="guardian-link"?<><p className="notice">School administrators must verify the guardian's legal relationship before approving this link.</p>{field("studentId","Student",students)}{field("guardianId","Verified guardian account",users.filter(x=>data?.users.find(u=>u.id===x.id)?.verifiedAt))}</>:null}
+ {kind==="guardian-link"?<>
+ <p className="notice">This is a sensitive access decision. Check independent school or legal evidence outside SILA. This pilot confirmation alone does not certify custody.</p>
+ {field("studentId","Student",students)}
+ {field("guardianId","Verified guardian account",users.filter(x=>
+  data?.users.find(u=>u.id===x.id)?.verifiedAt&&
+  data?.users.find(u=>u.id===x.id)?.role!=="student"))}
+ {field("verificationBasis","Evidence category reviewed",[
+  {id:"school_record",title:"School enrollment and guardian records"},
+  {id:"legal_document",title:"Legal guardian documentation verified offline"},
+  {id:"staff_confirmation",title:"Independent authorized staff confirmation"}
+ ])}
+ <label className="field">
+  <input type="checkbox" checked={guardianConfirmed}
+   onChange={e=>setGuardianConfirmed(e.target.checked)}/>
+  I personally verified the current guardian relationship outside this application. No evidence document is uploaded or stored here.
+ </label>
+ </>:null}
  {kind==="teacher-assignment"?<>{field("classId","Class",classes)}{field("teacherId","Verified teacher",users.filter(x=>data?.users.find(u=>u.id===x.id)?.role==="teacher"))}</>:null}
  {kind==="enrollment"?<>{field("classId","Class",classes)}{field("studentId","Student",students)}</>:null}
  {kind==="class-session"?<>{field("classId","Class",classes)}{field("startsAt","Session start",undefined,"datetime-local")}</>:null}
- <button className="primary" disabled={!data||busy} onClick={()=>void submit()}>{busy?"Saving…":titles[kind]}</button>
+ <button className="primary" disabled={!data||busy||
+  (kind==="guardian-link"&&(!guardianConfirmed||!form.verificationBasis||
+   !form.studentId||!form.guardianId))} onClick={()=>void submit()}>{busy?"Saving…":titles[kind]}</button>
  </div></section><section className="panel"><h2>School overview</h2>
  <p className="small">Use the main admin screen to publish a school program before creating classes.</p>
  <h3>Programs</h3>{data?.programs.length?data.programs.map(p=><div className="section" key={p.id}><strong>{p.title}</strong>{p.classes.map(c=><p className="small" key={c.id}>{c.name} · {c.schedule} · {c.enrollments.length} enrollments</p>)}</div>):<p className="small">No programs yet.</p>}

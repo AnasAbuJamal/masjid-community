@@ -10,7 +10,14 @@ const label=z.string().trim().min(2).max(120);
 const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("class"),programId:z.string().min(8),name:label,schedule:z.string().trim().min(3).max(200),capacity:z.number().int().positive().max(200).optional()}),
  z.object({kind:z.literal("student"),studentNumber:z.string().trim().min(2).max(60),firstName:label,lastName:label}),
- z.object({kind:z.literal("guardian-link"),studentId:z.string().min(8),guardianId:z.string().min(8)}),
+ // Controlled evidence category, not a document scan or personal note.
+ // This one-person pilot action is still subject to independent safeguarding
+ // review before production.
+ z.object({kind:z.literal("guardian-link"),
+  studentId:z.string().min(8),guardianId:z.string().min(8),
+  verificationConfirmed:z.literal(true),
+  verificationBasis:z.enum(["school_record","legal_document","staff_confirmation"])
+ }).strict(),
  z.object({kind:z.literal("teacher-assignment"),classId:z.string().min(8),teacherId:z.string().min(8)}),
  z.object({kind:z.literal("enrollment"),classId:z.string().min(8),studentId:z.string().min(8)}),
  z.object({kind:z.literal("class-session"),classId:z.string().min(8),startsAt:z.iso.datetime()}),
@@ -48,22 +55,48 @@ export async function POST(req:NextRequest){
   }else if(input.kind==="student"){
     const row=await db.student.create({data:{organizationId:org.id,studentNumber:input.studentNumber,firstName:input.firstName,lastName:input.lastName}});id=row.id;
   }else if(input.kind==="guardian-link"){
-    const [student,guardian]=await Promise.all([
-      db.student.findFirst({where:{id:input.studentId,...schoolStudentScope(org.id)}}),
-      db.user.findFirst({where:{id:input.guardianId,status:"active",verifiedAt:{not:null},role:{not:"student"},
-        memberships:{some:{organizationId:org.id,status:"active"}}}})
-    ]);
-    if(!student)throw new HttpError(404,"STUDENT_NOT_FOUND","Student unavailable in this organization.");
-    if(!guardian)throw new HttpError(422,"INVALID_GUARDIAN","Choose a verified adult member of this organization.");
-    const existing=await db.guardianLink.findUnique({where:{guardianId_studentId:{guardianId:guardian.id,studentId:student.id}}});
-    // Reinstating a revoked custody/guardian link is a new safeguarding decision,
-    // not an idempotent retry. This one-person admin form must fail closed.
-    if(existing?.revokedAt)throw new HttpError(409,"GUARDIAN_REVOKED",
-      "A revoked guardian relationship requires separate safeguarding review.");
-    const row=await db.guardianLink.upsert({where:{guardianId_studentId:{guardianId:guardian.id,studentId:student.id}},
-      update:{approvedAt:existing?.approvedAt||new Date(),revokedAt:null},
-      create:{guardianId:guardian.id,studentId:student.id,approvedAt:new Date()}});
-    id=row.id;
+    try{
+     const outcome=await db.$transaction(async tx=>{
+      const [student,guardian]=await Promise.all([
+       tx.student.findFirst({where:{id:input.studentId,...schoolStudentScope(org.id)},select:{id:true}}),
+       tx.user.findFirst({where:{
+        id:input.guardianId,status:"active",verifiedAt:{not:null},role:{not:"student"},
+        memberships:{some:{organizationId:org.id,status:"active"}}
+       },select:{id:true}})
+      ]);
+      if(!student)throw new HttpError(404,"STUDENT_NOT_FOUND",
+       "Student unavailable in this organization.");
+      if(!guardian)throw new HttpError(422,"INVALID_GUARDIAN",
+       "Choose a verified active non-student member of this organization.");
+      const existing=await tx.guardianLink.findUnique({where:{
+       guardianId_studentId:{guardianId:guardian.id,studentId:student.id}
+      }});
+      if(existing?.revokedAt)throw new HttpError(409,"GUARDIAN_REVOKED",
+       "A revoked relationship requires separate safeguarding review.");
+      if(existing?.approvedAt)return {id:existing.id,created:false};
+      const row=existing
+       ?await tx.guardianLink.update({where:{id:existing.id},data:{approvedAt:new Date()}})
+       :await tx.guardianLink.create({data:{
+        guardianId:guardian.id,studentId:student.id,approvedAt:new Date()
+       }});
+      await tx.auditEvent.create({data:{
+       actorId:admin.id,action:"school.guardian.verified",
+       entity:"GuardianLink",entityId:row.id,
+       // Do not put document contents, names or free-text child/custody details in audit.
+       detail:JSON.stringify({organizationId:org.id,studentId:student.id,
+        guardianId:guardian.id,verificationBasis:input.verificationBasis,
+        reviewStage:"single_admin_pilot"})
+      }});
+      return {id:row.id,created:!existing};
+     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+     id=outcome.id;created=outcome.created;
+    }catch(error){
+     if(error instanceof Prisma.PrismaClientKnownRequestError&&
+        ["P2002","P2034"].includes(error.code))
+      throw new HttpError(409,"GUARDIAN_LINK_CHANGED",
+       "Guardian review changed. Reload school records before retrying.");
+     throw error;
+    }
   }else if(input.kind==="teacher-assignment"){
     const teacher=await db.user.findFirst({where:{id:input.teacherId,role:"teacher",status:"active",verifiedAt:{not:null},
       memberships:{some:{organizationId:org.id,status:"active"}}}});
@@ -112,7 +145,8 @@ export async function POST(req:NextRequest){
     if(!klass)throw new HttpError(404,"NOT_FOUND","Class unavailable.");
     const row=await db.classSession.create({data:{classId:klass.id,startsAt:new Date(input.startsAt)}});id=row.id;
   }
-  await audit(admin.id,created?"school."+input.kind:"school."+input.kind+".existing","School",id);
+  if(input.kind!=="guardian-link")
+   await audit(admin.id,created?"school."+input.kind:"school."+input.kind+".existing","School",id);
   return ok({id,created},created?201:200);
  });
 }

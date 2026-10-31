@@ -788,3 +788,23 @@ whose names happen to match; school staff must review such cases.
 The technical non-student role check is not proof of legal adulthood or
 guardianship. Real-world independent evidence and safeguarding workflows
 remain production release blockers.
+
+
+## F-015 direct guardian-link evidence recording (pilot only)
+
+The pilot's direct `admin/school` guardian-link command requires a
+confirmed external relationship check and one of three controlled evidence
+categories, rather than treating a selected email/account as proof of
+custody. The API rechecks student and guardian ownership and eligibility
+inside the serializable transaction that creates or approves a link and
+records an internal audit event with only IDs and evidence category.
+A previously revoked link remains denied and cannot be restored through
+this single-admin form. Repeated approval of the same active link is
+idempotent and does not forge another review event.
+
+**This is not independent safeguarding verification.** One admin's checkbox
+and evidence-category choice cannot establish legal guardianship, and
+evidence documents are not collected, verified or stored through this
+feature. Designated safeguarding officers and legal/compliance reviewers
+must sign off on an independent evidence/appeal/revocation workflow
+before live child-data access is enabled.
