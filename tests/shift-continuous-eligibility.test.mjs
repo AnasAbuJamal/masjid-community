@@ -38,6 +38,15 @@ test("staff attendance corrections are reasoned, scoped, version-aware and teste
  const ui=read("staff-web/src/app/admin/volunteers/page.tsx");
  assert.match(ui,/Save audited correction/);
  assert.match(ui,/Keep original record/);
+ assert.match(ui,/clearPrivateShifts/);
+ assert.match(ui,/visibilitychange/);
+ assert.match(ui,/pagehide/);
+ assert.match(ui,/45_000/);
+ assert.match(ui,/generation.current\+\+/);
+ assert.match(ui,/version!==generation.current\|\|document.hidden/);
+ assert.match(ui,/setApps\(\[\]\);setShifts\(\[\]\)/);
+ assert.match(ui,/cache:"no-store"/);
+ assert.doesNotMatch(api,/user:\{select:\{firstName:true,lastName:true,email:true\}\}/);
  const integration=read("staff-web/scripts/test-shift-safety.mjs");
  assert.match(integration,/corrections require an actual reason/);
  assert.match(integration,/foreign shift correction denied/);
