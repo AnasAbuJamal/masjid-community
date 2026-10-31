@@ -46,6 +46,7 @@ test("staff attendance corrections are reasoned, scoped, version-aware and teste
  assert.match(ui,/version!==generation.current\|\|document.hidden/);
  assert.match(ui,/setApps\(\[\]\);setShifts\(\[\]\)/);
  assert.match(ui,/cache:"no-store"/);
+ assert.match(ui,/r.status===401\|\|r.status===403/);
  assert.doesNotMatch(api,/user:\{select:\{firstName:true,lastName:true,email:true\}\}/);
  const integration=read("staff-web/scripts/test-shift-safety.mjs");
  assert.match(integration,/corrections require an actual reason/);
