@@ -61,3 +61,21 @@ small,.small{color:var(--muted);font-size:.84rem}
 .kiosk-row strong{color:var(--ink)}
 .kiosk-shell .container{max-width:1550px}
 @media(min-width:1100px){.kiosk-shell .split{grid-template-columns:1.15fr .85fr}}
+
+/* Kiosk freshness interlock: no stale prayer or emergency instructions remain
+   visually or accessibly readable when publication cannot be verified. */
+.kiosk-verified-content{min-height:100vh}
+.kiosk-local-control{position:fixed;bottom:24px;right:24px;z-index:40}
+.kiosk-safety-cover{position:fixed;inset:0;z-index:100;display:grid;
+ place-items:center;overflow:auto;padding:clamp(24px,6vw,64px);
+ background:#0e1920;color:#eef4f5;text-align:center}
+.kiosk-safety-message{max-width:700px;width:100%;margin:auto}
+.kiosk-safety-message h1{color:#eef4f5;font-size:clamp(2rem,5vw,3.2rem);
+ letter-spacing:-.035em;line-height:1.16}
+.kiosk-safety-message p{color:#d4e5e9;font-size:clamp(1rem,2vw,1.3rem)}
+.kiosk-safety-message .actions{justify-content:center;margin-top:24px}
+.kiosk-safety-cover .primary{background:#8dcadd;color:#0e1920;border:2px solid #8dcadd}
+.kiosk-safety-cover .primary:focus-visible{outline:4px solid #fff;outline-offset:5px}
+@media (prefers-reduced-motion:reduce){
+ .kiosk-safety-cover *, .kiosk-local-control *{transition:none!important;animation:none!important}
+}
