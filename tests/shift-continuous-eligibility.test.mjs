@@ -55,3 +55,20 @@ test("staff attendance corrections are reasoned, scoped, version-aware and teste
  assert.match(integration,/a mistaken uncompleted check-in with reason/);
 });
 
+test("volunteer application and steward review reevaluate present-day eligibility",()=>{
+ const actions=read("staff-web/src/app/api/v1/actions/route.ts");
+ const admin=read("staff-web/src/app/api/v1/admin/route.ts");
+ const ci=read("staff-web/scripts/test-shift-safety.mjs");
+ assert.match(actions,/input.kind==="volunteer"/);
+ assert.match(actions,/tx.user.findFirst/);
+ assert.match(actions,/role:\{not:"student"\}/);
+ assert.match(actions,/VOLUNTEER_INELIGIBLE/);
+ assert.match(actions,/TransactionIsolationLevel.Serializable/);
+ assert.match(admin,/tx.volunteerApplication.findFirst/);
+ assert.match(admin,/role:\{not:"student"\}/);
+ assert.match(admin,/VOLUNTEER_INELIGIBLE/);
+ assert.match(ci,/student volunteer applications cannot be submitted/);
+ assert.match(ci,/submitted application cannot override current student role/);
+ assert.match(ci,/denied approval must not reserve volunteer capacity/);
+ assert.match(ci,/reviewer may approve an eligible adult's local application/);
+});
