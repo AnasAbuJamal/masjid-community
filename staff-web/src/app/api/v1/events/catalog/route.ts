@@ -1,4 +1,5 @@
 import {NextRequest} from "next/server";
+import {db} from "@/lib/db";
 import {requireMemberContext} from "@/lib/auth";
 import {handled,HttpError,ok} from "@/lib/http";
 import {gatheringFilters,publishedGatheringPage} from "@/lib/gathering-filters";

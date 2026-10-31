@@ -18,12 +18,14 @@ test("public and member event catalogs apply the same published filter policy",(
  const selected=read("staff-web/src/app/api/v1/events/catalog/route.ts");
  const guest=read("staff-web/src/app/api/v1/public/[resource]/route.ts");
  assert.match(helper,/publishedGatheringWhere/);
+ assert.match(helper,/publishedGatheringPage/);
+ assert.match(helper,/publicGatheringItems\(/);
  assert.match(helper,/status:"published"/);
  assert.match(helper,/accessibilityFeatures:\{has:accessibility\}/);
  assert.match(helper,/params\.getAll\(k\)\.length>1/);
  for(const file of [selected,guest]){
   assert.match(file,/gatheringFilters\(/);
-  assert.match(file,/publicGatheringItems\(/);
+  assert.match(file,/publishedGatheringPage\(org\.id,parts\)/);
   assert.match(file,/VENUE_NOT_FOUND/);
  }
 });
