@@ -16,7 +16,11 @@ async function shiftTransaction<T>(action:(tx:Prisma.TransactionClient)=>Promise
 }
 const command=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("schedule"),applicationId:z.string().min(8),startAt:z.iso.datetime(),endAt:z.iso.datetime()}).strict(),
- z.object({kind:z.literal("update"),shiftId:z.string().min(8),action:z.enum(["check-in","complete","cancel"])}).strict()
+ z.object({kind:z.literal("update"),shiftId:z.string().min(8),action:z.enum(["check-in","complete","cancel"])}).strict(),
+ z.object({kind:z.literal("correct"),shiftId:z.string().min(8),
+  action:z.enum(["adjust-arrival","remove-arrival"]),
+  checkedInAt:z.iso.datetime().optional(),reason:z.string().trim().min(12).max(500)
+ }).strict()
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
@@ -67,6 +71,52 @@ export async function POST(req:NextRequest){
     return {id:shift.id,status:shift.status};
    });
    return ok(result,201);
+  }
+  if(input.kind==="correct"){
+   // Historical attendance may be corrected even if a member has since been
+   // suspended. This never confers new attendance eligibility or grants a
+   // volunteer permission to revise their own record.
+   if((input.action==="adjust-arrival")!==Boolean(input.checkedInAt))
+    throw new HttpError(422,"INVALID_CORRECTION","A time is required only for an arrival-time adjustment.");
+   const correctedAt=input.checkedInAt?new Date(input.checkedInAt):null;
+   const result=await shiftTransaction(async tx=>{
+    const shift=await tx.volunteerShift.findFirst({where:{
+     id:input.shiftId,opportunity:{organizationId:org.id}
+    }});
+    if(!shift)throw new HttpError(409,"SHIFT_NOT_AVAILABLE","Shift is not available for correction.");
+    if(!shift.checkedInAt||!["scheduled","completed"].includes(shift.status))
+     throw new HttpError(409,"NO_RECORDED_ARRIVAL","There is no recorded arrival to correct.");
+    const now=new Date();
+    // Limit high-impact changes to the coordinator's short operational
+    // review period. A later dispute needs a separately governed process.
+    if(now.getTime()>shift.endAt.getTime()+72*60*60_000)
+     throw new HttpError(409,"CORRECTION_WINDOW_CLOSED","Attendance correction window has closed.");
+    if(input.action==="remove-arrival"&&shift.status==="completed")
+     throw new HttpError(409,"COMPLETED_SHIFT","A completed shift requires separate review to reverse attendance.");
+    if(correctedAt){
+     if(correctedAt.getTime()<shift.startAt.getTime()-15*60_000||
+        correctedAt.getTime()>Math.min(shift.endAt.getTime(),now.getTime()))
+      throw new HttpError(422,"INVALID_ARRIVAL","Corrected arrival must be within the actual check-in window.");
+     if(correctedAt.getTime()===shift.checkedInAt.getTime())
+      throw new HttpError(409,"NO_CHANGE","The corrected time must differ from the recorded time.");
+    }
+    const changed=await tx.volunteerShift.updateMany({where:{
+     id:shift.id,status:shift.status,checkedInAt:shift.checkedInAt,
+     opportunity:{organizationId:org.id}
+    },data:{checkedInAt:correctedAt}});
+    if(changed.count!==1)throw new HttpError(409,"SHIFT_CHANGED","Attendance changed. Refresh and try again.");
+    await tx.auditEvent.create({data:{
+     actorId:actor.id,action:"volunteer.shift."+input.action,
+     entity:"VolunteerShift",entityId:shift.id,
+     detail:JSON.stringify({reason:input.reason,
+      previousCheckedInAt:shift.checkedInAt.toISOString(),
+      correctedCheckedInAt:correctedAt?.toISOString()??null})
+    }});
+    await notifyUser(tx,org.id,shift.userId,"Volunteer attendance corrected",
+     "A coordinator corrected your recorded volunteer attendance. Review your shift history.");
+    return {id:shift.id,action:input.action,checkedInAt:correctedAt?.toISOString()??null};
+   });
+   return ok(result);
   }
   const result=await shiftTransaction(async tx=>{
    const shift=await tx.volunteerShift.findFirst({where:{id:input.shiftId,opportunity:{organizationId:org.id}}});
