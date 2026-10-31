@@ -8,6 +8,12 @@ test("kiosk binds public venue/day/prayer/alert versions to its safety wrapper",
  assert.match(kiosk,/currentVenueEmergency\(venue\?\.id,now\)/);
  assert.match(kiosk,/prayerUpdatedAt:prayer\?\.updatedAt\.toISOString\(\)/);
  assert.match(kiosk,/emergencyRevision:emergency\?\.revision/);
+ assert.match(kiosk,/searchParams:Promise<\{venueId\?:string\|string\[\]\}>/);
+ assert.match(kiosk,/if\(params\.venueId!==undefined&&!venueId\)notFound\(\)/);
+ assert.match(kiosk,/where:\{organizationId:org\.id,\.\.\.\(venueId\?/);
+ assert.match(kiosk,/if\(venueId&&!venue\)notFound\(\)/);
+ assert.match(readFileSync("staff-web/scripts/test-venue-emergencies.mjs","utf8"),
+  /foreign organization venue must not be selectable on the public kiosk/);
  assert.match(refresh,/router\.refresh\(\)/);
  assert.match(refresh,/45_000/);
  assert.doesNotMatch(refresh,/location\.reload/);
