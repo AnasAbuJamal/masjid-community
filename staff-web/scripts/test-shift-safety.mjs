@@ -202,6 +202,14 @@ try{
   opportunityId:localOpp.id,startAt:new Date(now+9*hour)
  }}),1);
  const futureId=concurrent.find(x=>x.status===201).data.id;
+ const personal=await request("shifts","GET",null,memberToken);
+ assert.equal(personal.status,200,"verified member reads only own volunteer commitments");
+ assert.equal(personal.data.organization.name,org.name);
+ assert.equal(personal.data.organization.timeZone,org.timeZone,
+  "member shift timestamps are explicitly tied to the mosque timezone");
+ assert.ok(personal.data.shifts.some(s=>s.id===futureId));
+ assert.ok(!personal.data.shifts.some(s=>s.id===foreignShift.id),
+  "personal shift history must not leak foreign mosque commitments");
  const tooEarly=await request("admin/shifts","POST",{
   kind:"update",shiftId:futureId,action:"check-in"
  },adminToken);
