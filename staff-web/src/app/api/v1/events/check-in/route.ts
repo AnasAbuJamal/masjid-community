@@ -20,6 +20,15 @@ function eligibleAttendee(organizationId:string):Prisma.EventRSVPWhereInput{
   memberships:{some:{organizationId,status:"active"}}}};
 }
 
+// A staff assignment is never a permanent entitlement. A demotion to the
+// student role, suspended home membership or lost verification must revoke
+// roster access immediately even when a historical assignment still exists.
+function eligibleHost(organizationId:string,actorId:string):Prisma.EventHostAssignmentWhereInput{
+ return {hostId:actorId,revokedAt:null,
+  host:{status:"active",verifiedAt:{not:null},role:{not:"student"},
+   memberships:{some:{organizationId,status:"active"}}}};
+}
+
 // Neither the public API nor unassigned staff can request an event's attendee roster.
 export async function GET(req:NextRequest){
  return handled(async()=>{
@@ -29,7 +38,7 @@ export async function GET(req:NextRequest){
   const eventId=req.nextUrl.searchParams.get("eventId");
   if(!eventId){
    const assignments=await db.eventHostAssignment.findMany({where:{
-    hostId:actor.id,revokedAt:null,
+    ...eligibleHost(org.id,actor.id),
     event:{organizationId:org.id,status:"published",endAt:{gte:new Date(Date.now()-7*86400000)}}
    },take:70,orderBy:{assignedAt:"desc"},
    select:{event:{select:{id:true,title:true,startAt:true,endAt:true}}}});
@@ -37,7 +46,7 @@ export async function GET(req:NextRequest){
   }
   const parsedId=z.string().min(8).parse(eventId);
   const assignment=await db.eventHostAssignment.findFirst({where:{
-   eventId:parsedId,hostId:actor.id,revokedAt:null,
+   eventId:parsedId,...eligibleHost(org.id,actor.id),
    event:{organizationId:org.id,status:"published",endAt:{gte:new Date(Date.now()-7*86400000)}}
   },select:{event:{select:{id:true,title:true,startAt:true,endAt:true}}}});
   if(!assignment)throw new HttpError(404,"EVENT_UNAVAILABLE","Assigned gathering unavailable.");
@@ -64,7 +73,7 @@ export async function POST(req:NextRequest){
    const result=await db.$transaction(async tx=>{
     // Authorize again within the same transaction as the attendance mutation.
     const assigned=await tx.eventHostAssignment.findFirst({where:{
-     eventId:input.eventId,hostId:actor.id,revokedAt:null,
+     eventId:input.eventId,...eligibleHost(org.id,actor.id),
      event:{organizationId:org.id,status:"published"}
     },select:{event:{select:{startAt:true,endAt:true}}}});
     if(!assigned)throw new HttpError(404,"EVENT_UNAVAILABLE","Assigned gathering unavailable.");

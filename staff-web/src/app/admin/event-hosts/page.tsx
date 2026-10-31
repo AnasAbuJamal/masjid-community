@@ -31,7 +31,7 @@ export default function EventHostAdmin(){
  return <><header className="masthead"><span className="brand">Gathering hosts</span>
   <div className="actions"><a className="secondary" href="/admin">Control center</a><a className="secondary" href="/host/check-in">Host check-in</a></div>
  </header><main className="container"><div className="hero"><p className="eyebrow">GATHER · HOST PERMISSIONS</p>
- <h1>Assign hosts deliberately.</h1><p>Only a verified, active adult member of this mosque can be assigned. An assignment grants access to the confirmed attendee roster for one gathering, not any other event.</p></div>
+ <h1>Assign hosts deliberately.</h1><p>Only a verified, active, non-student member of this mosque can be assigned. Student role exclusion is not an age-certification or safeguarding clearance. An assignment grants access to the confirmed attendee roster for one gathering, not any other event.</p></div>
  {error?<p role="alert" className="error">{error}</p>:null}
  {notice?<p role="status" className="notice">{notice}</p>:null}
  <section className="panel"><h2>Host assignments</h2><div className="form">

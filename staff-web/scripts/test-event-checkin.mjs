@@ -169,6 +169,26 @@ try{
    status:member.status,verifiedAt:member.verifiedAt
   }});
  }
+ // A host's existing grant is not enough if their role becomes ineligible.
+ // A source system can demote someone after the assignment was made.
+ const originalRole=staff.role;
+ try{
+  await db.user.update({where:{id:staff.id},data:{role:"student"}});
+  const demotedList=await request("events/check-in","GET",null,staffToken);
+  assert.equal(demotedList.status,200);
+  assert.ok(!demotedList.data.events.some(e=>e.id===event.id));
+  const demotedRoster=await request("events/check-in?eventId="+event.id,"GET",null,staffToken);
+  assert.equal(demotedRoster.status,404,"demoted host cannot read attendance");
+  assert.equal(demotedRoster.error.code,"EVENT_UNAVAILABLE");
+  const demotedWrite=await request("events/check-in","POST",{
+   eventId:event.id,rsvpId:confirmed.id,action:"arrive",expectedRevision:2
+  },staffToken);
+  assert.equal(demotedWrite.status,404,"demoted host cannot mark attendance");
+  assert.equal(demotedWrite.error.code,"EVENT_UNAVAILABLE");
+  assert.equal((await db.eventRSVP.findUniqueOrThrow({where:{id:confirmed.id}})).checkInRevision,2);
+ }finally{
+  await db.user.update({where:{id:staff.id},data:{role:originalRole}});
+ }
  const restoredRoster=await request("events/check-in?eventId="+event.id,"GET",null,staffToken);
  assert.equal(restoredRoster.data.roster.length,1,
   "restored eligibility permits the original confirmed reservation again");

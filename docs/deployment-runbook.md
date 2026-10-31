@@ -653,3 +653,18 @@ a historical snapshot if event publication changes between requests.
 Operations may use these behaviors in synthetic CI, but production tenant
 rollout still requires real-device accessibility, Arabic/RTL,
 independent authorization, and response/caching verification.
+
+
+## F-010 event host revalidation gate
+
+A historical host assignment is NOT a standing entitlement to private attendee
+names. On every roster request, assigned-event list and check-in mutation,
+the host must still be verified, active, non-student, an active member of
+the event's original mosque, and assigned to the exact published gathering.
+Administrator eligibility rechecks run inside the serializable grant
+transaction, before writing the assignment and audit record.
+
+The `student` role exclusion is a technical fail-closed control, **not**
+age verification or safeguarding certification. Real safeguarding review,
+staff training, shift supervision and independent roster-disclosure approval
+remain production release requirements.
