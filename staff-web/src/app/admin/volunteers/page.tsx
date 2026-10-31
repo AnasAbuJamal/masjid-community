@@ -46,8 +46,16 @@ export default function VolunteerAdmin(){
  async function send(input:Record<string,unknown>){
   setBusy(true);setError("");setNotice("");
   try{const r=await fetch("/api/v1/admin/shifts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
-   const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Unable to update shift.");setNotice("Volunteer schedule updated.");await load();return true;
-  }catch(e){setError(e instanceof Error?e.message:"Unable to update shift.");return false;}finally{setBusy(false);}
+   const j=await r.json();
+   if(!r.ok){
+    if(r.status===401||r.status===403)clearPrivateShifts();
+    throw new Error(j.error?.message||"Unable to update shift.");
+   }
+   setNotice("Volunteer schedule updated.");await load();return true;
+  }catch(e){
+   if(e instanceof TypeError)clearPrivateShifts();
+   setError(e instanceof Error?e.message:"Unable to update shift.");return false;
+  }finally{setBusy(false);}
  }
  async function schedule(){
   try{await send({kind:"schedule",applicationId,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString()});}
