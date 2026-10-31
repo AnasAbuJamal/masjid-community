@@ -8,6 +8,7 @@ import {useResource} from "../../src/useResource";
 import {useSession} from "../../src/session";
 import {useVenue} from "../../src/venue";
 import {VenuePicker} from "../../src/VenuePicker";
+import {VenueEmergencyAlert} from "../../src/VenueEmergencyAlert";
 type Day={id:string;localDate:string;fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;fajrIqamah?:string;dhuhrIqamah?:string;asrIqamah?:string;maghribIqamah?:string;ishaIqamah?:string;source:string;updatedAt:string};
 type VenueEmergency={id:string;kind:string;title:string;body:string;
  instructions:string;revision:number;expiresAt:string;publishedAt:string};
@@ -35,15 +36,8 @@ export default function Salah(){
  </Card>
  <VenuePicker/>
  <Feedback loading={loading||!ready} error={error} empty={ready&&!day} refresh={refresh}/>
- {data?.emergency?<View accessibilityRole="alert">
-  <Card style={{backgroundColor:"#FFF1E9",borderWidth:2,borderColor:"#9B3D28",gap:9}}>
-   <Text style={{color:"#6C2517",fontWeight:"800"}}>VENUE NOTICE · {data.venue?.name}</Text>
-   <Text style={{fontSize:20,fontWeight:"800",color:"#6C2517"}}>{data.emergency.title}</Text>
-   <Text style={[S.bodyText,{color:"#522118"}]}>{data.emergency.body}</Text>
-   <Text style={[S.bodyText,{color:"#522118",fontWeight:"700"}]}>What to do: {data.emergency.instructions}</Text>
-   <Text style={S.muted}>Revision {data.emergency.revision} · Expires {data.emergency.expiresAt} (UTC)</Text>
-  </Card>
- </View>:null}
+ {data?.emergency?<VenueEmergencyAlert notice={data.emergency}
+  venueName={data.venue?.name} onRefresh={()=>void refresh()}/>:null}
  {day?<Card><View style={[S.row,{marginBottom:16}]}><Text style={S.label}>{day.localDate}</Text><Text style={S.muted}>{t("salah.adhan")}</Text></View>
  {rows.map(([label,key,iq],index)=><View key={label} style={[S.row,{paddingVertical:14,borderBottomWidth:index===rows.length-1?0:1,borderBottomColor:T.line}]}>
   <Text style={[S.label,{fontSize:16}]}>{t(label==="Sunrise"?"salah.sunrise":label==="Fajr"?"prayer.fajr":label==="Dhuhr"?"prayer.dhuhr":label==="Asr"?"prayer.asr":label==="Maghrib"?"prayer.maghrib":"prayer.isha")}</Text><View style={{alignItems:"flex-end"}}><Text style={[S.value,{fontSize:21}]}>{day[key]||"—"}</Text>{iq&&day[iq]?<Text style={S.muted}>Iqamah {day[iq]}</Text>:null}</View>

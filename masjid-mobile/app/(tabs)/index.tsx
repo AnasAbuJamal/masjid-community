@@ -8,6 +8,7 @@ import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {useVenue} from "../../src/venue";
 import {VenuePicker} from "../../src/VenuePicker";
+import {VenueEmergencyAlert} from "../../src/VenueEmergencyAlert";
 import {nextPublishedPrayer} from "../../src/nextPrayer";
 type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;localDate:string;source:string};
 type VenueEmergency={id:string;kind:string;title:string;body:string;
@@ -38,16 +39,8 @@ export default function HomeScreen(){
   <Head eyebrow={t("home.eyebrow")} title={t("home.title")} subtitle={t("home.subtitle")}/>
   <Feedback loading={loading||!ready} error={error} empty={ready&&!data?.organization} refresh={refresh}/>
   <VenuePicker/>
-  {data?.emergency?<View accessibilityRole="alert">
-   <Card style={{backgroundColor:"#FFF1E9",gap:9,borderWidth:2,borderColor:"#9B3D28"}}>
-    <Text style={{color:"#6C2517",fontWeight:"800"}}>VENUE NOTICE · {data.venue?.name} · {data.emergency.kind.replaceAll("_"," ")}</Text>
-    <Text style={{fontSize:20,fontWeight:"800",color:"#6C2517"}}>{data.emergency.title}</Text>
-    <Text style={[S.bodyText,{color:"#522118"}]}>{data.emergency.body}</Text>
-    <Text style={[S.bodyText,{color:"#522118",fontWeight:"700"}]}>What to do: {data.emergency.instructions}</Text>
-    <Text style={S.muted}>Revision {data.emergency.revision} · Expires {data.emergency.expiresAt} (UTC)</Text>
-    <Action secondary icon="refresh" label="Refresh venue notice" onPress={()=>void refresh()}/>
-   </Card>
-  </View>:null}
+  {data?.emergency?<VenueEmergencyAlert notice={data.emergency}
+   venueName={data.venue?.name} onRefresh={()=>void refresh()}/>:null}
   {data?.organization?<Card style={{padding:0,overflow:"hidden"}}>
    <View style={{backgroundColor:T.deep,padding:25,gap:12}}>
     <Text style={{color:"#CFEAFE",fontSize:12,letterSpacing:1.7,fontWeight:"800"}}>{t("home.today")} · {data.organization.name}</Text>
