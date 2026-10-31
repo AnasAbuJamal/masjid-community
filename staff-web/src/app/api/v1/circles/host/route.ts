@@ -21,13 +21,16 @@ export async function GET(req:NextRequest){
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   const params=req.nextUrl.searchParams;
-  const keys=["circleId","cursor"];
+  const keys=["circleId","cursor","mode"];
   if([...params.keys()].some(key=>!keys.includes(key))||
      keys.some(key=>params.getAll(key).length>1))
    throw new HttpError(422,"BAD_QUERY","Unsupported or repeated circle roster query.");
-  const circleId=params.get("circleId");
-  if(!circleId&&params.has("cursor"))
-   throw new HttpError(422,"BAD_QUERY","A continuation must name its circle.");
+  const circleId=params.get("circleId"),mode=params.get("mode");
+  if(mode!==null&&mode!=="access")
+   throw new HttpError(422,"BAD_QUERY","Unsupported circle host operation.");
+  if((!circleId&&(params.has("cursor")||mode!==null))||
+     (mode!==null&&params.has("cursor")))
+   throw new HttpError(422,"BAD_QUERY","Circle and access probe cannot be combined with a page cursor.");
   const rawCursor=params.get("cursor");
   if(rawCursor!==null&&!rawCursor)
    throw new HttpError(422,"BAD_CURSOR","Nonempty circle roster cursor required.");
@@ -44,6 +47,10 @@ export async function GET(req:NextRequest){
   const circle=await db.circle.findFirst({where:{...activeHost,id:validId},
    select:{id:true,title:true,summary:true,cadence:true,guidelines:true}});
   if(!circle)throw new HttpError(404,"HOST_SCOPE","Assigned circle unavailable.");
+  // Revalidate cached private host screens without selecting any member names.
+  // A failed authorization never yields even the existence of an RSVP/member.
+  if(mode==="access")return ok({authorized:true,circleId:validId,
+   note:"Current assigned-host permission only; no member data returned."});
   // Resolve all continuation anchors against the SAME published circle,
   // eligible member and current assigned host. The host permission check
   // above must precede every cursor lookup or private name selection.

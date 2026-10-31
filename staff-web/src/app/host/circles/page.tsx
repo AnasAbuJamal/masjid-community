@@ -21,7 +21,7 @@ export default function HostCircles(){
  const loadDetail=useCallback(async()=>{
   const version=++generation.current;
   setDetail(null);setReasons({});
-  if(!circleId)return;
+  if(!circleId||document.hidden)return;
   try{
    const r=await fetch("/api/v1/circles/host?circleId="+encodeURIComponent(circleId),
     {cache:"no-store"});
@@ -59,15 +59,42 @@ export default function HostCircles(){
    setDetail(old=>old?{...old,nextCursor:null}:old);
   }finally{pageInFlight.current=false;setLoadingMore(false);}
  },[circleId,detail?.nextCursor]);
+ const clearPrivateRoster=useCallback(()=>{
+  generation.current++;
+  setDetail(null);setReasons({});setNotice("");
+ },[]);
  useEffect(()=>{
+  if(!circleId)return;
+  let cancelled=false;
+  const validateAccess=async()=>{
+   if(document.hidden)return;
+   try{
+    const r=await fetch("/api/v1/circles/host?circleId="+encodeURIComponent(circleId)+
+     "&mode=access",{cache:"no-store"});
+    if(cancelled||selectedCircleRef.current!==circleId)return;
+    if(!r.ok){
+     clearPrivateRoster();
+     setError("Circle host permission was not confirmed. Refresh to request the roster again.");
+    }
+   }catch{
+    if(cancelled||selectedCircleRef.current!==circleId)return;
+    clearPrivateRoster();
+    setError("Circle host permission is unavailable. Refresh when connected.");
+   }
+  };
   const onVisibility=()=>{
-   if(document.hidden){
-    generation.current++;setDetail(null);setReasons({});setNotice("");
-   }else{void loadCircles();void loadDetail();}
+   if(document.hidden)clearPrivateRoster();
+   else{void loadCircles();void loadDetail();}
   };
   document.addEventListener("visibilitychange",onVisibility);
-  return ()=>document.removeEventListener("visibilitychange",onVisibility);
- },[loadCircles,loadDetail]);
+  window.addEventListener("pagehide",clearPrivateRoster);
+  const timer=window.setInterval(()=>{void validateAccess()},45_000);
+  return ()=>{
+   cancelled=true;window.clearInterval(timer);
+   document.removeEventListener("visibilitychange",onVisibility);
+   window.removeEventListener("pagehide",clearPrivateRoster);
+  };
+ },[circleId,clearPrivateRoster,loadCircles,loadDetail]);
  useEffect(()=>{void loadCircles();},[loadCircles]);
  useEffect(()=>{void loadDetail();},[loadDetail]);
  async function send(input:Record<string,unknown>){
@@ -75,7 +102,10 @@ export default function HostCircles(){
   setBusy(true);setError("");setNotice("");
   try{const r=await fetch("/api/v1/circles/host",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({circleId,...input})});
    const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Request failed.");
-   setNotice(input.action==="decide"?"Review recorded; a generic private notice was created.":"Update published to approved circle members.");
+   if(selectedCircleRef.current!==circleId||document.hidden)return;
+   setNotice(input.action==="decide"?
+    "Review recorded; a generic private notice was created. The roster restarts on refresh.":
+    "Update published to approved circle members.");
    setBody("");setReasons({});await loadDetail();
   }catch(e){setError(e instanceof Error?e.message:"Unable to save.");}finally{setBusy(false);}
  }

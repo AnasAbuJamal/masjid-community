@@ -738,3 +738,20 @@ circle member identities is allowed. Screens clear on circle change or
 visibility loss. A production sign-off still requires trained hosts,
 documented safeguarding and privacy review, real browser screen-reader
 testing, and appropriate Arabic/RTL copy.
+
+
+## F-012 private circle host screen lifetime
+
+The on-duty Circle host's private roster performs a name-free current access
+check approximately every 45 seconds when the host screen is visible. The
+server checks current verified non-student host eligibility, active membership,
+original mosque scope, assignment and published status; it never selects
+or returns private member data in the probe. Denials or connectivity failure
+clear the displayed roster and decision reasons until the host refreshes.
+Hiding the tab, pagehide, or selecting another Circle also clears cached names,
+and old responses must not repopulate the view.
+
+This is a best-effort exposure reduction, not guaranteed instant revocation:
+it cannot undo a copied record, photograph or offline screenshot. Production
+requires supervised host devices, documented data-retention policy and
+independent safeguarding/accessibility authorization.

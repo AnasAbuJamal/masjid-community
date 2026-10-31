@@ -92,6 +92,21 @@ try{
  const hostList=await request("circles/host","GET",undefined,staffToken);
  assert.equal(hostList.status,200);
  assert.ok(hostList.data.circles.some(c=>c.id===draft.data.id));
+ const access=await request("circles/host?circleId="+draft.data.id+
+  "&mode=access","GET",undefined,staffToken);
+ assert.equal(access.status,200);
+ assert.deepEqual(Object.keys(access.data).sort(),["authorized","circleId","note"]);
+ assert.equal(access.data.authorized,true);
+ assert.equal(access.data.circleId,draft.data.id);
+ assert.equal((await request("circles/host?circleId="+draft.data.id+
+  "&mode=access","GET",undefined,memberToken)).status,404);
+ for(const suffix of [
+  "?mode=access", "?circleId="+draft.data.id+"&mode=wrong",
+  "?circleId="+draft.data.id+"&mode=access&cursor="+joined.data.id,
+  "?circleId="+draft.data.id+"&mode=access&mode=access"
+ ]){
+  assert.equal((await request("circles/host"+suffix,"GET",undefined,staffToken)).status,422);
+ }
  const roster=await request("circles/host?circleId="+draft.data.id,"GET",undefined,staffToken);
  assert.equal(roster.status,200);
  assert.equal(roster.data.members.length,1);
@@ -295,6 +310,9 @@ try{
    "&cursor="+firstCursor,"GET",undefined,staffToken);
   assert.equal(blocked.status,403,
    "student-reclassified host cannot continue a private circle roster");
+  assert.equal((await request("circles/host?circleId="+largeCircle.id+
+   "&mode=access","GET",undefined,staffToken)).status,403,
+   "reclassified host cannot pass a name-free circle permission check");
  }finally{
   await db.user.update({where:{id:staff.id},data:{role:originalHostRole}});
  }
@@ -349,6 +367,9 @@ try{
   "archived circle update is no longer in own view");
  assert.equal((await request("circles/host?circleId="+third.data.id,"GET",undefined,staffToken)).status,404,
   "archiving immediately revokes host roster access");
+ assert.equal((await request("circles/host?circleId="+third.data.id+
+  "&mode=access","GET",undefined,staffToken)).status,404,
+  "archiving revokes even a cached circle access-only check");
  assert.equal((await request("circles","POST",{circleId:third.data.id},memberToken)).status,404);
  assert.equal((await request("admin/circles","PATCH",{
   action:"change-status",circleId:third.data.id,status:"published"
