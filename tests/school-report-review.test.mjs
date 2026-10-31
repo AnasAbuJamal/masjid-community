@@ -9,7 +9,7 @@ test("all student progress reports require independent authorized publication",(
   'status:"draft"','school.report.publish','school.report.reject',
   'REPORT_STUDENT_INACTIVE','REPORT_AUTHOR_UNASSIGNED',
   'Prisma.TransactionIsolationLevel.Serializable',
-  'publishedAt:published?new Date():null','status:isPublished?"published":"archived"']){
+  'publishedAt:published?new Date():null','status:published?"published":"archived"']){
   assert.ok(route.includes(token),token);
  }
  assert.ok(route.includes('status:"published",classSection:{program:{organizationId:org.id}}'),
