@@ -33,7 +33,7 @@ export async function GET(req:NextRequest){
     user:{status:"active",role:{not:"student"},verifiedAt:{not:null},
      memberships:{some:{organizationId:org.id,status:"active"}}}
    },take:100,include:{
-     user:{select:{firstName:true,lastName:true,email:true}},opportunity:{select:{title:true,startsAt:true}}}}),
+     user:{select:{firstName:true,lastName:true}},opportunity:{select:{title:true,startsAt:true}}}}),
    db.volunteerShift.findMany({where:{opportunity:{organizationId:org.id}},take:100,orderBy:{startAt:"desc"},include:{
      volunteer:{select:{firstName:true,lastName:true}},opportunity:{select:{title:true}}}})
   ]);
