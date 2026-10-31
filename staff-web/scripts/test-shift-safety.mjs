@@ -53,6 +53,45 @@ try{
  const localApp=await db.volunteerApplication.create({data:{
   opportunityId:localOpp.id,userId:member.id,status:"approved"
  }});
+ // Recheck eligibility at every schedule request: approved historical
+ // applications do not override current mosque membership or account status.
+ const membership=await db.organizationMembership.findUniqueOrThrow({where:{
+  organizationId_userId:{organizationId:org.id,userId:member.id}
+ }});
+ assert.equal(membership.status,"active");
+ assert.ok(member.verifiedAt);
+ const possibleShift={
+  kind:"schedule",applicationId:localApp.id,
+  startAt:new Date(now+11*hour).toISOString(),
+  endAt:new Date(now+12*hour).toISOString()
+ };
+ try{
+  await db.organizationMembership.update({where:{id:membership.id},data:{status:"suspended"}});
+  const listSuspended=await request("admin/shifts","GET",null,adminToken);
+  assert.equal(listSuspended.status,200);
+  assert.ok(!listSuspended.data.applications.some(a=>a.id===localApp.id),
+   "suspended volunteer no longer appears as schedulable");
+  const blocked=await request("admin/shifts","POST",possibleShift,adminToken);
+  assert.equal(blocked.status,404,"inactive mosque membership blocks a new shift");
+  await db.organizationMembership.update({where:{id:membership.id},data:{status:"active"}});
+  await db.user.update({where:{id:member.id},data:{status:"suspended"}});
+  const suspendedUser=await request("admin/shifts","POST",possibleShift,adminToken);
+  assert.equal(suspendedUser.status,404,"suspended account cannot be scheduled");
+ }finally{
+  await db.organizationMembership.update({where:{id:membership.id},data:{status:membership.status}});
+  await db.user.update({where:{id:member.id},data:{status:member.status}});
+ }
+ try{
+  await db.volunteerOpportunity.update({where:{id:localOpp.id},data:{published:false}});
+  const unpublished=await request("admin/shifts","POST",possibleShift,adminToken);
+  assert.equal(unpublished.status,404,
+   "unpublished service opportunities cannot accept a new scheduled shift");
+ }finally{
+  await db.volunteerOpportunity.update({where:{id:localOpp.id},data:{published:true}});
+ }
+ assert.equal(await db.volunteerShift.count({where:{opportunityId:localOpp.id}}),0,
+  "denied eligibility and unpublished-opportunity attempts created no shift");
+
  const list=await request("admin/shifts","GET",null,adminToken);
  assert.equal(list.status,200);
  assert.ok(!list.data.shifts.some(x=>x.id===foreignShift.id),"foreign volunteer shifts hidden");
@@ -92,6 +131,20 @@ try{
   opportunityId:localOpp.id,applicationId:localApp.id,userId:member.id,
   startAt:new Date(now-10*60000),endAt:new Date(now+40*60000)
  }});
+ try{
+  await db.organizationMembership.update({where:{id:membership.id},data:{status:"suspended"}});
+  const rejectedCheckin=await request("admin/shifts","POST",{
+   kind:"update",shiftId:activeShift.id,action:"check-in"
+  },adminToken);
+  assert.equal(rejectedCheckin.status,409);
+  assert.equal(rejectedCheckin.error.code,"VOLUNTEER_INELIGIBLE");
+  assert.equal((await db.volunteerShift.findUniqueOrThrow({
+   where:{id:activeShift.id}
+  })).checkedInAt,null,"ineligible person was not marked present");
+ }finally{
+  await db.organizationMembership.update({where:{id:membership.id},data:{status:membership.status}});
+ }
+
  const present=await request("admin/shifts","POST",{
   kind:"update",shiftId:activeShift.id,action:"check-in"
  },adminToken);
@@ -140,7 +193,7 @@ try{
  assert.ok(await db.auditEvent.count({where:{
   entity:"VolunteerShift",entityId:activeShift.id,action:"volunteer.shift.complete"
  }}),"successful completion has an audit event");
- console.log("Verified cross-mosque schedule overlap, concurrent last-slot, truthful volunteer check-in and completion windows.");
+ console.log("Verified current volunteer membership, suspended/expired approval denial, cross-mosque overlap, concurrent schedules, truthful check-in and completion windows.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
  for(const id of opportunities){

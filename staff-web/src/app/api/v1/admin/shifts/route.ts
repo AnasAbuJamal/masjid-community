@@ -15,8 +15,8 @@ async function shiftTransaction<T>(action:(tx:Prisma.TransactionClient)=>Promise
  }
 }
 const command=z.discriminatedUnion("kind",[
- z.object({kind:z.literal("schedule"),applicationId:z.string().min(8),startAt:z.iso.datetime(),endAt:z.iso.datetime()}),
- z.object({kind:z.literal("update"),shiftId:z.string().min(8),action:z.enum(["check-in","complete","cancel"])})
+ z.object({kind:z.literal("schedule"),applicationId:z.string().min(8),startAt:z.iso.datetime(),endAt:z.iso.datetime()}).strict(),
+ z.object({kind:z.literal("update"),shiftId:z.string().min(8),action:z.enum(["check-in","complete","cancel"])}).strict()
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
@@ -24,7 +24,11 @@ export async function GET(req:NextRequest){
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   const [applications,shifts]=await Promise.all([
-   db.volunteerApplication.findMany({where:{status:"approved",opportunity:{organizationId:org.id}},take:100,include:{
+   db.volunteerApplication.findMany({where:{
+    status:"approved",opportunity:{organizationId:org.id,published:true},
+    user:{status:"active",verifiedAt:{not:null},
+     memberships:{some:{organizationId:org.id,status:"active"}}}
+   },take:100,include:{
      user:{select:{firstName:true,lastName:true,email:true}},opportunity:{select:{title:true,startsAt:true}}}}),
    db.volunteerShift.findMany({where:{opportunity:{organizationId:org.id}},take:100,orderBy:{startAt:"desc"},include:{
      volunteer:{select:{firstName:true,lastName:true}},opportunity:{select:{title:true}}}})
@@ -45,7 +49,10 @@ export async function POST(req:NextRequest){
     throw new HttpError(422,"INVALID_SHIFT","Choose a future shift up to 24 hours long.");
    const result=await shiftTransaction(async tx=>{
     const app=await tx.volunteerApplication.findFirst({where:{
-      id:input.applicationId,status:"approved",opportunity:{organizationId:org.id}
+      id:input.applicationId,status:"approved",
+      opportunity:{organizationId:org.id,published:true},
+      user:{status:"active",verifiedAt:{not:null},
+       memberships:{some:{organizationId:org.id,status:"active"}}}
     }});
     if(!app)throw new HttpError(404,"NOT_APPROVED","Application is not approved.");
     // Check the same person's existing commitments across all organizations.
@@ -65,6 +72,19 @@ export async function POST(req:NextRequest){
    const shift=await tx.volunteerShift.findFirst({where:{id:input.shiftId,opportunity:{organizationId:org.id}}});
    if(!shift||shift.status!=="scheduled")throw new HttpError(409,"NOT_SCHEDULED","Shift is not available for this action.");
    if(input.action==="check-in"){
+    // Approved applications and shifts are historical records, not permanent
+    // permission to check in a suspended or unverified volunteer.
+    const eligible=await tx.user.findFirst({where:{
+     id:shift.userId,status:"active",verifiedAt:{not:null},
+     memberships:{some:{organizationId:org.id,status:"active"}}
+    },select:{id:true}});
+    const stillApproved=await tx.volunteerApplication.findFirst({where:{
+     id:shift.applicationId,userId:shift.userId,opportunityId:shift.opportunityId,
+     status:"approved",opportunity:{organizationId:org.id,published:true}
+    },select:{id:true}});
+    if(!eligible||!stillApproved)
+     throw new HttpError(409,"VOLUNTEER_INELIGIBLE",
+      "Volunteer approval or mosque membership is no longer active. Recheck before attendance.");
     if(shift.checkedInAt)throw new HttpError(409,"ALREADY_CHECKED_IN","Volunteer already checked in.");
     const now=new Date();
     if(shift.startAt>new Date(now.getTime()+15*60_000))

@@ -808,3 +808,20 @@ evidence documents are not collected, verified or stored through this
 feature. Designated safeguarding officers and legal/compliance reviewers
 must sign off on an independent evidence/appeal/revocation workflow
 before live child-data access is enabled.
+
+
+## F-022 current volunteer eligibility on shift operations
+
+Scheduling must recheck, in the serializable transaction, a published service
+opportunity, an approved volunteer application, an active verified volunteer
+account and active original mosque membership. A previous approved status
+alone cannot authorize a new shift after deactivation. The same checks
+apply to recording a NEW check-in, including when an old scheduled row
+remains. Existing historical attendance and completion records are not
+silently deleted when the person's eligibility changes.
+
+Coordinator views exclude ineligible approved applications from new-shift
+selection; operationally authorized schedulers should handle remaining
+historical shift records under reviewed cancellation/correction policy.
+All real-world youth eligibility, staff supervision, device assurance,
+volunteer training and evidence retention require separate approvals.
