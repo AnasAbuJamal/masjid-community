@@ -49,7 +49,7 @@ export default function Work(){
    <Text selectable style={S.bodyText}>{s.body}</Text>
    <Text style={S.muted}>{t("schoolwork.originalPrivate")}</Text>
   </Card>
- ):null}
+ )}
  {result.data?.reports?.length?<View style={S.section}><Text style={S.headline}>Published progress reports</Text>{result.data.reports.map(r=><Card key={r.id} style={{gap:9}}><Text style={S.label}>{r.student.firstName} {r.student.lastName} · {r.classSection.name}</Text><Text style={S.bodyText}>{r.summary}</Text></Card>)}</View>:null}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}{notice?<Text style={{color:T.success}}>{notice}</Text>:null}
  </Shell>;
