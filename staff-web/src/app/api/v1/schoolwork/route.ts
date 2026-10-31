@@ -3,6 +3,7 @@ import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
 import {schoolStudentScope} from "@/lib/school-scope";
+import {mayViewGuardianRecords} from "@/lib/school-role-policy";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("assignment"),classId:z.string().min(8),title:z.string().trim().min(4).max(180),instructions:z.string().trim().min(10).max(8000),dueAt:z.iso.datetime(),published:z.boolean().default(false)}),
@@ -26,7 +27,7 @@ export async function GET(req:NextRequest){
   }
   const [own,links]=await Promise.all([
    db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)},select:{id:true}}),
-   db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,student:schoolStudentScope(org.id)},select:{studentId:true}})
+   mayViewGuardianRecords(user.role)?db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,student:schoolStudentScope(org.id)},select:{studentId:true}}):Promise.resolve([])
   ]);
   const ids=[...new Set([...(own?[own.id]:[]),...links.map(x=>x.studentId)])];
   if(!ids.length)return ok({mode:"family",assignments:[],reports:[],submissions:[]});

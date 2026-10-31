@@ -177,6 +177,71 @@ try{
  assert.equal(invoices.status,200);
  assert.ok(invoices.data.invoices.some(i=>i.studentId===localEnrollment.studentId),"local tuition remains visible");
  assert.ok(!invoices.data.invoices.some(i=>i.id===foreignInvoice.id),"foreign tuition remains private despite approved guardian link");
+ // F-015/F-017: a role reclassification must remove historical teacher
+ // roster and former guardian data, even while old class/link rows remain.
+ const teacherRole=teacher.role;
+ try{
+  await db.user.update({where:{id:teacher.id},data:{role:"member"}});
+  const oldAssignment=await db.teacherAssignment.findFirst({
+   where:{teacherId:teacher.id,classId:localClass.id}
+  });
+  assert.ok(oldAssignment,"legacy teacher assignment is deliberately preserved");
+  const demotedStudents=await request("students","GET",null,teacherToken);
+  assert.equal(demotedStudents.status,200);
+  assert.deepEqual(demotedStudents.data.teaching,[],
+   "former teacher cannot read student names via the general student summary");
+  const demotedDashboard=await request("me","GET",null,teacherToken);
+  assert.equal(demotedDashboard.status,200);
+  assert.deepEqual(demotedDashboard.data.classes,[],
+   "former teacher cannot read class details via the member dashboard");
+  const demotedSchoolwork=await request("schoolwork","GET",null,teacherToken);
+  assert.equal(demotedSchoolwork.status,200);
+  assert.equal(demotedSchoolwork.data.mode,"family",
+   "historical teacher assignment does not retain teacher mode");
+  assert.equal((await request("teacher","GET",null,teacherToken)).status,403);
+ }finally{
+  await db.user.update({where:{id:teacher.id},data:{role:teacherRole}});
+ }
+ const restoredTeacher=await request("students","GET",null,teacherToken);
+ assert.ok(restoredTeacher.data.teaching.some(c=>c.id===localClass.id),
+  "current teacher role and assignment are required together");
+
+ const guardianRole=member.role;
+ try{
+  await db.user.update({where:{id:member.id},data:{role:"student"}});
+  const historicGuardian=await db.guardianLink.findUnique({
+   where:{guardianId_studentId:{guardianId:member.id,studentId:localEnrollment.studentId}}
+  });
+  assert.ok(historicGuardian?.approvedAt&&!historicGuardian.revokedAt,
+   "the test keeps a historically approved guardian link to prove denial");
+  const childSummary=await request("students","GET",null,memberToken);
+  assert.equal(childSummary.status,200);
+  assert.ok(!childSummary.data.children.some(c=>c.id===localEnrollment.studentId),
+   "student-reclassified guardian cannot see a linked child's school profile");
+  const childDashboard=await request("me","GET",null,memberToken);
+  assert.equal(childDashboard.status,200);
+  assert.ok(!childDashboard.data.children.some(c=>c.student.id===localEnrollment.studentId),
+   "student-reclassified guardian cannot see linked children in member dashboard");
+  const childInvoices=await request("invoices","GET",null,memberToken);
+  assert.equal(childInvoices.status,200);
+  assert.deepEqual(childInvoices.data.invoices,[],
+   "student-reclassified guardian loses private child invoice visibility");
+  const childWork=await request("schoolwork","GET",null,memberToken);
+  assert.equal(childWork.status,200);
+  assert.equal(childWork.data.mode,"family");
+  assert.ok(!(childWork.data.assignments||[]).some(x=>
+   x.studentIds?.includes(localEnrollment.studentId)),
+   "former guardian link cannot expose child assignments");
+  assert.ok(!(childWork.data.reports||[]).some(x=>
+   x.studentId===localEnrollment.studentId),
+   "former guardian link cannot expose child reports");
+ }finally{
+  await db.user.update({where:{id:member.id},data:{role:guardianRole}});
+ }
+ const restoredGuardian=await request("students","GET",null,memberToken);
+ assert.ok(restoredGuardian.data.children.some(c=>c.id===localEnrollment.studentId),
+  "restored role still requires an independently approved nonrevoked guardian link");
+
 
  const roster=await request("teacher","GET",null,teacherToken);
  assert.equal(roster.status,200);

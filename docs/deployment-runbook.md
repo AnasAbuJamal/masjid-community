@@ -755,3 +755,20 @@ This is a best-effort exposure reduction, not guaranteed instant revocation:
 it cannot undo a copied record, photograph or offline screenshot. Production
 requires supervised host devices, documented data-retention policy and
 independent safeguarding/accessibility authorization.
+
+
+## Current role overrides historical guardian and teacher associations
+
+For school-facing read APIs, the account's **current authenticated role**
+must be used alongside an independently scoped, approved, nonrevoked
+guardian link or current class assignment. Student-role identities may
+access only their own positive StudentAccount record; an old guardian
+approval alone must never expose a different child's schoolwork, reports,
+tuition invoice, attendance or identity. Teacher rosters must require
+a current teacher/admin role in addition to the assigned class and same
+organization. A role downgrade must prevent reads immediately without
+deleting historical reviews or changing evidence.
+
+This rule cannot prove actual age or custody, and is not a substitute for
+independent school safeguarding approvals, guardian revocation procedures,
+and real-device privacy testing. Production remains blocked.

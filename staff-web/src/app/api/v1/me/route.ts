@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { handled, HttpError, ok } from "@/lib/http";
 import { requireMemberContext } from "@/lib/auth";
 import {schoolStudentScope} from "@/lib/school-scope";
+import {mayViewGuardianRecords,mayViewTeacherRosters} from "@/lib/school-role-policy";
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const {user,org}=await requireMemberContext(req);
@@ -12,12 +13,12 @@ export async function GET(req:NextRequest){
     db.donation.findMany({where:{donorId:user.id,campaign:{organizationId:org.id}},orderBy:{createdAt:"desc"},take:30,select:{id:true,amountMinor:true,currency:true,status:true,createdAt:true,campaign:{select:{title:true}},receipt:{select:{id:true,receiptNumber:true,issuedAt:true,reversedAt:true}}}}),
     db.eventRSVP.findMany({where:{userId:user.id,event:{organizationId:org.id}},include:{event:{select:{id:true,title:true,startAt:true}}},take:30}),
     db.notification.findMany({where:{userId:user.id,organizationId:org.id},orderBy:{createdAt:"desc"},take:30}),
-    db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,
+    mayViewGuardianRecords(user.role)?db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,
       student:schoolStudentScope(org.id)},
       select:{student:{select:{id:true,firstName:true,lastName:true,
        enrollments:{where:{status:"active",classSection:{program:{organizationId:org.id}}},
-        select:{classSection:{select:{name:true}}}}}}}}),
-    db.teacherAssignment.findMany({where:{teacherId:user.id,classSection:{program:{organizationId:org.id}}},select:{classSection:{select:{id:true,name:true,schedule:true}}}}),
+        select:{classSection:{select:{name:true}}}}}}}}):Promise.resolve([]),
+    mayViewTeacherRosters(user.role)?db.teacherAssignment.findMany({where:{teacherId:user.id,classSection:{program:{organizationId:org.id}}},select:{classSection:{select:{id:true,name:true,schedule:true}}}}):Promise.resolve([]),
     db.rentalBooking.findMany({where:{userId:user.id,resource:{organizationId:org.id}},take:25,orderBy:{startAt:"desc"},select:{id:true,status:true,startAt:true,endAt:true,resource:{select:{title:true}}}}),
     db.volunteerApplication.findMany({where:{userId:user.id,opportunity:{organizationId:org.id}},take:25,select:{id:true,status:true,opportunity:{select:{title:true}}}}),
     db.jobApplication.findMany({where:{userId:user.id,job:{organizationId:org.id}},take:25,select:{id:true,status:true,job:{select:{title:true}}}}),
