@@ -124,13 +124,23 @@ export async function POST(req:NextRequest){
         // Approval must use the account's CURRENT eligibility, not an old
         // submitted application or reviewer screen snapshot.
         const eligible=await tx.volunteerApplication.findFirst({where:{
-          id:app.id,status:"submitted",opportunity:{organizationId:org.id},
+          id:app.id,status:"submitted",opportunity:{organizationId:org.id,published:true},
           user:{status:"active",role:{not:"student"},verifiedAt:{not:null},
            memberships:{some:{organizationId:org.id,status:"active"}}}
         },select:{id:true}});
         if(!eligible)throw new HttpError(409,"VOLUNTEER_INELIGIBLE",
-          "Applicant approval or mosque membership must be reviewed again.");
-        const claimed=await tx.volunteerOpportunity.updateMany({where:{id:app.opportunityId,organizationId:org.id,filled:{lt:app.opportunity.capacity}},data:{filled:{increment:1}}});
+          "Applicant approval, published opportunity or mosque membership must be reviewed again.");
+        // Do not use the pre-transaction opportunity capacity from the
+        // reviewer's old page: check the CURRENT published opportunity.
+        const currentOpportunity=await tx.volunteerOpportunity.findFirst({where:{
+          id:app.opportunityId,organizationId:org.id,published:true
+        },select:{capacity:true}});
+        if(!currentOpportunity)throw new HttpError(409,"OPPORTUNITY_UNAVAILABLE",
+          "Volunteer opportunity is no longer published.");
+        const claimed=await tx.volunteerOpportunity.updateMany({where:{
+          id:app.opportunityId,organizationId:org.id,published:true,
+          filled:{lt:currentOpportunity.capacity}
+        },data:{filled:{increment:1}}});
         if(!claimed.count)throw new HttpError(409,"FULL","No volunteer spaces remain.");
         const changed=await tx.volunteerApplication.updateMany({where:{
           id:app.id,status:"submitted",opportunity:{organizationId:org.id}
