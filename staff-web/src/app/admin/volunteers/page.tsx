@@ -1,6 +1,6 @@
 "use client";
-import {useCallback,useEffect,useState} from "react";
-type Application={id:string;user:{firstName:string;lastName:string;email:string};opportunity:{title:string}};
+import {useCallback,useEffect,useRef,useState} from "react";
+type Application={id:string;user:{firstName:string;lastName:string};opportunity:{title:string}};
 type Shift={id:string;startAt:string;endAt:string;checkedInAt:string|null;status:string;volunteer:{firstName:string;lastName:string};opportunity:{title:string}};
 function localInput(iso:string){
  const date=new Date(iso);
@@ -11,12 +11,38 @@ export default function VolunteerAdmin(){
  const [apps,setApps]=useState<Application[]>([]),[shifts,setShifts]=useState<Shift[]>([]),[applicationId,setApplicationId]=useState(""),[start,setStart]=useState(""),[end,setEnd]=useState("");
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [correction,setCorrection]=useState<Correction|null>(null);
- const load=useCallback(async()=>{
-  try{const r=await fetch("/api/v1/admin/shifts");const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Access denied.");
-   setApps(j.data.applications);setShifts(j.data.shifts);setError("");
-  }catch(e){setError(e instanceof Error?e.message:"Cannot load volunteer shifts.");}
+ const generation=useRef(0);
+ const clearPrivateShifts=useCallback(()=>{
+  generation.current++;
+  setApps([]);setShifts([]);setApplicationId("");setCorrection(null);setNotice("");
  },[]);
+ const load=useCallback(async()=>{
+  const version=++generation.current;
+  if(document.hidden){clearPrivateShifts();return;}
+  try{
+   const r=await fetch("/api/v1/admin/shifts",{cache:"no-store"});
+   const j=await r.json();
+   if(version!==generation.current||document.hidden)return;
+   if(!r.ok)throw new Error(j.error?.message||"Access denied.");
+   setApps(j.data.applications);setShifts(j.data.shifts);setError("");
+  }catch(e){
+   if(version!==generation.current||document.hidden)return;
+   clearPrivateShifts();
+   setError(e instanceof Error?e.message:"Private volunteer shifts unavailable. Refresh when permitted.");
+  }
+ },[clearPrivateShifts]);
  useEffect(()=>{void load()},[load]);
+ useEffect(()=>{
+  const visibility=()=>{if(document.hidden)clearPrivateShifts();else void load();};
+  document.addEventListener("visibilitychange",visibility);
+  window.addEventListener("pagehide",clearPrivateShifts);
+  const timer=window.setInterval(()=>{if(!document.hidden)void load();},45_000);
+  return ()=>{
+   window.clearInterval(timer);
+   document.removeEventListener("visibilitychange",visibility);
+   window.removeEventListener("pagehide",clearPrivateShifts);
+  };
+ },[clearPrivateShifts,load]);
  async function send(input:Record<string,unknown>){
   setBusy(true);setError("");setNotice("");
   try{const r=await fetch("/api/v1/admin/shifts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
