@@ -668,3 +668,22 @@ The `student` role exclusion is a technical fail-closed control, **not**
 age verification or safeguarding certification. Real safeguarding review,
 staff training, shift supervision and independent roster-disclosure approval
 remain production release requirements.
+
+
+## F-010 host attendance paging and privacy
+
+The private host roster returns at most 50 confirmed and currently eligible
+registrations per page. Each page resolves its cursor only **after**
+authenticating the same active, non-student host, checking current active
+membership in the event mosque, verifying an unrevoked assignment and
+confirming the event remains published and within the permitted roster
+window. Cursors are RSVP IDs bound to the exact event and eligibility
+predicate, not bearer tokens or tenant IDs. A revoked/removed/unconfirmed
+cursor invalidates the page and requires refreshing the roster.
+
+The host UI never downloads a bulk complete roster or exposes contact
+details. It rejects stale responses after event switches, and hides
+unconfirmed or ineligible rows. Host devices must be locked, attended,
+training-approved and assessed for accessibility before real-world use.
+No browser caching of attendee data is authorized after a shift; actual
+staff operations and child-safeguarding review remain production gates.

@@ -1,7 +1,7 @@
 // Assigned gathering-host check-in against synthetic records in isolated CI PostgreSQL.
 // Never import real attendee data or operate against a live database.
 import assert from "node:assert/strict";
-import {createHash,randomBytes} from "node:crypto";
+import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {PrismaClient} from "@prisma/client";
 
@@ -18,7 +18,7 @@ async function request(path,method="GET",payload,token){
  },body:payload?JSON.stringify(payload):undefined});
  return {status:response.status,...await response.json().catch(()=>({}))};
 }
-const ids=[];
+const ids=[],rosterFakeUsers=[],auditedRsvpIds=[];
 let otherOrgId,foreignUserId,adminSession;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
@@ -52,6 +52,7 @@ try{
  assert.equal(waiting.data.status,"waitlisted");
  const confirmed=await db.eventRSVP.findUniqueOrThrow({where:{eventId_userId:{eventId:event.id,userId:member.id}}});
  const waitlisted=await db.eventRSVP.findUniqueOrThrow({where:{eventId_userId:{eventId:event.id,userId:staff.id}}});
+ auditedRsvpIds.push(confirmed.id);
  assert.equal((await request("events/check-in")).status,401,"guest cannot see host assignments");
  const beforeGrant=await request("events/check-in?eventId="+event.id,"GET",null,staffToken);
  assert.equal(beforeGrant.status,404,"staff role alone cannot read attendance");
@@ -193,6 +194,105 @@ try{
  assert.equal(restoredRoster.data.roster.length,1,
   "restored eligibility permits the original confirmed reservation again");
 
+
+ // F-010: a genuine private roster may exceed the former 300-row cutoff.
+ // Use synthetic CI members only, never real identities or attendance.
+ // All 55 RSVPs share an exact timestamp to prove stable (createdAt,id) paging.
+ const large=await db.event.create({data:{
+  organizationId:org.id,title:"Synthetic large private host roster",
+  description:"Synthetic bounded host roster test",location:"CI room",
+  startAt:starts,endAt:ends,status:"published",rsvpCount:55
+ }});
+ ids.push(large.id);
+ await db.eventHostAssignment.create({data:{
+  eventId:large.id,hostId:staff.id,assignedById:admin.id
+ }});
+ const fakeIds=Array.from({length:54},()=>randomUUID());
+ rosterFakeUsers.push(...fakeIds);
+ await db.user.createMany({data:fakeIds.map((id,i)=>({
+  id,email:"ci-roster-"+id+"@example.test",firstName:"CI Host Roster",
+  lastName:"Member "+String(i).padStart(2,"0"),
+  passwordHash:staff.passwordHash,role:"member",verifiedAt:new Date()
+ }))});
+ await db.organizationMembership.createMany({data:fakeIds.map(userId=>({
+  userId,organizationId:org.id,status:"active"
+ }))});
+ const createdAt=new Date();
+ const rows=[
+  ...fakeIds.map(userId=>({
+   id:randomUUID(),eventId:large.id,userId,status:"confirmed",createdAt
+  })),
+  {id:"zz-roster-"+randomUUID(),eventId:large.id,userId:member.id,
+   status:"confirmed",createdAt}
+ ];
+ await db.eventRSVP.createMany({data:rows});
+ const expected=rows.map(x=>x.id).sort();
+ const fetched=[];
+ let cursor=null,firstCursor=null;
+ for(let pageNo=0;pageNo<2;pageNo++){
+  const answer=await request("events/check-in?eventId="+large.id+
+   (cursor?"&cursor="+encodeURIComponent(cursor):""),"GET",null,staffToken);
+  assert.equal(answer.status,200,JSON.stringify(answer));
+  assert.equal(answer.data.pageSize,50);
+  assert.equal(answer.data.roster.length,pageNo===0?50:5);
+  assert.equal(answer.data.hasMore,pageNo===0);
+  assert.equal(answer.data.complete,pageNo!==0);
+  assert.ok(answer.data.roster.every(x=>
+   Object.keys(x.user).sort().join(",")==="firstName,lastName"));
+  fetched.push(...answer.data.roster.map(x=>x.id));
+  cursor=answer.data.nextCursor;
+  if(pageNo===0){
+   firstCursor=cursor;
+   assert.equal(cursor,fetched[fetched.length-1]);
+  }else assert.equal(cursor,null);
+ }
+ assert.deepEqual(fetched,expected,"all 55 confirmed people are reachable exactly once");
+ assert.equal(new Set(fetched).size,55);
+ for(const params of [
+  "cursor="+randomUUID(),
+  "cursor="+waitlisted.id,
+  "cursor="+confirmed.id,
+  "cursor=",
+  "cursor="+firstCursor+"&cursor="+firstCursor,
+  "eventId="+event.id+"&cursor="+firstCursor
+ ]){
+  const path=params.startsWith("eventId=")
+   ?"events/check-in?"+params:"events/check-in?eventId="+large.id+"&"+params;
+  const rejected=await request(path,"GET",null,staffToken);
+  assert.ok([404,422].includes(rejected.status),
+   "bad/other-event/duplicate roster cursor must fail closed: "+params);
+ }
+ assert.equal((await request("events/check-in?cursor="+firstCursor,
+  "GET",null,staffToken)).status,422);
+ assert.equal((await request("events/check-in?eventId="+large.id+
+  "&eventId="+event.id,"GET",null,staffToken)).status,422);
+ const cursorRow=rows.find(x=>x.id===firstCursor);
+ assert.ok(cursorRow&&cursorRow.userId!==member.id);
+ try{
+  await db.organizationMembership.update({where:{
+   organizationId_userId:{organizationId:org.id,userId:cursorRow.userId}
+  },data:{status:"suspended"}});
+  const revokedCursor=await request("events/check-in?eventId="+large.id+
+   "&cursor="+firstCursor,"GET",null,staffToken);
+  assert.equal(revokedCursor.status,404,
+   "membership revocation invalidates the roster cursor immediately");
+  assert.equal(revokedCursor.error.code,"ROSTER_CURSOR_UNAVAILABLE");
+ }finally{
+  await db.organizationMembership.update({where:{
+   organizationId_userId:{organizationId:org.id,userId:cursorRow.userId}
+  },data:{status:"active"}});
+ }
+ const last=rows.find(x=>x.id===expected[expected.length-1]);
+ const lastArrival=await request("events/check-in","POST",{
+  eventId:large.id,rsvpId:last.id,action:"arrive",expectedRevision:0
+ },staffToken);
+ assert.equal(lastArrival.status,200,"host can check in a later-page attendee");
+ assert.equal(lastArrival.data.revision,1);
+ assert.ok(lastArrival.data.checkedInAt);
+ auditedRsvpIds.push(last.id);
+ const recordedLast=await db.eventRSVP.findUniqueOrThrow({where:{id:last.id}});
+ assert.equal(recordedLast.checkInRevision,1);
+ assert.ok(recordedLast.checkedInAt instanceof Date);
  const journal=await db.auditEvent.findMany({where:{
   entity:"EventRSVP",entityId:confirmed.id,action:{in:["gather.check-in","gather.check-in.correct"]}
  }});
@@ -266,14 +366,31 @@ try{
   eventId:event.id,rsvpId:confirmed.id,action:"arrive",expectedRevision:2
  },staffToken);
  assert.equal(deniedAfterRevocation.status,404,"revoked host loses write permission immediately");
+ const revokedLarge=await request("admin/event-hosts","POST",{
+  eventId:large.id,hostId:staff.id,action:"revoke"
+ },adminToken);
+ assert.equal(revokedLarge.status,200);
+ const revokedPage=await request("events/check-in?eventId="+large.id+
+  "&cursor="+firstCursor,"GET",null,staffToken);
+ assert.equal(revokedPage.status,404,"revoked host cannot resume a private roster page");
  assert.equal((await db.eventRSVP.findUniqueOrThrow({where:{id:confirmed.id}})).checkInRevision,2);
- console.log("Verified assigned-host-only rosters, revoked-attendee concealment and arrival denial, waitlist denial, recorded arrivals, correction audit, stale race, time gates, foreign tenant and revocation.");
+ console.log("Verified current host eligibility, 50-row private roster pagination across 55 synthetic people, invalid and revoked cursors, later-page arrivals, waitlist exclusion, correction audit, time gates, tenant isolation and host revocation.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
+ if(auditedRsvpIds.length)await db.auditEvent.deleteMany({where:{
+  entity:"EventRSVP",entityId:{in:auditedRsvpIds}
+ }});
+ if(ids.length)await db.auditEvent.deleteMany({where:{
+  entity:"Event",entityId:{in:ids},action:{startsWith:"gather.host."}
+ }});
  for(const id of ids){
   await db.eventHostAssignment.deleteMany({where:{eventId:id}});
   await db.eventRSVP.deleteMany({where:{eventId:id}});
   await db.event.deleteMany({where:{id}});
+ }
+ if(rosterFakeUsers.length){
+  await db.organizationMembership.deleteMany({where:{userId:{in:rosterFakeUsers}}});
+  await db.user.deleteMany({where:{id:{in:rosterFakeUsers}}});
  }
  if(foreignUserId){
   await db.organizationMembership.deleteMany({where:{userId:foreignUserId}});
