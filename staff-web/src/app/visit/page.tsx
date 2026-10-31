@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { localDate } from "@/lib/http";
+import { localDate,HttpError } from "@/lib/http";
 import {GATHERING_CATEGORIES,GATHERING_AUDIENCES,GATHERING_ACCESSIBILITY,
- publicGatheringItems} from "@/lib/gathering-filters";
+ gatheringFilters,publishedGatheringPage} from "@/lib/gathering-filters";
 import {civilDayStart,nextCivilDay} from "@/lib/civil-day";
 import {currentVenueEmergency} from "@/lib/venue-emergencies";
 import "./visit.css";
@@ -16,7 +16,8 @@ export const metadata: Metadata = {
 type VisitFilters={venue?:string|string[];gatherVenue?:string|string[];
  category?:string|string[];audience?:string|string[];
  accessibility?:string|string[];gatherQ?:string|string[];
- fromDay?:string|string[];toDay?:string|string[]};
+ fromDay?:string|string[];toDay?:string|string[];
+ gatherCursor?:string|string[]};
 type PageProps = { searchParams: Promise<VisitFilters> };
 const prayerRows = [
   ["Fajr", "fajr", "fajrIqamah"],
@@ -60,6 +61,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
   const accessibility=value("accessibility");
   const gatherVenue=value("gatherVenue");
   const fromDay=value("fromDay"),toDay=value("toDay");
+  const gatherCursor=value("gatherCursor");
   const organization = await db.organization.findFirst({ orderBy: { createdAt: "asc" } });
   const venues = organization
     ? await db.venue.findMany({
@@ -79,14 +81,50 @@ export default async function VisitPage({ searchParams }: PageProps) {
   const invalidDates=(!!fromDay&&!fromStart)||(!!toDay&&!untilStart)||
    (!!fromStart&&!!untilStart&&untilStart<=fromStart);
   const filterInvalid=invalidDates||
+    (!!gatherCursor&&!/^[A-Za-z0-9_-]{8,128}$/.test(gatherCursor))||
     (gatherQuery.length===1||gatherQuery.length>80||gatherQuery==="__invalid__")||
     (!!category&&!GATHERING_CATEGORIES.includes(category as typeof GATHERING_CATEGORIES[number]))||
     (!!audience&&!GATHERING_AUDIENCES.includes(audience as typeof GATHERING_AUDIENCES[number]))||
     (!!accessibility&&!GATHERING_ACCESSIBILITY.includes(accessibility as typeof GATHERING_ACCESSIBILITY[number]))||
     (!!gatherVenue&&!venues.some(v=>v.id===gatherVenue));
+  // Build canonical, validated query filters for the same shared database
+  // keyset boundary as the public and authenticated mobile catalogs.
+  // The prayer venue remains separate from the gathering venue filter.
+  const gatherParams=new URLSearchParams();
+  if(gatherQuery)gatherParams.set("q",gatherQuery);
+  if(category)gatherParams.set("category",category);
+  if(audience)gatherParams.set("audience",audience);
+  if(accessibility)gatherParams.set("accessibility",accessibility);
+  if(gatherVenue)gatherParams.set("venueId",gatherVenue);
+  if(fromStart)gatherParams.set("from",fromStart.toISOString());
+  if(untilStart)gatherParams.set("to",untilStart.toISOString());
+  if(gatherCursor)gatherParams.set("cursor",gatherCursor);
+  const keptParams=new URLSearchParams();
+  if(venue)keptParams.set("venue",venue.id);
+  if(gatherQuery)keptParams.set("gatherQ",gatherQuery);
+  if(category)keptParams.set("category",category);
+  if(audience)keptParams.set("audience",audience);
+  if(accessibility)keptParams.set("accessibility",accessibility);
+  if(gatherVenue)keptParams.set("gatherVenue",gatherVenue);
+  if(fromDay)keptParams.set("fromDay",fromDay);
+  if(toDay)keptParams.set("toDay",toDay);
+  const firstPageHref="/visit?"+keptParams.toString()+"#gatherings";
+  let invalidCursor=false;
+  async function fetchGatherings(){
+   if(!organization||filterInvalid)return {items:[],hasMore:false,nextCursor:null};
+   try{
+    return await publishedGatheringPage(organization.id,gatheringFilters(gatherParams));
+   }catch(error){
+    if(error instanceof HttpError&&error.code==="CURSOR_UNAVAILABLE"){
+     invalidCursor=true;
+     return {items:[],hasMore:false,nextCursor:null};
+    }
+    throw error;
+   }
+  }
   const now = new Date();
   const today = venue ? localDate(now, venue.timeZone) : null;
-  const [prayer, jummah, announcements, events, faithNotices, programs] = await Promise.all([
+  const [prayer, jummah, announcements, eventPage, faithNotices, programs] = await Promise.all([
     venue && today
       ? db.prayerDay.findFirst({
           where: { venueId: venue.id, localDate: today, published: true },
@@ -107,26 +145,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
           select: { id: true, title: true, body: true, kind: true },
         })
       : [],
-    organization&&!filterInvalid
-      ? db.event.findMany({
-          where: {organizationId:organization.id,status:"published",
-            startAt:{gte:fromStart&&fromStart>now?fromStart:now,
-              ...(untilStart?{lt:untilStart}:{})},
-            ...(gatherQuery?{OR:[
-              {title:{contains:gatherQuery,mode:"insensitive" as const}},
-              {description:{contains:gatherQuery,mode:"insensitive" as const}},
-              {location:{contains:gatherQuery,mode:"insensitive" as const}}
-            ]}:{}),
-            ...(category?{category}:{}),...(audience?{audience}:{}),
-            ...(accessibility?{accessibilityFeatures:{has:accessibility}}:{}),
-            ...(gatherVenue?{venueId:gatherVenue}:{})
-          },
-          orderBy:[{startAt:"asc"},{id:"asc"}],take:20,
-          select:{id:true,title:true,description:true,location:true,startAt:true,
-            category:true,audience:true,accessibilityFeatures:true,
-            venue:{select:{id:true,name:true,timeZone:true,organizationId:true}}}
-        })
-      : [],
+    fetchGatherings(),
     organization && today
       ? db.faithNotice.findMany({
           where: {
@@ -148,7 +167,10 @@ export default async function VisitPage({ searchParams }: PageProps) {
       : [],
   ]);
   const timeZone = venue?.timeZone ?? organization?.timeZone ?? "UTC";
-  const safeEvents=publicGatheringItems(events,organization?.id||"");
+  const safeEvents=eventPage.items;
+  const nextPageHref=eventPage.hasMore&&eventPage.nextCursor?
+   "/visit?"+new URLSearchParams([...keptParams,
+     ["gatherCursor",eventPage.nextCursor]]).toString()+"#gatherings":null;
   const emergency=await currentVenueEmergency(venue?.id,now);
 
   return (
@@ -280,7 +302,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
              <button type="submit">Apply filters</button>
              <a href={selectedId?"/visit?venue="+encodeURIComponent(selectedId)+"#gatherings":"/visit#gatherings"}>Clear filters</a>
             </form>
-            {filterInvalid?<p role="alert" className="visit-empty">A gathering filter was invalid or does not belong to this mosque. Clear filters and try again.</p>:null}
+            {filterInvalid||invalidCursor?<p role="alert" className="visit-empty">A gathering filter or page cursor was invalid or does not belong to this mosque. Restart the listing or clear filters.</p>:null}
             {safeEvents.length ? (
               <div className="visit-list">{safeEvents.map((item) => (
                 <article key={item.id}>
@@ -298,7 +320,14 @@ export default async function VisitPage({ searchParams }: PageProps) {
                   </p>:null}
                 </article>
               ))}</div>
-            ) : !filterInvalid?<p className="visit-empty">No upcoming published gatherings match these filters.</p>:null}
+            ) : !filterInvalid&&!invalidCursor?<p className="visit-empty">No upcoming published gatherings match these filters.</p>:null}
+            {nextPageHref?<nav aria-label="Gathering pages" className="visit-gathering-pages">
+              <a href={nextPageHref}>Next 25 published gatherings</a>
+              <a href={firstPageHref}>Restart at first page</a>
+            </nav>:null}
+            {gatherCursor&&(filterInvalid||invalidCursor||!nextPageHref)?<p className="visit-footnote">
+              <a href={firstPageHref}>Restart the filtered gathering list</a>
+            </p>:null}
           </section>
         </div>
 

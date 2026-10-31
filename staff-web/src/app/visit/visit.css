@@ -129,3 +129,11 @@
 .visit-emergency h2 { font-size: clamp(1.3rem,2.5vw,1.8rem); margin: 8px 0; }
 .visit-emergency p { margin: 10px 0; }
 .visit-emergency .visit-footnote { color: #632b1d; }
+
+/* Fully server-rendered, keyboard-visible pagination with no JS dependency. */
+.visit-gathering-pages {display:flex;flex-wrap:wrap;align-items:center;
+ gap:14px;margin:22px 0 0;}
+.visit-gathering-pages a {display:inline-flex;align-items:center;
+ min-height:44px;padding:10px 16px;border:2px solid #1f5264;
+ border-radius:12px;font-weight:700;text-decoration:none;color:#164456;}
+.visit-gathering-pages a:focus-visible {outline:3px solid #164456;outline-offset:3px;}

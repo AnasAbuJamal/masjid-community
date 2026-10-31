@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {randomUUID} from "node:crypto";
 if(process.env.NODE_ENV==="production"||!process.env.DATABASE_URL?.includes("masjid_ci"))throw Error("Refusing production public smoke.");
 const api="http://127.0.0.1:3000/api/v1/";
 async function get(path){const res=await fetch(api+path);return {status:res.status,data:await res.json()};}
@@ -66,6 +67,7 @@ try{
  const marker="CI SECOND VENUE";
  const other=await db.venue.create({data:{organizationId:org.id,name:marker,timeZone:"America/New_York"}});
  let filteredEventId=null;
+ const pagingIds=[];
  try{
   const todayParts=new Intl.DateTimeFormat("en-US",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"America/New_York"}).formatToParts(new Date());
   const field=(type)=>todayParts.find(x=>x.type===type)?.value||"";
@@ -118,6 +120,53 @@ try{
   assert.match(await impossibleDay.text(),/filter was invalid or does not belong to this mosque/);
   const duplicate=await fetch(filterUrl+"?category=workshop&category=lecture");
   assert.match(await duplicate.text(),/filter was invalid or does not belong to this mosque/);
+
+  // Real guest server-rendered pagination: 28 equal-start gatherings must
+  // appear on 25/3 separate pages without duplication or tenant changes.
+  const staged=Array.from({length:28},(_,i)=>({
+   id:randomUUID(),organizationId:org.id,venueId:other.id,
+   title:"CI_WEB_PAGED_GATHERING "+String(i).padStart(3,"0"),
+   description:"Synthetic paged public visitor gathering.",
+   location:"CI SECOND VENUE",status:"published",category:"other",
+   startAt:new Date("2032-12-07T15:00:00.000Z"),
+   endAt:new Date("2032-12-07T16:00:00.000Z")
+  }));
+  pagingIds.push(...staged.map(x=>x.id));
+  await db.event.createMany({data:staged});
+  const pBase=filterUrl+"?gatherQ=CI_WEB_PAGED_GATHERING&category=other"+
+   "&gatherVenue="+encodeURIComponent(other.id);
+  const firstPage=await fetch(pBase);
+  assert.equal(firstPage.status,200);
+  const firstHtml=await firstPage.text();
+  const seenFirst=staged.filter(x=>firstHtml.includes(x.title)).map(x=>x.id);
+  assert.equal(seenFirst.length,25,"visitor listing shows a bounded first page");
+  assert.match(firstHtml,/Next 25 published gatherings/);
+  const href=firstHtml.match(/href="([^"]*gatherCursor=[^"]*)"/)?.[1];
+  assert.ok(href,"server-rendered next page link must preserve the opaque cursor");
+  const pageUrl=new URL(href.replaceAll("&amp;","&"),filterUrl);
+  assert.equal(pageUrl.searchParams.get("gatherQ"),"CI_WEB_PAGED_GATHERING");
+  assert.equal(pageUrl.searchParams.get("category"),"other");
+  assert.equal(pageUrl.searchParams.get("gatherVenue"),other.id);
+  const secondPage=await fetch(pageUrl);
+  assert.equal(secondPage.status,200);
+  const secondHtml=await secondPage.text();
+  const seenSecond=staged.filter(x=>secondHtml.includes(x.title)).map(x=>x.id);
+  assert.equal(seenSecond.length,3,"remaining gatherings display on final page");
+  assert.equal(new Set([...seenFirst,...seenSecond]).size,28);
+  assert.doesNotMatch(secondHtml,/Next 25 published gatherings/);
+  assert.match(secondHtml,/Restart the filtered gathering list/);
+  const staleCursor=await fetch(pBase+"&gatherCursor="+encodeURIComponent(filtered.id));
+  assert.equal(staleCursor.status,200);
+  const staleHtml=await staleCursor.text();
+  assert.match(staleHtml,/filter or page cursor was invalid/);
+  assert.doesNotMatch(staleHtml,/CI_WEB_PAGED_GATHERING 0[0-9][0-9]/);
+  const malformedCursor=await fetch(pBase+"&gatherCursor=short");
+  assert.equal(malformedCursor.status,200);
+  assert.match(await malformedCursor.text(),/filter or page cursor was invalid/);
+  const duplicateCursor=await fetch(pBase+"&gatherCursor="+staged[0].id+
+   "&gatherCursor="+staged[1].id);
+  assert.equal(duplicateCursor.status,200);
+  assert.match(await duplicateCursor.text(),/filter or page cursor was invalid/);
   const available=await get("public/venues");
   assert.equal(available.status,200);
   assert.ok(available.data.data.venues.some(v=>v.id===other.id));
@@ -137,6 +186,7 @@ try{
   const unknownHtml=await unknown.text();
   assert.doesNotMatch(unknownHtml,/04:17/,"unrecognized venue IDs cannot select another venue");
  }finally{
+  if(pagingIds.length)await db.event.deleteMany({where:{id:{in:pagingIds}}});
   if(filteredEventId)await db.event.deleteMany({where:{id:filteredEventId}});
   await db.prayerDay.deleteMany({where:{venueId:other.id}});
   await db.venue.delete({where:{id:other.id}});
