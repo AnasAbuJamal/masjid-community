@@ -210,10 +210,14 @@ try{
   opportunityId:localOpp.id,startAt:new Date(now+9*hour)
  }}),1);
  const futureId=concurrent.find(x=>x.status===201).data.id;
- // Browser wall-clock entry is now resolved by the server in mosque-local time,
- // never interpreted through the remote coordinator's device timezone.
- const localStart=localClock(new Date(now+16*hour),org.timeZone);
- const localEnd=localClock(new Date(now+17*hour),org.timeZone);
+ // Browser wall-clock entry is resolved in mosque-local time, never using the
+ // coordinator's device zone. Use a future local midday rather than adding fixed
+ // UTC hours: at fall-back, two different UTC hours may both be 01:xx locally.
+ // Deliberately use a separate local date so the shift cannot overlap the
+ // existing concurrent-scheduling fixture.
+ const futureLocalDay=localClock(new Date(now+4*24*hour),org.timeZone).slice(0,10);
+ const localStart=futureLocalDay+"T12:00";
+ const localEnd=futureLocalDay+"T13:00";
  const scheduledLocal=await request("admin/shifts","POST",{
   kind:"schedule-local",applicationId:localApp.id,
   startLocal:localStart,endLocal:localEnd
