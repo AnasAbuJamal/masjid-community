@@ -15,7 +15,7 @@ async function request(path,method="GET",body,token){
  },body:body?JSON.stringify(body):undefined});
  return {status:response.status,...await response.json().catch(()=>({}))};
 }
-let adminSession,foreignOrgId;
+let adminSession,memberSession,foreignOrgId;
 const opportunities=[];
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
@@ -26,6 +26,11 @@ try{
  adminSession=await db.authSession.create({data:{
   userId:admin.id,tokenHash:createHash("sha256").update(adminToken).digest("hex"),
   mfaVerifiedAt:new Date(),expiresAt:new Date(Date.now()+3600000)
+ }});
+ const memberToken=randomBytes(32).toString("base64url");
+ memberSession=await db.authSession.create({data:{
+  userId:member.id,tokenHash:createHash("sha256").update(memberToken).digest("hex"),
+  expiresAt:new Date(Date.now()+3600000)
  }});
  const now=Date.now();
  const hour=3600000;
@@ -52,6 +57,14 @@ try{
  opportunities.push(localOpp.id);
  const localApp=await db.volunteerApplication.create({data:{
   opportunityId:localOpp.id,userId:member.id,status:"approved"
+ }});
+ const reviewOpp=await db.volunteerOpportunity.create({data:{
+  organizationId:org.id,title:"Volunteer review eligibility",description:"Synthetic approval test",
+  startsAt:new Date(now+13*hour),capacity:2,published:true
+ }});
+ opportunities.push(reviewOpp.id);
+ const reviewApp=await db.volunteerApplication.create({data:{
+  opportunityId:reviewOpp.id,userId:member.id,status:"submitted"
  }});
  // Recheck eligibility at every schedule request: approved historical
  // applications do not override current mosque membership or account status.
@@ -97,9 +110,44 @@ try{
    "student-role accounts never appear as eligible volunteers");
   const studentSchedule=await request("admin/shifts","POST",possibleShift,adminToken);
   assert.equal(studentSchedule.status,404,"an old approval cannot schedule a newly reclassified student");
+  const studentApplication=await request("actions","POST",{
+   kind:"volunteer",opportunityId:reviewOpp.id
+  },memberToken);
+  assert.equal(studentApplication.status,403,
+   "student volunteer applications cannot be submitted from an old eligible session");
+  assert.equal(studentApplication.error.code,"VOLUNTEER_INELIGIBLE");
+  const studentApproval=await request("admin","POST",{
+   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved"
+  },adminToken);
+  assert.equal(studentApproval.status,409,
+   "submitted application cannot override current student role at approval");
+  assert.equal(studentApproval.error.code,"VOLUNTEER_INELIGIBLE");
+  assert.equal((await db.volunteerApplication.findUniqueOrThrow({
+   where:{id:reviewApp.id}
+  })).status,"submitted");
+  assert.equal((await db.volunteerOpportunity.findUniqueOrThrow({
+   where:{id:reviewOpp.id}
+  })).filled,0,"denied approval must not reserve volunteer capacity");
  }finally{
   await db.user.update({where:{id:member.id},data:{role:member.role}});
  }
+ const positiveApplication=await request("actions","POST",{
+  kind:"volunteer",opportunityId:reviewOpp.id
+ },memberToken);
+ assert.equal(positiveApplication.status,201,
+  "an eligible adult can retry an existing submitted application");
+ assert.equal(positiveApplication.data.status,"submitted");
+ const positiveApproval=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved"
+ },adminToken);
+ assert.equal(positiveApproval.status,201,
+  "reviewer may approve an eligible adult's local application");
+ assert.equal((await db.volunteerApplication.findUniqueOrThrow({
+  where:{id:reviewApp.id}
+ })).status,"approved");
+ assert.equal((await db.volunteerOpportunity.findUniqueOrThrow({
+  where:{id:reviewOpp.id}
+ })).filled,1,"successful approval claims one volunteer slot");
  assert.equal(await db.volunteerShift.count({where:{opportunityId:localOpp.id}}),0,
   "denied eligibility and unpublished-opportunity attempts created no shift");
 
@@ -269,9 +317,10 @@ try{
  assert.ok(await db.auditEvent.count({where:{
   entity:"VolunteerShift",entityId:activeShift.id,action:"volunteer.shift.complete"
  }}),"successful completion has an audit event");
- console.log("Verified volunteer eligibility, shift overlap/concurrency, time windows, private corrections, audited reasons and safe reversal.");
+ console.log("Verified volunteer application, approval, scheduling, attendance current-role gates, concurrency, safe corrections and audits.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
+ if(memberSession)await db.authSession.deleteMany({where:{id:memberSession.id}});
  for(const id of opportunities){
   await db.volunteerShift.deleteMany({where:{opportunityId:id}});
   await db.volunteerApplication.deleteMany({where:{opportunityId:id}});
