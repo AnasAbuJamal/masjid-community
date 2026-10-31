@@ -75,10 +75,32 @@ export async function POST(req:NextRequest){
     }
   }
   if(input.kind==="volunteer"){
-    const opp=await db.volunteerOpportunity.findFirst({where:{id:input.opportunityId,organizationId:organization.id,published:true}});
-    if(!opp)throw new HttpError(404,"NOT_FOUND","Opportunity unavailable.");
-    const row=await db.volunteerApplication.upsert({where:{opportunityId_userId:{opportunityId:opp.id,userId:user.id}},update:{},create:{opportunityId:opp.id,userId:user.id}});
-    return ok({id:row.id,status:row.status},201);
+    try{
+      const result=await db.$transaction(async tx=>{
+        // An earlier verified session, role or approval cannot authorize a
+        // newly classified student or a revoked mosque member to apply.
+        const eligible=await tx.user.findFirst({where:{
+          id:user.id,status:"active",role:{not:"student"},verifiedAt:{not:null},
+          memberships:{some:{organizationId:organization.id,status:"active"}}
+        },select:{id:true}});
+        if(!eligible)throw new HttpError(403,"VOLUNTEER_INELIGIBLE",
+          "This account is not currently eligible to request a volunteer place.");
+        const opp=await tx.volunteerOpportunity.findFirst({where:{
+          id:input.opportunityId,organizationId:organization.id,published:true
+        }});
+        if(!opp)throw new HttpError(404,"NOT_FOUND","Opportunity unavailable.");
+        const row=await tx.volunteerApplication.upsert({where:{
+          opportunityId_userId:{opportunityId:opp.id,userId:user.id}
+        },update:{},create:{opportunityId:opp.id,userId:user.id}});
+        return {id:row.id,status:row.status};
+      },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+      return ok(result,201);
+    }catch(error){
+      if(error instanceof Prisma.PrismaClientKnownRequestError&&
+         ["P2034","P2002"].includes(error.code))
+        throw new HttpError(409,"APPLICATION_CHANGED","Volunteer eligibility changed. Refresh and retry.");
+      throw error;
+    }
   }
   if(input.kind==="vote"){
     const proposal=await db.proposal.findFirst({where:{id:input.proposalId,organizationId:organization.id,status:"published"}});
