@@ -109,6 +109,8 @@ const words={
  "school.signin":{en:"Sign in to view private records",ar:"سجل الدخول للاطلاع على السجلات الخاصة"},
  "school.linked":{en:"Your linked children",ar:"الأطفال المرتبطون بحسابك"},
  "school.teaching":{en:"Assigned teaching",ar:"صفوفك التعليمية"},
+ "schoolwork.due":{en:"Due",ar:"الموعد النهائي"},
+ "schoolwork.timeUnavailable":{en:"Time unavailable",ar:"الوقت غير متاح"},
  "schoolwork.finalHint":{en:"This is your final submission. You cannot edit it here after sending; ask your teacher if a correction is needed.",ar:"هذا تسليمك النهائي. لا يمكنك تعديله هنا بعد الإرسال؛ تواصل مع معلمك إذا احتجت إلى تصحيح."},
  "schoolwork.submitted":{en:"Your work was submitted. Changes require teacher review.",ar:"تم تسليم عملك. تتطلب التغييرات مراجعة المعلم."},
  "schoolwork.submitError":{en:"Unable to submit your assignment.",ar:"تعذر تسليم الواجب."},

@@ -5,16 +5,21 @@ import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
 import {schoolStudentScope} from "@/lib/school-scope";
 import {mayViewGuardianRecords} from "@/lib/school-role-policy";
+import {resolveMosqueLocalTime} from "@/lib/zoned-schedule-time";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("assignment"),classId:z.string().min(8),title:z.string().trim().min(4).max(180),instructions:z.string().trim().min(10).max(8000),dueAt:z.iso.datetime(),published:z.boolean().default(false)}),
+ z.object({kind:z.literal("assignment-local"),classId:z.string().min(8),
+  title:z.string().trim().min(4).max(180),instructions:z.string().trim().min(10).max(8000),
+  dueLocal:z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+  published:z.boolean().default(false)}).strict(),
  z.object({kind:z.literal("submission"),assignmentId:z.string().min(8),body:z.string().trim().min(1).max(10000)}),
  z.object({kind:z.literal("report"),classId:z.string().min(8),studentId:z.string().min(8),summary:z.string().trim().min(10).max(5000),published:z.boolean().default(false)}),
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req);
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true,timeZone:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(user.role==="teacher"||user.role==="admin"){
    const classes=await db.classSection.findMany({where:{program:{organizationId:org.id},
@@ -24,14 +29,14 @@ export async function GET(req:NextRequest){
        submissions:{where:{student:schoolStudentScope(org.id)},select:{studentId:true,body:true,submittedAt:true,student:{select:{firstName:true,lastName:true}}}}}},
      enrollments:{where:{status:"active",student:schoolStudentScope(org.id)},select:{student:{select:{id:true,firstName:true,lastName:true}}}},
     }});
-   return ok({mode:"teacher",classes});
+   return ok({mode:"teacher",organization:{name:org.name,timeZone:org.timeZone},classes});
   }
   const [own,links]=await Promise.all([
    db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)},select:{id:true}}),
    mayViewGuardianRecords(user.role)?db.guardianLink.findMany({where:{guardianId:user.id,approvedAt:{not:null},revokedAt:null,student:schoolStudentScope(org.id)},select:{studentId:true}}):Promise.resolve([])
   ]);
   const ids=[...new Set([...(own?[own.id]:[]),...links.map(x=>x.studentId)])];
-  if(!ids.length)return ok({mode:"family",assignments:[],reports:[],submissions:[]});
+  if(!ids.length)return ok({mode:"family",organization:{name:org.name,timeZone:org.timeZone},assignments:[],reports:[],submissions:[]});
   const [enrollments,reports,submissions]=await Promise.all([
    db.enrollment.findMany({where:{studentId:{in:ids},status:"active",classSection:{program:{organizationId:org.id}}},select:{studentId:true,classId:true}}),
    db.studentReport.findMany({where:{studentId:{in:ids},status:"published",classSection:{program:{organizationId:org.id}}},take:100,
@@ -41,7 +46,7 @@ export async function GET(req:NextRequest){
   const classIds=[...new Set(enrollments.map(x=>x.classId))];
   const assignments=classIds.length?await db.schoolAssignment.findMany({where:{classId:{in:classIds},published:true},
    take:100,orderBy:{dueAt:"asc"},select:{id:true,title:true,instructions:true,dueAt:true,classId:true,classSection:{select:{name:true}}}}):[];
-  return ok({mode:"family",assignments:assignments.map(a=>({...a,studentIds:enrollments.filter(x=>x.classId===a.classId).map(x=>x.studentId)})),reports,submissions,
+  return ok({mode:"family",organization:{name:org.name,timeZone:org.timeZone},assignments:assignments.map(a=>({...a,studentIds:enrollments.filter(x=>x.classId===a.classId).map(x=>x.studentId)})),reports,submissions,
    selfStudentId:own?.id||null});
  });
 }
@@ -50,7 +55,7 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const user=await requireVerified(req);
   const input=schema.parse(await jsonBody(req));
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true,timeZone:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(input.kind==="submission"){
    // This UI is final-submit only. Do not silently rewrite an existing
@@ -114,12 +119,30 @@ export async function POST(req:NextRequest){
   const classItem=await db.classSection.findFirst({where:{id:input.classId,program:{organizationId:org.id},
    ...(user.role==="admin"?{}:{teachers:{some:{teacherId:user.id}}})}});
   if(!classItem)throw new HttpError(403,"NOT_ASSIGNED","You are not assigned to this class.");
-  if(input.kind==="assignment"){
-   if(new Date(input.dueAt)<new Date())throw new HttpError(422,"DUE_IN_PAST","Due date must be in the future.");
-   const result=await db.schoolAssignment.create({data:{classId:classItem.id,teacherId:user.id,title:input.title,instructions:input.instructions,
-    dueAt:new Date(input.dueAt),published:input.published}});
-   await db.auditEvent.create({data:{actorId:user.id,action:"school.assignment.create",entity:"SchoolAssignment",entityId:result.id}});
-   return ok({id:result.id,published:result.published},201);
+  if(input.kind==="assignment"||input.kind==="assignment-local"){
+   // A teacher's device timezone is never authoritative for a school deadline.
+   // Repeated/absent DST hours must fail closed instead of picking an instant.
+   const resolved=input.kind==="assignment-local"?
+    resolveMosqueLocalTime(input.dueLocal,org.timeZone):null;
+   if(resolved&&!resolved.ok)throw new HttpError(422,resolved.reason,
+    "Select a unique valid deadline in the configured mosque timezone.");
+   const deadline=input.kind==="assignment-local"&&resolved?.ok?
+    resolved.date:new Date(input.kind==="assignment"?input.dueAt:"");
+   if(!Number.isFinite(deadline.getTime())||deadline<=new Date())
+    throw new HttpError(422,"DUE_IN_PAST","Due date must be in the future.");
+   // A published assignment without its audit record is not an acceptable
+   // outcome; transactionally create both records.
+   const result=await db.$transaction(async tx=>{
+    const assignment=await tx.schoolAssignment.create({data:{
+     classId:classItem.id,teacherId:user.id,title:input.title,
+     instructions:input.instructions,dueAt:deadline,published:input.published
+    }});
+    await tx.auditEvent.create({data:{actorId:user.id,
+     action:"school.assignment.create",entity:"SchoolAssignment",entityId:assignment.id}});
+    return assignment;
+   });
+   return ok({id:result.id,published:result.published,dueAt:result.dueAt,
+    timeZone:org.timeZone},201);
   }
   const enrolled=await db.enrollment.findFirst({where:{studentId:input.studentId,classId:classItem.id,status:"active",student:schoolStudentScope(org.id)}});
   if(!enrolled||enrolled.status!=="active")throw new HttpError(404,"NOT_ENROLLED","Student is not enrolled in this class.");

@@ -55,6 +55,40 @@ try{
  const login=await call("auth/login","POST",{email:learner.email,password});
  assert.equal(login.status,200);
  const token=login.data.token;
+ // Authorized teacher saves a real deadline using school-owned civil time;
+ // device-local conversion and ambiguous DST hours must never choose it.
+ const teacher=await db.user.findUniqueOrThrow({where:{id:teacherId}});
+ const teacherLogin=await call("auth/login","POST",{email:teacher.email,password});
+ assert.equal(teacherLogin.status,200);
+ const teacherToken=teacherLogin.data.token;
+ const workspace=await call("schoolwork","GET",undefined,teacherToken);
+ assert.equal(workspace.status,200);
+ assert.equal(workspace.data.organization.timeZone,"America/New_York");
+ const localInput={kind:"assignment-local",classId:klass.id,
+  title:"Synthetic mosque-local deadline",
+  instructions:"This synthetic learning task uses only disposable records.",
+  dueLocal:"2032-06-10T10:15",published:true};
+ const localResult=await call("schoolwork","POST",localInput,teacherToken);
+ assert.equal(localResult.status,201,JSON.stringify(localResult));
+ assert.equal(localResult.data.timeZone,"America/New_York");
+ assert.equal(localResult.data.dueAt,"2032-06-10T14:15:00.000Z");
+ created.assignmentIds.push(localResult.data.id);
+ assert.equal((await db.schoolAssignment.findUniqueOrThrow({
+  where:{id:localResult.data.id}
+ })).dueAt.toISOString(),"2032-06-10T14:15:00.000Z");
+ const beforeInvalid=await db.schoolAssignment.count({where:{classId:klass.id}});
+ for(const [dueLocal,reason] of [
+  ["2026-11-01T01:30","AMBIGUOUS_LOCAL_TIME"],
+  ["2027-03-14T02:30","NONEXISTENT_LOCAL_TIME"],
+  ["2027-02-30T12:00","INVALID_LOCAL_TIME"],
+  ["2026-10-30T12:00","DUE_IN_PAST"]
+ ]){
+  const failure=await call("schoolwork","POST",{...localInput,dueLocal},teacherToken);
+  assert.equal(failure.status,422,JSON.stringify(failure));
+  assert.equal(failure.error.code,reason);
+ }
+ assert.equal(await db.schoolAssignment.count({where:{classId:klass.id}}),beforeInvalid,
+  "invalid or ambiguous local deadlines create no records");
  assert.equal((await call("schoolwork","POST",{kind:"submission",
   assignmentId:"missing-assignment-id",body:"Synthetic work."})).status,401);
  const ready=await makeAssignment();
@@ -142,6 +176,10 @@ try{
    },select:{id:true}})).map(x=>x.id)}
   }});
   await db.studentSubmission.deleteMany({where:{assignmentId:{in:created.assignmentIds}}});
+  await db.auditEvent.deleteMany({where:{
+   action:"school.assignment.create",entity:"SchoolAssignment",
+   entityId:{in:created.assignmentIds}
+  }});
   await db.schoolAssignment.deleteMany({where:{id:{in:created.assignmentIds}}});
  }
  if(created.enrollmentId)await db.enrollment.deleteMany({where:{id:created.enrollmentId}});
