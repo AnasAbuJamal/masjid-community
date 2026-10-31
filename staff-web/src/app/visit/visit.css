@@ -121,3 +121,11 @@
 
 .visit-filter-timezone { grid-column: 1 / -1; margin: 0; font-size: .82rem;
   line-height: 1.5; color: var(--v-muted); }
+
+/* Prominent, untruncated and accessible location-specific emergency information. */
+.visit-emergency { border: 3px solid #9b3d28; background: #fff2ec;
+  color: #5f2215; padding: 22px 26px; margin: 24px 0;
+  border-radius: 18px; overflow-wrap: anywhere; line-height: 1.55; }
+.visit-emergency h2 { font-size: clamp(1.3rem,2.5vw,1.8rem); margin: 8px 0; }
+.visit-emergency p { margin: 10px 0; }
+.visit-emergency .visit-footnote { color: #632b1d; }

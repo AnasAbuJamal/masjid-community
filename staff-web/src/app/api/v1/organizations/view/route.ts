@@ -4,6 +4,7 @@ import {db} from "@/lib/db";
 import {requireMemberContext} from "@/lib/auth";
 import {handled,HttpError,localDate,ok} from "@/lib/http";
 import {publicGatheringItems} from "@/lib/gathering-filters";
+import {currentVenueEmergency} from "@/lib/venue-emergencies";
 
 // Read-only worship and public-content views in a VERIFIED member's current
 // server-held organization. Guests use the separate original /public API.
@@ -95,13 +96,14 @@ export async function GET(req:NextRequest){
      accessibilityFeatures:true,accessibilityNotes:true
     }})
    ]);
+   const emergency=await currentVenueEmergency(venue?.id,now);
    return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone},
-    venue,prayer,announcements,events:publicGatheringItems(events,org.id)});
+    venue,prayer,emergency,announcements,events:publicGatheringItems(events,org.id)});
   }
 
   // "prayers": only real, explicitly published venue days. The date is a
   // civil date interpreted in the selected venue's timezone, not client GPS.
-  if(!venue)return ok({venue:null,days:[],jummah:[]});
+  if(!venue)return ok({venue:null,days:[],jummah:[],emergency:null});
   const date=params.get("date")||localDate(new Date(),venue.timeZone);
   if(!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date))
    throw new HttpError(422,"BAD_DATE","Use YYYY-MM-DD.");
@@ -112,6 +114,7 @@ export async function GET(req:NextRequest){
    db.prayerDay.findMany({where:{venueId:venue.id,localDate:date,published:true},take:1}),
    db.jummahSession.findMany({where:{venueId:venue.id,localDate:date},orderBy:{ordinal:"asc"}})
   ]);
-  return ok({venue,localDate:date,days,jummah});
+  const emergency=await currentVenueEmergency(venue.id);
+  return ok({venue,localDate:date,days,jummah,emergency});
  });
 }

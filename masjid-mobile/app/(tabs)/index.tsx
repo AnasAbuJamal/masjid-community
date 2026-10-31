@@ -10,7 +10,11 @@ import {useVenue} from "../../src/venue";
 import {VenuePicker} from "../../src/VenuePicker";
 import {nextPublishedPrayer} from "../../src/nextPrayer";
 type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;localDate:string;source:string};
-type Home={organization:{id:string;name:string;timeZone:string}|null;venue:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string}[]};
+type VenueEmergency={id:string;kind:string;title:string;body:string;
+ instructions:string;revision:number;expiresAt:string;publishedAt:string};
+type Home={organization:{id:string;name:string;timeZone:string}|null;
+ venue:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;
+ emergency:VenueEmergency|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string}[]};
 export default function HomeScreen(){
  const {t}=useLanguage();
  const {user}=useSession();
@@ -18,6 +22,13 @@ export default function HomeScreen(){
  const base=user?.isVerified?"organizations/view?resource=home":"public/home";
  const path=ready?(venue?base+(base.includes("?")?"&":"?")+"venueId="+encodeURIComponent(venue.id):base):null;
  const {data,loading,error,refresh}=useResource<Home>(path);
+ // An already-open Today tab must not leave an old emergency notice onscreen
+ // indefinitely; the endpoint rechecks publication and expiration each time.
+ React.useEffect(()=>{
+  if(!path)return;
+  const timer=setInterval(()=>void refresh(),60_000);
+  return ()=>clearInterval(timer);
+ },[path,refresh]);
  // Recheck the clock while Today is open; never call yesterday's prayer "next".
  const [now,setNow]=React.useState(()=>new Date());
  React.useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),60_000);return()=>clearInterval(timer)},[]);
@@ -27,6 +38,16 @@ export default function HomeScreen(){
   <Head eyebrow={t("home.eyebrow")} title={t("home.title")} subtitle={t("home.subtitle")}/>
   <Feedback loading={loading||!ready} error={error} empty={ready&&!data?.organization} refresh={refresh}/>
   <VenuePicker/>
+  {data?.emergency?<View accessibilityRole="alert">
+   <Card style={{backgroundColor:"#FFF1E9",gap:9,borderWidth:2,borderColor:"#9B3D28"}}>
+    <Text style={{color:"#6C2517",fontWeight:"800"}}>VENUE NOTICE · {data.venue?.name} · {data.emergency.kind.replaceAll("_"," ")}</Text>
+    <Text style={{fontSize:20,fontWeight:"800",color:"#6C2517"}}>{data.emergency.title}</Text>
+    <Text style={[S.bodyText,{color:"#522118"}]}>{data.emergency.body}</Text>
+    <Text style={[S.bodyText,{color:"#522118",fontWeight:"700"}]}>What to do: {data.emergency.instructions}</Text>
+    <Text style={S.muted}>Revision {data.emergency.revision} · Expires {data.emergency.expiresAt} (UTC)</Text>
+    <Action secondary icon="refresh" label="Refresh venue notice" onPress={()=>void refresh()}/>
+   </Card>
+  </View>:null}
   {data?.organization?<Card style={{padding:0,overflow:"hidden"}}>
    <View style={{backgroundColor:T.deep,padding:25,gap:12}}>
     <Text style={{color:"#CFEAFE",fontSize:12,letterSpacing:1.7,fontWeight:"800"}}>{t("home.today")} · {data.organization.name}</Text>

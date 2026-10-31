@@ -4,6 +4,7 @@ import { localDate } from "@/lib/http";
 import {GATHERING_CATEGORIES,GATHERING_AUDIENCES,GATHERING_ACCESSIBILITY,
  publicGatheringItems} from "@/lib/gathering-filters";
 import {civilDayStart,nextCivilDay} from "@/lib/civil-day";
+import {currentVenueEmergency} from "@/lib/venue-emergencies";
 import "./visit.css";
 
 export const dynamic = "force-dynamic";
@@ -148,6 +149,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
   ]);
   const timeZone = venue?.timeZone ?? organization?.timeZone ?? "UTC";
   const safeEvents=publicGatheringItems(events,organization?.id||"");
+  const emergency=await currentVenueEmergency(venue?.id,now);
 
   return (
     <main className="visit">
@@ -165,6 +167,12 @@ export default async function VisitPage({ searchParams }: PageProps) {
       </header>
 
       <div className="visit-container">
+        {emergency?<section className="visit-emergency" role="alert" aria-label="Current venue emergency notice">
+          <strong>Venue notice · {emergency.kind.replaceAll("_"," ")} · {venue?.name}</strong>
+          <h2>{emergency.title}</h2>
+          <p>{emergency.body}</p><p><strong>What to do:</strong> {emergency.instructions}</p>
+          <p className="visit-footnote">Current revision {emergency.revision}; notice expires {eventTime(emergency.expiresAt,venue?.timeZone||timeZone)}. Verify with mosque staff if circumstances change.</p>
+        </section>:null}
         <section className="visit-hero" aria-labelledby="visit-heading">
           <div>
             <span className="visit-kicker">A PLACE TO BELONG</span>

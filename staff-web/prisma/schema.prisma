@@ -109,6 +109,7 @@ model Venue {
   prayerRevisions PrayerScheduleRevision[]
   jummahSessions JummahSession[]
   gatherings Event[]
+  emergencyNotice VenueEmergencyNotice?
   @@index([organizationId])
 }
 model User {
@@ -130,6 +131,7 @@ model User {
   emailTokens EmailToken[]
   resetTokens PasswordResetToken[]
   rsvps EventRSVP[]
+  authoredVenueEmergencies VenueEmergencyNotice[] @relation("VenueEmergencyAuthor")
   hostedEvents EventHostAssignment[]
   hostedCircles Circle[] @relation("CircleHost")
   circleMemberships CircleMember[]
@@ -260,6 +262,27 @@ model JummahSession {
   iqamahAt String
   language String?
   @@unique([venueId,localDate,ordinal])
+}
+// F-006: exactly one revisable emergency notice per verified venue.
+ // Its owning mosque is derived ONLY from the venue relation, never a
+ // second user-controlled organization identifier.
+model VenueEmergencyNotice {
+  id String @id @default(cuid())
+  venueId String @unique
+  venue Venue @relation(fields:[venueId],references:[id],onDelete:Restrict)
+  kind String
+  title String
+  body String
+  instructions String
+  status ContentStatus @default(draft)
+  publishedAt DateTime?
+  expiresAt DateTime
+  revision Int @default(1)
+  publishedById String
+  publishedBy User @relation("VenueEmergencyAuthor",fields:[publishedById],references:[id],onDelete:Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status,expiresAt])
 }
 model Announcement {
   id String @id @default(cuid())

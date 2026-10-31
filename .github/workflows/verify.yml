@@ -134,6 +134,7 @@ jobs:
           node scripts/test-community-scope.mjs
           node scripts/test-notification-scope.mjs
           node scripts/test-tenant-context.mjs
+          node scripts/test-venue-emergencies.mjs
           node scripts/test-care-intake.mjs
           node scripts/test-privacy-scope.mjs
           node scripts/test-privacy-export.mjs

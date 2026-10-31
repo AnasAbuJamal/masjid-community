@@ -600,3 +600,29 @@ of audience labels, verified venue selection, actual accommodations, migration
 diff, backup/restore rehearsal, accessibility/Arabic review and production
 change sign-off. Do not deploy this migration or switch production endpoints
 until all rollout, data governance and safeguarding gates are met.
+
+
+## Venue emergency notice release gate — F-006
+
+The additive migration `20261031002000_venue_emergency_notice`
+introduces one revisable, expiring public-safety notice per venue. Venue ownership
+is derived directly from its foreign key; no notice has a separately writable
+organization ID. It stores publisher identity for internal accountability,
+a revision number and audited publication/clear actions. **No existing
+announcements or venue records are transformed.**
+
+Production requires review of backup/restore and migration rollback, written
+mosque emergency contact and publishing policy, an authorized on-duty publisher
+who has completed MFA, an independent verification of factual venue
+instructions, a trained coverage/clearance process, and mobile/kiosk
+accessibility and Arabic translation review. The system does not replace local
+emergency response, staffed phone lines, building safety controls, or emergency
+broadcast integrations. Client views poll approximately every minute while
+mounted; no guaranteed instant push notification delivery is implemented.
+
+If an emergency notice is incorrect, the designated publisher must issue a
+new audited revision immediately or explicitly clear it. Publication has a
+maximum seven-day lifetime and automatic expiry from all current views.
+Stopping emergency notice publication is not the same as disabling the
+application or migration. No live tenant, provider or database change is
+authorized by this development commit.
