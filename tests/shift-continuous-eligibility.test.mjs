@@ -26,6 +26,14 @@ test("shift CI covers suspension before schedule and actual attendance",()=>{
 });
 test("staff attendance corrections are reasoned, scoped, version-aware and tested",()=>{
  const api=read("staff-web/src/app/api/v1/admin/shifts/route.ts");
+ assert.match(api,/kind:z.literal\("schedule-local"\)/);
+ assert.match(api,/mosqueInstant\(input.startLocal,org.timeZone\)/);
+ assert.match(api,/mosqueInstant\(input.endLocal,org.timeZone\)/);
+ assert.match(api,/checkedInLocal:localClock.optional\(\)/);
+ assert.match(api,/mosqueInstant\(input.checkedInLocal,org.timeZone\)/);
+ assert.match(read("staff-web/src/app/admin/volunteers/page.tsx"),/kind:"schedule-local"/);
+ assert.match(read("staff-web/src/app/admin/volunteers/page.tsx"),/checkedInLocal:correction.checkedInAt/);
+ assert.match(read("staff-web/scripts/test-shift-safety.mjs"),/DST gap\/overlap must not guess an instant/);
  assert.match(api,/kind:z.literal\("correct"\)/);
  assert.match(api,/reason:z.string\(\).trim\(\).min\(12\).max\(500\)/);
  assert.match(api,/opportunity:\{organizationId:org.id\}/);
