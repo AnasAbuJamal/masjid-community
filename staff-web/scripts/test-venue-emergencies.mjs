@@ -106,6 +106,25 @@ try{
  const publishedSite=await fetch("http://127.0.0.1:3000/visit?venue="+venue.id);
  assert.equal(publishedSite.status,200);
  assert.match(await publishedSite.text(),/CI VENUE TEMPORARY CLOSURE/);
+ const selectedDisplay=await fetch("http://127.0.0.1:3000/kiosk?venueId="+venue.id);
+ assert.equal(selectedDisplay.status,200);
+ const selectedHtml=await selectedDisplay.text();
+ assert.match(selectedHtml,/CI VENUE TEMPORARY CLOSURE/,
+  "published emergency reaches precisely the selected public kiosk venue");
+ assert.match(selectedHtml,/Current information not verified/,
+  "kiosk server rendering obscures content pending a fresh guest-API check");
+ const secondDisplay=await fetch("http://127.0.0.1:3000/kiosk?venueId="+second.id);
+ assert.equal(secondDisplay.status,200);
+ const otherVenueHtml=await secondDisplay.text();
+ assert.match(otherVenueHtml,/CI SECOND VENUE EMERGENCY/);
+ assert.doesNotMatch(otherVenueHtml,/CI VENUE TEMPORARY CLOSURE/,
+  "second venue must not inherit the first venue's safety instructions");
+ assert.equal((await fetch("http://127.0.0.1:3000/kiosk?venueId="+foreignVenueId)).status,404,
+  "foreign organization venue must not be selectable on the public kiosk");
+ assert.equal((await fetch("http://127.0.0.1:3000/kiosk?venueId="+venue.id+"&venueId="+second.id)).status,404,
+  "ambiguous duplicated venue selectors fail closed");
+ assert.equal((await fetch("http://127.0.0.1:3000/kiosk?venueId=")).status,404,
+  "empty venue selector must never silently fall back");
  const display=await fetch("http://127.0.0.1:3000/kiosk");
  assert.equal(display.status,200);
  const defaultKioskVenue=await db.venue.findFirst({where:{organizationId:org.id}});
