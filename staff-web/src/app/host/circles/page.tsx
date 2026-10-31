@@ -97,6 +97,27 @@ export default function HostCircles(){
  },[circleId,clearPrivateRoster,loadCircles,loadDetail]);
  useEffect(()=>{void loadCircles();},[loadCircles]);
  useEffect(()=>{void loadDetail();},[loadDetail]);
+ async function retractUpdate(updateId:string){
+  if(busy||!circleId||!detail?.updates.some(u=>u.id===updateId))return;
+  if(!window.confirm("Retract this update from future member views? Already delivered copies cannot be recalled."))return;
+  const targetCircle=circleId,version=generation.current;
+  setBusy(true);setError("");setNotice("");
+  try{
+   const r=await fetch("/api/v1/circles/host",{
+    method:"DELETE",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({circleId:targetCircle,updateId})
+   });
+   const j=await r.json();
+   if(!r.ok)throw new Error(j.error?.message||"Could not retract this update.");
+   if(selectedCircleRef.current!==targetCircle||
+      generation.current!==version||document.hidden)return;
+   setNotice("Update retracted from future private views. Previously delivered copies cannot be recalled.");
+   await loadDetail();
+  }catch(e){
+   if(selectedCircleRef.current===targetCircle&&generation.current===version)
+    setError(e instanceof Error?e.message:"Unable to retract update.");
+  }finally{setBusy(false);}
+ }
  async function send(input:Record<string,unknown>){
   if(busy||!circleId)return;
   setBusy(true);setError("");setNotice("");
@@ -144,6 +165,9 @@ export default function HostCircles(){
  <div className="field"><label htmlFor="circle-update">Update (10 to 2,000 characters)</label>
  <textarea id="circle-update" maxLength={2000} value={body} onChange={e=>setBody(e.target.value)}/></div>
  <button className="primary" disabled={busy||body.trim().length<10} onClick={()=>void send({action:"publish-update",body})}>Publish to approved members</button>
- {detail.updates.map(u=><div key={u.id} className="section"><p>{u.body}</p><p className="small">Published {new Date(u.publishedAt).toLocaleString()} · revision {u.revision}</p></div>)}
+ {detail.updates.map(u=><div key={u.id} className="section"><p>{u.body}</p><p className="small">Published {new Date(u.publishedAt).toLocaleString()} · revision {u.revision}</p>
+ <button type="button" className="secondary" disabled={busy}
+  aria-label={"Retract published circle update from "+new Date(u.publishedAt).toLocaleString()}
+  onClick={()=>void retractUpdate(u.id)}>Retract update</button></div>)}
  </section></>:null}</main></>;
 }

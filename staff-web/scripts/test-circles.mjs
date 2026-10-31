@@ -145,6 +145,48 @@ try{
  const afterApproval=await request("circles/mine","GET",undefined,memberToken);
  assert.ok(afterApproval.data.memberships.some(m=>m.circle.id===draft.data.id&&m.status==="approved"));
  assert.ok(afterApproval.data.updates.some(u=>u.id===posted.data.id&&u.body===body));
+ // A host can retract a mistaken private update without disclosing its
+ // content in the audit log; no unassigned actor may retract it.
+ const mistaken=await request("circles/host","POST",{
+  action:"publish-update",circleId:draft.data.id,
+  body:"Synthetic message to retract immediately from member views."
+ },staffToken);
+ assert.equal(mistaken.status,200);
+ assert.ok((await request("circles/mine","GET",undefined,memberToken))
+  .data.updates.some(u=>u.id===mistaken.data.id));
+ const forbiddenRetract=await request("circles/host","DELETE",{
+  circleId:draft.data.id,updateId:mistaken.data.id
+ },memberToken);
+ assert.equal(forbiddenRetract.status,404);
+ const wrongCircleRetract=await request("circles/host","DELETE",{
+  circleId:draft.data.id,updateId:randomUUID()
+ },staffToken);
+ assert.equal(wrongCircleRetract.status,404);
+ assert.equal(wrongCircleRetract.error.code,"UPDATE_UNAVAILABLE");
+ const malformedRetract=await request("circles/host","DELETE",{
+  circleId:draft.data.id,updateId:mistaken.data.id,extra:"not accepted"
+ },staffToken);
+ assert.equal(malformedRetract.status,422);
+ const retracted=await request("circles/host","DELETE",{
+  circleId:draft.data.id,updateId:mistaken.data.id
+ },staffToken);
+ assert.equal(retracted.status,200);
+ assert.equal(retracted.data.retracted,true);
+ assert.ok(!(await request("circles/mine","GET",undefined,memberToken))
+  .data.updates.some(u=>u.id===mistaken.data.id));
+ assert.ok(!(await request("circles/host?circleId="+draft.data.id,
+  "GET",undefined,staffToken)).data.updates.some(u=>u.id===mistaken.data.id));
+ assert.equal((await request("circles/host","DELETE",{
+  circleId:draft.data.id,updateId:mistaken.data.id
+ },staffToken)).status,404,"retraction is single-use");
+ const retractionAudit=await db.auditEvent.findFirst({where:{
+  actorId:staff.id,action:"circle.update.retract",
+  entity:"CircleUpdate",entityId:mistaken.data.id
+ }});
+ assert.ok(retractionAudit);
+ assert.ok(!retractionAudit.detail.includes("Synthetic message"),
+  "retraction audit must never copy private message body");
+
  // A previously approved adult member becomes ineligible for private
  // circle updates after a student-role reclassification. Do not rely on
  // the historical approved circle membership status.

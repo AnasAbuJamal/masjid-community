@@ -858,3 +858,15 @@ volunteer training and evidence retention require separate approvals.
 - On the spring-forward gap or repeated fall-back hour, the API returns a 422 `NONEXISTENT_LOCAL_TIME` or `AMBIGUOUS_LOCAL_TIME` and creates no shift. Choose a different unique local time under the organization's agreed operations policy; do not retry by guessing an offset. Other errors (past interval, more than 24 hours, overlapping volunteer commitments) remain server-enforced. The same local-time resolution applies to an authorized factual arrival correction, and its original/replacement UTC timestamps remain audited.
 - Legacy absolute-time API requests remain accepted for existing clients, but the steward browser sends local-time objects, not the device's timezone-dependent `new Date(localInput).toISOString()`. Verify in isolated staging with coordinator devices in a different timezone, DST transition days, a half-hour offset zone, member-facing rendering and staff accessibility before any live use.
 - **No live rollout sign-off:** child/youth safeguarding, legal staff/volunteer training, manual dispute escalation, multi-venue timezone policy, device input validation and time-sensitive incident procedures remain unresolved.
+
+## F-011/F-012 mistakenly published Circle update retraction
+
+An assigned active, verified non-student Circle host may retract a private
+update from future member and host API reads. The request is scoped to the
+original mosque, published Circle, current host assignment and exact update
+ID. It creates a body-free audit event; attempts against other circles or
+nonexistent updates do not disclose their existence. A host must confirm the
+action in the browser. Retraction does not recall cached devices, previously
+delivered content, screenshots or disclosures. Staff must follow the
+organization's safeguarding/incident process where applicable. This is not
+a legal-erasure or regulated-retention mechanism.

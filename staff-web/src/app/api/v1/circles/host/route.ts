@@ -140,3 +140,51 @@ export async function POST(req:NextRequest){
   }
  });
 }
+
+/**
+ * Remove a mistakenly published private circle update from all future member
+ * and host reads. This is a visibility retraction, not a promise to erase
+ * copies already delivered or retained by devices.
+ */
+const retract=z.object({circleId:z.string().min(8),updateId:z.string().min(8)}).strict();
+
+export async function DELETE(req:NextRequest){
+ return handled(async()=>{
+  assertSameOrigin(req);
+  const actor=await requireVerified(req);
+  if(actor.role==="student")throw new HttpError(403,"HOST_REQUIRED",
+   "Approved adult circle host required.");
+  const input=retract.parse(await jsonBody(req));
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  try{
+   const result=await db.$transaction(async tx=>{
+    const circle=await tx.circle.findFirst({where:{
+     id:input.circleId,hostId:actor.id,organizationId:org.id,status:"published",
+     host:{status:"active",verifiedAt:{not:null},role:{not:"student"},
+      memberships:{some:{organizationId:org.id,status:"active"}}}
+    },select:{id:true}});
+    if(!circle)throw new HttpError(404,"HOST_SCOPE","Assigned circle unavailable.");
+    // A cross-circle update ID must not disclose whether another private
+    // circle has published anything. Do not select or audit the body.
+    const deleted=await tx.circleUpdate.deleteMany({where:{
+     id:input.updateId,circleId:circle.id
+    }});
+    if(!deleted.count)throw new HttpError(404,"UPDATE_UNAVAILABLE",
+     "Update unavailable in this assigned circle.");
+    await tx.auditEvent.create({data:{
+     actorId:actor.id,action:"circle.update.retract",entity:"CircleUpdate",
+     entityId:input.updateId,
+     detail:JSON.stringify({circleId:circle.id,organizationId:org.id})
+    }});
+    return {id:input.updateId,retracted:true};
+   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+   return ok(result);
+  }catch(error){
+   if(error instanceof Prisma.PrismaClientKnownRequestError&&
+      ["P2034","P2025"].includes(error.code))
+    throw new HttpError(409,"UPDATE_CHANGED","Update changed. Refresh and retry.");
+   throw error;
+  }
+ });
+}
