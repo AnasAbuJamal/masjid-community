@@ -175,7 +175,10 @@ try{
  assert.equal((await send("organizations/view?resource=home&venueId="+venue.id,
   "GET",undefined,foreignToken)).status,404);
  assert.equal((await send("public/home?venueId="+foreignVenueId)).status,404);
- assert.equal((await send("admin/venue-emergencies","GET",undefined,foreignToken)).status,403);
+ const foreignEditor=await send("admin/venue-emergencies","GET",undefined,foreignToken);
+ assert.equal(foreignEditor.status,409,
+  "the pilot-only staff editor rejects selected foreign member context");
+ assert.equal(foreignEditor.error.code,"TENANT_CONTEXT_UNSUPPORTED");
  await db.organizationMembership.update({where:{id:foreignMembershipId},data:{status:"suspended"}});
  assert.equal((await send("organizations/view?resource=home&venueId="+foreignVenueId,
   "GET",undefined,foreignToken)).status,403,

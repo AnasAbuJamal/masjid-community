@@ -1,6 +1,7 @@
 import {db} from "@/lib/db";
 import {localDate} from "@/lib/http";
 import {currentVenueEmergency} from "@/lib/venue-emergencies";
+import {KioskRefresh} from "./KioskRefresh";
 export const dynamic="force-dynamic";
 export const metadata={title:"Masjid Community · Prayer Display",description:"Published mosque prayer and community notices."};
 const rows=[["Fajr","fajr","fajrIqamah"],["Sunrise","sunrise",null],["Dhuhr","dhuhr","dhuhrIqamah"],["Asr","asr","asrIqamah"],["Maghrib","maghrib","maghribIqamah"],["Isha","isha","ishaIqamah"]] as const;
@@ -16,7 +17,7 @@ export default async function Kiosk(){
    select:{id:true,title:true,startAt:true}}):[],
   currentVenueEmergency(venue?.id)
  ]);
- return <main className="kiosk-shell"><header className="masthead"><div className="brand"><span className="mark">✧</span>{org?.name||"Masjid Community"}</div><div className="eyebrow">PUBLIC · WORSHIP DISPLAY</div></header>
+ return <main className="kiosk-shell"><KioskRefresh/><header className="masthead"><div className="brand"><span className="mark">✧</span>{org?.name||"Masjid Community"}</div><div className="eyebrow">PUBLIC · WORSHIP DISPLAY</div></header>
  <div className="container">
  {emergency?<section className="panel" role="alert" aria-label="Current venue emergency notice"
    style={{border:"3px solid #9b3d28",background:"#fff2ec",color:"#5f2215",marginTop:20}}>

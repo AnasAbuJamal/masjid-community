@@ -617,8 +617,9 @@ who has completed MFA, an independent verification of factual venue
 instructions, a trained coverage/clearance process, and mobile/kiosk
 accessibility and Arabic translation review. The system does not replace local
 emergency response, staffed phone lines, building safety controls, or emergency
-broadcast integrations. Client views poll approximately every minute while
-mounted; no guaranteed instant push notification delivery is implemented.
+broadcast integrations. Native client views poll approximately every minute while mounted, and
+the read-only kiosk revalidates its server-rendered view every 45 seconds;
+no guaranteed instant push notification delivery is implemented.
 
 If an emergency notice is incorrect, the designated publisher must issue a
 new audited revision immediately or explicitly clear it. Publication has a
