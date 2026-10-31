@@ -566,3 +566,10 @@ No feature is considered production-complete until it meets the privacy, accurac
 ### Seventy-fifth implementation pass: visitor filter message compatibility
 - Restored the established public visitor invalid-filter message wording while retaining explicit page-cursor restart guidance. Earlier regression tests cover malformed categories, venue IDs and dates, while new tests cover stale/forged pagination cursors. This is a user-visible copy compatibility fix rather than an authorization policy change.
 - The intermediate `47ab0b7` CI run reached real HTTP SSR tests and failed on the changed message; the latest revision must pass a fresh full run before this pagination work can be marked verified.
+
+
+### Seventy-sixth verification checkpoint: gathering pagination CI green
+- **Confirmed:** GitHub Actions `Verify rebuilt apps` run `41153222989` completed successfully on code SHA `a427212b1b99fae08fc06a4d8088b23aec9110c8`: PostgreSQL migration/restore, TypeScript checks and Next.js build, real HTTP/SSR public and member pagination, native TypeScript/package checks, and source inventory all passed.
+- The intermediate failed pagination SHAs reflected a missing venue lookup import, a stale source assertion, and public visitor invalid-filter copy compatibility. These issues have been corrected and the full exact-code run passed. The earlier pending-verification note documents the temporary CI scheduling delay and is now superseded by this checkpoint.
+- Vercel's three linked projects still have zero configured environment variables, and latest observed production-targeted deployments remain canceled. **No live migration, production service rollout, real attendance update, financial provider action or safeguard approval occurred.**
+- **Outstanding acceptance:** snapshot-consistent pagination under concurrent edits, fully localized RTL and real-device accessibility, independently approved multi-mosque public browsing, remaining platform features and production release gates. A docs-only verification-note commit does not replace the code SHA's successful CI proof.
