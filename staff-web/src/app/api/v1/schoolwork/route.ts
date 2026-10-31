@@ -1,4 +1,5 @@
 import {NextRequest} from "next/server";
+import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {requireVerified} from "@/lib/auth";
@@ -52,17 +53,62 @@ export async function POST(req:NextRequest){
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   if(input.kind==="submission"){
-   const student=await db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)}});
-   if(!student)throw new HttpError(403,"STUDENT_REQUIRED","Only a linked student account may submit its work.");
-   const assignment=await db.schoolAssignment.findFirst({where:{id:input.assignmentId,published:true,
-    classSection:{program:{organizationId:org.id}}}});
-   if(!assignment)throw new HttpError(404,"NOT_FOUND","Assignment unavailable.");
-   const enrollment=await db.enrollment.findUnique({where:{studentId_classId:{studentId:student.id,classId:assignment.classId}}});
-   if(!enrollment||enrollment.status!=="active")throw new HttpError(403,"NOT_ENROLLED","Not enrolled in this class.");
-   if(assignment.dueAt<new Date())throw new HttpError(409,"DUE_DATE_PASSED","Submission date has passed. Ask your teacher for assistance.");
-   const submission=await db.studentSubmission.upsert({where:{assignmentId_studentId:{assignmentId:assignment.id,studentId:student.id}},
-    create:{assignmentId:assignment.id,studentId:student.id,body:input.body},update:{body:input.body,submittedAt:new Date()}});
-   return ok({id:submission.id,submittedAt:submission.submittedAt});
+   // This UI is final-submit only. Do not silently rewrite an existing
+   // student's work or its submission timestamp on a retry.
+   if(user.role!=="student")throw new HttpError(403,"STUDENT_REQUIRED",
+    "Only a current linked student account may submit its work.");
+   try{
+    const result=await db.$transaction(async tx=>{
+     const student=await tx.student.findFirst({
+      where:{userId:user.id,...schoolStudentScope(org.id)},select:{id:true}
+     });
+     if(!student)throw new HttpError(403,"STUDENT_REQUIRED",
+      "A verified student link is required.");
+     const assignment=await tx.schoolAssignment.findFirst({
+      where:{id:input.assignmentId,published:true,
+       classSection:{program:{organizationId:org.id}}},
+      select:{id:true,classId:true,dueAt:true}
+     });
+     if(!assignment)throw new HttpError(404,"NOT_FOUND","Assignment unavailable.");
+     const enrollment=await tx.enrollment.findFirst({
+      where:{studentId:student.id,classId:assignment.classId,status:"active"},
+      select:{id:true}
+     });
+     if(!enrollment)throw new HttpError(403,"NOT_ENROLLED",
+      "An active enrollment in this class is required.");
+     const submitted=await tx.studentSubmission.findUnique({
+      where:{assignmentId_studentId:{assignmentId:assignment.id,studentId:student.id}},
+      select:{id:true,body:true,submittedAt:true}
+     });
+     if(submitted){
+      if(submitted.body!==input.body)throw new HttpError(409,"SUBMISSION_FINAL",
+       "Your work has already been submitted. Ask the teacher to review a correction.");
+      return {id:submitted.id,submittedAt:submitted.submittedAt,alreadySubmitted:true};
+     }
+     // An existing identical retry may succeed after the deadline, but a
+     // brand-new submission must be before the authoritative server cutoff.
+     if(assignment.dueAt<=new Date())throw new HttpError(409,"DUE_DATE_PASSED",
+      "Submission date has passed. Ask your teacher for assistance.");
+     const created=await tx.studentSubmission.create({data:{
+      assignmentId:assignment.id,studentId:student.id,body:input.body
+     }});
+     await tx.auditEvent.create({data:{
+      actorId:user.id,action:"school.submission.create",
+      entity:"StudentSubmission",entityId:created.id,
+      // No assignment response text, child name or learner narrative in audit.
+      detail:JSON.stringify({organizationId:org.id,classId:assignment.classId,
+       assignmentId:assignment.id,studentId:student.id})
+     }});
+     return {id:created.id,submittedAt:created.submittedAt,alreadySubmitted:false};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+    return ok(result);
+   }catch(error){
+    if(error instanceof Prisma.PrismaClientKnownRequestError&&
+       ["P2002","P2034"].includes(error.code))
+     throw new HttpError(409,"SUBMISSION_CHANGED",
+      "This assignment submission changed. Refresh and try again.");
+    throw error;
+   }
   }
   if(!["teacher","admin"].includes(user.role))throw new HttpError(403,"FORBIDDEN","Teacher permission required.");
   const classItem=await db.classSection.findFirst({where:{id:input.classId,program:{organizationId:org.id},

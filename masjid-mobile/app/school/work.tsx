@@ -5,15 +5,17 @@ import {Action,Card,Feedback,Field,Head,Shell} from "../../src/ui";
 import {S,T} from "../../src/theme";
 import {useResource} from "../../src/useResource";
 import {apiPost} from "../../src/api";
+import {useLanguage} from "../../src/i18n";
 type Assignment={id:string;title:string;instructions:string;dueAt:string;classSection:{name:string};studentIds:string[]};
 type Schoolwork={mode:"family"|"teacher";assignments?:Assignment[];selfStudentId?:string|null;reports?:{id:string;studentId:string;summary:string;classSection:{name:string};student:{firstName:string;lastName:string}}[];submissions?:{assignmentId:string;studentId:string}[];classes?:{id:string;name:string;assignments:{id:string;title:string;published:boolean;dueAt:string}[]}[]};
 export default function Work(){
+ const {t}=useLanguage();
  const result=useResource<Schoolwork>("schoolwork");
  const [expanded,setExpanded]=useState(""),[body,setBody]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  async function submit(id:string){
   setBusy(true);setError("");setNotice("");
-  try{await apiPost("schoolwork",{kind:"submission",assignmentId:id,body});setNotice("Your work was submitted.");setExpanded("");setBody("");await result.refresh();}
-  catch(e){setError(e instanceof Error?e.message:"Unable to submit your assignment.");}
+  try{await apiPost("schoolwork",{kind:"submission",assignmentId:id,body});setNotice(t("schoolwork.submitted"));setExpanded("");setBody("");await result.refresh();}
+  catch(e){setError(e instanceof Error?e.message:t("schoolwork.submitError"));}
   finally{setBusy(false);}
  }
  return <Shell><Action label="Back to school" secondary icon="arrow-left" onPress={()=>router.back()}/>
@@ -25,7 +27,7 @@ export default function Work(){
   <Text style={S.overline}>{a.classSection.name}</Text><Text style={S.headline}>{a.title}</Text>
   <Text style={S.bodyText}>{a.instructions}</Text><Text style={S.muted}>Due {new Date(a.dueAt).toLocaleString()}</Text>
   {a.studentIds.includes(result.data?.selfStudentId||"")&&!result.data?.submissions?.some(s=>s.assignmentId===a.id&&s.studentId===result.data?.selfStudentId)&&new Date(a.dueAt)>new Date()?
-    expanded===a.id?<View style={{gap:12}}><Field label="Your submission" value={body} onChange={setBody} multiline/><Action label="Submit assignment" loading={busy} disabled={!body.trim()} onPress={()=>void submit(a.id)}/><Action label="Cancel" secondary onPress={()=>setExpanded("")}/></View>
+    expanded===a.id?<View style={{gap:12}}><Field label="Your submission" value={body} onChange={setBody} multiline/><Text style={S.muted}>{t("schoolwork.finalHint")}</Text><Action label="Submit assignment" loading={busy} disabled={busy||!body.trim()} onPress={()=>void submit(a.id)}/><Action label="Cancel" secondary onPress={()=>setExpanded("")}/></View>
      :<Action label="Write your submission" secondary onPress={()=>setExpanded(a.id)}/>:null}
   {result.data?.submissions?.some(s=>s.assignmentId===a.id&&s.studentId===result.data?.selfStudentId)?<Text style={{color:T.success,fontWeight:"700"}}>Submitted</Text>:null}
  </Card>)}
