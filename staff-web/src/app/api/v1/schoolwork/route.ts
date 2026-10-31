@@ -40,7 +40,7 @@ export async function GET(req:NextRequest){
     select:{id:true,teacherId:true,summary:true,createdAt:true,
      classSection:{select:{id:true,name:true}},
      student:{select:{firstName:true,lastName:true}},
-     author:{select:{firstName:true,lastName:true}}}
+     teacher:{select:{firstName:true,lastName:true}}}
    }):[];
    return ok({mode:"teacher",organization:{name:org.name,timeZone:org.timeZone},
     classes,pendingReports:pendingReports.map(x=>({...x,selfAuthored:x.teacherId===user.id}))});

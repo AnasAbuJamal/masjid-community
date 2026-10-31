@@ -2,7 +2,7 @@
 import {useCallback,useEffect,useState} from "react";
 type Enrolled={student:{id:string;firstName:string;lastName:string}};
 type ClassItem={id:string;name:string;enrollments:Enrolled[];assignments:{id:string;title:string;dueAt:string;published:boolean;submissions:{studentId:string;body:string;submittedAt:string;student:{firstName:string;lastName:string}}[]}[]};
-type ReviewItem={id:string;teacherId:string;summary:string;createdAt:string;selfAuthored:boolean;classSection:{id:string;name:string};student:{firstName:string;lastName:string};author:{firstName:string;lastName:string}};
+type ReviewItem={id:string;teacherId:string;summary:string;createdAt:string;selfAuthored:boolean;classSection:{id:string;name:string};student:{firstName:string;lastName:string};teacher:{firstName:string;lastName:string}};
 export default function Schoolwork(){
  const [classes,setClasses]=useState<ClassItem[]>([]),[organization,setOrganization]=useState<{name:string;timeZone:string}|null>(null),[pendingReports,setPendingReports]=useState<ReviewItem[]>([]),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
  const [kind,setKind]=useState<"assignment"|"report">("assignment"),[classId,setClassId]=useState(""),[studentId,setStudentId]=useState("");
@@ -73,7 +73,7 @@ export default function Schoolwork(){
   <h2>Private student progress report review</h2>
   <p className="small">Authorized administrator only. Verify the current enrollment, author, and content. Never export or share unapproved child records.</p>
   {pendingReports.map(item=><div key={item.id} className="tile section">
-   <p className="small">{item.classSection.name} · {item.student.firstName} {item.student.lastName} · authored by {item.author.firstName} {item.author.lastName}</p>
+   <p className="small">{item.classSection.name} · {item.student.firstName} {item.student.lastName} · authored by {item.teacher.firstName} {item.teacher.lastName}</p>
    <p>{item.summary}</p>
    {item.selfAuthored?<p className="small">You wrote this report; a different authorized reviewer is required.</p>:
     <div className="actions">
