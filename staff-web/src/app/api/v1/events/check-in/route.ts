@@ -37,13 +37,17 @@ export async function GET(req:NextRequest){
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   const params=req.nextUrl.searchParams;
-  const keys=["eventId","cursor"];
+  const keys=["eventId","cursor","mode"];
   if([...params.keys()].some(key=>!keys.includes(key))||
      keys.some(key=>params.getAll(key).length>1))
    throw new HttpError(422,"BAD_QUERY","Unsupported or duplicated roster query.");
   const eventId=params.get("eventId");
-  if(!eventId&&params.has("cursor"))
-   throw new HttpError(422,"BAD_QUERY","A roster page requires a gathering.");
+  const mode=params.get("mode");
+  if(mode!==null&&mode!=="access")
+   throw new HttpError(422,"BAD_QUERY","Unknown roster operation.");
+  if((!eventId&&(params.has("cursor")||mode!==null))||
+     (mode!==null&&params.has("cursor")))
+   throw new HttpError(422,"BAD_QUERY","Invalid or incomplete roster request.");
   if(!eventId){
    const assignments=await db.eventHostAssignment.findMany({where:{
     ...eligibleHost(org.id,actor.id),
@@ -62,6 +66,10 @@ export async function GET(req:NextRequest){
    event:{organizationId:org.id,status:"published",endAt:{gte:new Date(Date.now()-7*86400000)}}
   },select:{event:{select:{id:true,title:true,startAt:true,endAt:true}}}});
   if(!assignment)throw new HttpError(404,"EVENT_UNAVAILABLE","Assigned gathering unavailable.");
+  // Used by an already-open host screen to re-check access without fetching
+  // any attendee names. Every request still verifies active assigned-host scope.
+  if(mode==="access")return ok({authorized:true,eventId:parsedId,
+   note:"Current assigned-host access only. No attendee information returned."});
   const eligible:Prisma.EventRSVPWhereInput={
    eventId:parsedId,status:"confirmed",...eligibleAttendee(org.id)
   };

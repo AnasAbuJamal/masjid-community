@@ -72,6 +72,23 @@ try{
  const assignedEvents=await request("events/check-in","GET",null,staffToken);
  assert.equal(assignedEvents.status,200);
  assert.ok(assignedEvents.data.events.some(x=>x.id===event.id),"host sees only assigned events");
+ const probe=await request("events/check-in?eventId="+event.id+
+  "&mode=access","GET",null,staffToken);
+ assert.equal(probe.status,200);
+ assert.equal(probe.data.authorized,true);
+ assert.equal(probe.data.eventId,event.id);
+ assert.equal(probe.data.roster,undefined,"permission probe must not return attendee names");
+ assert.doesNotMatch(JSON.stringify(probe),/"firstName"|"lastName"|"roster"/,
+  "permission probe must exclude attendee identity keys");
+ assert.equal((await request("events/check-in?mode=access","GET",null,staffToken)).status,422);
+ assert.equal((await request("events/check-in?eventId="+event.id+
+  "&mode=access&cursor="+confirmed.id,"GET",null,staffToken)).status,422);
+ assert.equal((await request("events/check-in?eventId="+event.id+
+  "&mode=unsupported","GET",null,staffToken)).status,422);
+ assert.equal((await request("events/check-in?eventId="+event.id+
+  "&mode=access&mode=access","GET",null,staffToken)).status,422);
+ assert.equal((await request("events/check-in?eventId="+event.id+
+  "&mode=access","GET",null,memberToken)).status,404);
  const roster=await request("events/check-in?eventId="+event.id,"GET",null,staffToken);
  assert.equal(roster.status,200);
  assert.equal(roster.data.roster.length,1,"waitlist not in arrival roster");
@@ -180,6 +197,9 @@ try{
   assert.ok(!demotedList.data.events.some(e=>e.id===event.id));
   const demotedRoster=await request("events/check-in?eventId="+event.id,"GET",null,staffToken);
   assert.equal(demotedRoster.status,404,"demoted host cannot read attendance");
+  assert.equal((await request("events/check-in?eventId="+event.id+
+   "&mode=access","GET",null,staffToken)).status,404,
+   "demoted host fails the name-free access probe");
   assert.equal(demotedRoster.error.code,"EVENT_UNAVAILABLE");
   const demotedWrite=await request("events/check-in","POST",{
    eventId:event.id,rsvpId:confirmed.id,action:"arrive",expectedRevision:2
@@ -362,6 +382,9 @@ try{
  assert.equal(revocation.status,200);
  assert.equal((await request("events/check-in?eventId="+event.id,"GET",null,staffToken)).status,404,
   "revoked host loses roster access immediately");
+ assert.equal((await request("events/check-in?eventId="+event.id+
+  "&mode=access","GET",null,staffToken)).status,404,
+  "revoked host cannot pass a cached page access check");
  const deniedAfterRevocation=await request("events/check-in","POST",{
   eventId:event.id,rsvpId:confirmed.id,action:"arrive",expectedRevision:2
  },staffToken);

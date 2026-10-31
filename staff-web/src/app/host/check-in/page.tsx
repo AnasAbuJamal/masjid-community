@@ -58,21 +58,68 @@ export default function HostCheckIn(){
  },[eventId,nextCursor]);
  useEffect(()=>{void loadEvents()},[loadEvents]);
  useEffect(()=>{void loadRoster()},[loadRoster]);
+ const clearPrivateRoster=useCallback(()=>{
+  // Dismiss personal names immediately when this tab is hidden, navigated
+  // away from, or a permission probe fails. Invalidate in-flight pages too.
+  rosterVersion.current++;
+  setRoster([]);setEvent(null);setNextCursor(null);setComplete(true);
+  setReasons({});
+ },[]);
+ useEffect(()=>{
+  if(!eventId)return;
+  let cancelled=false;
+  const validate=async()=>{
+   if(document.hidden)return;
+   try{
+    const r=await fetch("/api/v1/events/check-in?eventId="+
+     encodeURIComponent(eventId)+"&mode=access",{cache:"no-store"});
+    if(cancelled||selectedEventRef.current!==eventId)return;
+    if(!r.ok){
+     clearPrivateRoster();
+     setError("Host access could not be confirmed. Refresh to request the roster again.");
+    }
+   }catch{
+    if(cancelled||selectedEventRef.current!==eventId)return;
+    // Fail closed on network errors; stale names must not remain visible.
+    clearPrivateRoster();
+    setError("Host access check unavailable. Refresh once your connection returns.");
+   }
+  };
+  const visibilityChanged=()=>{
+   if(document.hidden){
+    clearPrivateRoster();setNotice("");
+   }else{
+    void loadEvents();void loadRoster();
+   }
+  };
+  document.addEventListener("visibilitychange",visibilityChanged);
+  window.addEventListener("pagehide",clearPrivateRoster);
+  const timer=window.setInterval(()=>{void validate()},45_000);
+  return ()=>{
+   cancelled=true;window.clearInterval(timer);
+   document.removeEventListener("visibilitychange",visibilityChanged);
+   window.removeEventListener("pagehide",clearPrivateRoster);
+  };
+ },[eventId,clearPrivateRoster,loadEvents,loadRoster]);
  async function record(a:Attendee,action:"arrive"|"correct"){
   if(busy)return;
   setBusy(a.id);setError("");setNotice("");
+  const requestedEvent=eventId,version=rosterVersion.current;
   try{
    const r=await fetch("/api/v1/events/check-in",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({eventId,rsvpId:a.id,expectedRevision:a.checkInRevision,action,
      ...(action==="correct"?{reason:reasons[a.id]||""}:{})})});
    const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Attendance could not be recorded.");
+   if(selectedEventRef.current!==requestedEvent||rosterVersion.current!==version)return;
    setNotice(action==="arrive"?"Arrival recorded.":"Correction recorded in the audit history.");
    setRoster(old=>old.map(item=>item.id===a.id?{
     ...item,checkedInAt:j.data.checkedInAt,checkInRevision:j.data.revision
    }:item));
    setReasons(old=>({...old,[a.id]:""}));
-  }catch(e){setError(e instanceof Error?e.message:"Attendance update failed. Refresh the roster.");}
-  finally{setBusy("");}
+  }catch(e){
+   if(selectedEventRef.current===requestedEvent&&rosterVersion.current===version)
+    setError(e instanceof Error?e.message:"Attendance update failed. Refresh the roster.");
+  }finally{setBusy("");}
  }
  return <><header className="masthead"><span className="brand">Gathering check-in</span>
  <div className="actions"><a className="secondary" href="/staff">Staff home</a><button className="secondary" onClick={()=>{void loadEvents();void loadRoster();}}>Refresh</button></div></header>

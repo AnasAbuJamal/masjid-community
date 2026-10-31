@@ -687,3 +687,20 @@ unconfirmed or ineligible rows. Host devices must be locked, attended,
 training-approved and assessed for accessibility before real-world use.
 No browser caching of attendee data is authorized after a shift; actual
 staff operations and child-safeguarding review remain production gates.
+
+
+## Private host roster on-screen lifetime and authorization probes
+
+The host-only check-in screen performs an access-only authorization request
+approximately every 45 seconds while visible. It returns no attendee data;
+the server still verifies the currently eligible active host, original mosque,
+exact event publication and unrevoked assignment. Denial or a lost connection
+clears displayed private rosters and requires reloading before continuing.
+Hidden/browser pagehide states also clear names and stale write state; on
+return the client re-requests only a newly authorized roster. This limits
+casual exposure on shared devices but **cannot retract screenshots or copied
+names**, nor provide instant revocation between polling intervals.
+
+Independent checks of actual browser visibility behavior, device lock
+policies, trained staff supervision and safeguarding escalation are still
+required before real attendees are shown.
