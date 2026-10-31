@@ -5,7 +5,9 @@ const read=p=>readFileSync(p,"utf8");
 test("approved volunteer scheduling revalidates account, organization and publication",()=>{
  const api=read("staff-web/src/app/api/v1/admin/shifts/route.ts");
  assert.match(api,/opportunity:\{organizationId:org\.id,published:true\}/);
- assert.match(api,/user:\{status:"active",verifiedAt:\{not:null\}/);
+ assert.match(api,/user:\{status:"active",role:\{not:"student"\},verifiedAt:\{not:null\}/);
+ assert.equal((api.match(/role:\{not:"student"\}/g)||[]).length,3,
+  "current-role exclusion applies to list, scheduling and check-in");
  assert.match(api,/memberships:\{some:\{organizationId:org\.id,status:"active"\}\}/);
  assert.match(api,/tx\.volunteerApplication\.findFirst\(/);
  assert.match(api,/tx\.user\.findFirst\(/);
@@ -19,6 +21,8 @@ test("shift CI covers suspension before schedule and actual attendance",()=>{
  assert.match(s,/suspended account cannot be scheduled/);
  assert.match(s,/unpublished service opportunities cannot accept/);
  assert.match(s,/ineligible person was not marked present/);
+ assert.match(s,/student-role accounts never appear as eligible volunteers/);
+ assert.match(s,/student role blocks arrival despite a still-approved historical application/);
 });
 test("staff attendance corrections are reasoned, scoped, version-aware and tested",()=>{
  const api=read("staff-web/src/app/api/v1/admin/shifts/route.ts");
