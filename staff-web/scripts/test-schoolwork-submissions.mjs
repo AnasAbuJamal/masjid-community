@@ -18,7 +18,7 @@ async function call(path,method="GET",body,token){
  },body:body?JSON.stringify(body):undefined});
  return {status:r.status,...await r.json().catch(()=>({}))};
 }
-const created={assignmentIds:[],studentUserId:null,studentId:null,enrollmentId:null,extraClassId:null};
+const created={assignmentIds:[],studentUserId:null,studentId:null,enrollmentId:null,extraClassId:null,guardianLinkId:null};
 try{
  const org=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}]});
  assert.ok(org);
@@ -103,6 +103,34 @@ try{
   assignmentId_studentId:{assignmentId:ready.id,studentId:child.id}
  }});
  assert.equal(original.body,body);
+ const studentReceipt=await call("schoolwork","GET",undefined,token);
+ assert.equal(studentReceipt.status,200);
+ const receipt=studentReceipt.data.submissions.find(s=>s.id===original.id);
+ assert.ok(receipt,"student can retrieve the original submission");
+ assert.equal(receipt.body,body);
+ assert.equal(receipt.submittedAt,new Date(original.submittedAt).toISOString());
+ // Guardian approval alone never permits disclosure of the child's answer.
+ const guardianLink=await db.guardianLink.create({data:{
+  guardianId:adult.id,studentId:child.id,approvedAt:new Date()
+ }});
+ created.guardianLinkId=guardianLink.id;
+ const adultLogin=await call("auth/login","POST",{email:memberEmail,password});
+ assert.equal(adultLogin.status,200);
+ const guardianToken=adultLogin.data.token;
+ const guardianReceipt=await call("schoolwork","GET",undefined,guardianToken);
+ assert.equal(guardianReceipt.status,200);
+ const guardianStatus=guardianReceipt.data.submissions.find(s=>s.id===original.id);
+ assert.ok(guardianStatus,"approved guardian can see submission status");
+ assert.equal(guardianStatus.submittedAt,new Date(original.submittedAt).toISOString());
+ assert.equal(Object.hasOwn(guardianStatus,"body"),false,
+  "approved guardian cannot read the student's original answer");
+ assert.ok(!JSON.stringify(guardianReceipt).includes(body),
+  "child answer not included elsewhere in guardian response");
+ await db.guardianLink.update({where:{id:guardianLink.id},
+  data:{revokedAt:new Date()}});
+ const afterGuardianRevocation=await call("schoolwork","GET",undefined,guardianToken);
+ assert.ok(!afterGuardianRevocation.data.submissions.some(s=>s.id===original.id),
+  "revoked guardian link removes access to submission status");
  // An exact retry is allowed but must not alter ID or factual first arrival.
  const repeat=await call("schoolwork","POST",payload,token);
  assert.equal(repeat.status,200);
@@ -120,6 +148,14 @@ try{
  await db.schoolAssignment.update({where:{id:ready.id},
   data:{dueAt:new Date(Date.now()-3600_000)}});
  assert.equal((await call("schoolwork","POST",payload,token)).data.alreadySubmitted,true);
+ const afterDeadline=await call("schoolwork","GET",undefined,token);
+ assert.equal(afterDeadline.data.submissions.find(s=>s.id===original.id)?.body,body,
+  "a past due date does not erase the original authorized receipt");
+ await db.schoolAssignment.update({where:{id:ready.id},data:{published:false}});
+ const unpublishedReceipt=await call("schoolwork","GET",undefined,token);
+ assert.ok(!JSON.stringify(unpublishedReceipt).includes(body),
+  "unpublished assignments cannot disclose student answer");
+ await db.schoolAssignment.update({where:{id:ready.id},data:{published:true}});
  const late=await makeAssignment({dueAt:new Date(Date.now()-3600_000)});
  const deniedLate=await call("schoolwork","POST",{kind:"submission",
   assignmentId:late.id,body:"Late synthetic body"},token);
@@ -138,6 +174,9 @@ try{
  assert.equal(await db.studentSubmission.count({where:{studentId:child.id}}),1,
   "denied requests must never persist a second submission");
  await db.enrollment.update({where:{id:enrollment.id},data:{status:"withdrawn"}});
+ const withdrawnReceipt=await call("schoolwork","GET",undefined,token);
+ assert.ok(!JSON.stringify(withdrawnReceipt).includes(body),
+  "withdrawn enrollment hides original narrative immediately");
  assert.equal((await call("schoolwork","POST",payload,token)).status,403,
   "a formerly enrolled student loses even retry access");
  await db.enrollment.update({where:{id:enrollment.id},data:{status:"active"}});
@@ -145,6 +184,9 @@ try{
  // student's past write permission just because the link still exists.
  await db.user.update({where:{id:learner.id},data:{role:"member"}});
  assert.equal((await call("schoolwork","POST",payload,token)).status,403);
+ const demotedReceipt=await call("schoolwork","GET",undefined,token);
+ assert.ok(!JSON.stringify(demotedReceipt).includes(body),
+  "former student cannot see the answer by historic account link");
  await db.user.update({where:{id:learner.id},data:{role:"student"}});
  // Two concurrent first sends cannot overwrite one another. One may be
  // explicitly retryable; every eventual replay returns the same original.
@@ -183,6 +225,7 @@ try{
   await db.schoolAssignment.deleteMany({where:{id:{in:created.assignmentIds}}});
  }
  if(created.enrollmentId)await db.enrollment.deleteMany({where:{id:created.enrollmentId}});
+ if(created.guardianLinkId)await db.guardianLink.deleteMany({where:{id:created.guardianLinkId}});
  if(created.extraClassId)await db.classSection.deleteMany({where:{id:created.extraClassId}});
  if(created.studentId)await db.student.deleteMany({where:{id:created.studentId}});
  if(created.studentUserId){

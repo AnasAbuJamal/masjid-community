@@ -46,7 +46,29 @@ export async function GET(req:NextRequest){
   const classIds=[...new Set(enrollments.map(x=>x.classId))];
   const assignments=classIds.length?await db.schoolAssignment.findMany({where:{classId:{in:classIds},published:true},
    take:100,orderBy:{dueAt:"asc"},select:{id:true,title:true,instructions:true,dueAt:true,classId:true,classSection:{select:{name:true}}}}):[];
-  return ok({mode:"family",organization:{name:org.name,timeZone:org.timeZone},assignments:assignments.map(a=>({...a,studentIds:enrollments.filter(x=>x.classId===a.classId).map(x=>x.studentId)})),reports,submissions,
+  // Guardians only receive factual submission status/timestamp. Reading the
+  // original student narrative is a separate, owner-only scope: current
+  // student role + owned student + published assignment + active enrollment.
+  // Do not even select other children's answer texts from the database.
+  const allowedOwnAssignments=user.role==="student"&&own?
+   new Set(assignments.filter(a=>enrollments.some(e=>
+    e.studentId===own.id&&e.classId===a.classId)).map(a=>a.id)):new Set<string>();
+  const ownReceiptIds=own?submissions.filter(s=>
+   s.studentId===own.id&&allowedOwnAssignments.has(s.assignmentId)).map(s=>s.id):[];
+  const ownBodies=own&&user.role==="student"&&ownReceiptIds.length?
+   await db.studentSubmission.findMany({
+    where:{id:{in:ownReceiptIds},studentId:own.id,
+     assignment:{published:true,classSection:{program:{organizationId:org.id},
+      enrollments:{some:{studentId:own.id,status:"active"}}}}},
+    take:100,select:{id:true,body:true}
+   }):[];
+  const ownBodyById=new Map(ownBodies.map(x=>[x.id,x.body]));
+  const receipts=submissions.map(s=>({
+   ...s,
+   ...(own&&user.role==="student"&&s.studentId===own.id&&ownBodyById.has(s.id)?
+    {body:ownBodyById.get(s.id)}:{})
+  }));
+  return ok({mode:"family",organization:{name:org.name,timeZone:org.timeZone},assignments:assignments.map(a=>({...a,studentIds:enrollments.filter(x=>x.classId===a.classId).map(x=>x.studentId)})),reports,submissions:receipts,
    selfStudentId:own?.id||null});
  });
 }

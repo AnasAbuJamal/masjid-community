@@ -156,6 +156,8 @@ const words={
  "schoolwork.received":{en:"Submission received · final",ar:"تم استلام الواجب · التسليم نهائي"},
  "schoolwork.receivedAt":{en:"Received at:",ar:"وقت الاستلام:"},
  "schoolwork.receiptId":{en:"Submission reference:",ar:"مرجع التسليم:"},
+ "schoolwork.originalWork":{en:"Your original submitted work (read-only)",ar:"عملك الأصلي المُسلّم (للقراءة فقط)"},
+ "schoolwork.originalPrivate":{en:"Only you can view this text here while your school enrollment remains active. Contact your teacher for a correction.",ar:"لا يمكنك عرض هذا النص هنا إلا أنت ما دامت عضويتك في الصف نشطة. تواصل مع معلمك للتصحيح."},
  "settings.quietInvalid":{en:"Enter two different whole hours between 0 and 23.",ar:"أدخل ساعتين مختلفتين كأعداد صحيحة من ٠ إلى ٢٣."},
  "settings.mosqueTitle":{en:"My mosque memberships",ar:"عضوياتي في المساجد"},
  "settings.sessionsTitle":{en:"Signed-in devices",ar:"الأجهزة المسجّل دخولها"},
