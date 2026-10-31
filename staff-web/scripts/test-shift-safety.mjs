@@ -99,6 +99,11 @@ try{
   kind:"update",shiftId:foreignShift.id,action:"cancel"
  },adminToken);
  assert.equal(foreignEdit.status,409,"cross-organization shift update denied");
+ const foreignCorrection=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:foreignShift.id,action:"remove-arrival",
+  reason:"Incorrect arrival recorded in another mosque"
+ },adminToken);
+ assert.equal(foreignCorrection.status,409,"foreign shift correction denied without exposing its status");
  const overlap=await request("admin/shifts","POST",{
   kind:"schedule",applicationId:localApp.id,
   startAt:new Date(now+5*hour+60000).toISOString(),
@@ -159,6 +164,36 @@ try{
  },adminToken);
  assert.equal(complete.status,200);
  assert.equal((await db.volunteerShift.findUniqueOrThrow({where:{id:activeShift.id}})).status,"completed");
+ const newArrival=new Date(now-5*60000).toISOString();
+ const missingReason=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:activeShift.id,action:"adjust-arrival",
+  checkedInAt:newArrival,reason:""
+ },adminToken);
+ assert.equal(missingReason.status,422,"attendance corrections require an actual reason");
+ const invalidArrival=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:activeShift.id,action:"adjust-arrival",
+  checkedInAt:new Date(now+90*60000).toISOString(),
+  reason:"Incorrect later time reported by coordinator"
+ },adminToken);
+ assert.equal(invalidArrival.status,422,"attendance cannot be corrected into the future or outside the shift");
+ const corrected=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:activeShift.id,action:"adjust-arrival",
+  checkedInAt:newArrival,reason:"Coordinator confirmed earlier arrival against check-in notes"
+ },adminToken);
+ assert.equal(corrected.status,200,"completed shift can have a reasoned time-only correction");
+ assert.equal((await db.volunteerShift.findUniqueOrThrow({where:{id:activeShift.id}})).checkedInAt?.toISOString(),newArrival);
+ const correctionAudit=await db.auditEvent.findFirstOrThrow({where:{
+  entity:"VolunteerShift",entityId:activeShift.id,action:"volunteer.shift.adjust-arrival"
+ }});
+ assert.match(correctionAudit.detail||"",/Coordinator confirmed earlier arrival/);
+ assert.equal(JSON.parse(correctionAudit.detail).previousCheckedInAt!==newArrival,true,
+  "the audit retains the original timestamp");
+ const completedUndo=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:activeShift.id,action:"remove-arrival",
+  reason:"A completed attendance record needs review before removal"
+ },adminToken);
+ assert.equal(completedUndo.status,409,"do not silently undo a completed service shift");
+ assert.equal(completedUndo.error.code,"COMPLETED_SHIFT");
  const soonShift=await db.volunteerShift.create({data:{
   opportunityId:localOpp.id,applicationId:localApp.id,userId:member.id,
   startAt:new Date(now+8*60000),endAt:new Date(now+60*60000)
@@ -177,6 +212,24 @@ try{
  },adminToken);
  assert.equal(invalidCancel.status,409,"checked-in shift cannot be silently cancelled");
  assert.equal(invalidCancel.error.code,"CHECKED_IN_SHIFT");
+ const removed=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:soonShift.id,action:"remove-arrival",
+  reason:"Coordinator confirmed the check-in was recorded for the wrong volunteer"
+ },adminToken);
+ assert.equal(removed.status,200,"staff may correct a mistaken uncompleted check-in with reason");
+ const afterRemoval=await db.volunteerShift.findUniqueOrThrow({where:{id:soonShift.id}});
+ assert.equal(afterRemoval.checkedInAt,null);
+ assert.equal(afterRemoval.status,"scheduled","do not falsely mark a shift cancelled or completed");
+ const removedAgain=await request("admin/shifts","POST",{
+  kind:"correct",shiftId:soonShift.id,action:"remove-arrival",
+  reason:"Repeating an attendance reversal must be rejected"
+ },adminToken);
+ assert.equal(removedAgain.status,409,"no false duplicate correction");
+ assert.equal(removedAgain.error.code,"NO_RECORDED_ARRIVAL");
+ const cannotComplete=await request("admin/shifts","POST",{
+  kind:"update",shiftId:soonShift.id,action:"complete"
+ },adminToken);
+ assert.equal(cannotComplete.status,422,"an unrecorded arrival cannot be completed");
  const expiredShift=await db.volunteerShift.create({data:{
   opportunityId:localOpp.id,applicationId:localApp.id,userId:member.id,
   startAt:new Date(now-3*hour),endAt:new Date(now-2*hour)
@@ -193,7 +246,7 @@ try{
  assert.ok(await db.auditEvent.count({where:{
   entity:"VolunteerShift",entityId:activeShift.id,action:"volunteer.shift.complete"
  }}),"successful completion has an audit event");
- console.log("Verified current volunteer membership, suspended/expired approval denial, cross-mosque overlap, concurrent schedules, truthful check-in and completion windows.");
+ console.log("Verified volunteer eligibility, shift overlap/concurrency, time windows, private corrections, audited reasons and safe reversal.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
  for(const id of opportunities){
