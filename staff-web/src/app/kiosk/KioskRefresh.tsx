@@ -42,7 +42,7 @@ export function KioskRefresh({snapshot,children}:{
  snapshot:KioskSnapshot;children:ReactNode
 }){
  const router=useRouter();
- const [issue,setIssue]=useState<string|null>(null);
+ const [issue,setIssue]=useState<string|null>("Verifying current published venue information.");
  const [blanked,setBlanked]=useState(false);
  const generation=useRef(0),controller=useRef<AbortController|null>(null);
  const activeSnapshot=JSON.stringify(snapshot);
