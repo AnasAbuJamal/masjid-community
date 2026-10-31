@@ -89,6 +89,17 @@ try{
  }finally{
   await db.volunteerOpportunity.update({where:{id:localOpp.id},data:{published:true}});
  }
+ try{
+  await db.user.update({where:{id:member.id},data:{role:"student"}});
+  const studentList=await request("admin/shifts","GET",null,adminToken);
+  assert.equal(studentList.status,200);
+  assert.ok(!studentList.data.applications.some(a=>a.id===localApp.id),
+   "student-role accounts never appear as eligible volunteers");
+  const studentSchedule=await request("admin/shifts","POST",possibleShift,adminToken);
+  assert.equal(studentSchedule.status,404,"an old approval cannot schedule a newly reclassified student");
+ }finally{
+  await db.user.update({where:{id:member.id},data:{role:member.role}});
+ }
  assert.equal(await db.volunteerShift.count({where:{opportunityId:localOpp.id}}),0,
   "denied eligibility and unpublished-opportunity attempts created no shift");
 
@@ -150,6 +161,18 @@ try{
   await db.organizationMembership.update({where:{id:membership.id},data:{status:membership.status}});
  }
 
+ try{
+  await db.user.update({where:{id:member.id},data:{role:"student"}});
+  const studentCheckin=await request("admin/shifts","POST",{
+   kind:"update",shiftId:activeShift.id,action:"check-in"
+  },adminToken);
+  assert.equal(studentCheckin.status,409);
+  assert.equal(studentCheckin.error.code,"VOLUNTEER_INELIGIBLE",
+   "student role blocks arrival despite a still-approved historical application");
+  assert.equal((await db.volunteerShift.findUniqueOrThrow({where:{id:activeShift.id}})).checkedInAt,null);
+ }finally{
+  await db.user.update({where:{id:member.id},data:{role:member.role}});
+ }
  const present=await request("admin/shifts","POST",{
   kind:"update",shiftId:activeShift.id,action:"check-in"
  },adminToken);
