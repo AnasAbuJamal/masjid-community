@@ -16,6 +16,9 @@ const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("submission"),assignmentId:z.string().min(8),body:z.string().trim().min(1).max(10000)}),
  z.object({kind:z.literal("report"),classId:z.string().min(8),studentId:z.string().min(8),summary:z.string().trim().min(10).max(5000),published:z.boolean().default(false)}),
 ]);
+const reviewReport=z.object({action:z.enum(["publish-report","reject-report"]),
+ reportId:z.string().min(8).max(128),
+ reason:z.enum(["verified-content","needs-correction","policy-not-met"])}).strict();
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req);
@@ -29,7 +32,18 @@ export async function GET(req:NextRequest){
        submissions:{where:{student:schoolStudentScope(org.id)},select:{studentId:true,body:true,submittedAt:true,student:{select:{firstName:true,lastName:true}}}}}},
      enrollments:{where:{status:"active",student:schoolStudentScope(org.id)},select:{student:{select:{id:true,firstName:true,lastName:true}}}},
     }});
-   return ok({mode:"teacher",organization:{name:org.name,timeZone:org.timeZone},classes});
+   // Only a currently verified, MFA-cleared admin may see private drafts.
+   const pendingReports=user.role==="admin"?await db.studentReport.findMany({
+    where:{status:"draft",classSection:{program:{organizationId:org.id}},
+     student:schoolStudentScope(org.id)},
+    orderBy:[{createdAt:"asc"},{id:"asc"}],take:50,
+    select:{id:true,teacherId:true,summary:true,createdAt:true,
+     classSection:{select:{id:true,name:true}},
+     student:{select:{firstName:true,lastName:true}},
+     author:{select:{firstName:true,lastName:true}}}
+   }):[];
+   return ok({mode:"teacher",organization:{name:org.name,timeZone:org.timeZone},
+    classes,pendingReports:pendingReports.map(x=>({...x,selfAuthored:x.teacherId===user.id}))});
   }
   const [own,links]=await Promise.all([
    db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)},select:{id:true}}),
@@ -168,9 +182,89 @@ export async function POST(req:NextRequest){
   }
   const enrolled=await db.enrollment.findFirst({where:{studentId:input.studentId,classId:classItem.id,status:"active",student:schoolStudentScope(org.id)}});
   if(!enrolled||enrolled.status!=="active")throw new HttpError(404,"NOT_ENROLLED","Student is not enrolled in this class.");
-  const result=await db.studentReport.create({data:{classId:classItem.id,studentId:input.studentId,teacherId:user.id,summary:input.summary,
-   status:input.published?"published":"draft",publishedAt:input.published?new Date():null}});
-  await db.auditEvent.create({data:{actorId:user.id,action:"school.report.create",entity:"StudentReport",entityId:result.id}});
+  // Prevent any teacher/admin from bypassing independent child-report review.
+  if(input.published)throw new HttpError(409,"REPORT_REVIEW_REQUIRED",
+   "Student progress reports require independent review before publication.");
+  const result=await db.$transaction(async tx=>{
+   const draft=await tx.studentReport.create({data:{
+    classId:classItem.id,studentId:input.studentId,teacherId:user.id,
+    summary:input.summary,status:"draft",publishedAt:null
+   }});
+   await tx.auditEvent.create({data:{
+    actorId:user.id,action:"school.report.create",entity:"StudentReport",entityId:draft.id,
+    detail:JSON.stringify({organizationId:org.id,classId:classItem.id,
+     studentId:input.studentId,status:"draft"})
+   }});
+   return draft;
+  });
   return ok({id:result.id,status:result.status},201);
+ });
+}
+
+// Independent verified administrator review of an unpublished, same-mosque
+// student report. No child narratives or free-text reason in the audit record.
+export async function PATCH(req:NextRequest){
+ return handled(async()=>{
+  assertSameOrigin(req);
+  const reviewer=await requireVerified(req,["admin"]);
+  const input=reviewReport.parse(await jsonBody(req));
+  if((input.action==="publish-report")!==(input.reason==="verified-content"))
+   throw new HttpError(422,"REVIEW_REASON","Use an approved reason code for this decision.");
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
+  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  try{
+   const result=await db.$transaction(async tx=>{
+    const draft=await tx.studentReport.findFirst({where:{
+     id:input.reportId,status:"draft",student:schoolStudentScope(org.id),
+     classSection:{program:{organizationId:org.id}}
+    },select:{id:true,teacherId:true,classId:true,studentId:true}});
+    if(!draft)throw new HttpError(404,"REPORT_UNAVAILABLE",
+     "Draft unavailable in your mosque's review queue.");
+    if(draft.teacherId===reviewer.id)throw new HttpError(403,
+     "INDEPENDENT_REVIEW_REQUIRED","A report author cannot review their own draft.");
+    if(input.action==="publish-report"){
+     const author=await tx.user.findFirst({where:{
+      id:draft.teacherId,status:"active",verifiedAt:{not:null},
+      role:{in:["teacher","admin"]},
+      memberships:{some:{organizationId:org.id,status:"active"}}
+     },select:{id:true,role:true}});
+     if(!author)throw new HttpError(409,"REPORT_AUTHOR_INACTIVE",
+      "Draft author is no longer eligible to publish student records.");
+     if(author.role==="teacher"){
+      const assigned=await tx.teacherAssignment.findUnique({
+       where:{teacherId_classId:{teacherId:author.id,classId:draft.classId}},
+       select:{classId:true}
+      });
+      if(!assigned)throw new HttpError(409,"REPORT_AUTHOR_UNASSIGNED",
+       "The draft author no longer teaches this class.");
+     }
+     const enrollment=await tx.enrollment.findFirst({where:{
+      studentId:draft.studentId,classId:draft.classId,status:"active",
+      student:schoolStudentScope(org.id)
+     },select:{id:true}});
+     if(!enrollment)throw new HttpError(409,"REPORT_STUDENT_INACTIVE",
+      "Student is not actively enrolled. Do not publish.");
+    }
+    const published=input.action==="publish-report";
+    const updated=await tx.studentReport.updateMany({where:{
+     id:draft.id,status:"draft",classId:draft.classId,studentId:draft.studentId
+    },data:{status:published?"published":"archived",
+     publishedAt:published?new Date():null}});
+    if(!updated.count)throw new HttpError(409,"REPORT_CHANGED",
+     "This draft has already been reviewed.");
+    await tx.auditEvent.create({data:{
+     actorId:reviewer.id,action:published?"school.report.publish":"school.report.reject",
+     entity:"StudentReport",entityId:draft.id,
+     detail:JSON.stringify({organizationId:org.id,classId:draft.classId,
+      studentId:draft.studentId,authorId:draft.teacherId,reason:input.reason})
+    }});
+    return {id:draft.id,status:published?"published":"archived"};
+   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+   return ok(result);
+  }catch(error){
+   if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2034")
+    throw new HttpError(409,"REPORT_CHANGED","Another reviewer changed this report.");
+   throw error;
+  }
  });
 }

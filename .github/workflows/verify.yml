@@ -129,6 +129,7 @@ jobs:
           node scripts/test-circles.mjs
           node scripts/test-school-scope.mjs
           node scripts/test-schoolwork-submissions.mjs
+          node scripts/test-school-report-review.mjs
           node scripts/test-attendance-corrections.mjs
           node scripts/test-school-capacity.mjs
           node scripts/test-school-waitlist.mjs

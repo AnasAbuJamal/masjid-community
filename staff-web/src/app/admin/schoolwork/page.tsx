@@ -2,16 +2,33 @@
 import {useCallback,useEffect,useState} from "react";
 type Enrolled={student:{id:string;firstName:string;lastName:string}};
 type ClassItem={id:string;name:string;enrollments:Enrolled[];assignments:{id:string;title:string;dueAt:string;published:boolean;submissions:{studentId:string;body:string;submittedAt:string;student:{firstName:string;lastName:string}}[]}[]};
+type ReviewItem={id:string;teacherId:string;summary:string;createdAt:string;selfAuthored:boolean;classSection:{id:string;name:string};student:{firstName:string;lastName:string};author:{firstName:string;lastName:string}};
 export default function Schoolwork(){
- const [classes,setClasses]=useState<ClassItem[]>([]),[organization,setOrganization]=useState<{name:string;timeZone:string}|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
+ const [classes,setClasses]=useState<ClassItem[]>([]),[organization,setOrganization]=useState<{name:string;timeZone:string}|null>(null),[pendingReports,setPendingReports]=useState<ReviewItem[]>([]),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
  const [kind,setKind]=useState<"assignment"|"report">("assignment"),[classId,setClassId]=useState(""),[studentId,setStudentId]=useState("");
  const [title,setTitle]=useState(""),[instructions,setInstructions]=useState(""),[dueAt,setDueAt]=useState(""),[published,setPublished]=useState(false);
  const refresh=useCallback(async()=>{
-  try{const res=await fetch("/api/v1/schoolwork",{cache:"no-store"});const j=await res.json();if(!res.ok)throw new Error(j.error?.message||"Teacher access required.");if(j.data.mode!=="teacher"||!j.data.organization?.timeZone)throw new Error("Assigned class and mosque timezone are required.");setClasses(j.data.classes);setOrganization(j.data.organization);setError("");}
-  catch(e){setClasses([]);setOrganization(null);setError(e instanceof Error?e.message:"Unable to load assigned classes.");}
+  try{const res=await fetch("/api/v1/schoolwork",{cache:"no-store"});const j=await res.json();if(!res.ok)throw new Error(j.error?.message||"Teacher access required.");if(j.data.mode!=="teacher"||!j.data.organization?.timeZone)throw new Error("Assigned class and mosque timezone are required.");setClasses(j.data.classes);setOrganization(j.data.organization);setPendingReports(Array.isArray(j.data.pendingReports)?j.data.pendingReports:[]);setError("");}
+  catch(e){setClasses([]);setOrganization(null);setPendingReports([]);setError(e instanceof Error?e.message:"Unable to load assigned classes.");}
  },[]);
  useEffect(()=>{void refresh()},[refresh]);
  const chosen=classes.find(c=>c.id===classId);
+ async function reviewReport(item:ReviewItem,action:"publish-report"|"reject-report"){
+  if(busy||item.selfAuthored)return;
+  const phrase=action==="publish-report"?"publish the student's private progress report":"reject this draft and keep it private";
+  if(!window.confirm("Are you authorized to "+phrase+"? Confirm you independently reviewed the child's record."))return;
+  setBusy(true);setError("");setNotice("");
+  try{
+   const res=await fetch("/api/v1/schoolwork",{method:"PATCH",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action,reportId:item.id,reason:action==="publish-report"?"verified-content":"needs-correction"})});
+   const j=await res.json();
+   if(!res.ok)throw new Error(j.error?.message||"Report review failed.");
+   setNotice(action==="publish-report"?"Approved progress report published.":"Draft rejected and kept private.");
+   await refresh();
+  }catch(e){setError(e instanceof Error?e.message:"Unable to review the report.");}
+  finally{setBusy(false);}
+ }
  function displayDue(value:string){
   if(!organization?.timeZone)return "Time unavailable";
   try{return new Intl.DateTimeFormat("en-US",{
@@ -26,10 +43,11 @@ export default function Schoolwork(){
   try{
    if(kind==="assignment"&&!organization?.timeZone)throw new Error("Refresh the mosque timezone before publishing.");
    const payload=kind==="assignment"?{kind:"assignment-local",classId,title,instructions,dueLocal:dueAt,published}
-    :{kind,classId,studentId,summary:instructions,published};
+    :{kind,classId,studentId,summary:instructions,published:false};
    const r=await fetch("/api/v1/schoolwork",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
    const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Unable to save.");
-   setNotice("School "+kind+" saved "+(published?"and published.":"as a draft."));setTitle("");setInstructions("");setStudentId("");setPublished(false);await refresh();
+   setNotice(kind==="report"?"Student report saved privately as a draft for independent review.":
+    "School assignment saved "+(published?"and published.":"as a draft."));setTitle("");setInstructions("");setStudentId("");setPublished(false);await refresh();
   }catch(e){setError(e instanceof Error?e.message:"Unable to save.");}
   finally{setBusy(false);}
  }
@@ -45,10 +63,24 @@ export default function Schoolwork(){
   "Mosque timezone unavailable. Creating deadlines is disabled."}</p></>:
  <div className="field"><label htmlFor="student">Enrolled student</label><select id="student" value={studentId} onChange={e=>setStudentId(e.target.value)}><option value="">Select student</option>{chosen?.enrollments.map(e=><option key={e.student.id} value={e.student.id}>{e.student.firstName} {e.student.lastName}</option>)}</select></div>}
  <div className="field"><label htmlFor="details">{kind==="assignment"?"Instructions":"Student progress report"}</label><textarea id="details" value={instructions} onChange={e=>setInstructions(e.target.value)}/></div>
- <label className="field"><span>Publish for students and approved guardians</span><input type="checkbox" checked={published} onChange={e=>setPublished(e.target.checked)}/></label>
+ {kind==="assignment"?<label className="field"><span>Publish assignment for students and guardians</span><input type="checkbox" checked={published} onChange={e=>setPublished(e.target.checked)}/></label>:
+ <p className="notice" role="note">Student reports are private drafts until a different, authorized administrator reviews them. Authors cannot publish their own reports.</p>}
  <button className="primary" disabled={busy||!classId||instructions.trim().length<10||(kind==="assignment"?(!title||!dueAt||!organization?.timeZone):!studentId)} onClick={()=>void save()}>{busy?"Saving…":"Save "+kind}</button></div></section>
  <section className="panel"><h2>Assigned teaching</h2>{classes.length?classes.map(c=><div className="section" key={c.id}><h3>{c.name}</h3><p className="small">{c.enrollments.length} enrolled students · {c.assignments.length} assignments</p>
  {c.assignments.map(a=><div key={a.id} className="tile section"><strong style={{fontSize:16}}>{a.title}</strong><p className="small">Due {displayDue(a.dueAt)} · {a.published?"Published":"Draft"} · {a.submissions.length} submissions</p>
  {a.submissions.map((s,i)=><p className="small" key={i}>{s.student.firstName} {s.student.lastName}: {s.body}</p>)}</div>)}</div>):<p className="small">No classes assigned. Ask the school administrator to assign you to a class.</p>}</section></div>
+ {pendingReports.length?<section className="panel section">
+  <h2>Private student progress report review</h2>
+  <p className="small">Authorized administrator only. Verify the current enrollment, author, and content. Never export or share unapproved child records.</p>
+  {pendingReports.map(item=><div key={item.id} className="tile section">
+   <p className="small">{item.classSection.name} · {item.student.firstName} {item.student.lastName} · authored by {item.author.firstName} {item.author.lastName}</p>
+   <p>{item.summary}</p>
+   {item.selfAuthored?<p className="small">You wrote this report; a different authorized reviewer is required.</p>:
+    <div className="actions">
+     <button className="primary" disabled={busy} onClick={()=>void reviewReport(item,"publish-report")}>Publish verified report</button>
+     <button className="secondary" disabled={busy} onClick={()=>void reviewReport(item,"reject-report")}>Reject for correction</button>
+    </div>}
+  </div>)}
+ </section>:null}
  </main></>;
 }

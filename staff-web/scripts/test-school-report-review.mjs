@@ -1,0 +1,151 @@
+// F-019 student progress reviews: synthetic CI school records ONLY.
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {randomUUID,randomBytes,createHash} from "node:crypto";
+import {PrismaClient} from "@prisma/client";
+
+if(process.env.NODE_ENV==="production"||process.env.VERCEL||
+ !process.env.DATABASE_URL?.endsWith("/masjid_ci"))
+ throw Error("Refusing student report review tests outside disposable masjid_ci.");
+const {adminEmail,memberEmail,password}=JSON.parse(readFileSync("/tmp/masjid-ci-accounts.json","utf8"));
+const db=new PrismaClient(),base="http://127.0.0.1:3000/api/v1/";
+async function call(path,method="GET",data,token){
+ const r=await fetch(base+path,{method,headers:{
+  ...(token?{Authorization:"Bearer "+token}:{}),
+  ...(data?{"Content-Type":"application/json"}:{})
+ },body:data?JSON.stringify(data):undefined});
+ return {status:r.status,...await r.json().catch(()=>({}))};
+}
+let adminSessionId=null;
+const reports=[],sessions=[];
+let foreignOrg=null,foreignProgram=null,foreignClass=null,foreignStudent=null;
+try{
+ const org=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}]});
+ assert.ok(org);
+ const klass=await db.classSection.findFirst({where:{
+  program:{organizationId:org.id},teachers:{some:{}}
+ },include:{teachers:true,enrollments:{where:{status:"active"}}}});
+ assert.ok(klass?.teachers?.length&&klass.enrollments.length);
+ const studentId=klass.enrollments[0].studentId,teacherId=klass.teachers[0].teacherId;
+ const teacher=await db.user.findUniqueOrThrow({where:{id:teacherId}});
+ const admin=await db.user.findUniqueOrThrow({where:{email:adminEmail}});
+ const student=await db.student.findUniqueOrThrow({where:{id:studentId}});
+ assert.notEqual(teacherId,admin.id);
+ const auth=await call("auth/login","POST",{email:teacher.email,password});
+ assert.equal(auth.status,200);
+ const teacherToken=auth.data.token;
+ const member=await call("auth/login","POST",{email:memberEmail,password});
+ assert.equal(member.status,200);
+ const memberToken=member.data.token;
+ const adminToken=randomBytes(32).toString("base64url");
+ const session=await db.authSession.create({data:{
+  userId:admin.id,tokenHash:createHash("sha256").update(adminToken).digest("hex"),
+  expiresAt:new Date(Date.now()+3600000),mfaVerifiedAt:new Date()
+ }});
+ adminSessionId=session.id;
+ const baseDraft={kind:"report",classId:klass.id,studentId:student.id,
+  summary:"Synthetic progress update for independent reviewer only."};
+ const count=await db.studentReport.count({where:{classId:klass.id}});
+ const bypass=await call("schoolwork","POST",{...baseDraft,published:true},teacherToken);
+ assert.equal(bypass.status,409);
+ assert.equal(bypass.error.code,"REPORT_REVIEW_REQUIRED");
+ assert.equal(await db.studentReport.count({where:{classId:klass.id}}),count);
+ const newDraft=async (token=teacherToken)=> {
+  const result=await call("schoolwork","POST",{...baseDraft,published:false},token);
+  assert.equal(result.status,201,JSON.stringify(result));
+  assert.equal(result.data.status,"draft");
+  reports.push(result.data.id);return result.data.id;
+ };
+ const firstId=await newDraft();
+ const familyBefore=await call("schoolwork","GET",undefined,memberToken);
+ assert.equal(familyBefore.status,200);
+ assert.ok(!familyBefore.data.reports.some(x=>x.id===firstId));
+ const teacherRead=await call("schoolwork","GET",undefined,teacherToken);
+ assert.equal(teacherRead.status,200);
+ assert.equal(teacherRead.data.pendingReports?.length||0,0,
+  "a teacher must not receive unapproved learner reports from an admin review queue");
+ const reviewQueue=await call("schoolwork","GET",undefined,adminToken);
+ assert.equal(reviewQueue.status,200);
+ assert.ok(reviewQueue.data.pendingReports.some(x=>x.id===firstId&&!x.selfAuthored));
+ const publish={action:"publish-report",reportId:firstId,reason:"verified-content"};
+ assert.equal((await call("schoolwork","PATCH",publish)).status,401);
+ assert.equal((await call("schoolwork","PATCH",publish,teacherToken)).status,403);
+ assert.equal((await call("schoolwork","PATCH",publish,memberToken)).status,403);
+ assert.equal((await call("schoolwork","PATCH",{...publish,reason:"needs-correction"},adminToken)).status,422);
+ assert.equal((await call("schoolwork","PATCH",{...publish,reportId:"missing-synthetic-report"},adminToken)).status,404);
+ const reviewer=await call("schoolwork","PATCH",publish,adminToken);
+ assert.equal(reviewer.status,200,JSON.stringify(reviewer));
+ assert.equal(reviewer.data.status,"published");
+ const published=await db.studentReport.findUniqueOrThrow({where:{id:firstId}});
+ assert.equal(published.status,"published");
+ assert.ok(published.publishedAt);
+ const familyAfter=await call("schoolwork","GET",undefined,memberToken);
+ assert.ok(familyAfter.data.reports.some(x=>x.id===firstId),
+  "student progress must become visible to a currently approved guardian only after review");
+ assert.equal((await call("schoolwork","PATCH",publish,adminToken)).status,404,
+  "replayed review must not produce another publication");
+ const selfId=await newDraft(adminToken);
+ assert.equal((await call("schoolwork","PATCH",{...publish,reportId:selfId},adminToken)).status,403,
+  "the report's author cannot approve their own private draft");
+ const secondId=await newDraft();
+ const reject=await call("schoolwork","PATCH",{action:"reject-report",
+  reportId:secondId,reason:"needs-correction"},adminToken);
+ assert.equal(reject.status,200);
+ assert.equal(reject.data.status,"archived");
+ assert.equal((await db.studentReport.findUniqueOrThrow({where:{id:secondId}})).publishedAt,null);
+ assert.ok(!(await call("schoolwork","GET",undefined,memberToken)).data.reports.some(x=>x.id===secondId));
+ // Revoking author authorization or enrollment must prevent publication even
+ // when an administrator has a cached review queue from before revocation.
+ const roleId=await newDraft();
+ await db.user.update({where:{id:teacher.id},data:{role:"member"}});
+ const demoted=await call("schoolwork","PATCH",{...publish,reportId:roleId},adminToken);
+ assert.equal(demoted.status,409);
+ assert.equal(demoted.error.code,"REPORT_AUTHOR_INACTIVE");
+ await db.user.update({where:{id:teacher.id},data:{role:"teacher"}});
+ await db.enrollment.update({where:{studentId_classId:{studentId,classId:klass.id}},
+  data:{status:"withdrawn"}});
+ const unenrolled=await call("schoolwork","PATCH",{...publish,reportId:roleId},adminToken);
+ assert.equal(unenrolled.status,409);
+ assert.equal(unenrolled.error.code,"REPORT_STUDENT_INACTIVE");
+ await db.enrollment.update({where:{studentId_classId:{studentId,classId:klass.id}},
+  data:{status:"active"}});
+ // Known real foreign report IDs remain inaccessible to an admin of home.
+ foreignOrg=await db.organization.create({data:{slug:"report-review-ci-"+randomUUID(),
+  name:"Unrelated CI school"}});
+ foreignProgram=await db.schoolProgram.create({data:{organizationId:foreignOrg.id,
+  title:"Foreign private program",description:"Synthetic only",published:true}});
+ foreignClass=await db.classSection.create({data:{programId:foreignProgram.id,
+  name:"Foreign private class",schedule:"CI-only"}});
+ foreignStudent=await db.student.create({data:{organizationId:foreignOrg.id,
+  studentNumber:"foreign-review-"+randomUUID(),firstName:"Foreign",lastName:"Learner"}});
+ const foreignReport=await db.studentReport.create({data:{classId:foreignClass.id,
+  studentId:foreignStudent.id,teacherId:teacher.id,summary:"Private other-mosque draft.",status:"draft"}});
+ reports.push(foreignReport.id);
+ assert.equal((await call("schoolwork","PATCH",{...publish,reportId:foreignReport.id},adminToken)).status,404);
+ const thirdId=await newDraft();
+ const concurrent=await Promise.all([
+  call("schoolwork","PATCH",{...publish,reportId:thirdId},adminToken),
+  call("schoolwork","PATCH",{...publish,reportId:thirdId},adminToken)
+ ]);
+ assert.ok(concurrent.some(x=>x.status===200),JSON.stringify(concurrent));
+ assert.ok(concurrent.every(x=>[200,404,409].includes(x.status)),JSON.stringify(concurrent));
+ const audit=await db.auditEvent.findMany({where:{entity:"StudentReport",entityId:{in:reports}}});
+ assert.equal(audit.filter(x=>x.entityId===firstId&&x.action==="school.report.publish").length,1);
+ assert.equal(audit.filter(x=>x.entityId===thirdId&&x.action==="school.report.publish").length,1);
+ assert.equal(audit.filter(x=>x.entityId===secondId&&x.action==="school.report.reject").length,1);
+ assert.ok(audit.every(x=>!x.detail?.includes(baseDraft.summary)&&
+  !x.detail?.includes("Private other-mosque draft.")),
+  "never put actual child reports in audit detail");
+ console.log("Verified independent report publishing, private drafts/rejections, active author/enrollment, foreign scope, concurrent audit.");
+}finally{
+ if(reports.length){
+  await db.auditEvent.deleteMany({where:{entity:"StudentReport",entityId:{in:reports}}});
+  await db.studentReport.deleteMany({where:{id:{in:reports}}});
+ }
+ if(foreignStudent)await db.student.deleteMany({where:{id:foreignStudent.id}});
+ if(foreignClass)await db.classSection.deleteMany({where:{id:foreignClass.id}});
+ if(foreignProgram)await db.schoolProgram.deleteMany({where:{id:foreignProgram.id}});
+ if(foreignOrg)await db.organization.deleteMany({where:{id:foreignOrg.id}});
+ if(adminSessionId)await db.authSession.deleteMany({where:{id:adminSessionId}});
+ await db.$disconnect();
+}
