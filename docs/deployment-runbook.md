@@ -825,3 +825,9 @@ selection; operationally authorized schedulers should handle remaining
 historical shift records under reviewed cancellation/correction policy.
 All real-world youth eligibility, staff supervision, device assurance,
 volunteer training and evidence retention require separate approvals.
+
+## F-022 volunteer attendance correction pilot — October 31, 2026
+- **Scope:** staff with `volunteers_manage` may adjust an existing arrival time or remove an erroneous check-in for a still-scheduled shift in their configured mosque. A completed shift's recorded arrival cannot be removed by this workflow. No user can self-correct a shift.
+- **Record:** operators must enter an explanatory reason (12–500 characters). The API constrains the corrected timestamp to the shift's original check-in interval, closes corrections 72 hours after the recorded end time, and retains the before/after timestamps in an attributed audit event. The member receives a non-sensitive in-app notification. A failed or conflicting correction must be refreshed and reviewed, not assumed saved.
+- **Review procedure:** verify the attendee against the organization's identity and attendance policy outside the public screen; correct only factual arrival records; inspect the volunteer's own updated history. Escalate completed false check-ins, older disputes, sensitive misconduct, custody/minor issues, or contested evidence to an authorized safeguarding/operations owner. Do **not** use database edits as an appeal workaround.
+- **Release gate:** disposable CI integration and TypeScript/build checks are required but not enough. Obtain written attendance correction/appeal policy, independent reviewer assignment and operational training, confirm check-in hardware and accessibility/Arabic UX on devices, test tenant permissions independently, and rehearse migrations/backup in isolated staging. **No real deployment or production readiness is asserted by this code.**
