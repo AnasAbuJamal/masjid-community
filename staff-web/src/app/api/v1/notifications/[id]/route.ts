@@ -9,10 +9,15 @@ export async function PATCH(req:NextRequest,{params}:{params:Promise<{id:string}
   const {id}=await params;
   // Do not mutate foreign-mosque or historical unscoped notifications by ID,
   // even when the recipient's shared identity matches this authenticated user.
-  const result=await db.notification.updateMany({where:{
-   id,userId:user.id,organizationId:org.id
+  const owner={id,userId:user.id,organizationId:org.id};
+  // Preserve the first read timestamp across retries and double taps.
+  const changed=await db.notification.updateMany({where:{
+   ...owner,readAt:null
   },data:{readAt:new Date()}});
-  if(!result.count)throw new HttpError(404,"NOT_FOUND","Notification unavailable.");
+  if(!changed.count){
+   const existing=await db.notification.findFirst({where:owner,select:{id:true}});
+   if(!existing)throw new HttpError(404,"NOT_FOUND","Notification unavailable.");
+  }
   return ok({id,read:true});
  });
 }

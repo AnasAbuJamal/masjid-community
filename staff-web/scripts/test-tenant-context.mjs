@@ -262,6 +262,12 @@ try{
  assert.ok(!homeInbox.data.upcoming.some(x=>x.id===shifts.FOREIGN.id||x.eventId===event.id),
   "home dashboard must exclude all foreign future commitments");
  assert.ok(homeInbox.data.notifications.some(n=>n.id===homeNote.id));
+ const homeMessages=await call("notifications","GET",undefined,first);
+ assert.equal(homeMessages.status,200);
+ assert.equal(homeMessages.data.organization.id,home.id);
+ assert.ok(homeMessages.data.items.some(n=>n.id===homeNote.id));
+ assert.ok(!homeMessages.data.items.some(n=>n.id===foreignNote.id||n.id===unknownNote.id));
+ assert.equal((await call("notifications?cursor="+foreignNote.id,"GET",undefined,first)).status,404);
  assert.ok(homeInbox.data.donations.some(d=>d.campaign.title==="HOME_SYNTHETIC_FUND"));
  assert.ok(!JSON.stringify(homeInbox.data).includes("FOREIGN_PRIVATE_CONTEXT_ONLY"));
  assert.ok(!JSON.stringify(homeInbox.data).includes("FOREIGN_SYNTHETIC_FUND"));
@@ -485,6 +491,15 @@ try{
  assert.equal(switched.data.organization.id,foreign.id,
   "selected server session, not spoofed home mosque header, owns the query");
  assert.ok(switched.data.notifications.some(n=>n.id===foreignNote.id));
+ const foreignMessages=await call("notifications","GET",undefined,first,{"x-organization-id":home.id});
+ assert.equal(foreignMessages.status,200);
+ assert.equal(foreignMessages.data.organization.id,foreign.id);
+ assert.ok(foreignMessages.data.items.some(n=>n.id===foreignNote.id));
+ assert.ok(!foreignMessages.data.items.some(n=>n.id===homeNote.id||n.id===unknownNote.id));
+ assert.equal((await call("notifications?cursor="+homeNote.id,"GET",undefined,first)).status,404);
+ const unchangedDevice=await call("notifications","GET",undefined,second);
+ assert.equal(unchangedDevice.data.organization.id,home.id);
+ assert.ok(unchangedDevice.data.items.some(n=>n.id===homeNote.id));
  assert.ok(switched.data.donations.some(d=>d.campaign.title==="FOREIGN_SYNTHETIC_FUND"));
  assert.ok(switched.data.rsvps.some(r=>r.event.title==="FOREIGN_SYNTHETIC_PRIVATE_RSVP"));
  assert.ok(switched.data.upcoming.some(x=>x.kind==="gathering"&&x.eventId===event.id&&x.status==="confirmed"));

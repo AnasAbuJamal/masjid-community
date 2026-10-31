@@ -80,6 +80,50 @@ try{
  assert.ok((await db.notification.findUniqueOrThrow({where:{id:local.id}})).readAt,
   "recipient may mark only a notification owned by the active mosque");
 
+ // Marking a notification as read twice must retain its FIRST read time.
+ const firstRead=(await db.notification.findUniqueOrThrow({where:{id:local.id}})).readAt;
+ assert.equal((await call("notifications/"+local.id,"PATCH",undefined,memberToken)).status,200);
+ assert.equal((await db.notification.findUniqueOrThrow({where:{id:local.id}})).readAt?.getTime(),
+  firstRead?.getTime(),"retry never rewrites the original read timestamp");
+ // The dashboard has a 30-record cap, but the private inbox must page through
+ // its complete current-mosque history without exposing other domains.
+ const older=Array.from({length:54},(_,i)=>({
+  id:randomUUID(),organizationId:org.id,userId:member.id,
+  title:"Synthetic older inbox message",body:"Synthetic scoped item "+i,
+  createdAt:new Date(Date.now()-3600000+i*1000)
+ }));
+ assert.equal((await db.notification.createMany({data:older})).count,older.length);
+ ids.notifications.push(...older.map(note=>note.id));
+ assert.equal((await call("notifications")).status,401,"guest inbox denied");
+ for(const q of ["?cursor=","?cursor=bad","?cursor=a&cursor=b","?other=abc"]){
+  assert.equal((await call("notifications"+q,"GET",undefined,memberToken)).status,422);
+ }
+ for(const other of [foreign.id,legacy.id]){
+  assert.equal((await call("notifications?cursor="+other,"GET",undefined,memberToken)).status,404,
+   "known foreign and unowned cursor IDs cannot disclose private history");
+ }
+ const seen=new Set();
+ let next=null,finished=false,pages=0;
+ for(;pages<12;pages++){
+  const path="notifications"+(next?"?cursor="+encodeURIComponent(next):"");
+  const page=await call(path,"GET",undefined,memberToken);
+  assert.equal(page.status,200,JSON.stringify(page).slice(0,500));
+  assert.equal(page.data.organization.id,org.id);
+  assert.equal(page.data.pageSize,25);
+  assert.ok(page.data.items.length<=25);
+  assert.ok(!JSON.stringify(page.data).includes("FOREIGN_PRIVATE_NOTE_MUST_NEVER_LEAK"));
+  assert.ok(!JSON.stringify(page.data).includes("HISTORIC_UNOWNED_NOTE_MUST_NEVER_LEAK"));
+  for(const item of page.data.items){
+   assert.ok(!seen.has(item.id),"stable page boundaries cannot duplicate an entry");
+   seen.add(item.id);
+  }
+  if(!page.data.hasMore){assert.equal(page.data.nextCursor,null);finished=true;break;}
+  next=page.data.nextCursor;
+  assert.equal(next,page.data.items.at(-1)?.id);
+ }
+ assert.ok(finished&&pages>=2,"older history is reachable beyond two pages");
+ assert.ok(older.every(note=>seen.has(note.id))&&seen.has(local.id));
+ assert.ok(!seen.has(foreign.id)&&!seen.has(legacy.id));
  // A real event waitlist promotion creates a scoped notice in the same
  // transaction as the factual member reservation.
  const event=await db.event.create({data:{
