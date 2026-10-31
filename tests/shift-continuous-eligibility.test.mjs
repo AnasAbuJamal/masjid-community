@@ -67,6 +67,9 @@ test("volunteer application and steward review reevaluate present-day eligibilit
  assert.match(admin,/tx.volunteerApplication.findFirst/);
  assert.match(admin,/role:\{not:"student"\}/);
  assert.match(admin,/VOLUNTEER_INELIGIBLE/);
+ assert.match(admin,/currentOpportunity\.capacity/);
+ assert.match(admin,/opportunity:\{organizationId:org.id,published:true\}/);
+ assert.match(ci,/unpublished volunteer opportunities cannot receive fresh application approval/);
  assert.match(ci,/student volunteer applications cannot be submitted/);
  assert.match(ci,/submitted application cannot override current student role/);
  assert.match(ci,/denied approval must not reserve volunteer capacity/);
