@@ -137,6 +137,22 @@ try{
  assert.equal(positiveApplication.status,201,
   "an eligible adult can retry an existing submitted application");
  assert.equal(positiveApplication.data.status,"submitted");
+ try{
+  await db.volunteerOpportunity.update({where:{id:reviewOpp.id},data:{published:false}});
+  const unpublishedApproval=await request("admin","POST",{
+   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved"
+  },adminToken);
+  assert.equal(unpublishedApproval.status,409,
+   "unpublished volunteer opportunities cannot receive fresh application approval");
+  assert.equal((await db.volunteerApplication.findUniqueOrThrow({
+   where:{id:reviewApp.id}
+  })).status,"submitted","rejected unpublish review preserves submitted state");
+  assert.equal((await db.volunteerOpportunity.findUniqueOrThrow({
+   where:{id:reviewOpp.id}
+  })).filled,0,"denied unpublished approval does not fill capacity");
+ }finally{
+  await db.volunteerOpportunity.update({where:{id:reviewOpp.id},data:{published:true}});
+ }
  const positiveApproval=await request("admin","POST",{
   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved"
  },adminToken);
