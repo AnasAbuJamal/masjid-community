@@ -15,7 +15,7 @@ async function request(path,method="GET",payload,token){
  },body:payload?JSON.stringify(payload):undefined});
  return {status:response.status,...await response.json()};
 }
-let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId,localAcknowledgedApplicationId,currentTestSessionId;
+let foreignOrg,foreignProgram,foreignClass,foreignStudent,foreignTeacher,foreignApplication,schoolAdminSession,newLocalStudentId,localAcknowledgedApplicationId,currentTestSessionId,concurrencyLabel;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -61,6 +61,28 @@ try{
  assert.ok(storedAcknowledgement.reviewAcknowledgedAt instanceof Date,"server timestamp is stored");
  assert.equal(storedAcknowledgement.reviewAcknowledgementVersion,"guardian-review-v1");
  assert.equal(storedAcknowledgement.status,"submitted","acknowledgement does not approve guardianship");
+ // F-014: a client can double-submit the same acknowledged child
+ // application under network retries. Serializable predicate checking must
+ // commit only one pending row without enrolling or linking any child.
+ concurrencyLabel="CI-Race-"+randomBytes(6).toString("hex");
+ const concurrentRequest={
+  programId:localClass.programId,studentFirstName:concurrencyLabel,
+  studentLastName:"Fixture",reviewAcknowledged:true
+ };
+ const parallel=await Promise.all([
+  request("enrollment","POST",concurrentRequest,memberToken),
+  request("enrollment","POST",concurrentRequest,memberToken)
+ ]);
+ assert.deepEqual(parallel.map(x=>x.status).sort(),[201,409],
+  "only one of two concurrent identical child applications may succeed");
+ const duplicateError=parallel.find(x=>x.status===409);
+ assert.ok(["APPLICATION_EXISTS","APPLICATION_CHANGED"].includes(duplicateError.error.code));
+ assert.equal(await db.enrollmentApplication.count({where:{
+  organizationId:org.id,applicantUserId:member.id,
+  programId:localClass.programId,studentFirstName:concurrencyLabel,
+  studentLastName:"Fixture",status:"submitted"
+ }}),1,"serialized duplicate detection persisted exactly one pending application");
+
  const oldApplication=await db.enrollmentApplication.findFirst({where:{
   applicantUserId:member.id,organizationId:org.id,reviewAcknowledgedAt:null,status:"submitted"
  }});
@@ -310,6 +332,9 @@ try{
   await db.classSession.deleteMany({where:{id:currentTestSessionId}});
  }
  if(localAcknowledgedApplicationId)await db.enrollmentApplication.deleteMany({where:{id:localAcknowledgedApplicationId}});
+ if(concurrencyLabel)await db.enrollmentApplication.deleteMany({where:{
+  studentFirstName:concurrencyLabel,studentLastName:"Fixture"
+ }});
  if(schoolAdminSession)await db.authSession.deleteMany({where:{id:schoolAdminSession.id}});
  if(newLocalStudentId)await db.student.delete({where:{id:newLocalStudentId}});
  if(foreignClass){

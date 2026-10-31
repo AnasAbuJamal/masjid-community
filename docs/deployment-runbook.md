@@ -772,3 +772,19 @@ deleting historical reviews or changing evidence.
 This rule cannot prove actual age or custody, and is not a substitute for
 independent school safeguarding approvals, guardian revocation procedures,
 and real-device privacy testing. Production remains blocked.
+
+
+## F-014 concurrent guardian application submission
+
+An acknowledged guardian application is a **request for review**, never an
+automatic enrollment, guardian link or certification of legal custody.
+Applicant account eligibility, current mosque membership and published
+local program scope are rechecked inside the serializable transaction
+that also checks for an identical pending application. A concurrent
+submission may receive a 409 and the applicant must refresh their own
+application history. Do not automatically merge two different children
+whose names happen to match; school staff must review such cases.
+
+The technical non-student role check is not proof of legal adulthood or
+guardianship. Real-world independent evidence and safeguarding workflows
+remain production release blockers.
