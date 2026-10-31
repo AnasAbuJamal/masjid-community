@@ -719,3 +719,22 @@ and its audit event; preflight UI choices have no authorization authority.
 Role exclusion is not proof of legal adulthood, independent safeguarding
 clearance, or certified moderator training. These require separate human
 approval and recorded operational policy before production usage.
+
+
+## F-012 private circle moderator roster pagination
+
+A circle host receives at most 25 private current eligible member names per
+server-owned page. The only valid cursor is the ID of a requested or approved
+member of the **same** published, assigned circle who remains active,
+verified, non-student and a current member of the original mosque. The
+server rechecks host scope before any cursor lookup or person-name read.
+Removing, denying or suspending the cursor member invalidates the page;
+the staff screen must restart from the first authorized page. Exact
+`requestedAt,id` ordering is stable for simultaneous queue requests but
+is not a point-in-time snapshot across concurrent review changes.
+
+No moderator roster export, public directory, or external notification of
+circle member identities is allowed. Screens clear on circle change or
+visibility loss. A production sign-off still requires trained hosts,
+documented safeguarding and privacy review, real browser screen-reader
+testing, and appropriate Arabic/RTL copy.

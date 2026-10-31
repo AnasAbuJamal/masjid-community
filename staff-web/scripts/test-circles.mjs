@@ -2,7 +2,7 @@
 // Synthetic data only in the ephemeral masjid_ci PostgreSQL + local test server.
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {randomBytes,createHash} from "node:crypto";
+import {randomBytes,createHash,randomUUID} from "node:crypto";
 import {PrismaClient} from "@prisma/client";
 
 if(process.env.NODE_ENV==="production"||process.env.VERCEL||
@@ -18,7 +18,7 @@ async function request(path,method="GET",body,token){
  },body:body?JSON.stringify(body):undefined});
  return {status:response.status,...await response.json().catch(()=>({}))};
 }
-const ids=[],notificationIds=[];
+const ids=[],notificationIds=[],fakeCircleUsers=[];
 let foreignOrgId=null,adminSession=null;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
@@ -205,6 +205,99 @@ try{
   id:{not:notification.id}
  },orderBy:{createdAt:"desc"}});
  if(notice)notificationIds.push(notice.id);
+
+ // F-012: actual private queue can exceed 100, but names must remain
+ // paginated and every cursor checked against assigned current host,
+ // same published circle and eligible active members.
+ const largeCircle=await db.circle.create({data:{
+  organizationId:org.id,hostId:staff.id,
+  title:"Synthetic large private moderator queue",
+  summary:"Controlled review of a synthetic CI circle with many participants.",
+  cadence:"Weekly synthetic schedule",
+  guidelines:"No real people or personal information in this test roster.",
+  status:"published"
+ }});
+ ids.push(largeCircle.id);
+ const fakeIds=Array.from({length:55},()=>randomUUID());
+ fakeCircleUsers.push(...fakeIds);
+ await db.user.createMany({data:fakeIds.map((id,i)=>({
+  id,email:"ci-circle-"+id+"@example.test",firstName:"CI Circle Applicant",
+  lastName:"Member "+String(i).padStart(2,"0"),
+  role:"member",passwordHash:staff.passwordHash,verifiedAt:new Date()
+ }))});
+ await db.organizationMembership.createMany({data:fakeIds.map(userId=>({
+  organizationId:org.id,userId,status:"active"
+ }))});
+ const requestedAt=new Date("2031-08-22T10:30:00Z");
+ const people=fakeIds.map(userId=>({
+  id:randomUUID(),circleId:largeCircle.id,userId,
+  requestedAt,status:"requested"
+ }));
+ await db.circleMember.createMany({data:people});
+ const expected=people.map(p=>p.id).sort(),seen=[];
+ let cursor=null,firstCursor=null;
+ for(let i=0;i<3;i++){
+  const response=await request("circles/host?circleId="+largeCircle.id+
+   (cursor?"&cursor="+encodeURIComponent(cursor):""),
+   "GET",undefined,staffToken);
+  assert.equal(response.status,200,JSON.stringify(response));
+  assert.equal(response.data.pageSize,25);
+  assert.equal(response.data.members.length,i===2?5:25);
+  assert.equal(response.data.hasMore,i!==2);
+  assert.equal(response.data.rosterComplete,i===2);
+  assert.ok(response.data.members.every(item=>
+   Object.keys(item.member).sort().join(",")==="firstName,lastName"));
+  seen.push(...response.data.members.map(item=>item.id));
+  cursor=response.data.nextCursor;
+  if(i===0){firstCursor=cursor;assert.equal(cursor,seen[seen.length-1]);}
+  if(i===2)assert.equal(cursor,null);
+ }
+ assert.deepEqual(seen,expected,
+  "25/25/5 synthetic same-time requests must be complete and duplicate-free");
+ for(const query of [
+  "cursor="+randomUUID(),
+  "cursor="+joined.data.id,
+  "cursor=",
+  "cursor=bad",
+  "cursor="+firstCursor+"&cursor="+firstCursor,
+  "circleId="+draft.data.id+"&cursor="+firstCursor
+ ]){
+  const url=query.startsWith("circleId=")
+   ?"circles/host?"+query:"circles/host?circleId="+largeCircle.id+"&"+query;
+  const result=await request(url,"GET",undefined,staffToken);
+  assert.ok([404,422].includes(result.status),
+   "unknown/foreign/duplicate cursor must fail closed: "+query);
+ }
+ assert.equal((await request("circles/host?cursor="+firstCursor,
+  "GET",undefined,staffToken)).status,422);
+ assert.equal((await request("circles/host?circleId="+largeCircle.id+
+  "&circleId="+draft.data.id,"GET",undefined,staffToken)).status,422);
+ const pivotMember=people.find(p=>p.id===firstCursor);
+ assert.ok(pivotMember);
+ try{
+  await db.organizationMembership.update({where:{
+   organizationId_userId:{organizationId:org.id,userId:pivotMember.userId}
+  },data:{status:"suspended"}});
+  const blocked=await request("circles/host?circleId="+largeCircle.id+
+   "&cursor="+firstCursor,"GET",undefined,staffToken);
+  assert.equal(blocked.status,404,
+   "suspending a member invalidates their roster cursor immediately");
+  assert.equal(blocked.error.code,"CIRCLE_CURSOR_UNAVAILABLE");
+ }finally{
+  await db.organizationMembership.update({where:{
+   organizationId_userId:{organizationId:org.id,userId:pivotMember.userId}
+  },data:{status:"active"}});
+ }
+ const originalHostRole=staff.role;
+ try{
+  await db.user.update({where:{id:staff.id},data:{role:"student"}});
+  const blocked=await request("circles/host?circleId="+largeCircle.id+
+   "&cursor="+firstCursor,"GET",undefined,staffToken);
+  assert.equal(blocked.status,403,
+   "student-reclassified host cannot continue a private circle roster");
+ }finally{
+  await db.user.update({where:{id:staff.id},data:{role:originalHostRole}});
+ }
  const foreignOrg=await db.organization.create({data:{
   slug:"circle-tenant-ci-"+Date.now(),name:"Separate mosque circle"
  }});foreignOrgId=foreignOrg.id;
@@ -271,6 +364,10 @@ try{
   await db.circleUpdate.deleteMany({where:{circleId:id}});
   await db.circleMember.deleteMany({where:{circleId:id}});
   await db.circle.deleteMany({where:{id}});
+ }
+ if(fakeCircleUsers.length){
+  await db.organizationMembership.deleteMany({where:{userId:{in:fakeCircleUsers}}});
+  await db.user.deleteMany({where:{id:{in:fakeCircleUsers}}});
  }
  if(foreignOrgId)await db.organization.deleteMany({where:{id:foreignOrgId}});
  await db.$disconnect();

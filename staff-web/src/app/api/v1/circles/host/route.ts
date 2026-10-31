@@ -11,7 +11,8 @@ const decision=z.object({action:z.literal("decide"),circleId:z.string().min(8),
  reason:z.string().trim().min(10).max(280)});
 const publish=z.object({action:z.literal("publish-update"),circleId:z.string().min(8),
  body:z.string().trim().min(10).max(2000)});
-const command=z.discriminatedUnion("action",[decision,publish]);
+const command=z.discriminatedUnion("action",[decision.strict(),publish.strict()]);
+const ROSTER_PAGE_SIZE=25;
 
 export async function GET(req:NextRequest){
  return handled(async()=>{
@@ -19,7 +20,18 @@ export async function GET(req:NextRequest){
   if(actor.role==="student")throw new HttpError(403,"HOST_REQUIRED","Approved adult circle host required.");
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
-  const circleId=req.nextUrl.searchParams.get("circleId");
+  const params=req.nextUrl.searchParams;
+  const keys=["circleId","cursor"];
+  if([...params.keys()].some(key=>!keys.includes(key))||
+     keys.some(key=>params.getAll(key).length>1))
+   throw new HttpError(422,"BAD_QUERY","Unsupported or repeated circle roster query.");
+  const circleId=params.get("circleId");
+  if(!circleId&&params.has("cursor"))
+   throw new HttpError(422,"BAD_QUERY","A continuation must name its circle.");
+  const rawCursor=params.get("cursor");
+  if(rawCursor!==null&&!rawCursor)
+   throw new HttpError(422,"BAD_CURSOR","Nonempty circle roster cursor required.");
+  const cursor=rawCursor?z.string().regex(/^[A-Za-z0-9_-]{8,128}$/).parse(rawCursor):null;
   const activeHost={hostId:actor.id,status:"published" as const,organizationId:org.id,
    host:{status:"active" as const,verifiedAt:{not:null},memberships:{some:{organizationId:org.id,status:"active" as const}}}};
   if(!circleId){
@@ -28,23 +40,41 @@ export async function GET(req:NextRequest){
     select:{id:true,title:true,cadence:true,_count:{select:{members:true}}}});
    return ok({circles});
   }
-  const validId=z.string().min(8).parse(circleId);
+  const validId=z.string().min(8).max(128).parse(circleId);
   const circle=await db.circle.findFirst({where:{...activeHost,id:validId},
    select:{id:true,title:true,summary:true,cadence:true,guidelines:true}});
   if(!circle)throw new HttpError(404,"HOST_SCOPE","Assigned circle unavailable.");
-  const members=await db.circleMember.findMany({where:{
+  // Resolve all continuation anchors against the SAME published circle,
+  // eligible member and current assigned host. The host permission check
+  // above must precede every cursor lookup or private name selection.
+  const eligible:Prisma.CircleMemberWhereInput={
    circleId:circle.id,status:{in:["requested","approved"]},
    member:{status:"active",verifiedAt:{not:null},role:{not:"student"},
     memberships:{some:{organizationId:org.id,status:"active"}}}
-  },
-   orderBy:[{requestedAt:"asc"},{id:"asc"}],take:100,
+  };
+  const pivot=cursor?await db.circleMember.findFirst({
+   where:{AND:[eligible,{id:cursor}]},select:{id:true,requestedAt:true}
+  }):null;
+  if(cursor&&!pivot)throw new HttpError(404,"CIRCLE_CURSOR_UNAVAILABLE",
+   "This private circle page changed. Refresh the assigned circle.");
+  const where:Prisma.CircleMemberWhereInput=pivot?{AND:[eligible,{OR:[
+   {requestedAt:{gt:pivot.requestedAt}},
+   {requestedAt:pivot.requestedAt,id:{gt:pivot.id}}
+  ]}]}:eligible;
+  const rows=await db.circleMember.findMany({
+   where,orderBy:[{requestedAt:"asc"},{id:"asc"}],
+   take:ROSTER_PAGE_SIZE+1,
    select:{id:true,status:true,requestedAt:true,
-    member:{select:{firstName:true,lastName:true}}}});
+    member:{select:{firstName:true,lastName:true}}}
+  });
+  const hasMore=rows.length>ROSTER_PAGE_SIZE;
+  const members=hasMore?rows.slice(0,ROSTER_PAGE_SIZE):rows;
   const updates=await db.circleUpdate.findMany({where:{circleId:circle.id},
    orderBy:{publishedAt:"desc"},take:40,
    select:{id:true,body:true,publishedAt:true,revision:true}});
-  return ok({circle,members,updates,rosterComplete:members.length<100,
-   policy:"Private member list. Do not export, photograph or disclose. Use a dedicated moderator review for every join request."});
+  return ok({circle,members,updates,pageSize:ROSTER_PAGE_SIZE,hasMore,
+   nextCursor:hasMore?members[members.length-1].id:null,rosterComplete:!hasMore,
+   policy:"Private active eligible member list in bounded pages of 25, for the assigned host only. Do not export, photograph or disclose. Request and decision remain separate; each decision requires review."});
  });
 }
 
