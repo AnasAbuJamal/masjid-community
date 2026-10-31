@@ -35,6 +35,9 @@ test("private shift API and mobile view use server-provided timezone and localiz
  const httpTest=readFileSync("staff-web/scripts/test-shift-safety.mjs","utf8");
  assert.match(api,/select:\{id:true,name:true,timeZone:true\}/);
  assert.match(api,/organization:\{name:org.name,timeZone:org.timeZone\}/);
+ assert.match(api,/orderBy:\[\{createdAt:"asc"\},\{id:"asc"\}\]/);
+ assert.match(readFileSync("staff-web/src/app/api/v1/admin/shifts/route.ts","utf8"),
+  /orderBy:\[\{createdAt:"asc"\},\{id:"asc"\}\]/);
  assert.match(mobile,/volunteerTime\(value,zone,language\)/);
  assert.match(mobile,/t\("shifts.notCheckedIn"\)/);
  assert.match(mobile,/t\("shifts.timezone"\)/);
