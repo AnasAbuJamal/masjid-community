@@ -627,3 +627,29 @@ maximum seven-day lifetime and automatic expiry from all current views.
 Stopping emergency notice publication is not the same as disabling the
 application or migration. No live tenant, provider or database change is
 authorized by this development commit.
+
+
+## Published gathering continuation and cross-tenant cursor rules (F-007/F-048)
+
+Guest pilot and selected-mosque member catalogs now use a shared, bounded 25-item
+keyset continuation. The cursor is an event ID used only as a lookup **within**
+the active organization, published/upcoming predicate, and all the request's
+original validated filters. The event's persisted `startAt` and `id` form
+the strict tuple comparison; the cursor is never a user-controlled mosque ID,
+security grant, database offset, or permission to view unpublished content.
+
+A continuation may become invalid if the pivot event is removed, unpublished,
+moves into the past, or ceases to match its filters. Return a bounded
+`CURSOR_UNAVAILABLE` response to JSON clients or a safe restart link to
+public website visitors. Do not silently drop the cursor and return a first
+page, since that would misrepresent results and could confuse a selected
+mosque's context. A member switching mosque must discard all previously
+loaded pages, including in-flight page responses.
+
+The server-rendered public /visit page exposes Next Page and Restart controls
+without JavaScript. Native event list pages use an explicit Load More action
+rather than claiming to provide infinite scrolling. Neither API promises
+a historical snapshot if event publication changes between requests.
+Operations may use these behaviors in synthetic CI, but production tenant
+rollout still requires real-device accessibility, Arabic/RTL,
+independent authorization, and response/caching verification.
