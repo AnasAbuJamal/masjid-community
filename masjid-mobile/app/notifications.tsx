@@ -66,3 +66,4 @@ export default function Notifications(){
    {error}
   </Text>:null}
  </Shell>;
+}
