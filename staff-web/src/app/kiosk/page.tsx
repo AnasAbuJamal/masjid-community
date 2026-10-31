@@ -1,14 +1,26 @@
 import {db} from "@/lib/db";
+import {notFound} from "next/navigation";
 import {localDate} from "@/lib/http";
 import {currentVenueEmergency} from "@/lib/venue-emergencies";
 import {KioskRefresh} from "./KioskRefresh";
 export const dynamic="force-dynamic";
 export const metadata={title:"Masjid Community · Prayer Display",description:"Published mosque prayer and community notices."};
 const rows=[["Fajr","fajr","fajrIqamah"],["Sunrise","sunrise",null],["Dhuhr","dhuhr","dhuhrIqamah"],["Asr","asr","asrIqamah"],["Maghrib","maghrib","maghribIqamah"],["Isha","isha","ishaIqamah"]] as const;
-export default async function Kiosk(){
+export default async function Kiosk({searchParams}:{
+ searchParams:Promise<{venueId?:string|string[]}>
+}){
+ const params=await searchParams;
+ const venueId=typeof params.venueId==="string"?params.venueId:undefined;
+ if(params.venueId!==undefined&&!venueId)notFound();
  const now=new Date();
- const org=await db.organization.findFirst();
- const venue=org?await db.venue.findFirst({where:{organizationId:org.id}}):null;
+ const org=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}]});
+ // The display has no cross-organization browsing surface; a requested venue
+ // must belong to this configured pilot mosque, or the request fails closed.
+ const venue=org?await db.venue.findFirst({
+  where:{organizationId:org.id,...(venueId?{id:venueId}:{})},
+  orderBy:{id:"asc"}
+ }):null;
+ if(venueId&&!venue)notFound();
  const today=venue?localDate(now,venue.timeZone):null;
  const [prayer,announcements,events,emergency]=await Promise.all([
   venue&&today?db.prayerDay.findFirst({where:{venueId:venue.id,localDate:today,published:true}}):null,
