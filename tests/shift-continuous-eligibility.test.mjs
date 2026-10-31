@@ -20,3 +20,24 @@ test("shift CI covers suspension before schedule and actual attendance",()=>{
  assert.match(s,/unpublished service opportunities cannot accept/);
  assert.match(s,/ineligible person was not marked present/);
 });
+test("staff attendance corrections are reasoned, scoped, version-aware and tested",()=>{
+ const api=read("staff-web/src/app/api/v1/admin/shifts/route.ts");
+ assert.match(api,/kind:z.literal\("correct"\)/);
+ assert.match(api,/reason:z.string\(\).trim\(\).min\(12\).max\(500\)/);
+ assert.match(api,/opportunity:\{organizationId:org.id\}/);
+ assert.match(api,/correctedAt\.getTime\(\)/);
+ assert.match(api,/checkedInAt:shift.checkedInAt/);
+ assert.match(api,/CORRECTION_WINDOW_CLOSED/);
+ assert.match(api,/COMPLETED_SHIFT/);
+ assert.match(api,/previousCheckedInAt/);
+ assert.match(api,/notifyUser\(tx,org.id,shift.userId,"Volunteer attendance corrected"/);
+ const ui=read("staff-web/src/app/admin/volunteers/page.tsx");
+ assert.match(ui,/Save audited correction/);
+ assert.match(ui,/Keep original record/);
+ const integration=read("staff-web/scripts/test-shift-safety.mjs");
+ assert.match(integration,/corrections require an actual reason/);
+ assert.match(integration,/foreign shift correction denied/);
+ assert.match(integration,/completed shift can have a reasoned time-only correction/);
+ assert.match(integration,/a mistaken uncompleted check-in with reason/);
+});
+
