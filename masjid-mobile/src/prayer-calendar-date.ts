@@ -4,7 +4,7 @@
  * venue timezone, and never reinterpret the returned YYYY-MM-DD as an instant.
  */
 function validCivilDate(key:string):Date|null{
- if(!/^\d{4}-\d{2}-\d{2}$/.test(key))return null;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(key)||Number(key.slice(0,4))<1)return null;
  const day=new Date(key+"T12:00:00.000Z");
  return Number.isFinite(day.getTime())&&day.toISOString().slice(0,10)===key
   ?day:null;
