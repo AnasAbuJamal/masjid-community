@@ -12,7 +12,7 @@ type Commitment={id:string;kind:"gathering"|"service_shift";title:string;status:
 type Me={organization?:{name:string;timeZone?:string};upcoming?:Commitment[];bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;status:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;status:string;checkedInAt:string|null;event:{id:string;title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
 export default function Profile(){
  const {t,language}=useLanguage();
- const {user,logout,refresh:refreshUser}=useSession();
+ const {user,logout,sessionExpired,refresh:refreshUser}=useSession();
  const surface=usePilotSurface();
  const pilotAllowed=surface.allowed;
  const [error,setError]=useState(""),[busy,setBusy]=useState("");
@@ -37,7 +37,11 @@ export default function Profile(){
  }
  return <Shell>
  <Head eyebrow={t("profile.eyebrow")} title={user?(language==="ar"?"مرحبًا، "+user.firstName:"Welcome, "+user.firstName+"."):t("profile.guest")} subtitle={user?t("profile.member"):t("profile.subtitle")}/>
- {!user?<Card style={{gap:15}}><Text style={S.headline}>{t("profile.connect")}</Text><Text style={S.bodyText}>Create a member account or sign in to join events, donate, volunteer and view private records.</Text><Action label={t("profile.login")} icon="account-circle-outline" onPress={()=>router.push("/auth")}/></Card>:
+ {!user?<Card style={{gap:15}}>
+ {sessionExpired?<Text accessibilityRole="alert" style={{color:T.danger}}>
+  {t("profile.sessionExpired")}
+ </Text>:null}
+ <Text style={S.headline}>{t("profile.connect")}</Text><Text style={S.bodyText}>Create a member account or sign in to join events, donate, volunteer and view private records.</Text><Action label={t("profile.login")} icon="account-circle-outline" onPress={()=>router.push("/auth")}/></Card>:
  <><Card style={{gap:9}}><View style={S.row}><Text style={S.label}>{user.firstName} {user.lastName}</Text><Text style={S.muted}>{user.role}</Text></View><Text style={S.muted}>{user.email}</Text><Text style={{fontWeight:"800",color:user.isVerified?T.success:T.danger}}>{user.isVerified?t("common.verified"):t("common.unverified")}</Text>
  {!user.isVerified?<Action secondary label="Refresh verification status" onPress={()=>void refreshUser()}/>:null}</Card>
  {result.data?.organization?.name?<Text style={S.muted}>{result.data.organization.name}</Text>:null}

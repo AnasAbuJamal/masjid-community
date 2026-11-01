@@ -129,6 +129,7 @@ const words={
  "schoolwork.submitError":{en:"Unable to submit your assignment.",ar:"تعذر تسليم الواجب."},
  "profile.eyebrow":{en:"ACCOUNT · PROFILE",ar:"الحساب · الملف الشخصي"},
  "profile.guest":{en:"Make yourself at home.",ar:"أهلًا وسهلًا"},
+ "profile.sessionExpired":{en:"Your session is no longer active. Please sign in again to view private information.",ar:"لم تعد جلسة تسجيل الدخول نشطة. يُرجى تسجيل الدخول مجددًا لعرض المعلومات الخاصة."},
  "profile.subtitle":{en:"Sign in to save your participation and manage your records.",ar:"سجّل الدخول لمتابعة مشاركاتك وإدارة سجلاتك."},
  "profile.member":{en:"Your information, your choices, your community.",ar:"بياناتك وخياراتك ومجتمعك."},
  "profile.connect":{en:"Connect with your mosque",ar:"تواصل مع مسجدك"},

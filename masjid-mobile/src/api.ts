@@ -1,8 +1,11 @@
 import * as SecureStore from "expo-secure-store";
 import {createCredentialAuthority} from "./credential-authority";
+import {createSessionExpiryGuard} from "./session-expiry";
 const tokenKey="masjid.session";
 const raw=(process.env.EXPO_PUBLIC_API_URL||"").replace(/\/+$/,"");
 const authority=createCredentialAuthority(SecureStore,tokenKey);
+const expiry=createSessionExpiryGuard({version:authority.version,clear:authority.clear});
+export const onSessionExpired=expiry.subscribe;
 export type ApiUser={id:string;email:string;firstName:string;lastName:string;role:string;isVerified:boolean;mfaRequired?:boolean;mfaSetupRequired?:boolean};
 
 export const token=authority.token;
@@ -26,6 +29,8 @@ export async function api<T>(path:string,options:RequestInit={}):Promise<T>{
    ...(saved?{"Authorization":"Bearer "+saved}:{}),...options.headers}
  });
  check(revision);
+ if(expiry.expire({status:response.status,revision,authenticated:!!saved,path}))
+  throw new Error("Your session is no longer active. Please sign in again.");
  const value=await response.json().catch(()=>({}));
  check(revision);
  if(!response.ok)throw new Error(value.error?.message||"Request failed. Try again.");
@@ -60,6 +65,8 @@ export async function apiCalendar(path:string):Promise<string>{
   headers:{"Accept":"text/calendar","Authorization":"Bearer "+saved}
  });
  check(revision);
+ if(expiry.expire({status:response.status,revision,authenticated:!!saved,path}))
+  throw new Error("Your session is no longer active. Please sign in again.");
  if(!response.ok){
   const value=await response.json().catch(()=>({}));
   check(revision);

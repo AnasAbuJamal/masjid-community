@@ -1,17 +1,26 @@
 import React,{createContext,useCallback,useContext,useEffect,useRef,useState} from "react";
-import {api,apiPost,ApiUser,captureTokenForRevocation,clearToken,revokeCapturedBearer,setToken} from "./api";
+import {api,apiPost,ApiUser,captureTokenForRevocation,clearToken,onSessionExpired,revokeCapturedBearer,setToken} from "./api";
 import {createLatestContextSwitchQueue} from "./context-switch-queue";
-type Session={user:ApiUser|null;loading:boolean;contextVersion:number;contextChanging:boolean;selectOrganization:(organizationId:string)=>Promise<void>;login:(email:string,password:string)=>Promise<ApiUser>;register:(value:{firstName:string;lastName:string;email:string;password:string})=>Promise<string>;logout:()=>Promise<void>;refresh:()=>Promise<void>};
+type Session={user:ApiUser|null;loading:boolean;sessionExpired:boolean;contextVersion:number;contextChanging:boolean;selectOrganization:(organizationId:string)=>Promise<void>;login:(email:string,password:string)=>Promise<ApiUser>;register:(value:{firstName:string;lastName:string;email:string;password:string})=>Promise<string>;logout:()=>Promise<void>;refresh:()=>Promise<void>};
 const Context=createContext<Session|null>(null);
 const sessionChanged=()=>new Error("The session changed during this action. Please retry.");
 export function SessionProvider({children}:{children:React.ReactNode}){
  const [user,setUser]=useState<ApiUser|null>(null),[loading,setLoading]=useState(true);
+ const [sessionExpired,setSessionExpired]=useState(false);
  const [contextVersion,setContextVersion]=useState(0);
  const [contextChanging,setContextChanging]=useState(false);
  const switchQueue=useRef(createLatestContextSwitchQueue());
  // Each login, logout and mosque switch invalidates in-flight auth/me work.
  // This is independent from the credential generation enforced by api.ts.
  const operation=useRef(0);
+ useEffect(()=>onSessionExpired(()=>{
+  // Invalidate every pending account/mosque operation before any future
+  // private response or queued tenant mutation can apply.
+  operation.current++;switchQueue.current.invalidate();
+  setContextChanging(false);
+  setUser(null);setLoading(false);setContextVersion(v=>v+1);
+  setSessionExpired(true);
+ }),[]);
  const refresh=useCallback(async()=>{
   const generation=operation.current;
   try{
@@ -36,7 +45,8 @@ export function SessionProvider({children}:{children:React.ReactNode}){
   switchQueue.current.invalidate();
   setContextChanging(false);
   // Clear previous private views before waiting on network or SecureStore.
-  setUser(null);setLoading(true);setContextVersion(v=>v+1);
+  setUser(null);setLoading(true);setSessionExpired(false);
+  setContextVersion(v=>v+1);
   try{
    await clearToken();
    if(generation!==operation.current)throw sessionChanged();
@@ -64,7 +74,8 @@ export function SessionProvider({children}:{children:React.ReactNode}){
   setContextChanging(false);
   // Local authority and private screens are invalidated synchronously.
   // Never wait for a stalled or failed remote revocation before sign-out.
-  setUser(null);setLoading(false);setContextVersion(v=>v+1);
+  setUser(null);setLoading(false);setSessionExpired(false);
+  setContextVersion(v=>v+1);
   const persistedRemoval=clearToken();
   // Best-effort remote revocation must use only the captured old bearer.
   // A late request must never revoke the newer user's session.
@@ -91,6 +102,6 @@ export function SessionProvider({children}:{children:React.ReactNode}){
    }
   }
  };
- return <Context.Provider value={{user,loading,contextVersion,contextChanging,selectOrganization,login,register,logout,refresh}}>{children}</Context.Provider>;
+ return <Context.Provider value={{user,loading,sessionExpired,contextVersion,contextChanging,selectOrganization,login,register,logout,refresh}}>{children}</Context.Provider>;
 }
 export function useSession(){const state=useContext(Context);if(!state)throw new Error("Missing SessionProvider");return state;}
