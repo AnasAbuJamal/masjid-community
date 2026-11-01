@@ -1,17 +1,24 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import {visitLanguage,visitText,visitHref,visitDate,visitLocalDay,visitFacet,
+ type VisitCopyKey} from "@/lib/visit-i18n";
 import "../../../visit.css";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = {
-  title: "Community information | SILA",
-  description: "Published information from the mosque.",
-};
-type Props = { params: Promise<{ kind: string; id: string }> };
+type Props = { params: Promise<{ kind: string; id: string }>;
+ searchParams:Promise<{lang?:string|string[]}> };
+export async function generateMetadata({searchParams}:Props):Promise<Metadata>{
+ const lang=visitLanguage((await searchParams).lang);
+ return {title:visitText(lang,"publicInformation")+" | SILA",
+  description:visitText(lang,"publishedInformation")};
+}
 
-export default async function PublicDetail({ params }: Props) {
+export default async function PublicDetail({ params,searchParams }: Props) {
   const { kind, id } = await params;
+  const lang=visitLanguage((await searchParams).lang);
+  const t=(key:VisitCopyKey)=>visitText(lang,key);
+  const href=(path:string)=>visitHref(path,lang);
   // A guessed record ID is not authorization. Every detail lookup must be public
   // AND belong to the currently configured mosque.
   const organization = await db.organization.findFirst({ orderBy: { createdAt: "asc" } });
@@ -32,24 +39,22 @@ export default async function PublicDetail({ params }: Props) {
         venue:{select:{name:true,timeZone:true,organizationId:true}} },
     });
     if (!item) notFound();
-    title = item.title; body = item.description; label = "PUBLIC GATHERING";
+    title = item.title; body = item.description; label = t("detailPublicGathering");
     const trustedVenue=item.venue?.organizationId===organizationId?item.venue:null;
-    const format = (date: Date) => new Intl.DateTimeFormat("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit",
-      timeZone: trustedVenue?.timeZone||organization.timeZone,timeZoneName: "short",
-    }).format(date);
-    facts = [format(item.startAt), "Ends " + format(item.endAt), item.location,
-      ...(trustedVenue?["Confirmed venue: "+trustedVenue.name]:[]),
-      ...(item.category?["Category: "+item.category.replaceAll("_"," ")]:[]),
-      ...(item.audience?["Intended audience: "+item.audience]:[]),
-      ...(item.accessibilityFeatures.length?["Confirmed accessibility features: "+item.accessibilityFeatures.map(x=>x.replaceAll("_"," ")).join(", ")]:[]),
-      ...(item.accessibilityNotes?["Accommodations: "+item.accessibilityNotes]:[]),
-      "RSVP closes " + format(item.rsvpDeadlineAt ?? item.startAt),
-      "Cancellation closes " + format(item.cancellationDeadlineAt ?? item.startAt),
-      ...(item.cancellationTerms?["Cancellation terms: " + item.cancellationTerms]:[]),
+    const format = (date:Date)=>visitDate(date,trustedVenue?.timeZone||organization.timeZone,lang);
+    facts = [format(item.startAt),t("detailEnds")+" "+format(item.endAt),item.location,
+      ...(trustedVenue?[t("detailConfirmedVenue")+" "+trustedVenue.name]:[]),
+      ...(item.category?[t("category")+": "+visitFacet(lang,"category",item.category)]:[]),
+      ...(item.audience?[t("intendedAudience")+": "+visitFacet(lang,"audience",item.audience)]:[]),
+      ...(item.accessibilityFeatures.length?[t("confirmedAccommodations")+" "+
+        item.accessibilityFeatures.map(x=>visitFacet(lang,"accessibility",x)).join(", ")]:[]),
+      ...(item.accessibilityNotes?[t("confirmedAccommodations")+" "+item.accessibilityNotes]:[]),
+      t("detailRsvpCloses")+" "+format(item.rsvpDeadlineAt ?? item.startAt),
+      t("detailCancelCloses")+" "+format(item.cancellationDeadlineAt ?? item.startAt),
+      ...(item.cancellationTerms?[t("detailCancellationTerms")+" "+item.cancellationTerms]:[]),
       ...(item.capacity===null?[]:[
-        String(item.rsvpCount)+" of "+String(item.capacity)+" places confirmed",
-        item.waitlistEnabled?"Waitlist available if full":"No waitlist for this gathering"
+        String(item.rsvpCount)+" "+t("detailCapacityOf")+" "+String(item.capacity)+" "+t("detailPlacesConfirmed"),
+        t(item.waitlistEnabled?"detailWaitlist":"detailNoWaitlist")
       ])];
   } else if (kind === "updates") {
     const item = await db.announcement.findFirst({
@@ -57,14 +62,15 @@ export default async function PublicDetail({ params }: Props) {
       select: { title: true, body: true, kind: true },
     });
     if (!item) notFound();
-    title = item.title; body = item.body; label = "OFFICIAL " + item.kind.toUpperCase() + " NOTICE";
+    title = item.title; body = item.body; label = t("detailOfficialNotice")+
+    (lang==="en"?" · "+item.kind.toUpperCase():"");
   } else if (kind === "learning") {
     const item = await db.schoolProgram.findFirst({
       where: { id, organizationId, published: true },
       select: { title: true, description: true },
     });
     if (!item) notFound();
-    title = item.title; body = item.description; label = "PUBLISHED LEARNING PROGRAM";
+    title = item.title; body = item.description; label = t("detailLearning");
   } else if (kind === "faith") {
     const item = await db.faithNotice.findFirst({
       where: {
@@ -74,28 +80,39 @@ export default async function PublicDetail({ params }: Props) {
       select: { title: true, body: true, localDate: true },
     });
     if (!item) notFound();
-    title = item.title; body = item.body; label = "MOSQUE-CONFIRMED FAITH NOTICE";
-    const date = new Date(item.localDate + "T12:00:00Z");
-    facts = [new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(date)];
+    title = item.title; body = item.body; label = t("detailFaith");
+    facts = [visitLocalDay(item.localDate,lang)];
   } else {
     notFound();
   }
 
-  return <main className="visit">
-    <header className="visit-header"><a className="visit-brand" href="/visit"><span className="visit-symbol" aria-hidden="true">✧</span><span>SILA <span lang="ar" dir="rtl">صِلَة</span><small>COMMUNITY &amp; CONNECTION</small></span></a><nav aria-label="Navigation"><a href="/visit">Back to public website</a></nav></header>
+  return <main className="visit" lang={lang} dir={lang==="ar"?"rtl":"ltr"}>
+    <header className="visit-header">
+     <a className="visit-brand" href={href("/visit")}><span className="visit-symbol" aria-hidden="true">✧</span><span>SILA <span lang="ar" dir="rtl">صِلَة</span><small>{t("siteTagline")}</small></span></a>
+     <nav aria-label={t("publicNav")}>
+      <a href={href("/visit")}>{t("backToPublic")}</a>
+      <span className="visit-language" aria-label={t("languageNav")}>
+       <a href={visitHref(`/visit/content/${kind}/${id}`,"en")} lang="en" dir="ltr"
+        aria-current={lang==="en"?"page":undefined}>English</a>
+       <a href={visitHref(`/visit/content/${kind}/${id}`,"ar")} lang="ar" dir="rtl"
+        aria-current={lang==="ar"?"page":undefined}>العربية</a>
+      </span>
+     </nav>
+    </header>
     <div className="visit-container">
       <article className="visit-detail">
-        <a className="visit-back" href="/visit">← Back to the mosque</a>
+        <a className="visit-back" href={href("/visit")}>{t("detailBack")}</a>
         <span className="visit-kicker">{label}</span>
-        <h1>{title}</h1>
-        {facts.length > 0 ? <ul className="visit-detail-facts">{facts.map((fact, index) => <li key={index}>{fact}</li>)}</ul> : null}
-        <div className="visit-detail-body">{body}</div>
+        <h1 dir="auto">{title}</h1>
+        {facts.length > 0 ? <ul className="visit-detail-facts">{facts.map((fact, index) => <li key={index}><bdi dir="auto">{fact}</bdi></li>)}</ul> : null}
+        <div className="visit-detail-body" dir="auto">{body}</div>
         {kind==="gatherings"?<p className="section"><a className="visit-action" href={`/api/v1/events/${id}/calendar`}>
-          Save this gathering to my calendar</a></p>:null}
-        {kind==="gatherings"?<p className="visit-footnote">Calendar download is informational only and does not reserve a place.</p>:null}
-        <p className="visit-footnote">Official content published by {organization.name}. For changes or questions, contact the mosque.</p>
+          {t("detailCalendarSave")}</a></p>:null}
+        {kind==="gatherings"?<p className="visit-footnote">{t("detailCalendarWarn")}</p>:null}
+        <p className="visit-footnote">{t("detailPublisher")} <bdi dir="auto">{organization.name}</bdi>. {t("detailContact")}</p>
+        <p className="visit-footnote">{t("originalContent")}</p>
       </article>
-      <footer className="visit-footer"><p>SILA · Community and connection</p><a href="/visit#updates">Community updates</a></footer>
+      <footer className="visit-footer"><p>{t("footerBrand")}</p><a href={href("/visit#updates")}>{t("communityUpdates")}</a></footer>
     </div>
   </main>;
 }
