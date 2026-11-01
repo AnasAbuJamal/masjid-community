@@ -44,3 +44,11 @@ test("faith screen translates chrome but preserves published mosque title and po
   assert.match(api,/publishedAt:\{lte:new Date\(\)\}|publishedAt:\{lte:now\}/);
  }
 });
+
+test("corrected or retracted faith notices are refreshed after app resume",()=>{
+ const source=readFileSync("masjid-mobile/app/faith.tsx","utf8");
+ const shared=readFileSync("masjid-mobile/src/useVenueSafetyRefresh.ts","utf8");
+ assert.ok(source.includes("useVenueSafetyRefresh(true,result.refresh)"));
+ assert.ok(shared.includes("setInterval(()=>void refresh(),60_000)"));
+ assert.ok(shared.includes('shouldRefreshVenueOnResume(previous,state)'));
+});
