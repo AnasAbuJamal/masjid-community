@@ -52,17 +52,19 @@ export default function Contact(){
   if(validation){setError(validationMessage(validation));return;}
   const generation=++requestGeneration.current;
   const version=currentScope.current.version;
+  const submitted={name:name.trim(),email:email.trim(),
+   subject:subject.trim(),message:message.trim(),website:""};
   pending.current=true;setBusy(true);setError("");setNotice("");
   try{
-   const response=await apiPost<{received:boolean;message?:string}>("contact",{
-    name:name.trim(),email:email.trim(),subject:subject.trim(),
-    message:message.trim(),website:""
-   });
+   const response=await apiPost<{received:boolean;message?:string}>("contact",submitted);
    if(generation!==requestGeneration.current||
       version!==currentScope.current.version||!currentScope.current.allowed)return;
    if(response.received!==true)throw new Error("Receipt was not confirmed.");
    setNotice(t("contact.sent"));
-   setSubject("");setMessage("");
+   // The user may have edited a new draft while the first request was in
+   // flight. A late success must not erase that unsent text.
+   setSubject(current=>current.trim()===submitted.subject?"":current);
+   setMessage(current=>current.trim()===submitted.message?"":current);
   }catch{
    if(generation===requestGeneration.current&&
       version===currentScope.current.version&&currentScope.current.allowed)
