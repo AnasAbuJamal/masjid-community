@@ -72,7 +72,9 @@ export default function Details(){
     :null
   :user?.isVerified&&selectedRead
    ?authorizedSelected?"organizations/view?resource="+kind+(id==="all"?"":"&itemId="+encodeURIComponent(id)):null
-   :pilotContent?"public/"+(config?kind:"events"):null;
+   :pilotContent?"public/"+(config?kind:"events")+
+     ((kind==="announcements"||kind==="articles")&&id!=="all"
+       ?"?itemId="+encodeURIComponent(id):""):null;
  const result=useResource<Result>(path);
  const paged=useGatheringPages<RecordItem>(
   kind==="events"&&id==="all"?path:null,contextVersion,
