@@ -11,6 +11,9 @@ import {MemberScopeNotice} from "../../../src/MemberScopeNotice";
 import {useVenue} from "../../../src/venue";
 import {CATEGORIES,AUDIENCES,ACCESSIBILITY,gatheringCatalogPath,gatheringFilterError} from "../../../src/gatheringFilters";
 import {useGatheringPages} from "../../../src/useGatheringPages";
+import {useLanguage} from "../../../src/i18n";
+import {gatheringLocalTime} from "../../../src/gathering-local-time";
+import {isGatheringDeadlineClosed} from "../../../src/gathering-deadline";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
  cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string;
  category?:string|null;audience?:string|null;accessibilityFeatures?:string[];
@@ -30,23 +33,11 @@ const categories:{[key:string]:{label:string;subtitle:string}}={
  articles:{label:"Articles",subtitle:"Published stories from the community."},
  construction:{label:"Construction",subtitle:"Verified building-project updates."},
 };
-// Use the mosque's IANA timezone for trusted gatherings when supplied by the
-// selected membership API. If the native Intl runtime cannot format that zone,
-// show the real UTC instant rather than a guessed local wall-clock time.
-function gatheringTime(value:string,timeZone?:string){
- const date=new Date(value);
- if(!Number.isFinite(date.getTime()))return "Schedule unavailable";
- if(!timeZone)return date.toLocaleString()+" (device time)";
- try{
-  return new Intl.DateTimeFormat(undefined,{
-   dateStyle:"medium",timeStyle:"short",timeZone
-  }).format(date)+" ("+timeZone+")";
- }catch{return date.toISOString()+" (UTC)";}
-}
 export default function Details(){
  const params=useLocalSearchParams<{kind:string;id:string}>();
  const kind=String(params.kind||""),id=String(params.id||"all");
  const config=categories[kind];
+ const {t,language,isRTL}=useLanguage();
  const {user,contextVersion}=useSession();
  const {venues}=useVenue();
  const [category,setCategory]=useState("");
@@ -91,10 +82,21 @@ export default function Details(){
  const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedSelected?`events/registration?eventId=${encodeURIComponent(id)}`:null);
  const [message,setMessage]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[letter,setLetter]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState("");
  const item=result.data?.items.find(x=>x.id===id);
- const reservationClosed=kind==="events"&&!!item?.startAt&&
-  Date.now()>=new Date(item.rsvpDeadlineAt||item.startAt).getTime();
- const cancellationClosed=kind==="events"&&!!item?.startAt&&
-  Date.now()>=new Date(item.cancellationDeadlineAt||item.startAt).getTime();
+ const reservationClosed=kind==="events"&&
+  isGatheringDeadlineClosed(item?.rsvpDeadlineAt||item?.startAt);
+ const cancellationClosed=kind==="events"&&
+  isGatheringDeadlineClosed(item?.cancellationDeadlineAt||item?.startAt);
+ // Date strings in the UI must use the gathering's own verified timezone,
+ // not the venue selected for prayer or the user's device timezone.
+ const formatGatheringInstant=(instant:string|null|undefined)=>{
+  const display=gatheringLocalTime(instant,item?.venue?.timeZone,
+   result.data?.organization?.timeZone,language);
+  return display
+   ?display.text+" ("+t(display.source==="venue"
+     ?"gathering.detailsVenueZone":"gathering.detailsOrganizationZone")+
+    ", "+display.timeZone+")"
+   :t("gathering.detailsUnknownTime");
+ };
  async function perform(){
   if(blocked){setError("This action is unavailable at your selected mosque.");return;}
   if(!user){router.push("/auth");return;}
@@ -185,7 +187,14 @@ export default function Details(){
   </View>
   :!blocked&&item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
    {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
-   {item.startAt||item.startsAt?<Text style={S.muted}>Date: {kind==="events"?gatheringTime(item.startAt||item.startsAt||"",item.venue?.timeZone||result.data?.organization?.timeZone):new Date(item.startAt||item.startsAt||"").toLocaleString()}</Text>:null}
+   {kind==="events"&&item.startAt?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
+    {t("gathering.detailsStarts")}: {formatGatheringInstant(item.startAt)}
+   </Text>:item.startAt||item.startsAt?<Text style={S.muted}>
+    Date: {new Date(item.startAt||item.startsAt||"").toLocaleString()}
+   </Text>:null}
+   {kind==="events"&&item.endAt?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
+    {t("gathering.detailsEnds")}: {formatGatheringInstant(item.endAt)}
+   </Text>:null}
    {kind==="events"&&item.capacity!==null&&item.capacity!==undefined?
     <Text style={S.muted}>{item.rsvpCount??0} of {item.capacity} places confirmed · {item.waitlistEnabled?"Waitlist available if full":"No waitlist"}</Text>:null}
    {kind==="events"&&item.startAt?<View style={{gap:6}}>
@@ -195,8 +204,14 @@ export default function Details(){
     {item.accessibilityFeatures?.length?<Text style={S.muted}>Confirmed accessibility features: {item.accessibilityFeatures.map(x=>x.replaceAll("_"," ")).join(", ")}</Text>
      :<Text style={S.muted}>Accessibility features are not verified for this gathering.</Text>}
     {item.accessibilityNotes?<Text style={S.bodyText}>Accommodation details: {item.accessibilityNotes}</Text>:null}
-    <Text style={S.muted}>RSVP closes: {gatheringTime(item.rsvpDeadlineAt||item.startAt,item.venue?.timeZone||result.data?.organization?.timeZone)}{reservationClosed?" · Closed":""}</Text>
-    <Text style={S.muted}>Cancellation closes: {gatheringTime(item.cancellationDeadlineAt||item.startAt,item.venue?.timeZone||result.data?.organization?.timeZone)}{cancellationClosed?" · Closed":""}</Text>
+    <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
+     {t("gathering.detailsRsvpCloses")}: {formatGatheringInstant(item.rsvpDeadlineAt||item.startAt)}
+     {reservationClosed?" · "+t("gathering.detailsClosed"):""}
+    </Text>
+    <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
+     {t("gathering.detailsCancelCloses")}: {formatGatheringInstant(item.cancellationDeadlineAt||item.startAt)}
+     {cancellationClosed?" · "+t("gathering.detailsClosed"):""}
+    </Text>
     <Text style={S.bodyText}>{item.cancellationTerms||"Cancellations are allowed before the stated cutoff, unless attendance was already checked in."}</Text>
    </View>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
@@ -204,7 +219,9 @@ export default function Details(){
      Your registration: {own.data.registration.status==="waitlisted"?"Waitlisted — not confirmed":own.data.registration.checkedInAt?"Checked in — arrival confirmed":"Confirmed place"}
     </Text>:null}
    {kind==="events"&&own.data?.registration?.checkedInAt?
-    <Text style={S.muted}>Arrival recorded {new Date(own.data.registration.checkedInAt).toLocaleString()}. If this is incorrect, contact an assigned host for an audited correction.</Text>:null}
+    <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
+     {t("gathering.detailsArrival")}: {formatGatheringInstant(own.data.registration.checkedInAt)}
+    </Text>:null}
    {kind==="events"&&user?.isVerified&&own.error?
     <Text accessibilityRole="alert" style={{color:T.danger}}>{own.error}</Text>:null}
    {item.company?<Text style={S.muted}>Organization: {item.company}</Text>:null}
