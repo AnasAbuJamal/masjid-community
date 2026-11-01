@@ -37,3 +37,18 @@ test("Arabic visitor interface switches RTL without changing gathering privacy o
   assert.ok(smoke.includes(needed),"Missing Arabic HTTP smoke: "+needed);
  }
 });
+test("gathering filters are compact by default but remain accessible when applied",()=>{
+ const page=read("staff-web/src/app/visit/page.tsx");
+ const css=read("staff-web/src/app/visit/visit.css");
+ const browser=read("staff-web/scripts/capture-visitor-layout.mjs");
+ const messages=read("staff-web/src/lib/visit-i18n.ts");
+ for(const s of ['<details className="visit-filters-disclosure"',
+  'open={activeFilterCount>0||filterInvalid||invalidCursor}',
+  '<summary>','name="gatherQ"','name="lang" value="ar"'])
+  assert.ok(page.includes(s),"Missing gathering disclosure behavior: "+s);
+ assert.ok(css.includes(".visit-filters-disclosure summary:focus-visible"));
+ assert.ok(css.includes(".visit-filters-disclosure[open]"));
+ assert.ok(messages.includes('"filterGatherings":"تصفية الفعاليات"'));
+ assert.ok(browser.includes('disclosure.locator("summary").click()'));
+ assert.ok(browser.includes('await disclosure.evaluate(element=>element.open)'));
+});

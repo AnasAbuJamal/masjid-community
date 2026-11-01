@@ -170,6 +170,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
    "/visit?"+new URLSearchParams([...keptParams,
      ["gatherCursor",eventPage.nextCursor]]).toString()+"#gatherings":null;
   const emergency=await currentVenueEmergency(venue?.id,now);
+  const activeFilterCount=[gatherQuery,category,audience,accessibility,gatherVenue,fromDay,toDay].filter(Boolean).length;
 
   return (
     <main className="visit" lang={lang} dir={lang==="ar"?"rtl":"ltr"}>
@@ -280,6 +281,14 @@ export default async function VisitPage({ searchParams }: PageProps) {
           </section>
           <section className="visit-panel" id="gatherings" aria-labelledby="gather-heading">
             <div className="visit-section-heading"><div><span className="visit-kicker">{t("gatherTogether")}</span><h2 id="gather-heading">{t("upcomingGatherings")}</h2></div></div>
+            <details className="visit-filters-disclosure"
+             open={activeFilterCount>0||filterInvalid||invalidCursor}>
+             <summary>
+              <span>{t("filterGatherings")}</span>
+              {activeFilterCount>0?<span className="visit-filter-count">
+               {activeFilterCount} {t("activeFilters")}
+              </span>:null}
+             </summary>
             <form method="get" action="/visit" className="visit-gathering-filters"
              aria-label={t("filterPublished")}>
              {selectedId?<input type="hidden" name="venue" value={selectedId}/>:null}
@@ -308,6 +317,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
              <button type="submit">{t("applyFilters")}</button>
              <a href={href(selectedId?"/visit?venue="+encodeURIComponent(selectedId)+"#gatherings":"/visit#gatherings")}>{t("clearFilters")}</a>
             </form>
+            </details>
             {filterInvalid||invalidCursor?<p role="alert" className="visit-empty">{t("invalidFilters")}</p>:null}
             {safeEvents.length ? (
               <div className="visit-list">{safeEvents.map((item) => (

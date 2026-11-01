@@ -158,3 +158,24 @@
 @media(max-width:640px){
  .visit-header nav .visit-language a {padding:9px 10px;}
 }
+/* Keyboard-native filters: initial guest content prioritizes published
+   gatherings, while search submissions reopen currently applied filters. */
+.visit-filters-disclosure{margin:0 0 24px;border:1px solid var(--v-line);
+ border-radius:16px;background:var(--v-soft);overflow:hidden}
+.visit-filters-disclosure summary{display:flex;align-items:center;gap:12px;
+ min-height:52px;padding:12px 16px;cursor:pointer;list-style:none;
+ font-weight:750;color:var(--v-strong)}
+.visit-filters-disclosure summary::-webkit-details-marker{display:none}
+.visit-filters-disclosure summary::after{content:"+";font-size:1.4rem;
+ font-weight:650;line-height:1;margin-inline-start:auto}
+.visit-filters-disclosure[open] summary::after{content:"−"}
+.visit-filters-disclosure summary:focus-visible{outline:3px solid var(--v-primary);
+ outline-offset:-3px}
+.visit-filter-count{border:1px solid #bad3d7;border-radius:99px;
+ background:#fff;color:var(--v-muted);padding:5px 9px;
+ font-size:.75rem;font-weight:650}
+.visit-filters-disclosure .visit-gathering-filters{margin:0 14px 14px;padding:16px}
+@media(max-width:640px){
+ .visit-filters-disclosure .visit-gathering-filters{
+  grid-template-columns:minmax(0,1fr);margin:0 8px 8px;padding:14px}
+}

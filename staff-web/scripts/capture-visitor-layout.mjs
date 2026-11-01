@@ -42,6 +42,15 @@ try{
    assert.ok(await page.locator("#prayers").isVisible(),"Published prayer section must be present");
    assert.ok(await page.locator("#gatherings").isVisible(),"Published gatherings section must be present");
    assert.ok(await page.getByRole("link",{name:"العربية"}).count(),"Visible Arabic language control required");
+   const disclosure=page.locator("details.visit-filters-disclosure");
+   assert.equal(await disclosure.count(),1);
+   assert.equal(await disclosure.evaluate(element=>element.open),false,
+    "Unfiltered public pages should prioritize gathering results over controls.");
+   await disclosure.locator("summary").click();
+   assert.equal(await disclosure.evaluate(element=>element.open),true);
+   assert.ok(await page.locator('input[name="gatherQ"]').isVisible());
+   await disclosure.locator("summary").click();
+   assert.equal(await disclosure.evaluate(element=>element.open),false);
    if(item.lang==="ar")
     assert.ok(await page.getByRole("heading",{name:"مواقيت الصلاة"}).isVisible(),
      "Arabic visitor page must render actual Arabic prayer labels");
