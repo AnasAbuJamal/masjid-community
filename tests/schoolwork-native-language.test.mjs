@@ -5,6 +5,8 @@ const read=path=>readFileSync(path,"utf8");
 
 test("schoolwork screen translates interface labels in English and Arabic",()=>{
  const ui=read("masjid-mobile/app/school/work.tsx");
+ const familyArchive=read("masjid-mobile/src/PublishedFamilyReports.tsx");
+ const completeUi=ui+"\\n"+familyArchive;
  const lang=read("masjid-mobile/src/i18n.tsx");
  const keys=[
   "schoolwork.back","schoolwork.eyebrow","schoolwork.title",
@@ -14,17 +16,18 @@ test("schoolwork screen translates interface labels in English and Arabic",()=>{
   "schoolwork.writeSubmission","schoolwork.publishedReports"
  ];
  for(const key of keys){
-  assert.ok(ui.includes('"'+key+'"'),"missing localized UI key "+key);
+  assert.ok(completeUi.includes('"'+key+'"'),"missing localized UI key "+key);
   assert.ok(lang.includes('"'+key+'":{en:')&&lang.includes('ar:'),
    "missing bilingual dictionary entry "+key);
  }
  assert.ok(ui.includes('t("settings.cancel")'));
  assert.ok(!ui.includes('label="Submit assignment"'));
  assert.ok(!ui.includes('title="Learning in progress."'));
- assert.ok(!ui.includes('>Published progress reports</Text>'));
+ assert.ok(!completeUi.includes('>Published progress reports</Text>'));
  // Published child content is never automatically translated/rewritten.
  assert.ok(ui.includes('{a.instructions}'));
- assert.ok(ui.includes('{r.summary}'));
+ assert.ok(familyArchive.includes('{r.summary}'));
+ assert.ok(ui.includes('PublishedFamilyReports'));
  assert.ok(ui.includes('{s.body}'));
 });
 test("RTL schoolwork and unpublished drafts are scoped to the current session",()=>{
