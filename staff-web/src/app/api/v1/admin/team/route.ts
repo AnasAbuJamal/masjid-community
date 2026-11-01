@@ -5,7 +5,7 @@ import {notifyUser} from "@/lib/notifications";
 import {appendIntegrityAudit} from "@/lib/integrity-audit";
 import {requireVerified} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
-const capability=z.enum(["worship_publish","facilities_manage","volunteers_manage","community_moderate","care_manage","audit_review"]);
+const capability=z.enum(["worship_publish","facilities_manage","volunteers_manage","community_moderate","care_manage","audit_review","support_manage"]);
 const command=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("role"),userId:z.string().min(8),role:z.enum(["member","staff","teacher","finance"])}),
  z.object({kind:z.literal("grant"),userId:z.string().min(8),capability,expiresAt:z.iso.datetime().optional()}),
@@ -84,14 +84,16 @@ export async function POST(req:NextRequest){
   }
   const expiresAt=input.expiresAt?new Date(input.expiresAt):null;
   if(expiresAt&&expiresAt<=new Date())throw new HttpError(422,"GRANT_EXPIRY","Capability expiry must be in the future.");
-  if(input.capability==="care_manage"||input.capability==="audit_review"){
-   const auditor=input.capability==="audit_review";
+  if(input.capability==="care_manage"||input.capability==="audit_review"||input.capability==="support_manage"){
+   const auditor=input.capability==="audit_review",support=input.capability==="support_manage";
    if(!membership.user.mfaEnabledAt)throw new HttpError(403,
-    auditor?"AUDITOR_MFA_REQUIRED":"CARE_MFA_REQUIRED",
+    support?"SUPPORT_MFA_REQUIRED":auditor?"AUDITOR_MFA_REQUIRED":"CARE_MFA_REQUIRED",
     "An authenticator must be enrolled before granting this sensitive capability.");
-   if(!expiresAt||expiresAt>new Date(Date.now()+30*86400000))
-    throw new HttpError(422,auditor?"AUDITOR_GRANT_EXPIRY":"CARE_GRANT_EXPIRY",
-     "Sensitive access must have an expiry no more than 30 days away.");
+   const maxDays=support?7:30;
+   if(!expiresAt||expiresAt>new Date(Date.now()+maxDays*86400000))
+    throw new HttpError(422,
+     support?"SUPPORT_GRANT_EXPIRY":auditor?"AUDITOR_GRANT_EXPIRY":"CARE_GRANT_EXPIRY",
+     "Sensitive access must have an expiry no more than "+maxDays+" days away.");
   }
   const grant=await db.$transaction(async tx=>{
    const saved=await tx.roleGrant.upsert({where:{membershipId_capability:{membershipId:membership.id,capability:input.capability}},

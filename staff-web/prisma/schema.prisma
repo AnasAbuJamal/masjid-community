@@ -98,6 +98,7 @@ model Organization {
   deliveryPreferences OrganizationDeliveryPreference[]
   analyticsConsents OrganizationAnalyticsConsent[]
   integrityAuditEvents IntegrityAuditEvent[]
+  supportCases SupportCase[]
 }
 model Venue {
   id String @id @default(cuid())
@@ -171,6 +172,8 @@ model User {
   approvedFaithNotices FaithNotice[]
   memberships OrganizationMembership[]
   grantedRoles RoleGrant[]
+  supportCasesCreated SupportCase[] @relation("SupportCaseCreator")
+  supportNotesAuthored SupportCaseNote[] @relation("SupportNoteAuthor")
 }
 model AuthSession {
   id String @id @default(cuid())
@@ -1131,6 +1134,7 @@ enum RoleCapability {
   community_moderate
   care_manage
   audit_review
+  support_manage
 }
 // Invitations are not authority. The recipient must verify the exact email,
 // enroll MFA and explicitly accept before any scoped grant exists.
@@ -1241,4 +1245,33 @@ model OutboxEvent {
   createdAt DateTime @default(now())
   @@unique([notificationId,channel])
   @@index([status,availableAt,leaseUntil])
+}
+
+// F-050: low-PII, mosque-scoped operational support desk.
+// Never store child records, financial data, passwords or raw user details.
+model SupportCase {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  createdById String
+  createdBy User @relation("SupportCaseCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  traceId String
+  category String
+  status String @default("open")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  resolvedAt DateTime?
+  notes SupportCaseNote[]
+  @@unique([organizationId,traceId])
+  @@index([organizationId,createdAt,id])
+}
+model SupportCaseNote {
+  id String @id @default(cuid())
+  caseId String
+  supportCase SupportCase @relation(fields:[caseId],references:[id],onDelete:Restrict)
+  authorId String
+  author User @relation("SupportNoteAuthor",fields:[authorId],references:[id],onDelete:Restrict)
+  code String
+  createdAt DateTime @default(now())
+  @@index([caseId,createdAt,id])
 }

@@ -1,13 +1,14 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
-type Capability="worship_publish"|"facilities_manage"|"volunteers_manage"|"community_moderate"|"care_manage"|"audit_review";
+type Capability="worship_publish"|"facilities_manage"|"volunteers_manage"|"community_moderate"|"care_manage"|"audit_review"|"support_manage";
 const choices:{id:Capability;title:string}[]=[
  {id:"worship_publish",title:"Worship publishing"},
  {id:"facilities_manage",title:"Facilities and bookings"},
  {id:"volunteers_manage",title:"Volunteer coordination"},
  {id:"community_moderate",title:"Community moderation"},
  {id:"care_manage",title:"Confidential care case coordinator (MFA, max 30 days)"},
- {id:"audit_review",title:"Protected audit reviewer — read only (MFA, max 30 days)"}];
+ {id:"audit_review",title:"Protected audit reviewer — read only (MFA, max 30 days)"},
+ {id:"support_manage",title:"Operational support desk (MFA, max 7 days, metadata only)"}];
 type Member={id:string;status:string;user:{id:string;email:string;firstName:string;lastName:string;role:string;status:string;verifiedAt:string|null;mfaEnabledAt:string|null};
  grants:{id:string;capability:Capability;expiresAt:string|null;revokedAt:string|null}[]};
 type Data={organization:{id:string;name:string};memberships:Member[];policy:string};
@@ -50,7 +51,8 @@ export default function Team(){
  <div className="field"><label htmlFor="expiry">Expiry (optional)</label><input id="expiry" type="datetime-local" value={expiry} onChange={e=>setExpiry(e.target.value)}/></div>
  {cap==="care_manage"?<p className="small">Care case duties require staff MFA setup, a dated grant (maximum 30 days), and separate two-person approval for every case. No administrator receives automatic access to case narratives.</p>:null}
  {cap==="audit_review"?<p className="small">Read-only protected audit review requires enrolled MFA and a grant expiring within 30 days. It does not confer team management, private case, finance or cross-mosque access.</p>:null}
- <button className="primary" disabled={busy||(["care_manage","audit_review"].includes(cap)&&(!member.user.mfaEnabledAt||!expiry))}
+ {cap==="support_manage"?<p className="small">Support access requires enrolled MFA and a grant expiring within 7 days. It permits only preclassified, metadata-only support records; no account, child, finance or confidential-care narratives.</p>:null}
+ <button className="primary" disabled={busy||(["care_manage","audit_review","support_manage"].includes(cap)&&(!member.user.mfaEnabledAt||!expiry))}
  onClick={()=>void send({kind:"grant",userId:current,capability:cap,...(expiry?{expiresAt:new Date(expiry).toISOString()}:{})})}>Grant scoped capability</button>
  {member.grants.filter(g=>!g.revokedAt).map(g=><div className="tile section" key={g.id}><strong style={{fontSize:17}}>{choices.find(x=>x.id===g.capability)?.title||g.capability}</strong>
  <p className="small">{g.expiresAt?"Expires "+new Date(g.expiresAt).toLocaleString():"Organization scope"}</p>
