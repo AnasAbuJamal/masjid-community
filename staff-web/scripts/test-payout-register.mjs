@@ -34,7 +34,7 @@ async function webhook(type,payout,created){
  });
  return {status:r.status,...await r.json().catch(()=>({})),payload,signature};
 }
-let adminSession=null,foreignOrg=null,payoutId=null;
+let adminSession=null,foreignOrg=null,payoutId=null,otherHistoryPayoutId=null;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -189,6 +189,46 @@ try{
   "finance reviewer must be told historical records are omitted");
  assert.ok(historyPayout.notes.every(n=>!n.body.includes("Sensitive donor")),
   "synthetic history contains no personal data");
+ assert.equal((await request("admin/payouts?payoutId="+payoutId)).status,401);
+ assert.equal((await request("admin/payouts?payoutId="+payoutId,"GET",undefined,memberToken)).status,403);
+ assert.equal((await request("admin/payouts?cursor=some_other_cursor","GET",undefined,adminToken)).status,422);
+ assert.equal((await request("admin/payouts?payoutId="+payoutId+"&rogue=1","GET",undefined,adminToken)).status,422);
+ assert.equal((await request("admin/payouts?payoutId="+payoutId+"&payoutId="+payoutId,"GET",undefined,adminToken)).status,422);
+ assert.equal((await request("admin/payouts?payoutId="+payoutId+"&cursor=bad","GET",undefined,adminToken)).status,422);
+ assert.equal((await request("admin/payouts?payoutId="+payoutId+"&cursor=unknown_note_history_123","GET",undefined,adminToken)).status,404);
+ assert.equal((await request("admin/payouts?payoutId=unknown_payout_123","GET",undefined,adminToken)).status,404);
+ const firstPage=await request("admin/payouts?payoutId="+payoutId,"GET",undefined,adminToken);
+ assert.equal(firstPage.status,200);
+ assert.equal(firstPage.data.notes.length,10);
+ assert.equal(firstPage.data.complete,false);
+ assert.ok(firstPage.data.nextCursor);
+ assert.equal(firstPage.data.reconciliationReady,false);
+ const secondPage=await request("admin/payouts?payoutId="+payoutId+
+  "&cursor="+encodeURIComponent(firstPage.data.nextCursor),"GET",undefined,adminToken);
+ assert.equal(secondPage.status,200);
+ assert.equal(secondPage.data.complete,true);
+ assert.equal(secondPage.data.nextCursor,null);
+ const fullHistory=[...firstPage.data.notes,...secondPage.data.notes];
+ const storedCount=await db.payoutReviewNote.count({where:{payoutId}});
+ assert.equal(fullHistory.length,storedCount);
+ assert.equal(new Set(fullHistory.map(n=>n.id)).size,storedCount,
+  "cursor pages cannot skip or duplicate notes");
+ otherHistoryPayoutId=(await db.providerPayout.create({data:{
+  organizationId:org.id,providerPayoutId:"po_ci_history_"+randomUUID().replaceAll("-",""),
+  amountMinor:777,currency:"usd",state:"pending",
+  lastProviderEventId:"evt_ci_history_"+randomUUID().replaceAll("-"),
+  lastProviderEventCreated:now
+ }})).id;
+ const foreignNote=await db.payoutReviewNote.create({data:{
+  payoutId:otherHistoryPayoutId,authorId:admin.id,
+  body:"Synthetic unrelated payout review-history cursor"
+ }});
+ assert.equal((await request("admin/payouts?payoutId="+payoutId+"&cursor="+foreignNote.id,
+  "GET",undefined,adminToken)).status,404,
+  "a cursor from another payout must not enumerate unrelated notes");
+ await db.payoutReviewNote.delete({where:{id:foreignNote.id}});
+ await db.providerPayout.delete({where:{id:otherHistoryPayoutId}});
+ otherHistoryPayoutId=null;
  const foreign=await db.organization.create({data:{
   slug:"payout-isolation-"+randomUUID(),name:"Another private mosque"
  }});
@@ -204,6 +244,10 @@ try{
  console.log("Verified signed payout states, immutable amount, stale/failed event safety, private notes and multi-mosque fail-closed scope.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
+ if(otherHistoryPayoutId){
+  await db.payoutReviewNote.deleteMany({where:{payoutId:otherHistoryPayoutId}});
+  await db.providerPayout.deleteMany({where:{id:otherHistoryPayoutId}});
+ }
  if(payoutId){
   await db.payoutReviewNote.deleteMany({where:{payoutId}});
   await db.auditEvent.deleteMany({where:{

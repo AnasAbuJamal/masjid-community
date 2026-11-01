@@ -40,13 +40,33 @@ test("finance register explicitly flags truncated note history and concurrent su
  const ui=read("staff-web/src/app/admin/payouts/page.tsx");
  const smoke=read("staff-web/scripts/test-payout-register.mjs");
  for(const token of [
-  'notes:{take:11,orderBy:[{createdAt:"desc"},{id:"desc"}]',
-  'notes:p.notes.slice(0,10)','notesComplete:p.notes.length<=10',
-  'notesPageSize:10'
+  'notes:{take:NOTE_PAGE_SIZE+1,orderBy:[{createdAt:"desc"},{id:"desc"}]',
+  'notes:p.notes.slice(0,NOTE_PAGE_SIZE)',
+  'notesComplete:p.notes.length<=NOTE_PAGE_SIZE','notesPageSize:NOTE_PAGE_SIZE'
  ])assert.ok(api.includes(token),"Missing honest history boundary: "+token);
- for(const token of ["!p.notesComplete","data.notesPageSize","Older history exists"])
+ for(const token of ["!p.notesComplete","data.notesPageSize",
+  "This review history is incomplete","loadOlder(p)"])
   assert.ok(ui.includes(token),"Missing incomplete-history UI: "+token);
  for(const token of ['const parallel=await Promise.all([','[201,409]',
   'historyPayout.notesComplete,false','auditAfter.length,3'])
   assert.ok(smoke.includes(token),"Missing concurrency/legacy history integration test: "+token);
+});
+test("private note pages bind cursor to an exact owned payout",()=>{
+ const api=read("staff-web/src/app/api/v1/admin/payouts/route.ts");
+ const ui=read("staff-web/src/app/admin/payouts/page.tsx");
+ const smoke=read("staff-web/scripts/test-payout-register.mjs");
+ for(const s of ['const notePage=z.object({',
+  'id:input.payoutId,organizationId:org.id',
+  'id:input.cursor,payoutId:payout.id',
+  'NOTE_CURSOR_UNAVAILABLE','createdAt:{lt:pivot.createdAt}',
+  'createdAt:pivot.createdAt,id:{lt:pivot.id}',
+  'nextCursor:rows.length>NOTE_PAGE_SIZE?',
+  'reconciliationReady:false'])
+  assert.ok(api.includes(s),"Missing private cursor guard: "+s);
+ for(const s of ['const [older,setOlder]','async function loadOlder(p:Payout)',
+  'older[p.id]?.notes','older[p.id]?.complete'])
+  assert.ok(ui.includes(s),"Missing on-demand finance history: "+s);
+ for(const s of ['const firstPage=','const secondPage=',
+  'new Set(fullHistory.map(n=>n.id)).size','foreignNote.id'])
+  assert.ok(smoke.includes(s),"Missing cursor integration test: "+s);
 });

@@ -4,10 +4,15 @@ import {PAYOUT_EXCEPTION_REASONS,type PayoutExceptionCode} from "@/lib/payout-ex
 type Note={id:string;body:string;createdAt:string;author:{firstName:string;lastName:string}};
 type Payout={id:string;providerPayoutId:string;amountMinor:number;currency:string;state:string;arrivalAt:string|null;failureCode:string|null;observedAt:string;updatedAt:string;notes:Note[];notesComplete:boolean};
 type Result={payouts:Payout[];organization:{name:string};complete:boolean;notesPageSize:number;reconciliationReady:false;warning:string;policy:string};
+type HistoryPage={payoutId:string;notes:Note[];complete:boolean;nextCursor:string|null;reconciliationReady:false};
+type LoadedHistory={notes:Note[];complete:boolean;nextCursor:string|null};
 export default function ProviderPayouts(){
  const [data,setData]=useState<Result|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [drafts,setDrafts]=useState<Record<string,PayoutExceptionCode|"" >>({}),[busy,setBusy]=useState(false);
+ const [older,setOlder]=useState<Record<string,LoadedHistory>>({});
+ const [historyLoading,setHistoryLoading]=useState<string|null>(null);
  const reload=useCallback(async()=>{
+  setOlder({});setHistoryLoading(null);
   try{
    const r=await fetch("/api/v1/admin/payouts",{cache:"no-store"});
    const v=await r.json();if(!r.ok)throw new Error(v.error?.message||"Authorized finance access required.");
@@ -28,6 +33,28 @@ export default function ProviderPayouts(){
    await reload();
   }catch(e){setError(e instanceof Error?e.message:"Review note was not saved.");}
   finally{setBusy(false);}
+ }
+ async function loadOlder(p:Payout){
+  if(historyLoading||busy)return;
+  const previous=older[p.id];
+  if(previous?.complete||(!previous&&p.notesComplete))return;
+  const cursor=previous?previous.nextCursor:p.notes[p.notes.length-1]?.id;
+  if(!cursor)return;
+  setHistoryLoading(p.id);setError("");
+  try{
+   const r=await fetch("/api/v1/admin/payouts?payoutId="+encodeURIComponent(p.id)+
+    "&cursor="+encodeURIComponent(cursor),{cache:"no-store"});
+   const j=await r.json();
+   if(!r.ok)throw new Error(j.error?.message||"Unable to retrieve historical notes.");
+   const page=j.data as HistoryPage;
+   if(page.payoutId!==p.id||page.reconciliationReady!==false)
+    throw new Error("Unexpected finance history response.");
+   setOlder(old=>({
+    ...old,[p.id]:{notes:[...(old[p.id]?.notes||[]),...page.notes],
+     complete:page.complete,nextCursor:page.nextCursor}
+   }));
+  }catch(e){setError(e instanceof Error?e.message:"Unable to load older notes.");}
+  finally{setHistoryLoading(null);}
  }
  const money=(v:number,currency:string)=>new Intl.NumberFormat("en-US",{
   style:"currency",currency:currency.toUpperCase()
@@ -61,12 +88,20 @@ export default function ProviderPayouts(){
  </div>
  <button className="secondary" disabled={busy||!drafts[p.id]}
  onClick={()=>void note(p.id)}>Record unresolved exception</button>
- {p.notes.map(n=><div key={n.id} className="tile">
+ {[...p.notes,...(older[p.id]?.notes||[])].map(n=><div key={n.id} className="tile">
  <p>{n.body}</p><p className="small">{n.author.firstName} {n.author.lastName} · {new Date(n.createdAt).toLocaleString()}</p>
  </div>)}
- {!p.notesComplete?<p className="error" role="alert">
- Only the latest {data.notesPageSize} investigation notes appear here. Older history exists and is NOT included.
- Obtain an independently authorized archive review before relying on this record.
+ {(older[p.id]?!older[p.id].complete:!p.notesComplete)?<div>
+  <p className="error" role="alert">This review history is incomplete. Older private
+  investigation notes exist; this is not a complete settlement evidence archive.</p>
+  <button className="secondary" disabled={busy||historyLoading!==null}
+   onClick={()=>void loadOlder(p)}>
+   {historyLoading===p.id?"Loading older notes…":"Load next "+data.notesPageSize+" older investigation notes"}
+  </button>
+ </div>:null}
+ {older[p.id]?.complete?<p className="small" role="status">
+ All stored investigation notes for this payout have been loaded.
+ This history does not certify a bank deposit or reconciliation.
  </p>:null}
  </div>)}
  {!data.payouts.length?<p>No signed provider payout events have been received by this database.</p>:null}
