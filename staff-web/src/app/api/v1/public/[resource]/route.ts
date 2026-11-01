@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handled, HttpError, localDate, ok } from "@/lib/http";
-import {gatheringFilters,publishedGatheringPage} from "@/lib/gathering-filters";
+import {gatheringFilters,publishedGatheringPage,publicGatheringItems} from "@/lib/gathering-filters";
 import {currentVenueEmergency} from "@/lib/venue-emergencies";
 type Context={params:Promise<{resource:string}>};
 const limit=25;
@@ -36,12 +36,12 @@ export async function GET(req:NextRequest,{params}:Context){
     const [prayer,announcements,events]=await Promise.all([
       venue&&today?db.prayerDay.findFirst({where:{venueId:venue.id,localDate:today,published:true}}):null,
       db.announcement.findMany({where:{organizationId:org.id,status:"published",publishedAt:{lte:new Date()}},orderBy:{publishedAt:"desc"},take:3,select:{id:true,title:true,body:true,kind:true,publishedAt:true}}),
-      db.event.findMany({where:{organizationId:org.id,status:"published",startAt:{gte:new Date()}},orderBy:{startAt:"asc"},take:3,select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true,waitlistEnabled:true,rsvpDeadlineAt:true,cancellationDeadlineAt:true,cancellationTerms:true}})
+      db.event.findMany({where:{organizationId:org.id,status:"published",startAt:{gte:new Date()}},orderBy:{startAt:"asc"},take:3,select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true,waitlistEnabled:true,rsvpDeadlineAt:true,cancellationDeadlineAt:true,cancellationTerms:true,venue:{select:{id:true,name:true,timeZone:true,organizationId:true}}}})
     ]);
     const emergency=await currentVenueEmergency(venue?.id);
     return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone,address:org.address},
       venue:venue&&{id:venue.id,name:venue.name,timeZone:venue.timeZone},prayer,
-      emergency,announcements,events});
+      emergency,announcements,events:publicGatheringItems(events,org.id)});
   }
   if(resource==="prayers"){
     const venueId=req.nextUrl.searchParams.get("venueId");
