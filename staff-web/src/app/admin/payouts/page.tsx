@@ -13,12 +13,13 @@ export default function ProviderPayouts(){
  const [historyLoading,setHistoryLoading]=useState<string|null>(null);
  const [registerLoading,setRegisterLoading]=useState(false);
  const reload=useCallback(async()=>{
-  setOlder({});setHistoryLoading(null);
+  // Never retain a previous finance register while revalidating access.
+  setData(null);setOlder({});setHistoryLoading(null);setError("");
   try{
    const r=await fetch("/api/v1/admin/payouts",{cache:"no-store"});
    const v=await r.json();if(!r.ok)throw new Error(v.error?.message||"Authorized finance access required.");
    setData(v.data);setError("");
-  }catch(e){setError(e instanceof Error?e.message:"Payout register unavailable.");}
+  }catch(e){setData(null);setError(e instanceof Error?e.message:"Payout register unavailable.");}
  },[]);
  useEffect(()=>{void reload()},[reload]);
  async function note(payoutId:string){
