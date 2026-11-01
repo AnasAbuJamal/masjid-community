@@ -10,6 +10,7 @@ import {VenuePicker} from "../../src/VenuePicker";
 import {VenueEmergencyAlert} from "../../src/VenueEmergencyAlert";
 import {useVenueSafetyRefresh} from "../../src/useVenueSafetyRefresh";
 import {scheduleRevisionTime} from "../../src/schedule-revision-time";
+import {publishedPrayerDayLabel} from "../../src/prayer-civil-day";
 
 type Day={
  id:string;localDate:string;fajr:string;sunrise:string;dhuhr:string;
@@ -55,7 +56,7 @@ export default function Salah(){
    venueName={data.venue?.name} onRefresh={()=>void refresh()}/>:null}
   {day?<Card>
    <View style={[S.row,{marginBottom:16,flexDirection:isRTL?"row-reverse":"row"}]}>
-    <Text style={S.label}>{day.localDate}</Text>
+    <Text style={S.label}>{publishedPrayerDayLabel(day.localDate,language)??t("salah.dateUnavailable")}</Text>
     <Text style={S.muted}>{t("salah.adhan")}</Text>
    </View>
    {rows.map(([label,key,iq],index)=>{
