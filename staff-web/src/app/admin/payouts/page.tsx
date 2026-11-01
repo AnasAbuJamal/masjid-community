@@ -3,7 +3,7 @@ import {useCallback,useEffect,useState} from "react";
 import {PAYOUT_EXCEPTION_REASONS,type PayoutExceptionCode} from "@/lib/payout-exceptions";
 type Note={id:string;body:string;createdAt:string;author:{firstName:string;lastName:string}};
 type Payout={id:string;providerPayoutId:string;amountMinor:number;currency:string;state:string;arrivalAt:string|null;failureCode:string|null;observedAt:string;updatedAt:string;notes:Note[];notesComplete:boolean};
-type Result={payouts:Payout[];organization:{name:string};complete:boolean;notesPageSize:number;reconciliationReady:false;warning:string;policy:string};
+type Result={payouts:Payout[];organization:{name:string};complete:boolean;nextRegisterCursor:string|null;notesPageSize:number;reconciliationReady:false;warning:string;policy:string};
 type HistoryPage={payoutId:string;notes:Note[];complete:boolean;nextCursor:string|null;reconciliationReady:false};
 type LoadedHistory={notes:Note[];complete:boolean;nextCursor:string|null};
 export default function ProviderPayouts(){
@@ -11,6 +11,7 @@ export default function ProviderPayouts(){
  const [drafts,setDrafts]=useState<Record<string,PayoutExceptionCode|"" >>({}),[busy,setBusy]=useState(false);
  const [older,setOlder]=useState<Record<string,LoadedHistory>>({});
  const [historyLoading,setHistoryLoading]=useState<string|null>(null);
+ const [registerLoading,setRegisterLoading]=useState(false);
  const reload=useCallback(async()=>{
   setOlder({});setHistoryLoading(null);
   try{
@@ -56,6 +57,23 @@ export default function ProviderPayouts(){
   }catch(e){setError(e instanceof Error?e.message:"Unable to load older notes.");}
   finally{setHistoryLoading(null);}
  }
+ async function loadMorePayouts(){
+  if(registerLoading||busy||historyLoading||!data||data.complete||!data.nextRegisterCursor)return;
+  setRegisterLoading(true);setError("");
+  try{
+   const r=await fetch("/api/v1/admin/payouts?registerCursor="+
+    encodeURIComponent(data.nextRegisterCursor),{cache:"no-store"});
+   const j=await r.json();
+   if(!r.ok)throw new Error(j.error?.message||"Unable to load older payout records.");
+   const page=j.data as Result;
+   if(page.reconciliationReady!==false||page.organization.name!==data.organization.name)
+    throw new Error("Unexpected payout register response.");
+   setData(old=>old?{...old,payouts:[...old.payouts,...page.payouts.filter(p=>
+    !old.payouts.some(existing=>existing.id===p.id))],
+    complete:page.complete,nextRegisterCursor:page.nextRegisterCursor}:old);
+  }catch(e){setError(e instanceof Error?e.message:"Unable to load older payouts.");}
+  finally{setRegisterLoading(false);}
+ }
  const money=(v:number,currency:string)=>new Intl.NumberFormat("en-US",{
   style:"currency",currency:currency.toUpperCase()
  }).format(v/100);
@@ -69,7 +87,7 @@ export default function ProviderPayouts(){
  {notice?<p className="notice" role="status">{notice}</p>:null}
  {data?<><section className="panel"><h2>Reconciliation remains outstanding</h2>
  <p>{data.warning}</p><p className="small">{data.policy}</p>
- {!data.complete?<p role="alert">More than 100 payout records may exist; this view is incomplete.</p>:null}</section>
+ {!data.complete?<p role="alert">Older payout records are not yet loaded. This register view is incomplete.</p>:null}</section>
  <section className="panel"><h2>Provider reports</h2>
  {data.payouts.map(p=><div key={p.id} className="section">
  <h3>{p.providerPayoutId}</h3>
@@ -104,6 +122,8 @@ export default function ProviderPayouts(){
  This history does not certify a bank deposit or reconciliation.
  </p>:null}
  </div>)}
+ {!data.complete?<button className="secondary" disabled={registerLoading||busy||historyLoading!==null}
+  onClick={()=>void loadMorePayouts()}>{registerLoading?"Loading older payouts…":"Load next 100 older payouts"}</button>:null}
  {!data.payouts.length?<p>No signed provider payout events have been received by this database.</p>:null}
  </section></>:<section className="panel"><p>Loading private payout reports…</p></section>}
  <footer className="footer">There is no automatic matching or clearing-account journal here. Reconciliation is a release gate for real-money operations.</footer>

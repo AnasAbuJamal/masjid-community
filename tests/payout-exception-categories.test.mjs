@@ -70,3 +70,17 @@ test("private note pages bind cursor to an exact owned payout",()=>{
   'new Set(fullHistory.map(n=>n.id)).size','foreignNote.id'])
   assert.ok(smoke.includes(s),"Missing cursor integration test: "+s);
 });
+test("F-031 finance register exposes bounded mosque-owned older payout pages",()=>{
+ const api=read("staff-web/src/app/api/v1/admin/payouts/route.ts");
+ const ui=read("staff-web/src/app/admin/payouts/page.tsx");
+ for(const token of ["PAYOUT_PAGE_SIZE=100","PAYOUT_CURSOR_UNAVAILABLE",
+  "id:registerCursor,organizationId:org.id","observedAt:{lt:anchor.observedAt}",
+  "observedAt:anchor.observedAt,id:{lt:anchor.id}",
+  "take:PAYOUT_PAGE_SIZE+1","payouts.slice(0,PAYOUT_PAGE_SIZE)",
+  "nextRegisterCursor:payouts.length>PAYOUT_PAGE_SIZE?",
+  'params.has("registerCursor")&&(params.has("payoutId")||params.has("cursor"))'])
+  assert.ok(api.includes(token),"Missing scoped register pagination: "+token);
+ for(const token of ["async function loadMorePayouts()","!data.complete",
+  "Load next 100 older payouts","page.payouts.filter(p=>"])
+  assert.ok(ui.includes(token),"Missing incomplete payout register control: "+token);
+});
