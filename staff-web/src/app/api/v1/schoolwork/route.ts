@@ -32,6 +32,15 @@ export async function GET(req:NextRequest){
        submissions:{where:{student:schoolStudentScope(org.id)},select:{studentId:true,body:true,submittedAt:true,student:{select:{firstName:true,lastName:true}}}}}},
      enrollments:{where:{status:"active",student:schoolStudentScope(org.id)},select:{student:{select:{id:true,firstName:true,lastName:true}}}},
     }});
+   // The saved student narrative is private to the student's CURRENT class.
+   // A former enrollment does not continue granting the teacher access to
+   // answer bodies merely because the assignment still exists.
+   const activeClasses=classes.map(c=>{
+    const currentStudents=new Set(c.enrollments.map(e=>e.student.id));
+    return {...c,assignments:c.assignments.map(a=>({
+     ...a,submissions:a.submissions.filter(s=>currentStudents.has(s.studentId))
+    }))};
+   });
    // Only a currently verified, MFA-cleared admin may see private drafts.
    const pendingReports=user.role==="admin"?await db.studentReport.findMany({
     where:{status:"draft",classSection:{program:{organizationId:org.id}},
@@ -43,7 +52,7 @@ export async function GET(req:NextRequest){
      teacher:{select:{firstName:true,lastName:true}}}
    }):[];
    return ok({mode:"teacher",organization:{name:org.name,timeZone:org.timeZone},
-    classes,pendingReports:pendingReports.map(x=>({...x,selfAuthored:x.teacherId===user.id}))});
+    classes:activeClasses,pendingReports:pendingReports.map(x=>({...x,selfAuthored:x.teacherId===user.id}))});
   }
   const [own,links]=await Promise.all([
    db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)},select:{id:true}}),
@@ -51,12 +60,30 @@ export async function GET(req:NextRequest){
   ]);
   const ids=[...new Set([...(own?[own.id]:[]),...links.map(x=>x.studentId)])];
   if(!ids.length)return ok({mode:"family",organization:{name:org.name,timeZone:org.timeZone},assignments:[],reports:[],submissions:[]});
-  const [enrollments,reports,submissions]=await Promise.all([
-   db.enrollment.findMany({where:{studentId:{in:ids},status:"active",classSection:{program:{organizationId:org.id}}},select:{studentId:true,classId:true}}),
-   db.studentReport.findMany({where:{studentId:{in:ids},status:"published",classSection:{program:{organizationId:org.id}}},take:100,
-    orderBy:{publishedAt:"desc"},select:{id:true,studentId:true,summary:true,publishedAt:true,classSection:{select:{name:true}},student:{select:{firstName:true,lastName:true}}}}),
-   db.studentSubmission.findMany({where:{studentId:{in:ids},assignment:{classSection:{program:{organizationId:org.id}}}},take:100,select:{id:true,studentId:true,assignmentId:true,submittedAt:true}})
-  ]);
+  const enrollments=await db.enrollment.findMany({
+   where:{studentId:{in:ids},status:"active",
+    classSection:{program:{organizationId:org.id}}},
+   select:{studentId:true,classId:true}
+  });
+  // Authorization here is the exact (student, class) enrollment pair.
+  // Checking only a student ID or "someone enrolled in this class" can
+  // accidentally reveal withdrawn students to guardians of two siblings.
+  const activePairs=enrollments.map(e=>({studentId:e.studentId,classId:e.classId}));
+  const [reports,submissions]=activePairs.length?await Promise.all([
+   db.studentReport.findMany({
+    where:{status:"published",classSection:{program:{organizationId:org.id}},
+     OR:activePairs.map(e=>({studentId:e.studentId,classId:e.classId}))},
+    take:100,orderBy:{publishedAt:"desc"},
+    select:{id:true,studentId:true,summary:true,publishedAt:true,
+     classSection:{select:{name:true}},student:{select:{firstName:true,lastName:true}}}
+   }),
+   db.studentSubmission.findMany({
+    where:{assignment:{classSection:{program:{organizationId:org.id}}},
+     OR:activePairs.map(e=>({studentId:e.studentId,
+      assignment:{classId:e.classId}}))},
+    take:100,select:{id:true,studentId:true,assignmentId:true,submittedAt:true}
+   })
+  ]):[[],[]];
   const classIds=[...new Set(enrollments.map(x=>x.classId))];
   const assignments=classIds.length?await db.schoolAssignment.findMany({where:{classId:{in:classIds},published:true},
    take:100,orderBy:{dueAt:"asc"},select:{id:true,title:true,instructions:true,dueAt:true,classId:true,classSection:{select:{name:true}}}}):[];

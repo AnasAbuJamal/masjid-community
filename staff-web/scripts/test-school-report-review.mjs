@@ -19,6 +19,7 @@ async function call(path,method="GET",data,token){
 let adminSessionId=null;
 const reports=[],sessions=[];
 let foreignOrg=null,foreignProgram=null,foreignClass=null,foreignStudent=null;
+let activeSibling=null,siblingLink=null,siblingEnrollment=null;
 try{
  const org=await db.organization.findFirst({orderBy:[{createdAt:"asc"},{id:"asc"}]});
  assert.ok(org);
@@ -82,6 +83,61 @@ try{
  const familyAfter=await call("schoolwork","GET",undefined,memberToken);
  assert.ok(familyAfter.data.reports.some(x=>x.id===firstId),
   "student progress must become visible to a currently approved guardian only after review");
+ // A second approved sibling actively enrolled in the SAME class must never
+ // authorize the first child's report/answer after the first withdraws.
+ activeSibling=await db.student.create({data:{
+  organizationId:org.id,studentNumber:"sibling-review-"+randomUUID(),
+  firstName:"Synthetic",lastName:"Sibling"
+ }});
+ siblingLink=await db.guardianLink.create({data:{
+  studentId:activeSibling.id,guardianId:(await db.user.findUniqueOrThrow({
+   where:{email:memberEmail}
+  })).id,approvedAt:new Date()
+ }});
+ siblingEnrollment=await db.enrollment.create({data:{
+  studentId:activeSibling.id,classId:klass.id,status:"active"
+ }});
+ // Disposable db test-db contains an original assignment and submission for
+ // the first child. Confirm its teacher-visible answer while enrolled.
+ const persistedSubmission=await db.studentSubmission.findFirst({where:{
+  studentId,assignment:{classId:klass.id}
+ },select:{id:true,body:true}});
+ assert.ok(persistedSubmission,"CI fixture has an initial child submission");
+ const beforeTeacher=await call("schoolwork","GET",undefined,teacherToken);
+ const activeRoster=beforeTeacher.data.classes.find(c=>c.id===klass.id);
+ assert.ok(activeRoster?.assignments.some(a=>
+  a.submissions.some(s=>s.studentId===studentId&&s.body===persistedSubmission.body)),
+  "assigned teacher can access an actively enrolled student's submitted work");
+ await db.enrollment.update({where:{studentId_classId:{
+  studentId,classId:klass.id
+ }},data:{status:"withdrawn"}});
+ try{
+  const withdrawnFamily=await call("schoolwork","GET",undefined,memberToken);
+  assert.equal(withdrawnFamily.status,200);
+  assert.ok(!withdrawnFamily.data.reports.some(r=>r.id===firstId),
+   "guardian of a second active sibling cannot view withdrawn child's report");
+  assert.ok(!withdrawnFamily.data.submissions.some(s=>s.id===persistedSubmission.id),
+   "guardian of a second active sibling cannot view withdrawn child's submission");
+  const withdrawnTeacher=await call("schoolwork","GET",undefined,teacherToken);
+  assert.equal(withdrawnTeacher.status,200);
+  const filteredClass=withdrawnTeacher.data.classes.find(c=>c.id===klass.id);
+  assert.ok(filteredClass&&!filteredClass.assignments.some(a=>
+   a.submissions.some(s=>s.studentId===studentId)),
+   "former student's answer body is absent from the teacher's returned class");
+  assert.ok(!JSON.stringify(withdrawnTeacher.data.classes).includes(
+   persistedSubmission.body),"teacher response cannot include former student's answer");
+  // The independently published report remains stored and auditable; the
+  // read privilege, not the school record itself, has been revoked.
+  assert.equal((await db.studentReport.findUniqueOrThrow({where:{id:firstId}})).status,
+   "published");
+ }finally{
+  await db.enrollment.update({where:{studentId_classId:{
+   studentId,classId:klass.id
+  }},data:{status:"active"}});
+ }
+ const restoredFamily=await call("schoolwork","GET",undefined,memberToken);
+ assert.ok(restoredFamily.data.reports.some(r=>r.id===firstId),
+  "student report becomes visible again only after an active exact-class link");
  assert.equal((await call("schoolwork","PATCH",publish,adminToken)).status,404,
   "replayed review must not produce another publication");
  const selfId=await newDraft(adminToken);
@@ -142,6 +198,9 @@ try{
   await db.auditEvent.deleteMany({where:{entity:"StudentReport",entityId:{in:reports}}});
   await db.studentReport.deleteMany({where:{id:{in:reports}}});
  }
+ if(siblingEnrollment)await db.enrollment.deleteMany({where:{id:siblingEnrollment.id}});
+ if(siblingLink)await db.guardianLink.deleteMany({where:{id:siblingLink.id}});
+ if(activeSibling)await db.student.deleteMany({where:{id:activeSibling.id}});
  if(foreignStudent)await db.student.deleteMany({where:{id:foreignStudent.id}});
  if(foreignClass)await db.classSection.deleteMany({where:{id:foreignClass.id}});
  if(foreignProgram)await db.schoolProgram.deleteMany({where:{id:foreignProgram.id}});
