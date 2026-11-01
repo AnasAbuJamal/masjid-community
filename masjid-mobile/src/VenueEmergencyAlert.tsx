@@ -1,8 +1,9 @@
 import React from "react";
-import {Text,View} from "react-native";
+import {AppState,Text,View} from "react-native";
 import {Action,Card} from "./ui";
 import {S} from "./theme";
 import {useLanguage} from "./i18n";
+import {emergencyRecheckDelay,isCurrentVenueEmergency} from "./emergency-expiry";
 
 // Keep the mosque's published title, body and instructions verbatim. Only
 // interface labels are translated; safety translations need human review.
@@ -15,6 +16,35 @@ export function VenueEmergencyAlert({notice,venueName,onRefresh}:{
 }){
  const {t,isRTL}=useLanguage();
  const align=isRTL?"right":"left";
+ const [clockRevision,setClockRevision]=React.useState(0);
+
+ // React Native timers may be suspended in the background. Check again when
+ // the app becomes active, and schedule an explicit rerender at expiry while
+ // it remains open. Do not restore potentially outdated safety instructions.
+ React.useEffect(()=>{
+  const recheck=()=>setClockRevision(previous=>previous+1);
+  const delay=emergencyRecheckDelay(notice.expiresAt,Date.now());
+  const timer=delay===null?null:setTimeout(recheck,delay);
+  const subscription=AppState.addEventListener("change",state=>{
+   if(state==="active")recheck();
+  });
+  return ()=>{
+   if(timer!==null)clearTimeout(timer);
+   subscription.remove();
+  };
+ },[notice.expiresAt,clockRevision]);
+
+ if(!isCurrentVenueEmergency(notice.expiresAt,Date.now())){
+  return <View accessibilityRole="alert">
+   <Card style={{backgroundColor:"#FFF1E9",borderWidth:2,borderColor:"#9B3D28",gap:9}}>
+    <Text style={[S.bodyText,{color:"#6C2517",fontWeight:"700",textAlign:align}]}>
+     {t("emergency.unverified")}
+    </Text>
+    <Action secondary icon="refresh" label={t("emergency.refresh")} onPress={onRefresh}/>
+   </Card>
+  </View>;
+ }
+
  const kind=notice.kind==="closure"?t("emergency.closure"):
   notice.kind==="access_change"?t("emergency.accessChange"):
   notice.kind==="safety"?t("emergency.safety"):t("emergency.other");
