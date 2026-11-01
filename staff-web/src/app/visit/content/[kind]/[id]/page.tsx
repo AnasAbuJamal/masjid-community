@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { publicIndexPath } from "@/lib/public-indexing";
+import { publicIndexOrigin,publicIndexPath } from "@/lib/public-indexing";
 import {visitLanguage,visitText,visitHref,visitDate,visitLocalDay,visitFacet,
  type VisitCopyKey} from "@/lib/visit-i18n";
 import "../../../visit.css";
@@ -13,11 +13,13 @@ export async function generateMetadata({params,searchParams}:Props):Promise<Meta
  const lang=visitLanguage((await searchParams).lang);
  const {kind,id}=await params;
  const path=publicIndexPath(kind,id);
+ const origin=publicIndexOrigin(process.env.SILA_PUBLIC_INDEXING_ENABLED,
+   process.env.SILA_PUBLIC_SITE_URL);
  return {title:visitText(lang,"publicInformation")+" | SILA",
   description:visitText(lang,"publishedInformation"),
-  ...(path?{alternates:{
-   canonical:lang==="ar"?path+"?lang=ar":path,
-   languages:{en:path,ar:path+"?lang=ar"}
+  ...(path&&origin?{alternates:{
+   canonical:origin+path+(lang==="ar"?"?lang=ar":""),
+   languages:{en:origin+path,ar:origin+path+"?lang=ar"}
   }}:{robots:{index:false,follow:false}})
  };
 }
