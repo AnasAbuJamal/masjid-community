@@ -31,9 +31,20 @@ export function searchScope(
  return scope==="limited"?"published_selected":"unknown";
 }
 
+/** Match the server's public and selected-mosque Unicode search grammar.
+ * This is only client validation; the API validates again and scopes tenancy.
+ */
+export function searchTermProblem(value:string):"short"|"long"|"characters"|null{
+ const query=value.trim();
+ if(query.length<2)return "short";
+ if(query.length>80)return "long";
+ if(!/^[\\p{L}\\p{N}\\s.'’\\-]+$/u.test(query))return "characters";
+ return null;
+}
+
 export function scopedSearchPath(term:string,category:string,scope:SearchScope):string|null{
  const text=term.trim();
- if(text.length<2||scope==="unknown")return null;
+ if(searchTermProblem(text)||scope==="unknown")return null;
  return scope==="published_selected"
   ?"organizations/search?q="+encodeURIComponent(text)+"&kind="+encodeURIComponent(
    ["all","events","announcements","articles"].includes(category)?category:"all")
