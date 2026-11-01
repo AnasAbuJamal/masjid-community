@@ -54,7 +54,14 @@ export default function HomeScreen(){
    <PressRow icon="heart-outline" title={t("home.give")} subtitle={t("home.giveSubtitle")} onPress={()=>router.push("/details/campaigns/all")}/>
    <PressRow icon="hands-pray" title={t("home.qibla")} subtitle={t("home.qiblaSubtitle")} onPress={()=>router.push("/qibla")}/></View>
   </View>
-  {data?.announcements?.length?<View style={S.section}><Text style={S.headline}>{t("home.announcements")}</Text>{data.announcements.map(a=><Card key={a.id}><Text style={S.label}>{a.title}</Text><Text style={[S.bodyText,{marginTop:7}]} numberOfLines={3}>{a.body}</Text></Card>)}</View>:null}
+  {data?.announcements?.length?<View style={S.section}>
+   <Text style={[S.headline,{textAlign:isRTL?"right":"left"}]}>{t("home.announcements")}</Text>
+   {data.announcements.map(a=><Card key={a.id}>
+    <PressRow icon="bullhorn-outline" title={a.title} subtitle={a.body}
+     onPress={()=>router.push({pathname:"/details/[kind]/[id]",
+      params:{kind:"announcements",id:a.id}})}/>
+   </Card>)}
+  </View>:null}
   {data?.events?.length?<View style={S.section}><Text style={S.headline}>{t("home.upcoming")}</Text>{data.events.map(e=>{
    const when=gatheringLocalTime(e.startAt,e.venue?.timeZone,
     data.organization?.timeZone,language);
