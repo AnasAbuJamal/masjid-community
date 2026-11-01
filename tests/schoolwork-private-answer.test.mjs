@@ -22,7 +22,7 @@ test("mobile only presents a read-only original for own learner and translates l
  const locale=read("masjid-mobile/src/i18n.tsx");
  for(const token of ['typeof s.body==="string"',
   "s.studentId===result.data?.selfStudentId",
-  "selectable style={S.bodyText}",
+  "selectable style={[S.bodyText,{textAlign:align}]}",
   't("schoolwork.originalWork")',
   't("schoolwork.originalPrivate")']){
   assert.ok(screen.includes(token),token);
