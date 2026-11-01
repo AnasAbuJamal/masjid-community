@@ -29,7 +29,7 @@ test("operational support is a dedicated bounded, time-limited and audited capab
  assert.ok(!view.includes('<textarea'));
  for(const token of ['expiresAt:new Date(Date.now()-1000)',
   'new Set(notes.map(x=>x.id)).size','foreignNote.id',
-  'kind:"revoke"','action:"support.case.read"']){
+  'kind:"revoke"','x.action==="support.case.read"']){
   assert.ok(integration.includes(token),"Missing disposable CI support proof: "+token);
  }
 });
