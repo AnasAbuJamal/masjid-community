@@ -4,6 +4,7 @@ import {Action,Card,Feedback,Head,Shell} from "../src/ui";
 import {S,T} from "../src/theme";
 import {useLanguage} from "../src/i18n";
 import {useResource} from "../src/useResource";
+import {useVenueSafetyRefresh} from "../src/useVenueSafetyRefresh";
 import {useSession} from "../src/session";
 import {publishedPrayerDayLabel} from "../src/prayer-civil-day";
 import {scheduleRevisionTime} from "../src/schedule-revision-time";
@@ -20,6 +21,8 @@ export default function FaithCalendar(){
  const {user}=useSession();
  const result=useResource<Data>(user?.isVerified
   ?"organizations/view?resource=faith":"public/faith");
+ // Approved religious dates can be corrected or withdrawn by mosque staff.
+ useVenueSafetyRefresh(true,result.refresh);
  const align=isRTL?"right":"left";
 
  function kindLabel(kind:string){
