@@ -39,6 +39,8 @@ test("contact intake never exposes another account's submitted text or late rece
  assert.match(source,/if\(pending\.current\)return/);
  assert.match(source,/version!==currentScope\.current\.version\|\|!currentScope\.current\.allowed/);
  assert.match(source,/if\(response\.received!==true\)throw/);
+ assert.match(source,/setSubject\(current=>current\.trim\(\)===submitted\.subject\?"":current\)/);
+ assert.match(source,/setMessage\(current=>current\.trim\(\)===submitted\.message\?"":current\)/);
  assert.match(source,/t\("contact\.warning"\)/);
  assert.ok(scope.includes("memberSurfaceScope"),"contact must remain restricted to pilot scope");
 });
