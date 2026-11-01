@@ -22,13 +22,14 @@ export function gatheringLocalTime(
   if (!startAt || !canonicalUtc.test(startAt)) return null;
   const instant = new Date(startAt);
   if (!Number.isFinite(instant.getTime()) || instant.toISOString() !== startAt) return null;
-  const source: GatheringTimeSource = verifiedVenueZone ? "venue" : "organization";
-  const timeZone = verifiedVenueZone || organizationZone;
+  const source: GatheringTimeSource = verifiedVenueZone != null ? "venue" : "organization";
+  const timeZone = verifiedVenueZone ?? organizationZone;
   if (!timeZone || !timeZone.trim()) return null;
   try {
     const text = new Intl.DateTimeFormat(
       language === "ar" ? "ar-EG-u-ca-gregory" : "en-US",
-      {timeZone, dateStyle: "medium", timeStyle: "short"}
+      {timeZone, year: "numeric", month: "short", day: "numeric",
+       hour: "numeric", minute: "2-digit", timeZoneName: "short"}
     ).format(instant);
     return {text, timeZone, source};
   } catch {
