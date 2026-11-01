@@ -54,11 +54,36 @@ try{
  assert.match(initialHtml,/Example gathering/,"published gathering is discoverable without login");
  assert.doesNotMatch(initialHtml,/Unpublished fixture/,"draft mosque notices must remain private");
  assert.doesNotMatch(initialHtml,/password.*required/i,"guest should not encounter an authentication wall");
+ // English and Arabic share exact same published-only guest data and links.
+ const arabic=await fetch("http://127.0.0.1:3000/visit?lang=ar");
+ assert.equal(arabic.status,200);
+ const arabicHtml=await arabic.text();
+ assert.match(arabicHtml,/<main[^>]*lang="ar"[^>]*dir="rtl"/);
+ assert.match(arabicHtml,/مواقيت الصلاة/);
+ assert.match(arabicHtml,/Example gathering/,
+  "mosque-authored English title must not be machine-translated");
+ assert.match(arabicHtml,/تُعرض نصوص المسجد المنشورة بلغتها الأصلية/);
+ assert.doesNotMatch(arabicHtml,/Unpublished fixture/);
+ assert.match(arabicHtml,/name="lang" value="ar"/,
+  "guest search form must preserve selected language");
+ const invalidLanguage=await fetch("http://127.0.0.1:3000/visit?lang=ar-EG");
+ assert.equal(invalidLanguage.status,200);
+ assert.match(await invalidLanguage.text(),/<main[^>]*lang="en"[^>]*dir="ltr"/,
+  "unrecognized or unsupported locale cannot change default behavior");
  const publishedEvent=await db.event.findFirst({where:{organizationId:org.id,status:"published",title:"Example gathering"}});
  assert.ok(publishedEvent);
  const eventPage=await fetch("http://127.0.0.1:3000/visit/content/gatherings/"+publishedEvent.id);
  assert.equal(eventPage.status,200,"published event has a guest-accessible canonical URL");
  assert.match(await eventPage.text(),/Example gathering/);
+ const arabicDetail=await fetch("http://127.0.0.1:3000/visit/content/gatherings/"+
+  publishedEvent.id+"?lang=ar");
+ assert.equal(arabicDetail.status,200);
+ const detailHtml=await arabicDetail.text();
+ assert.match(detailHtml,/<main[^>]*lang="ar"[^>]*dir="rtl"/);
+ assert.match(detailHtml,/إضافة الفعالية إلى التقويم/);
+ assert.match(detailHtml,/Example gathering/);
+ assert.match(detailHtml,/href="\/visit\?lang=ar"/,
+  "Arabic content page must have a return link that stays Arabic");
  const draftFaith=await db.faithNotice.findFirst({where:{organizationId:org.id,status:"draft",title:"Unpublished fixture"}});
  assert.ok(draftFaith);
  const privatePage=await fetch("http://127.0.0.1:3000/visit/content/faith/"+draftFaith.id);
@@ -92,6 +117,14 @@ try{
   assert.match(goodHtml,/CI_WEB_FILTERED_GATHERING/);
   assert.match(goodHtml,/Confirmed accommodations:/);
   assert.match(goodHtml,/Verified venue:/);
+  const arabicFiltered=await fetch(filterUrl+"?lang=ar&gatherVenue="+
+   encodeURIComponent(other.id)+"&category=workshop&audience=families&accessibility=step_free");
+  assert.equal(arabicFiltered.status,200);
+  const arabicFilteredHtml=await arabicFiltered.text();
+  assert.match(arabicFilteredHtml,/CI_WEB_FILTERED_GATHERING/);
+  assert.match(arabicFilteredHtml,/ورشة عمل/);
+  assert.match(arabicFilteredHtml,/دخول دون درجات/);
+  assert.match(arabicFilteredHtml,/name="lang" value="ar"/);
   const noMatch=await fetch(filterUrl+"?category=lecture&audience=families");
   assert.equal(noMatch.status,200);
   assert.doesNotMatch(await noMatch.text(),/CI_WEB_FILTERED_GATHERING/);
@@ -153,6 +186,20 @@ try{
   const seenSecond=staged.filter(x=>secondHtml.includes(x.title)).map(x=>x.id);
   assert.equal(seenSecond.length,3,"remaining gatherings display on final page");
   assert.equal(new Set([...seenFirst,...seenSecond]).size,28);
+  const arabicFirst=await fetch(pBase+"&lang=ar");
+  assert.equal(arabicFirst.status,200);
+  const arabicFirstHtml=await arabicFirst.text();
+  assert.match(arabicFirstHtml,/الـ 25 فعالية المنشورة التالية/);
+  const arabicNext=arabicFirstHtml.match(/href="([^"]*gatherCursor=[^"]*)"/)?.[1];
+  assert.ok(arabicNext,"Arabic gathering archive must expose a real next-page link");
+  const arabicNextUrl=new URL(arabicNext.replaceAll("&amp;","&"),filterUrl);
+  assert.equal(arabicNextUrl.searchParams.get("lang"),"ar");
+  assert.equal(arabicNextUrl.searchParams.get("gatherVenue"),other.id);
+  assert.equal(arabicNextUrl.searchParams.get("gatherQ"),"CI_WEB_PAGED_GATHERING");
+  const arabicSecond=await fetch(arabicNextUrl);
+  assert.equal(arabicSecond.status,200);
+  assert.match(await arabicSecond.text(),/العودة إلى الصفحة الأولى/,
+   "Arabic pagination remains Arabic on a subsequent published page");
   assert.doesNotMatch(secondHtml,/Next 25 published gatherings/);
   assert.match(secondHtml,/Restart the filtered gathering list/);
   const staleCursor=await fetch(pBase+"&gatherCursor="+encodeURIComponent(filtered.id));

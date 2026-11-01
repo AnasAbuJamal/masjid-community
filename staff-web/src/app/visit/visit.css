@@ -137,3 +137,24 @@
  min-height:44px;padding:10px 16px;border:2px solid #1f5264;
  border-radius:12px;font-weight:700;text-decoration:none;color:#164456;}
 .visit-gathering-pages a:focus-visible {outline:3px solid #164456;outline-offset:3px;}
+
+/* F-041: visible language switch + RTL Arabic guest surfaces. All controls
+   remain keyboard accessible on a narrow phone without overriding authored
+   content's own bidi direction or guessing a translated publication. */
+.visit-language {display:inline-flex;direction:ltr;gap:2px;align-items:center;
+ border:1px solid #a5c2c7;border-radius:12px;padding:3px;background:#f2f8f7;}
+.visit-header nav .visit-language a {min-height:44px;display:inline-flex;
+ align-items:center;justify-content:center;border-radius:9px;padding:9px 12px;
+ font-size:.87rem;text-decoration:none;white-space:nowrap;}
+.visit-language a[aria-current="page"] {background:#15546b;color:white;
+ font-weight:800;box-shadow:0 2px 6px #142a3522;}
+.visit-language a:focus-visible {outline:3px solid #15546b;outline-offset:3px;}
+.visit[dir="rtl"] {font-family:Tahoma,"Segoe UI",Arial,sans-serif;}
+.visit[dir="rtl"] :is(.visit-kicker,.visit-prayer-head,.visit-brand small) {
+ letter-spacing:normal;text-transform:none;}
+.visit[dir="rtl"] .visit-hero h1 {letter-spacing:0;}
+.visit[dir="rtl"] .visit-language {direction:ltr;}
+.visit bdi {unicode-bidi:isolate;}
+@media(max-width:640px){
+ .visit-header nav .visit-language a {padding:9px 10px;}
+}
