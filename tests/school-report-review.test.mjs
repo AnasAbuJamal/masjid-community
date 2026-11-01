@@ -14,7 +14,9 @@ test("all student progress reports require independent authorized publication",(
  }
  assert.ok(route.includes('status:"published",classSection:{program:{organizationId:org.id}}'),
   "family summaries must remain published-only");
- assert.ok(route.includes('user.role==="admin"?await db.studentReport.findMany'));
+ assert.ok(route.includes('user.role==="admin"?await Promise.all(['));
+ assert.ok(route.includes('where:{status:"draft",classSection:{program:{organizationId:org.id}}'));
+ assert.ok(route.includes('where:{status:"published",classSection:{program:{organizationId:org.id}}'));
  assert.ok(route.includes('take:50'));
  assert.ok(!route.includes('status:input.published?"published":"draft"'));
 });
