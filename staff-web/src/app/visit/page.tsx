@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { publicIndexOrigin } from "@/lib/public-indexing";
 import { localDate,HttpError } from "@/lib/http";
 import {GATHERING_CATEGORIES,GATHERING_AUDIENCES,GATHERING_ACCESSIBILITY,
  gatheringFilters,publishedGatheringPage} from "@/lib/gathering-filters";
@@ -12,9 +13,15 @@ import "./visit.css";
 export const dynamic = "force-dynamic";
 export async function generateMetadata({searchParams}:PageProps):Promise<Metadata>{
  const lang=visitLanguage((await searchParams).lang);
+ const origin=publicIndexOrigin(process.env.SILA_PUBLIC_INDEXING_ENABLED,
+   process.env.SILA_PUBLIC_SITE_URL);
  return {title:(lang==="ar"?"زيارة المسجد":"Visit the mosque")+" | SILA",
   description:visitText(lang,"siteDescription"),
-  alternates:{languages:{en:"/visit",ar:"/visit?lang=ar"}}};
+  ...(origin?{alternates:{
+   canonical:origin+"/visit"+(lang==="ar"?"?lang=ar":""),
+   languages:{en:origin+"/visit",ar:origin+"/visit?lang=ar"}
+  }}:{robots:{index:false,follow:false}})
+ };
 }
 
 type VisitFilters={lang?:string|string[];venue?:string|string[];gatherVenue?:string|string[];
