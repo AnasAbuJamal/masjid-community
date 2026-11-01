@@ -61,8 +61,18 @@ export async function GET(req:NextRequest,{params}:Context){
     return ok({venue:{id:venue.id,name:venue.name,timeZone:venue.timeZone},
       localDate:date,days,jummah,emergency});
   }
+  // Direct guest notice/article links are rechecked against CURRENT
+  // publication status and this mosque, not trusted merely because a
+  // published home preview contained the ID earlier.
+  const detailResource=resource==="announcements"||resource==="articles";
+  const itemId=detailResource?req.nextUrl.searchParams.get("itemId"):null;
+  if(detailResource&&(
+   [...req.nextUrl.searchParams.keys()].some(k=>k!=="itemId")||
+   req.nextUrl.searchParams.getAll("itemId").length>1||
+   (itemId!==null&&!/^[A-Za-z0-9_-]{8,128}$/.test(itemId))
+  ))throw new HttpError(422,"BAD_QUERY","Unsupported published content lookup.");
   const where={organizationId:org.id};
-  const data=resource==="announcements" ? await db.announcement.findMany({where:{...where,status:"published",publishedAt:{lte:new Date()}},take:limit,orderBy:{publishedAt:"desc"},select:{id:true,title:true,body:true,kind:true,publishedAt:true}})
+  const data=resource==="announcements" ? await db.announcement.findMany({where:{...where,status:"published",publishedAt:{lte:new Date()},...(itemId?{id:itemId}:{})},take:itemId?1:limit,orderBy:[{publishedAt:"desc"},{id:"asc"}],select:{id:true,title:true,body:true,kind:true,publishedAt:true}})
    :resource==="events" ? await db.event.findMany({where:{...where,status:"published"},take:limit,orderBy:{startAt:"asc"},select:{id:true,title:true,description:true,location:true,startAt:true,endAt:true,capacity:true,rsvpCount:true,waitlistEnabled:true,rsvpDeadlineAt:true,cancellationDeadlineAt:true,cancellationTerms:true}})
    :resource==="programs" ? await db.schoolProgram.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,description:true,classes:{select:{id:true,name:true,schedule:true}}}})
    :resource==="campaigns" ? await db.donationCampaign.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,purpose:true,currency:true,goalMinor:true}})
@@ -70,13 +80,14 @@ export async function GET(req:NextRequest,{params}:Context){
    :resource==="proposals" ? await db.proposal.findMany({where:{...where,status:"published"},take:limit,select:{id:true,title:true,description:true,_count:{select:{votes:true}}}})
    :resource==="jobs" ? await db.jobPosting.findMany({where:{...where,status:"published"},take:limit,select:{id:true,title:true,description:true,company:true}})
    :resource==="rentals" ? await db.rentalResource.findMany({where:{...where,published:true},take:limit,select:{id:true,title:true,description:true}})
-   :resource==="articles" ? await db.communityArticle.findMany({where:{...where,status:"published",publishedAt:{lte:new Date()}},take:limit,
-      orderBy:{publishedAt:"desc"},select:{id:true,title:true,body:true,publishedAt:true}})
+   :resource==="articles" ? await db.communityArticle.findMany({where:{...where,status:"published",publishedAt:{lte:new Date()},...(itemId?{id:itemId}:{})},take:itemId?1:limit,
+      orderBy:[{publishedAt:"desc"},{id:"asc"}],select:{id:true,title:true,body:true,publishedAt:true}})
    :resource==="construction" ? await db.constructionProject.findMany({where:{...where,status:"published"},take:limit,
       select:{id:true,title:true,description:true,goalMinor:true,currency:true,milestones:{
         where:{status:"published"},orderBy:{createdAt:"asc"},select:{id:true,title:true,description:true,completedAt:true}}}})
    :null;
   if(data===null)throw new HttpError(404,"NOT_FOUND","Unknown resource.");
+  if(itemId&&!data.length)throw new HttpError(404,"NOT_FOUND","Published content unavailable.");
   return ok({organization:{id:org.id,name:org.name},items:data});
  });
 }
