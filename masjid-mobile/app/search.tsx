@@ -61,8 +61,9 @@ export default function Search(){
  // types new text. Also discard malformed/unknown resource kinds entirely.
  const settling=term!==query.trim();
  const items=!mismatch&&!settling
-  ?(results.data?.items||[]).filter(x=>supportedKind(x.kind))
-   .map(x=>({...x,kind:x.kind!}))
+  ?(results.data?.items||[]).filter(
+    (x):x is Item & {kind:Exclude<Category,"all">}=>supportedKind(x.kind)
+   )
   :[];
  const problem=query.trim().length>=2?searchTermProblem(query):null;
  const align=isRTL?"right":"left";
