@@ -97,7 +97,8 @@ test("admin-only report archive supports complete scoped cursor pages",()=>{
  ])assert.ok(ui.includes(token),"Missing complete child history UI: "+token);
  assert.ok(!ui.includes('window.prompt('),
   "withdrawal controls must never rely on inaccessible free-text prompts");
- for(const token of ['syntheticDrafts','syntheticPublished','foreignReport.id',
+ for(const token of ['syntheticDrafts','syntheticPublished','legacyNullPublished',
+  'olderAudits.length,1','oldWithdrawal.status,200','foreignReport.id',
   'await readAll("draft")','await readAll("published")',
   'new Set(collected.map(x=>x.id)).size'])
   assert.ok(ci.includes(token),"Missing disposable-DB history proof: "+token);

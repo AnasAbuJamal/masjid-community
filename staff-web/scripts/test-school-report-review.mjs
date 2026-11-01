@@ -276,8 +276,19 @@ try{
   summary:"Synthetic private published report for paginated review only.",
   status:"published",createdAt:fixedTime,publishedAt:fixedTime
  }));
- reports.push(...syntheticDrafts.map(x=>x.id),...syntheticPublished.map(x=>x.id));
- await db.studentReport.createMany({data:[...syntheticDrafts,...syntheticPublished]});
+ // These are deliberately malformed historical rows. A missing publishedAt
+ // must not silently hide a published report from a safeguarding reviewer.
+ // More than 50 identical null timestamps exercises cursor=NULL paging.
+ const legacyNullPublished=Array.from({length:53},()=>({
+  id:randomUUID(),classId:klass.id,studentId:student.id,teacherId:teacher.id,
+  summary:"Synthetic legacy publication with missing timestamp.",
+  status:"published",createdAt:fixedTime,publishedAt:null
+ }));
+ reports.push(...syntheticDrafts.map(x=>x.id),
+  ...syntheticPublished.map(x=>x.id),...legacyNullPublished.map(x=>x.id));
+ await db.studentReport.createMany({
+  data:[...syntheticDrafts,...syntheticPublished,...legacyNullPublished]
+ });
  const prefix="admin/school-reports?status=";
  assert.equal((await call(prefix+"draft")).status,401);
  assert.equal((await call(prefix+"draft","GET",undefined,teacherToken)).status,403);
@@ -324,9 +335,52 @@ try{
  const publishedHistory=await readAll("published");
  assert.ok(syntheticDrafts.every(x=>draftHistory.some(y=>y.id===x.id)));
  assert.ok(syntheticPublished.every(x=>publishedHistory.some(y=>y.id===x.id)));
+ assert.ok(legacyNullPublished.every(x=>publishedHistory.some(y=>
+  y.id===x.id&&y.publishedAt===null)),
+  "historical publications without timestamps must remain reviewable");
  assert.ok(!draftHistory.some(x=>x.id===foreignReport.id));
  assert.ok(!publishedHistory.some(x=>x.id===foreignReport.id));
- console.log("Verified independent student report review, safe historical pagination and withdrawal scope.");
+ // A report that is only reachable after the first page is still
+ // withdrawable by an independent MFA-cleared administrator, with the
+ // same audit and generic-notification policies as a recent report.
+ const older=syntheticPublished.find(x=>
+  publishedHistory.findIndex(y=>y.id===x.id)>=50);
+ assert.ok(older,"at least one published report must require pagination");
+ const priorNotifications=await db.notification.findMany({
+  where:{organizationId:org.id},select:{id:true}
+ });
+ const oldWithdrawal=await call("schoolwork","PATCH",{
+  action:"retract-report",reportId:older.id,reason:"safeguarding-review"
+ },adminToken);
+ assert.equal(oldWithdrawal.status,200,JSON.stringify(oldWithdrawal));
+ assert.equal(oldWithdrawal.data.status,"archived");
+ const withdrawn=await db.studentReport.findUniqueOrThrow({where:{id:older.id}});
+ assert.equal(withdrawn.status,"archived");
+ assert.equal(withdrawn.publishedAt?.getTime(),fixedTime.getTime(),
+  "retraction retains the original publication timestamp");
+ const currentPublished=await readAll("published");
+ assert.ok(!currentPublished.some(x=>x.id===older.id),
+  "withdrawn old report must be removed from all private publication pages");
+ const familyAfterOlderWithdrawal=await call("schoolwork","GET",undefined,memberToken);
+ assert.ok(!familyAfterOlderWithdrawal.data.reports.some(x=>x.id===older.id));
+ const newNotices=await db.notification.findMany({where:{
+  organizationId:org.id,id:{notIn:priorNotifications.map(x=>x.id)}
+ },include:{outboxEvents:true}});
+ for(const notice of newNotices){
+  notices.push(notice.id);
+  assert.ok(!notice.body.includes(older.summary));
+  assert.ok(!notice.body.includes(student.firstName)&&
+   !notice.body.includes(student.lastName));
+  assert.equal(notice.outboxEvents.length,1);
+ }
+ assert.ok(newNotices.some(x=>x.title==="School report withdrawn"&&
+  x.userId===guardian.id),"affected guardian must receive a generic withdrawal notice");
+ const olderAudits=await db.auditEvent.findMany({where:{
+  entity:"StudentReport",entityId:older.id,action:"school.report.retract"
+ }});
+ assert.equal(olderAudits.length,1);
+ assert.ok(olderAudits.every(x=>!x.detail?.includes(older.summary)));
+ console.log("Verified complete private school histories, legacy null timestamps, older retraction, generic notices and audit.");
 }finally{
  if(notices.length){
   await db.outboxEvent.deleteMany({where:{notificationId:{in:notices}}});
