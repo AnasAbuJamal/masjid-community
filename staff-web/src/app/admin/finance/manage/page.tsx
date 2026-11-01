@@ -2,11 +2,37 @@
 import {useCallback,useEffect,useState} from "react";
 type Budget={id:string;category:string;periodMonth:string;amountMinor:number;currency:string;published:boolean};
 type Expense={id:string;category:string;description:string;amountMinor:number;currency:string;status:string;submittedById:string;submitter:{firstName:string;lastName:string}};
-type Data={budgets:Budget[];expenses:Expense[];actorId:string;role:string;caution:string};
+type Data={budgets:Budget[];expenses:Expense[];actorId:string;role:string;caution:string;
+ budgetComplete:boolean;expenseComplete:boolean;nextBudgetCursor:string|null;nextExpenseCursor:string|null;pageSize:number};
 export default function FinanceManage(){
  const [data,setData]=useState<Data|null>(null),[kind,setKind]=useState<"budget"|"expense">("budget"),[fields,setFields]=useState<Record<string,string>>({}),[published,setPublished]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
- const load=useCallback(async()=>{try{const r=await fetch("/api/v1/admin/finance/manage");const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Access denied.");setData(j.data);setError("");}catch(e){setError(e instanceof Error?e.message:"Unable to load finance data.");}},[]);
+ const [pageBusy,setPageBusy]=useState<"budget"|"expense"|null>(null);
+ const load=useCallback(async()=>{try{const r=await fetch("/api/v1/admin/finance/manage",{cache:"no-store"});const j=await r.json();if(!r.ok)throw new Error(j.error?.message||"Access denied.");setData(j.data);setError("");}catch(e){setData(null);setError(e instanceof Error?e.message:"Unable to load finance data.");}},[]);
+ async function loadMore(section:"budget"|"expense"){
+  if(busy||pageBusy||!data)return;
+  const cursor=section==="budget"?data.nextBudgetCursor:data.nextExpenseCursor;
+  if(!cursor)return;
+  setPageBusy(section);setError("");
+  try{
+   const query=new URLSearchParams({[section==="budget"?"budgetCursor":"expenseCursor"]:cursor});
+   const res=await fetch("/api/v1/admin/finance/manage?"+query,{cache:"no-store"});
+   const j=await res.json();
+   if(!res.ok)throw new Error(j.error?.message||"Older financial records unavailable.");
+   const next=j.data as Data;
+   setData(old=>old?{
+    ...old,
+    ...(section==="budget"?{
+     budgets:[...old.budgets,...next.budgets.filter(x=>!old.budgets.some(y=>y.id===x.id))],
+     budgetComplete:next.budgetComplete,nextBudgetCursor:next.nextBudgetCursor
+    }:{
+     expenses:[...old.expenses,...next.expenses.filter(x=>!old.expenses.some(y=>y.id===x.id))],
+     expenseComplete:next.expenseComplete,nextExpenseCursor:next.nextExpenseCursor
+    })
+   }:null);
+  }catch(e){setError(e instanceof Error?e.message:"Could not load older financial records.");}
+  finally{setPageBusy(null);}
+ }
  useEffect(()=>{void load()},[load]);
  const set=(key:string,value:string)=>setFields(f=>({...f,[key]:value}));
  async function send(payload:Record<string,unknown>){
@@ -40,8 +66,19 @@ export default function FinanceManage(){
  <button className="primary" disabled={busy||!data||!fields.category||!fields.amount||(kind==="budget"?!fields.periodMonth:!fields.description||!fields.incurredOn)} onClick={()=>void save()}>{busy?"Saving…":"Save "+kind}</button></div></section>
  <section className="panel"><h2>Budget allocations</h2>{data?.budgets.map(x=><p key={x.id} className="small">{x.category} · {x.periodMonth} · {money(x.amountMinor,x.currency)} · {x.published?"Published":"Internal"}</p>)}
  {!data?.budgets.length?<p className="small">No budget allocations recorded.</p>:null}
+ {data&&!data.budgetComplete?<button className="secondary"
+  disabled={busy||!!pageBusy||!data.nextBudgetCursor}
+  onClick={()=>void loadMore("budget")}>
+  {pageBusy==="budget"?"Loading older allocations…":"Load 100 older budget allocations"}</button>:null}
+ {data?.budgetComplete?<p className="small" role="status">Complete available budget history.</p>:null}
  <h2 className="section">Expense requests</h2>{data?.expenses.map(x=><div key={x.id} className="tile section"><strong style={{fontSize:18}}>{x.description}</strong><p className="small">{x.category} · {money(x.amountMinor,x.currency)} · {x.status} · By {x.submitter.firstName} {x.submitter.lastName}</p>
  {x.status==="pending"&&data.actorId!==x.submittedById?<div className="actions"><button className="primary" disabled={busy} onClick={()=>void send({kind:"expense-decision",expenseId:x.id,decision:"approved"})}>Approve</button>
  <button className="secondary" disabled={busy} onClick={()=>void send({kind:"expense-decision",expenseId:x.id,decision:"rejected"})}>Reject</button></div>:null}</div>)}
- {!data?.expenses.length?<p className="small">No expense requests.</p>:null}</section></div></main></>;
+ {!data?.expenses.length?<p className="small">No expense requests.</p>:null}
+ {data&&!data.expenseComplete?<button className="secondary"
+  disabled={busy||!!pageBusy||!data.nextExpenseCursor}
+  onClick={()=>void loadMore("expense")}>
+  {pageBusy==="expense"?"Loading older expenses…":"Load 100 older expense requests"}</button>:null}
+ {data?.expenseComplete?<p className="small" role="status">Complete available expense history.</p>:null}
+ </section></div></main></>;
 }
