@@ -76,6 +76,7 @@ export default function Contact(){
  }
 
  const validation=contactValidationCode({name,email,subject,message});
+ const started=!!(name||email||subject||message);
  const align=isRTL?"right":"left";
  return <Shell>
   <Action label={t("common.back")} secondary icon="arrow-left"
@@ -89,6 +90,10 @@ export default function Contact(){
     keyboardType="email-address"/>
    <Field label={t("contact.subject")} value={subject} onChange={setSubject}/>
    <Field label={t("contact.message")} value={message} onChange={setMessage} multiline/>
+   {started&&validation&&!error?<Text accessibilityRole="text"
+    style={[S.muted,{color:T.danger,textAlign:align}]}>
+    {validationMessage(validation)}
+   </Text>:null}
    {error?<Text accessibilityRole="alert" style={{color:T.danger,textAlign:align}}>{error}</Text>:null}
    {notice?<Text accessibilityRole="alert" style={{color:T.success,textAlign:align}}>{notice}</Text>:null}
    <Action label={t("contact.submit")} icon="send-outline" loading={busy}
