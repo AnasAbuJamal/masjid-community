@@ -148,6 +148,7 @@ jobs:
           node scripts/test-analytics-consent.mjs
           node scripts/test-delivery.mjs
           node scripts/test-operations.mjs
+          node scripts/test-support-cases.mjs
 
       # Evidence-only screenshots of published guest pages. Uses the same
       # disposable PostgreSQL service as the smoke suite; no live data.
