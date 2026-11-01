@@ -28,3 +28,24 @@ test("teacher form saves private drafts and admin has a distinct review queue",(
  assert.ok(ui.includes('reviewReport(item,"reject-report")'));
  assert.ok(read(".github/workflows/verify.yml").includes("test-school-report-review.mjs"));
 });
+
+test("published reports can be independently retracted without leaking child narratives",()=>{
+ const api=read("staff-web/src/app/api/v1/schoolwork/route.ts");
+ const ui=read("staff-web/src/app/admin/schoolwork/page.tsx");
+ for(const token of ['"retract-report"','"privacy-concern"','"safeguarding-review"',
+  'if(isRetraction){','status:"published",student:schoolStudentScope(org.id)',
+  'id:report.id,status:"published"','action:"school.report.retract"',
+  'await notifyUser(tx,org.id,userId','approvedAt:{not:null},revokedAt:null',
+  'status:"archived" as const']){
+  assert.ok(api.includes(token),"Missing safe report withdrawal policy: "+token);
+ }
+ for(const token of ['publishedReports.map','item.selfAuthored','retractReport(item)',
+  'action:"retract-report"','window.confirm(']){
+  assert.ok(ui.includes(token),"Missing independent staff UI: "+token);
+ }
+ const ci=read("staff-web/scripts/test-school-report-review.mjs");
+ for(const token of ['publishedQueue','recipientNotices.length,1','retracted.data.notificationsQueued',
+  'updatedReport.publishedAt','school.report.retract']){
+  assert.ok(ci.includes(token),"Missing integration evidence: "+token);
+ }
+});

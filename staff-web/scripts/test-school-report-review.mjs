@@ -17,7 +17,7 @@ async function call(path,method="GET",data,token){
  return {status:r.status,...await r.json().catch(()=>({}))};
 }
 let adminSessionId=null;
-const reports=[],sessions=[];
+const reports=[],sessions=[],notices=[];
 let foreignOrg=null,foreignProgram=null,foreignClass=null,foreignStudent=null;
 let activeSibling=null,siblingLink=null,siblingEnrollment=null;
 try{
@@ -185,15 +185,65 @@ try{
  ]);
  assert.ok(concurrent.some(x=>x.status===200),JSON.stringify(concurrent));
  assert.ok(concurrent.every(x=>[200,404,409].includes(x.status)),JSON.stringify(concurrent));
+ // Published report retraction must immediately remove family access,
+ // preserve its publication timestamp and queue no sensitive narrative.
+ const publishedQueue=await call("schoolwork","GET",undefined,adminToken);
+ assert.ok(publishedQueue.data.publishedReports.some(x=>x.id===firstId));
+ assert.ok(!publishedQueue.data.publishedReports.some(x=>x.id===foreignReport.id));
+ assert.ok(!teacherRead.data.publishedReports?.length,
+  "ordinary teachers must not receive the private administrator withdrawal queue");
+ const retract={action:"retract-report",reportId:firstId,reason:"privacy-concern"};
+ assert.equal((await call("schoolwork","PATCH",retract)).status,401);
+ assert.equal((await call("schoolwork","PATCH",retract,teacherToken)).status,403);
+ assert.equal((await call("schoolwork","PATCH",retract,memberToken)).status,403);
+ assert.equal((await call("schoolwork","PATCH",{...retract,reason:"verified-content"},adminToken)).status,422);
+ assert.equal((await call("schoolwork","PATCH",{...retract,reportId:foreignReport.id},adminToken)).status,404);
+ assert.equal((await call("schoolwork","PATCH",{...retract,reportId:secondId},adminToken)).status,404);
+ const guardian=await db.user.findUniqueOrThrow({where:{email:memberEmail}});
+ const noticesBefore=await db.notification.findMany({where:{
+  organizationId:org.id,userId:guardian.id,title:"School report withdrawn"
+ },select:{id:true}});
+ const publishedAt=published.publishedAt.getTime();
+ const retracted=await call("schoolwork","PATCH",retract,adminToken);
+ assert.equal(retracted.status,200,JSON.stringify(retracted));
+ assert.equal(retracted.data.status,"archived");
+ assert.ok(retracted.data.notificationsQueued>=1,
+  "approved guardian receives an organization-owned private notice");
+ const updatedReport=await db.studentReport.findUniqueOrThrow({where:{id:firstId}});
+ assert.equal(updatedReport.status,"archived");
+ assert.equal(updatedReport.publishedAt?.getTime(),publishedAt,
+  "retraction preserves the original publication event time");
+ assert.ok(!(await call("schoolwork","GET",undefined,memberToken)).data.reports.some(x=>x.id===firstId),
+  "retracted report immediately disappears from family-facing reads");
+ assert.ok(!(await call("schoolwork","GET",undefined,adminToken)).data.publishedReports.some(x=>x.id===firstId));
+ assert.equal((await call("schoolwork","PATCH",retract,adminToken)).status,404,
+  "repeat retraction cannot create duplicate notifications or audits");
+ const recipientNotices=await db.notification.findMany({where:{
+  organizationId:org.id,userId:guardian.id,title:"School report withdrawn",
+  id:{notIn:noticesBefore.map(x=>x.id)}
+ },include:{outboxEvents:true}});
+ assert.equal(recipientNotices.length,1);
+ for(const notice of recipientNotices){
+  notices.push(notice.id);
+  assert.ok(!notice.body.includes(baseDraft.summary));
+  assert.ok(!notice.body.includes(student.firstName)&&!notice.body.includes(student.lastName));
+  assert.equal(notice.outboxEvents.length,1);
+  assert.equal(notice.outboxEvents[0].status,"pending");
+ }
  const audit=await db.auditEvent.findMany({where:{entity:"StudentReport",entityId:{in:reports}}});
  assert.equal(audit.filter(x=>x.entityId===firstId&&x.action==="school.report.publish").length,1);
  assert.equal(audit.filter(x=>x.entityId===thirdId&&x.action==="school.report.publish").length,1);
  assert.equal(audit.filter(x=>x.entityId===secondId&&x.action==="school.report.reject").length,1);
+ assert.equal(audit.filter(x=>x.entityId===firstId&&x.action==="school.report.retract").length,1);
  assert.ok(audit.every(x=>!x.detail?.includes(baseDraft.summary)&&
   !x.detail?.includes("Private other-mosque draft.")),
   "never put actual child reports in audit detail");
  console.log("Verified independent report publishing, private drafts/rejections, active author/enrollment, foreign scope, concurrent audit.");
 }finally{
+ if(notices.length){
+  await db.outboxEvent.deleteMany({where:{notificationId:{in:notices}}});
+  await db.notification.deleteMany({where:{id:{in:notices}}});
+ }
  if(reports.length){
   await db.auditEvent.deleteMany({where:{entity:"StudentReport",entityId:{in:reports}}});
   await db.studentReport.deleteMany({where:{id:{in:reports}}});

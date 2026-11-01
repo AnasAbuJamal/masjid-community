@@ -6,6 +6,7 @@ import {requireVerified} from "@/lib/auth";
 import {schoolStudentScope} from "@/lib/school-scope";
 import {mayViewGuardianRecords} from "@/lib/school-role-policy";
 import {resolveMosqueLocalTime} from "@/lib/zoned-schedule-time";
+import {notifyUser} from "@/lib/notifications";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("assignment"),classId:z.string().min(8),title:z.string().trim().min(4).max(180),instructions:z.string().trim().min(10).max(8000),dueAt:z.iso.datetime(),published:z.boolean().default(false)}),
@@ -16,9 +17,12 @@ const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("submission"),assignmentId:z.string().min(8),body:z.string().trim().min(1).max(10000)}),
  z.object({kind:z.literal("report"),classId:z.string().min(8),studentId:z.string().min(8),summary:z.string().trim().min(10).max(5000),published:z.boolean().default(false)}),
 ]);
-const reviewReport=z.object({action:z.enum(["publish-report","reject-report"]),
+const reviewReport=z.object({
+ action:z.enum(["publish-report","reject-report","retract-report"]),
  reportId:z.string().min(8).max(128),
- reason:z.enum(["verified-content","needs-correction","policy-not-met"])}).strict();
+ reason:z.enum(["verified-content","needs-correction","policy-not-met",
+  "incorrect-content","privacy-concern","safeguarding-review"])
+}).strict();
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req);
@@ -42,17 +46,31 @@ export async function GET(req:NextRequest){
     }))};
    });
    // Only a currently verified, MFA-cleared admin may see private drafts.
-   const pendingReports=user.role==="admin"?await db.studentReport.findMany({
-    where:{status:"draft",classSection:{program:{organizationId:org.id}},
-     student:schoolStudentScope(org.id)},
-    orderBy:[{createdAt:"asc"},{id:"asc"}],take:50,
-    select:{id:true,teacherId:true,summary:true,createdAt:true,
-     classSection:{select:{id:true,name:true}},
-     student:{select:{firstName:true,lastName:true}},
-     teacher:{select:{firstName:true,lastName:true}}}
-   }):[];
+   // These private review lists never reach ordinary teachers or families.
+   const [pendingReports,publishedReports]=user.role==="admin"?await Promise.all([
+    db.studentReport.findMany({
+     where:{status:"draft",classSection:{program:{organizationId:org.id}},
+      student:schoolStudentScope(org.id)},
+     orderBy:[{createdAt:"asc"},{id:"asc"}],take:50,
+     select:{id:true,teacherId:true,summary:true,createdAt:true,
+      classSection:{select:{id:true,name:true}},
+      student:{select:{firstName:true,lastName:true}},
+      teacher:{select:{firstName:true,lastName:true}}}
+    }),
+    // A report might require retraction even after the student withdrew.
+    db.studentReport.findMany({
+     where:{status:"published",classSection:{program:{organizationId:org.id}},
+      student:schoolStudentScope(org.id)},
+     orderBy:[{publishedAt:"desc"},{id:"desc"}],take:50,
+     select:{id:true,teacherId:true,summary:true,publishedAt:true,
+      classSection:{select:{id:true,name:true}},
+      student:{select:{firstName:true,lastName:true}},
+      teacher:{select:{firstName:true,lastName:true}}}
+    })
+   ]):[[],[]];
    return ok({mode:"teacher",organization:{name:org.name,timeZone:org.timeZone},
-    classes:activeClasses,pendingReports:pendingReports.map(x=>({...x,selfAuthored:x.teacherId===user.id}))});
+    classes:activeClasses,pendingReports:pendingReports.map(x=>({...x,selfAuthored:x.teacherId===user.id})),
+    publishedReports:publishedReports.map(x=>({...x,selfAuthored:x.teacherId===user.id}))});
   }
   const [own,links]=await Promise.all([
    db.student.findFirst({where:{userId:user.id,...schoolStudentScope(org.id)},select:{id:true}}),
@@ -235,12 +253,58 @@ export async function PATCH(req:NextRequest){
   assertSameOrigin(req);
   const reviewer=await requireVerified(req,["admin"]);
   const input=reviewReport.parse(await jsonBody(req));
-  if((input.action==="publish-report")!==(input.reason==="verified-content"))
-   throw new HttpError(422,"REVIEW_REASON","Use an approved reason code for this decision.");
+  const isRetraction=input.action==="retract-report";
+  const allowedRetractionReasons=["incorrect-content","privacy-concern","safeguarding-review"];
+  const validReason=isRetraction?allowedRetractionReasons.includes(input.reason):
+   input.action==="publish-report"?input.reason==="verified-content":
+   ["needs-correction","policy-not-met"].includes(input.reason);
+  if(!validReason)throw new HttpError(422,"REVIEW_REASON",
+   "Use the approved reason code for this action.");
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   try{
    const result=await db.$transaction(async tx=>{
+    if(isRetraction){
+     const report=await tx.studentReport.findFirst({where:{
+      id:input.reportId,status:"published",student:schoolStudentScope(org.id),
+      classSection:{program:{organizationId:org.id}}
+     },select:{id:true,teacherId:true,classId:true,studentId:true}});
+     if(!report)throw new HttpError(404,"REPORT_UNAVAILABLE",
+      "Published report unavailable for this mosque.");
+     if(report.teacherId===reviewer.id)throw new HttpError(403,
+      "INDEPENDENT_REVIEW_REQUIRED","The report author cannot withdraw their own report.");
+     const changed=await tx.studentReport.updateMany({where:{
+      id:report.id,status:"published",classId:report.classId,studentId:report.studentId
+     },data:{status:"archived"}});
+     if(!changed.count)throw new HttpError(409,"REPORT_CHANGED",
+      "The published report changed. Refresh the review queue.");
+     // Deliberately preserve original publishedAt in the historical row.
+     await tx.auditEvent.create({data:{actorId:reviewer.id,
+      action:"school.report.retract",entity:"StudentReport",entityId:report.id,
+      detail:JSON.stringify({organizationId:org.id,classId:report.classId,
+       studentId:report.studentId,authorId:report.teacherId,reason:input.reason})
+     }});
+     // Only a generic status notice: no student names, report content,
+     // grades, report identifiers, or child-sensitive reason.
+     const student=await tx.student.findUnique({where:{id:report.studentId},
+      select:{userId:true,user:{select:{role:true}}}});
+     const links=await tx.guardianLink.findMany({where:{
+      studentId:report.studentId,approvedAt:{not:null},revokedAt:null,
+      guardian:{role:{not:"student"}}
+     },select:{guardianId:true}});
+     const recipients=new Set([
+      ...(student?.userId&&student.user?.role==="student"?[student.userId]:[]),
+      ...links.map(link=>link.guardianId)
+     ]);
+     let queued=0;
+     for(const userId of recipients){
+      const notice=await notifyUser(tx,org.id,userId,
+       "School report withdrawn",
+       "A previously published school progress report is no longer available. Review your private schoolwork records or contact authorized school staff.");
+      if(notice)queued++;
+     }
+     return {id:report.id,status:"archived" as const,notificationsQueued:queued};
+    }
     const draft=await tx.studentReport.findFirst({where:{
      id:input.reportId,status:"draft",student:schoolStudentScope(org.id),
      classSection:{program:{organizationId:org.id}}
@@ -289,7 +353,7 @@ export async function PATCH(req:NextRequest){
    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
    return ok(result);
   }catch(error){
-   if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2034")
+   if(error instanceof Prisma.PrismaClientKnownRequestError&&["P2002","P2034"].includes(error.code))
     throw new HttpError(409,"REPORT_CHANGED","Another reviewer changed this report.");
    throw error;
   }
