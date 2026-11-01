@@ -349,7 +349,20 @@ export async function PATCH(req:NextRequest){
      detail:JSON.stringify({organizationId:org.id,classId:draft.classId,
       studentId:draft.studentId,authorId:draft.teacherId,reason:input.reason})
     }});
-    return {id:draft.id,status:published?"published":"archived"};
+    // Tell the author the FACTUAL decision, not the child's narrative or
+    // identity. A former teacher/admin loses this private routing; notifyUser
+    // additionally enforces current active mosque membership and verification.
+    const author=await tx.user.findFirst({where:{
+     id:draft.teacherId,status:"active",verifiedAt:{not:null},
+     role:{in:["teacher","admin"]}
+    },select:{id:true}});
+    const authorNotice=author?await notifyUser(tx,org.id,author.id,
+     published?"School report approved":"School report requires correction",
+     published?
+      "A school progress report you authored was approved after independent review. Check your private schoolwork records for status.":
+      "A school progress report you authored was not published. Contact an authorized school administrator about corrections."):null;
+    return {id:draft.id,status:published?"published":"archived",
+     authorNoticeQueued:!!authorNotice};
    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
    return ok(result);
   }catch(error){

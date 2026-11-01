@@ -57,6 +57,11 @@ try{
   assert.equal(result.data.status,"draft");
   reports.push(result.data.id);return result.data.id;
  };
+ // Compare notification IDs, not counts of other synthetic test runs.
+ const authorNoticeBaseline=await db.notification.findMany({where:{
+  organizationId:org.id,userId:teacher.id,
+  title:{in:["School report approved","School report requires correction"]}
+ },select:{id:true}});
  const firstId=await newDraft();
  const familyBefore=await call("schoolwork","GET",undefined,memberToken);
  assert.equal(familyBefore.status,200);
@@ -229,6 +234,26 @@ try{
   assert.ok(!notice.body.includes(student.firstName)&&!notice.body.includes(student.lastName));
   assert.equal(notice.outboxEvents.length,1);
   assert.equal(notice.outboxEvents[0].status,"pending");
+ }
+ // Two independent publish actions and one rejection must each create ONE
+ // generic private author notification. A replay or concurrency loser must
+ // not queue a second notice, nor disclose school progress narratives.
+ const authorNotices=await db.notification.findMany({where:{
+  organizationId:org.id,userId:teacher.id,
+  title:{in:["School report approved","School report requires correction"]},
+  id:{notIn:authorNoticeBaseline.map(x=>x.id)}
+ },include:{outboxEvents:true}});
+ assert.equal(authorNotices.filter(n=>n.title==="School report approved").length,2);
+ assert.equal(authorNotices.filter(n=>n.title==="School report requires correction").length,1);
+ assert.equal(authorNotices.length,3,"one eligible author notification per approved/rejected decision");
+ for(const n of authorNotices){
+  notices.push(n.id);
+  assert.ok(!n.body.includes(baseDraft.summary));
+  assert.ok(!n.body.includes(student.firstName)&&!n.body.includes(student.lastName));
+  assert.ok(!n.body.includes(firstId)&&!n.body.includes(secondId));
+  assert.equal(n.organizationId,org.id);
+  assert.equal(n.outboxEvents.length,1);
+  assert.equal(n.outboxEvents[0].status,"pending");
  }
  const audit=await db.auditEvent.findMany({where:{entity:"StudentReport",entityId:{in:reports}}});
  assert.equal(audit.filter(x=>x.entityId===firstId&&x.action==="school.report.publish").length,1);

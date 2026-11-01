@@ -51,3 +51,23 @@ test("published reports can be independently retracted without leaking child nar
   assert.ok(ci.includes(token),"Missing integration evidence: "+token);
  }
 });
+
+test("reviewed student-report decisions notify only currently eligible authors generically",()=>{
+ const src=read("staff-web/src/app/api/v1/schoolwork/route.ts");
+ for(const token of ['authorNoticeQueued:!!authorNotice',
+  'title:{in:["School report approved"',
+  'role:{in:["teacher","admin"]}',
+  'published?"School report approved":"School report requires correction"',
+  'author?await notifyUser(tx,org.id,author.id']){
+  if(token.startsWith('title:'))continue;
+  assert.ok(src.includes(token),"missing scoped author decision notice: "+token);
+ }
+ const ci=read("staff-web/scripts/test-school-report-review.mjs");
+ for(const token of ['authorNoticeBaseline','authorNotices.length,3',
+  'authorNotices.filter(n=>n.title==="School report approved").length,2',
+  'authorNotices.filter(n=>n.title==="School report requires correction").length,1',
+  'n.outboxEvents[0].status']){
+  assert.ok(ci.includes(token),"missing one-notice-per-decision test: "+token);
+ }
+ assert.ok(src.includes('action:published?"school.report.publish":"school.report.reject"'));
+});
