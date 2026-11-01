@@ -96,6 +96,7 @@ model Organization {
   deletionRequests DeletionRequest[]
   notifications Notification[]
   deliveryPreferences OrganizationDeliveryPreference[]
+  analyticsConsents OrganizationAnalyticsConsent[]
   integrityAuditEvents IntegrityAuditEvent[]
 }
 model Venue {
@@ -148,6 +149,7 @@ model User {
   bookings RentalBooking[]
   notifications Notification[]
   deliveryPreferences OrganizationDeliveryPreference[]
+  analyticsConsents OrganizationAnalyticsConsent[]
   outboxEvents OutboxEvent[]
   auditEvents AuditEvent[]
   payoutReviewNotes PayoutReviewNote[]
@@ -1183,6 +1185,20 @@ enum DeliveryPurpose {
 }
 enum DeliveryChannel {
   email
+}
+// F-049 pilot: independent, per-mosque opt-in for COARSE completed-event
+// aggregates. Never conflate delivery/email preferences with analytics.
+model OrganizationAnalyticsConsent {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  enabled Boolean @default(false)
+  consentedAt DateTime?
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId,userId])
+  @@index([organizationId,enabled,consentedAt])
 }
 model OrganizationDeliveryPreference {
   id String @id @default(cuid())

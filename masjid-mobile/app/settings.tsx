@@ -12,6 +12,7 @@ type Data={profile:{firstName:string;lastName:string;email:string;role:string};
  currentSessionId:string;sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
 type DeliveryPreference={purpose:"community_news"|"event_updates";enabled:boolean;quietStartHour:number|null;quietEndHour:number|null};
 type DeliveryData={organization:{name:string;timeZone:string};optional:DeliveryPreference[];policy:string};
+type AnalyticsConsentData={organization:{name:string;id:string};enabled:boolean;consentedAt:string|null;policy:string};
 type ContextData={selectedOrganizationId:string;selectedActive:boolean;organizations:{id:string;name:string;slug:string;timeZone:string;selectable:boolean;memberWorkspace:string}[];policy:string};
 export default function Settings(){
  const {language,setLanguage,t}=useLanguage();
@@ -19,8 +20,10 @@ export default function Settings(){
  const result=useResource<Data>("account");
  const context=useResource<ContextData>("organizations/context");
  const delivery=useResource<DeliveryData>("me/preferences");
+ const analytics=useResource<AnalyticsConsentData>("me/analytics-consent");
  const [first,setFirst]=useState(""),[last,setLast]=useState("");
  const [newsletter,setNewsletter]=useState(false),[events,setEvents]=useState(false),[quiet,setQuiet]=useState(false);
+ const [analyticsEnabled,setAnalyticsEnabled]=useState(false);
  const [quietStart,setQuietStart]=useState("22"),[quietEnd,setQuietEnd]=useState("7");
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [exportPassword,setExportPassword]=useState("");
@@ -35,6 +38,22 @@ export default function Settings(){
   if(window?.quietStartHour!==null&&window?.quietStartHour!==undefined)setQuietStart(String(window.quietStartHour));
   if(window?.quietEndHour!==null&&window?.quietEndHour!==undefined)setQuietEnd(String(window.quietEndHour));
  }},[delivery.data]);
+ useEffect(()=>{
+  setAnalyticsEnabled(analytics.data?.enabled||false);
+ },[analytics.data]);
+ async function saveAnalytics(){
+  if(!analytics.data||analyticsEnabled===analytics.data.enabled||busy)return;
+  setBusy(true);setError("");setNotice("");
+  try{
+   await api("me/analytics-consent",{method:"PATCH",
+    body:JSON.stringify({enabled:analyticsEnabled,confirm:true})});
+   await analytics.refresh();
+   setNotice(t("settings.analyticsSaved"));
+  }catch(e){
+   await analytics.refresh();
+   setError(e instanceof Error?e.message:t("settings.analyticsError"));
+  }finally{setBusy(false);}
+ }
  async function switchMosque(id:string){
   setBusy(true);setNotice("");setError("");
   try{
@@ -155,6 +174,23 @@ export default function Settings(){
  <Text style={S.muted}>{t("settings.deliveryPolicy")}</Text>
  <Action label={t("settings.saveDelivery")} loading={busy} disabled={busy||!delivery.data}
  onPress={()=>void saveDelivery()}/></Card>
+ <Card style={{gap:13}}>
+ <Text style={S.headline}>{t("settings.analyticsTitle")}</Text>
+ <Feedback loading={analytics.loading} error={analytics.error} empty={false} refresh={analytics.refresh}/>
+ <Text style={S.muted}>{analytics.data?.organization.name||t("inbox.currentMosque")}</Text>
+ <Text style={S.bodyText}>{t("settings.analyticsPolicy")}</Text>
+ {analytics.data?pref(t("settings.analyticsOptIn"),analyticsEnabled,setAnalyticsEnabled):null}
+ <Action label={t("settings.analyticsSave")} secondary disabled={busy||!analytics.data||
+  analyticsEnabled===analytics.data.enabled}
+  onPress={()=>{
+   if(analyticsEnabled){
+    Alert.alert(t("settings.analyticsConfirmTitle"),t("settings.analyticsConfirmBody"),[
+     {text:t("settings.cancel"),style:"cancel"},
+     {text:t("settings.analyticsSave"),onPress:()=>void saveAnalytics()}
+    ]);
+   }else void saveAnalytics();
+  }}/>
+ </Card>
  <Card style={{gap:13}}><Text style={S.headline}>{t("settings.sessionsTitle")}</Text>
  {result.data.sessions.map(s=><View key={s.id} style={[S.row,{paddingVertical:8,
   flexDirection:language==="ar"?"row-reverse":"row"}]}>

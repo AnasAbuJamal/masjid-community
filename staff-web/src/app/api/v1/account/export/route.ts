@@ -65,6 +65,9 @@ export async function POST(req:NextRequest){
    db.careRequest.findMany({where:{organizationId:org.id,requesterId:user.id},
     take:201,orderBy:{createdAt:"desc"},select:{reference:true,status:true,createdAt:true,closedAt:true}})
   ]);
+  const analyticsConsent=await db.organizationAnalyticsConsent.findUnique({where:{
+   organizationId_userId:{organizationId:org.id,userId:user.id}
+  },select:{enabled:true,consentedAt:true,updatedAt:true}});
   const lists={eventRegistrations:rsvps,donations,jobApplications,
    volunteerApplications:volunteering,rentalBookings:bookings,proposals,
    circleMemberships:circles,careRequestReferences:careReferences};
@@ -86,6 +89,9 @@ export async function POST(req:NextRequest){
    complete:false, // Other organizations and protected categories always require a separate process.
    exclusions:["student and guardianship records","care narratives","finance-provider account data","other organizations"],
    account:{email:user.email,firstName:user.firstName,lastName:user.lastName},
+   analyticsConsent:{enabled:analyticsConsent?.enabled||false,
+    consentedAt:analyticsConsent?.consentedAt||null,
+    updatedAt:analyticsConsent?.updatedAt||null},
    ...limited
   });
  });
