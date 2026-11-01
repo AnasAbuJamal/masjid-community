@@ -3,7 +3,12 @@ import {db} from "@/lib/db";
 import {handled,ok,localDate} from "@/lib/http";
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  const org=await db.organization.findFirst();
+  // Public faith notices belong only to the original visitor pilot mosque.
+  // Match the deterministic selection used by public venues/home, never an
+  // arbitrary database row when multiple organizations share this database.
+  const org=await db.organization.findFirst({
+   orderBy:[{createdAt:"asc"},{id:"asc"}]
+  });
   if(!org)return ok({organization:null,notices:[],policy:"Dates are displayed only after mosque confirmation."});
   const before=localDate(new Date(Date.now()-14*86400000),org.timeZone);
   const notices=await db.faithNotice.findMany({where:{organizationId:org.id,status:"published",approvedById:{not:null},localDate:{gte:before},publishedAt:{lte:new Date()}},
