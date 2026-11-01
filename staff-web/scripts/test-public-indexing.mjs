@@ -16,6 +16,8 @@ let temporaryOrgId=null;
 let temporaryPublishedId=null;
 let temporaryDraftId=null;
 let temporaryFutureId=null;
+let temporaryNoticeId=null;
+let temporaryUnapprovedFaithId=null;
 
 try {
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
@@ -52,6 +54,17 @@ try {
   publishedAt:new Date(Date.now()+86400000*7)
  }});
  temporaryFutureId=future.id;
+ const approvedNotice=await db.announcement.create({data:{
+  organizationId:org.id,title:"CI PUBLISHED INDEX NOTICE",
+  body:"Approved for publication",status:"published",publishedAt:new Date()
+ }});
+ temporaryNoticeId=approvedNotice.id;
+ const unapprovedFaith=await db.faithNotice.create({data:{
+  organizationId:org.id,kind:"other",localDate:"2038-04-13",
+  title:"CI FAITH WITHOUT APPROVER",body:"Unreviewed calendar claim",
+  status:"published",publishedAt:new Date(),approvedById:null
+ }});
+ temporaryUnapprovedFaithId=unapprovedFaith.id;
 
  const robotsResponse=await fetch(base+"/robots.txt",{cache:"no-store"});
  assert.equal(robotsResponse.status,200);
@@ -69,11 +82,12 @@ try {
   "/visit",
   "/visit/content/gatherings/"+published.id,
   "/visit/content/learning/"+program.id,
+  "/visit/content/updates/"+approvedNotice.id,
   "/visit/content/faith/"+faith.id
  ]){
   assert.ok(xml.includes(base+path),"missing approved public path: "+path);
  }
- for(const id of [foreign.id,draft.id,future.id]) {
+ for(const id of [foreign.id,draft.id,future.id,unapprovedFaith.id]) {
   assert.ok(!xml.includes(id),"unapproved, premature or foreign record entered public index: "+id);
  }
  assert.doesNotMatch(xml,/\/admin\/|\/api\/|\/schoolwork\/|\/kiosk\/|\/care\//);
@@ -94,6 +108,8 @@ try {
  console.log("Public SEO controls: owner opt-in, published-only sitemap, cross-tenant and future/draft exclusion passed.");
 } finally {
  if(temporaryDraftId)await db.announcement.deleteMany({where:{id:temporaryDraftId}});
+ if(temporaryNoticeId)await db.announcement.deleteMany({where:{id:temporaryNoticeId}});
+ if(temporaryUnapprovedFaithId)await db.faithNotice.deleteMany({where:{id:temporaryUnapprovedFaithId}});
  if(temporaryFutureId)await db.announcement.deleteMany({where:{id:temporaryFutureId}});
  if(temporaryPublishedId)await db.event.deleteMany({where:{id:temporaryPublishedId}});
  if(temporaryOrgId)await db.organization.deleteMany({where:{id:temporaryOrgId}});
