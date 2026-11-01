@@ -39,15 +39,29 @@ try {
  }});
  eventIds.push(own.id);
 
- // Legacy schema can reference another tenant's venue; the public serializer
- // must drop those venue details rather than reveal its name/timezone.
- const foreign=await db.event.create({data:{
-  organizationId:org.id,venueId:foreignVenue.id,
-  title:"CI FOREIGN VENUE REDACTION "+id,description:"Synthetic isolation check",
-  location:"Location not verified",status:"published",
-  startAt:new Date(now+11*60_000),endAt:new Date(now+71*60_000)
+ // PostgreSQL enforces tenant ownership on event venue writes. Reject
+ // cross-mosque associations even when a caller knows a foreign venue ID.
+ await assert.rejects(
+  db.event.create({data:{
+   organizationId:org.id,venueId:foreignVenue.id,
+   title:"CI INVALID FOREIGN VENUE "+id,description:"Must be blocked by trigger",
+   location:"Location not verified",status:"published",
+   startAt:new Date(now+11*60_000),endAt:new Date(now+71*60_000)
+  }}),
+  /Gathering venue belongs to a different mosque/,
+  "database tenant guard must reject cross-organization venue writes"
+ );
+
+ // An older published gathering without a verified venue should remain
+ // discoverable but carry a NULL venue, enabling a visibly labeled
+ // organization-time fallback rather than inferred device-local time.
+ const legacy=await db.event.create({data:{
+  organizationId:org.id,venueId:null,
+  title:"CI UNASSIGNED GATHERING "+id,description:"Legacy no venue",
+  location:"Location unspecified",status:"published",
+  startAt:new Date(now+12*60_000),endAt:new Date(now+72*60_000)
  }});
- eventIds.push(foreign.id);
+ eventIds.push(legacy.id);
 
  const res=await fetch(origin,{cache:"no-store"});
  assert.equal(res.status,200);
@@ -55,13 +69,13 @@ try {
  const events=body.data?.events;
  assert.ok(Array.isArray(events));
  const ownResult=events.find(e=>e.id===own.id);
- const foreignResult=events.find(e=>e.id===foreign.id);
+ const legacyResult=events.find(e=>e.id===legacy.id);
  assert.ok(ownResult,"published event must appear in upcoming list");
  assert.deepEqual(ownResult.venue,{
   id:homeVenue.id,name:"CI Gathering Time Venue",timeZone:"Pacific/Honolulu"
  });
- assert.ok(foreignResult,"legacy foreign-venue event is still in public listing");
- assert.equal(foreignResult.venue,null,"foreign venue metadata must never leak");
+ assert.ok(legacyResult,"published gathering without a venue remains visible");
+ assert.equal(legacyResult.venue,null,"unverified legacy venue remains null");
  assert.ok(!JSON.stringify(events).includes(foreignVenue.name),
   "unrelated mosque identity must not enter the response");
 
