@@ -5,14 +5,21 @@ const kinds=["events","articles","announcements","programs","jobs","campaigns","
 type Kind=typeof kinds[number];
 export async function GET(req:NextRequest){
  return handled(async()=>{
-  const q=(req.nextUrl.searchParams.get("q")||"").trim();
+  const params=req.nextUrl.searchParams;
+  if([...params.keys()].some(k=>k!=="q"&&k!=="kind")||
+     params.getAll("q").length>1||params.getAll("kind").length>1)
+    throw new HttpError(422,"BAD_QUERY","Unsupported or duplicate public search filters.");
+  const q=(params.get("q")||"").trim();
   const category=req.nextUrl.searchParams.get("kind")||"all";
   if(category!=="all"&&!kinds.includes(category as Kind))
    throw new HttpError(422,"INVALID_CATEGORY","Choose a supported search category.");
   if(q.length<2)return ok({query:q,kind:category,items:[]});
   if(q.length>80||!(/^[\p{L}\p{N}\s.'’\-]+$/u.test(q)))
    throw new HttpError(422,"INVALID_QUERY","Use 2 to 80 letters, numbers or spaces.");
-  const org=await db.organization.findFirst();
+  // The public search feed must use the same configured primary mosque as
+  // guest home and venues; arbitrary first-row selection can expose another
+  // mosque's published content in a multi-organization database.
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
   if(!org)return ok({query:q,kind:category,items:[]});
   const id=org.id,now=new Date(),take=6;
   const yes=(kind:Kind)=>category==="all"||category===kind;
