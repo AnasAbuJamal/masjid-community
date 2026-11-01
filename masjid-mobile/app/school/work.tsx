@@ -7,6 +7,7 @@ import {useResource} from "../../src/useResource";
 import {useSession} from "../../src/session";
 import {apiPost} from "../../src/api";
 import {useLanguage} from "../../src/i18n";
+import {PublishedFamilyReports} from "../../src/PublishedFamilyReports";
 type Assignment={id:string;title:string;instructions:string;dueAt:string;classSection:{name:string};studentIds:string[]};
 type Schoolwork={mode:"family"|"teacher";organization?:{name:string;timeZone:string};assignments?:Assignment[];selfStudentId?:string|null;reports?:{id:string;studentId:string;summary:string;classSection:{name:string};student:{firstName:string;lastName:string}}[];submissions?:{id:string;assignmentId:string;studentId:string;submittedAt:string;body?:string}[];classes?:{id:string;name:string;assignments:{id:string;title:string;published:boolean;dueAt:string}[]}[]};
 export default function Work(){
@@ -88,13 +89,8 @@ export default function Work(){
    <Text style={[S.muted,{textAlign:align}]}>{t("schoolwork.originalPrivate")}</Text>
   </Card>
  )}
- {result.data?.reports?.length?<View style={S.section}>
- <Text style={[S.headline,{textAlign:align}]}>{t("schoolwork.publishedReports")}</Text>
- {result.data.reports.map(r=><Card key={r.id} style={{gap:9}}>
-  <Text style={[S.label,{textAlign:align}]}>{r.student.firstName} {r.student.lastName} · {r.classSection.name}</Text>
-  <Text style={[S.bodyText,{textAlign:align}]}>{r.summary}</Text>
- </Card>)}
- </View>:null}
+ <PublishedFamilyReports enabled={result.data?.mode==="family"}
+  timeZone={result.data?.organization?.timeZone}/>
  {error?<Text accessibilityRole="alert" style={{color:T.danger,textAlign:align}}>{error}</Text>:null}
  {notice?<Text accessibilityRole="alert" style={{color:T.success,textAlign:align}}>{notice}</Text>:null}
  </Shell>;
