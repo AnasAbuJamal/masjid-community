@@ -107,26 +107,53 @@ try{
  assert.ok(!JSON.stringify(queue.data).includes("grossMinor"),"unknown gross cannot be manufactured");
  assert.ok(!JSON.stringify(queue.data).includes("feeMinor"),"unknown fees cannot be manufactured");
  const noMember=await request("admin/payouts","POST",{
-  payoutId,body:"An investigation note must never be accepted from a member."
+  payoutId,reasonCode:"bank_credit_unverified"
  },memberToken);
  assert.equal(noMember.status,403);
  const noGuess=await request("admin/payouts","POST",{
-  payoutId:"unrelated_private_payout",body:"A guess must not access unrelated provider payouts."
+  payoutId:"unrelated_private_payout",reasonCode:"bank_credit_unverified"
  },adminToken);
  assert.equal(noGuess.status,404);
- const short=await request("admin/payouts","POST",{payoutId,body:"short"},adminToken);
- assert.equal(short.status,422);
- const noteBody="Provider reports a failed transfer. Review payout source and bank statement separately.";
- const record=await request("admin/payouts","POST",{payoutId,body:noteBody},adminToken);
+ // New free-text notes are forbidden: financial/bank/donor details must not
+ // accidentally enter a long-lived review record or searchable audit.
+ const oldFreeText=await request("admin/payouts","POST",{
+  payoutId,body:"Sensitive donor and bank details should never be stored."
+ },adminToken);
+ assert.equal(oldFreeText.status,422);
+ const unknown=await request("admin/payouts","POST",{
+  payoutId,reasonCode:"made_up_bank_confirmation"
+ },adminToken);
+ assert.equal(unknown.status,422);
+ const extra=await request("admin/payouts","POST",{
+  payoutId,reasonCode:"bank_credit_unverified",bankAccount:"do_not_store"
+ },adminToken);
+ assert.equal(extra.status,422,"unknown PII-bearing fields are rejected");
+ const reasonCode="bank_credit_unverified";
+ const noteBody="Unresolved exception: Actual bank credit is not independently verified. This note does not certify payout settlement.";
+ const record=await request("admin/payouts","POST",{payoutId,reasonCode},adminToken);
  assert.equal(record.status,201);
+ assert.equal(record.data.reasonCode,reasonCode);
+ assert.equal(record.data.settlementCertified,false);
  assert.match(record.data.message,/unreconciled/);
+ assert.equal((await request("admin/payouts","POST",{payoutId,reasonCode},adminToken)).status,409,
+  "replaying the same category cannot create duplicate audit/exception records");
+ const different=await request("admin/payouts","POST",{
+  payoutId,reasonCode:"provider_transfer_failed"
+ },adminToken);
+ assert.equal(different.status,201,"independent evidence gaps can be classified separately");
  const audit=await db.auditEvent.findMany({where:{
   entity:"ProviderPayout",entityId:payoutId,action:"finance.payout.note"
  }});
- assert.equal(audit.length,1);
- assert.ok(!JSON.stringify(audit).includes(noteBody),"audit event refers to note ID, not private note text");
+ assert.equal(audit.length,2);
+ assert.ok(audit.every(x=>!x.detail.includes(noteBody)),
+  "audit records contain only fixed category IDs, never note text");
+ assert.ok(audit.some(x=>JSON.parse(x.detail).reasonCode===reasonCode));
+ assert.ok(audit.every(x=>JSON.parse(x.detail).settlementCertified===false));
  const noted=await request("admin/payouts","GET",undefined,adminToken);
- assert.equal(noted.data.payouts.find(p=>p.id===payoutId).notes[0].body,noteBody);
+ const returnedNotes=noted.data.payouts.find(p=>p.id===payoutId).notes;
+ assert.equal(returnedNotes.length,2);
+ assert.ok(returnedNotes.some(n=>n.body===noteBody));
+ assert.ok(returnedNotes.every(n=>n.body.includes("does not certify payout settlement.")));
  assert.equal(noted.data.reconciliationReady,false);
  const foreign=await db.organization.create({data:{
   slug:"payout-isolation-"+randomUUID(),name:"Another private mosque"

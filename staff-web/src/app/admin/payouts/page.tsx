@@ -1,11 +1,12 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
+import {PAYOUT_EXCEPTION_REASONS,type PayoutExceptionCode} from "@/lib/payout-exceptions";
 type Note={id:string;body:string;createdAt:string;author:{firstName:string;lastName:string}};
 type Payout={id:string;providerPayoutId:string;amountMinor:number;currency:string;state:string;arrivalAt:string|null;failureCode:string|null;observedAt:string;updatedAt:string;notes:Note[]};
 type Result={payouts:Payout[];organization:{name:string};complete:boolean;reconciliationReady:false;warning:string;policy:string};
 export default function ProviderPayouts(){
  const [data,setData]=useState<Result|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
- const [drafts,setDrafts]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false);
+ const [drafts,setDrafts]=useState<Record<string,PayoutExceptionCode|"" >>({}),[busy,setBusy]=useState(false);
  const reload=useCallback(async()=>{
   try{
    const r=await fetch("/api/v1/admin/payouts",{cache:"no-store"});
@@ -15,11 +16,12 @@ export default function ProviderPayouts(){
  },[]);
  useEffect(()=>{void reload()},[reload]);
  async function note(payoutId:string){
-  if(busy)return;const body=drafts[payoutId]||"";
+  if(busy)return;const reasonCode=drafts[payoutId];
+  if(!reasonCode)return;
   setBusy(true);setError("");setNotice("");
   try{
    const r=await fetch("/api/v1/admin/payouts",{method:"POST",
-    headers:{"Content-Type":"application/json"},body:JSON.stringify({payoutId,body})});
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({payoutId,reasonCode})});
    const v=await r.json();if(!r.ok)throw new Error(v.error?.message||"Unable to record review note.");
    setDrafts(old=>({...old,[payoutId]:""}));
    setNotice("Review note recorded without changing reconciliation status.");
@@ -48,11 +50,17 @@ export default function ProviderPayouts(){
  <p className="small">Received {new Date(p.observedAt).toLocaleString()} · Last observed {new Date(p.updatedAt).toLocaleString()}
  {p.arrivalAt?" · Provider estimated arrival "+new Date(p.arrivalAt).toLocaleDateString():""}</p>
  {p.failureCode?<p className="error" role="alert">Provider failure: {p.failureCode}. Investigate with your payment provider.</p>:null}
- <div className="field"><label htmlFor={"payout-"+p.id}>Investigation note (15–500 characters; no donor names or confidential data)</label>
- <textarea id={"payout-"+p.id} maxLength={500} value={drafts[p.id]||""}
- onChange={e=>setDrafts(old=>({...old,[p.id]:e.target.value}))}/></div>
- <button className="secondary" disabled={busy||(drafts[p.id]||"").trim().length<15}
- onClick={()=>void note(p.id)}>Add auditable note</button>
+ <div className="field">
+ <label htmlFor={"payout-"+p.id}>Unresolved exception category (no free text, personal or bank details)</label>
+ <select id={"payout-"+p.id} value={drafts[p.id]||""}
+  onChange={e=>setDrafts(old=>({...old,[p.id]:e.target.value as PayoutExceptionCode}))}>
+  <option value="">Select an unresolved evidence gap</option>
+  {PAYOUT_EXCEPTION_REASONS.map(item=><option key={item.code} value={item.code}>{item.label}</option>)}
+ </select>
+ <p className="small">Classification is not reconciliation, confirmation of a bank deposit or permission to record confidential information.</p>
+ </div>
+ <button className="secondary" disabled={busy||!drafts[p.id]}
+ onClick={()=>void note(p.id)}>Record unresolved exception</button>
  {p.notes.map(n=><div key={n.id} className="tile">
  <p>{n.body}</p><p className="small">{n.author.firstName} {n.author.lastName} · {new Date(n.createdAt).toLocaleString()}</p>
  </div>)}
