@@ -14,6 +14,7 @@ import {useGatheringPages} from "../../../src/useGatheringPages";
 import {useLanguage} from "../../../src/i18n";
 import {gatheringLocalTime} from "../../../src/gathering-local-time";
 import {isGatheringDeadlineClosed} from "../../../src/gathering-deadline";
+import {useVenueSafetyRefresh} from "../../../src/useVenueSafetyRefresh";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;endAt?:string|null;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
  cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string;
  category?:string|null;audience?:string|null;accessibilityFeatures?:string[];
@@ -76,6 +77,9 @@ export default function Details(){
      ((kind==="announcements"||kind==="articles")&&id!=="all"
        ?"?itemId="+encodeURIComponent(id):""):null;
  const result=useResource<Result>(path);
+ // A published gathering may change capacity, venue, closure or deadline while
+ // someone keeps its detail open. Recheck on foreground and once per minute.
+ useVenueSafetyRefresh(kind==="events"&&id!=="all"&&!!path,result.refresh);
  const paged=useGatheringPages<RecordItem>(
   kind==="events"&&id==="all"?path:null,contextVersion,
   kind==="events"&&id==="all"?result.data:null
@@ -104,7 +108,9 @@ export default function Details(){
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError("Verify your email before participating.");return;}
   if(!item)return;
-  if(kind==="events"&&reservationClosed){setError("The RSVP deadline has passed.");return;}
+  if(kind==="events"&&isGatheringDeadlineClosed(item.rsvpDeadlineAt||item.startAt)){
+   setError("The RSVP deadline has passed.");return;
+  }
   setBusy(true);setError("");setMessage("");
   try{
    const input=kind==="events"?{kind:"rsvp",eventId:item.id}
@@ -133,7 +139,9 @@ export default function Details(){
  }
  async function cancelEvent(){
   if(!item||!user?.isVerified)return;
-  if(cancellationClosed){setError("The cancellation deadline has passed. Contact an assigned host.");return;}
+  if(isGatheringDeadlineClosed(item.cancellationDeadlineAt||item.startAt)){
+   setError("The cancellation deadline has passed. Contact an assigned host.");return;
+  }
   setBusy(true);setError("");setMessage("");
   try{
    await api("events/rsvp",{method:"DELETE",body:JSON.stringify({eventId:item.id})});
