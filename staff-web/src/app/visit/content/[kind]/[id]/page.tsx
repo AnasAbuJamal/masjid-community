@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { publicIndexPath } from "@/lib/public-indexing";
 import {visitLanguage,visitText,visitHref,visitDate,visitLocalDay,visitFacet,
  type VisitCopyKey} from "@/lib/visit-i18n";
 import "../../../visit.css";
@@ -8,10 +9,17 @@ import "../../../visit.css";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ kind: string; id: string }>;
  searchParams:Promise<{lang?:string|string[]}> };
-export async function generateMetadata({searchParams}:Props):Promise<Metadata>{
+export async function generateMetadata({params,searchParams}:Props):Promise<Metadata>{
  const lang=visitLanguage((await searchParams).lang);
+ const {kind,id}=await params;
+ const path=publicIndexPath(kind,id);
  return {title:visitText(lang,"publicInformation")+" | SILA",
-  description:visitText(lang,"publishedInformation")};
+  description:visitText(lang,"publishedInformation"),
+  ...(path?{alternates:{
+   canonical:lang==="ar"?path+"?lang=ar":path,
+   languages:{en:path,ar:path+"?lang=ar"}
+  }}:{robots:{index:false,follow:false}})
+ };
 }
 
 export default async function PublicDetail({ params,searchParams }: Props) {
