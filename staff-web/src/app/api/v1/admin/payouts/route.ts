@@ -25,14 +25,20 @@ export async function GET(req:NextRequest){
    take:100,select:{
     id:true,providerPayoutId:true,amountMinor:true,currency:true,state:true,
     arrivalAt:true,failureCode:true,observedAt:true,updatedAt:true,
-    notes:{take:10,orderBy:{createdAt:"desc"},
+    // Fetch one extra as a sentinel. Showing only the first ten without
+    // an incompleteness signal can mislead auditors about note history.
+    notes:{take:11,orderBy:[{createdAt:"desc"},{id:"desc"}],
      select:{id:true,body:true,createdAt:true,author:{select:{firstName:true,lastName:true}}}}
    }
   });
-  return ok({payouts,organization:{name:org.name},complete:payouts.length<100,
+  return ok({
+   payouts:payouts.map(p=>({
+    ...p,notes:p.notes.slice(0,10),notesComplete:p.notes.length<=10
+   })),
+   notesPageSize:10,organization:{name:org.name},complete:payouts.length<100,
    reconciliationReady:false,
    warning:"Provider-reported payout status is NOT reconciliation. Gross charges, provider fees, refunds, adjustments, disputes and actual bank credit have not yet been independently matched. Never treat 'paid' as a reconciled bank deposit.",
-   policy:"Finance and MFA-verified stewards may record fixed exception categories only. Older historical notes remain viewable for restricted staff but cannot be edited here. An exception never certifies a bank credit or changes provider status."});
+   policy:"Finance and MFA-verified stewards may record fixed exception categories only. Historical notes are read-only. The register shows only the latest ten notes for each payout and flags an incomplete note history; it is not a full evidence export. Exceptions never certify bank credit or change provider payout status."});
  });
 }
 export async function POST(req:NextRequest){

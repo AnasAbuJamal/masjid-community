@@ -154,7 +154,41 @@ try{
  assert.equal(returnedNotes.length,2);
  assert.ok(returnedNotes.some(n=>n.body===noteBody));
  assert.ok(returnedNotes.every(n=>n.body.includes("does not certify payout settlement.")));
+ assert.equal(noted.data.payouts.find(p=>p.id===payoutId).notesComplete,true);
+ assert.equal(noted.data.notesPageSize,10);
  assert.equal(noted.data.reconciliationReady,false);
+ // Two simultaneous reviewers cannot create duplicate evidence under
+ // Serializable isolation; one wins, one must get a conflict to refresh.
+ const parallel=await Promise.all([
+  request("admin/payouts","POST",{payoutId,reasonCode:"clearing_ledger_unmatched"},adminToken),
+  request("admin/payouts","POST",{payoutId,reasonCode:"clearing_ledger_unmatched"},adminToken)
+ ]);
+ assert.deepEqual(parallel.map(p=>p.status).sort(),[201,409],
+  "concurrent duplicate evidence must have exactly one winner");
+ const confirmedCount=await db.payoutReviewNote.count({where:{
+  payoutId,body:{startsWith:"Unresolved exception: Accounting clearing"}
+ }});
+ assert.equal(confirmedCount,1);
+ const auditAfter=await db.auditEvent.findMany({where:{
+  entity:"ProviderPayout",entityId:payoutId,action:"finance.payout.note"
+ }});
+ assert.equal(auditAfter.length,3,"concurrent losing request creates no audit");
+ assert.ok(auditAfter.every(a=>JSON.parse(a.detail).settlementCertified===false));
+ // Simulate a legacy payout with deeper historical notes. The staff
+ // response must disclose that the view is truncated, not claim completeness.
+ await db.payoutReviewNote.createMany({data:Array.from({length:11},(_,i)=>({
+  payoutId,authorId:admin.id,
+  body:"Legacy CI historical investigation, non-personal marker "+String(i+1)
+ }))});
+ const history=await request("admin/payouts","GET",undefined,adminToken);
+ const historyPayout=history.data.payouts.find(p=>p.id===payoutId);
+ assert.equal(history.status,200);
+ assert.equal(history.data.notesPageSize,10);
+ assert.equal(historyPayout.notes.length,10);
+ assert.equal(historyPayout.notesComplete,false,
+  "finance reviewer must be told historical records are omitted");
+ assert.ok(historyPayout.notes.every(n=>!n.body.includes("Sensitive donor")),
+  "synthetic history contains no personal data");
  const foreign=await db.organization.create({data:{
   slug:"payout-isolation-"+randomUUID(),name:"Another private mosque"
  }});

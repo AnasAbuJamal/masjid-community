@@ -34,3 +34,19 @@ test("signed-payout integration tests reject free text, duplicates and PII-beari
   assert.ok(src.includes(token),"Missing regression "+token);
  }
 });
+
+test("finance register explicitly flags truncated note history and concurrent submissions",()=>{
+ const api=read("staff-web/src/app/api/v1/admin/payouts/route.ts");
+ const ui=read("staff-web/src/app/admin/payouts/page.tsx");
+ const smoke=read("staff-web/scripts/test-payout-register.mjs");
+ for(const token of [
+  'notes:{take:11,orderBy:[{createdAt:"desc"},{id:"desc"}]',
+  'notes:p.notes.slice(0,10)','notesComplete:p.notes.length<=10',
+  'notesPageSize:10'
+ ])assert.ok(api.includes(token),"Missing honest history boundary: "+token);
+ for(const token of ["!p.notesComplete","data.notesPageSize","Older history exists"])
+  assert.ok(ui.includes(token),"Missing incomplete-history UI: "+token);
+ for(const token of ['const parallel=await Promise.all([','[201,409]',
+  'historyPayout.notesComplete,false','auditAfter.length,3'])
+  assert.ok(smoke.includes(token),"Missing concurrency/legacy history integration test: "+token);
+});

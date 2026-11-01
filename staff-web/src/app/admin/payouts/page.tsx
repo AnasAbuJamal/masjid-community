@@ -2,8 +2,8 @@
 import {useCallback,useEffect,useState} from "react";
 import {PAYOUT_EXCEPTION_REASONS,type PayoutExceptionCode} from "@/lib/payout-exceptions";
 type Note={id:string;body:string;createdAt:string;author:{firstName:string;lastName:string}};
-type Payout={id:string;providerPayoutId:string;amountMinor:number;currency:string;state:string;arrivalAt:string|null;failureCode:string|null;observedAt:string;updatedAt:string;notes:Note[]};
-type Result={payouts:Payout[];organization:{name:string};complete:boolean;reconciliationReady:false;warning:string;policy:string};
+type Payout={id:string;providerPayoutId:string;amountMinor:number;currency:string;state:string;arrivalAt:string|null;failureCode:string|null;observedAt:string;updatedAt:string;notes:Note[];notesComplete:boolean};
+type Result={payouts:Payout[];organization:{name:string};complete:boolean;notesPageSize:number;reconciliationReady:false;warning:string;policy:string};
 export default function ProviderPayouts(){
  const [data,setData]=useState<Result|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [drafts,setDrafts]=useState<Record<string,PayoutExceptionCode|"" >>({}),[busy,setBusy]=useState(false);
@@ -64,6 +64,10 @@ export default function ProviderPayouts(){
  {p.notes.map(n=><div key={n.id} className="tile">
  <p>{n.body}</p><p className="small">{n.author.firstName} {n.author.lastName} · {new Date(n.createdAt).toLocaleString()}</p>
  </div>)}
+ {!p.notesComplete?<p className="error" role="alert">
+ Only the latest {data.notesPageSize} investigation notes appear here. Older history exists and is NOT included.
+ Obtain an independently authorized archive review before relying on this record.
+ </p>:null}
  </div>)}
  {!data.payouts.length?<p>No signed provider payout events have been received by this database.</p>:null}
  </section></>:<section className="panel"><p>Loading private payout reports…</p></section>}
