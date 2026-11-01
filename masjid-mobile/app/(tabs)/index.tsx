@@ -50,7 +50,7 @@ export default function HomeScreen(){
   <View style={S.section}><Text style={S.headline}>{t("home.quick")}</Text>
    <View style={{gap:9}}><PressRow icon="calendar-heart" title={t("home.events")} subtitle={t("home.eventsSubtitle")} onPress={()=>router.push("/details/events/all")}/>
    <PressRow icon="heart-outline" title={t("home.give")} subtitle={t("home.giveSubtitle")} onPress={()=>router.push("/details/campaigns/all")}/>
-   <PressRow icon="hands-pray" title={t("home.qibla")} subtitle={t("home.qiblaSubtitle")} onPress={()=>router.push("/salah")}/></View>
+   <PressRow icon="hands-pray" title={t("home.qibla")} subtitle={t("home.qiblaSubtitle")} onPress={()=>router.push("/qibla")}/></View>
   </View>
   {data?.announcements?.length?<View style={S.section}><Text style={S.headline}>{t("home.announcements")}</Text>{data.announcements.map(a=><Card key={a.id}><Text style={S.label}>{a.title}</Text><Text style={[S.bodyText,{marginTop:7}]} numberOfLines={3}>{a.body}</Text></Card>)}</View>:null}
   {data?.events?.length?<View style={S.section}><Text style={S.headline}>{t("home.upcoming")}</Text>{data.events.map(e=>{
