@@ -89,6 +89,7 @@ const words={
  "emergency.revision":{en:"Revision",ar:"الإصدار"},
  "emergency.expires":{en:"Expires",ar:"ينتهي"},
  "emergency.refresh":{en:"Refresh venue notice",ar:"تحديث تنبيه المسجد"},
+ "emergency.unverified":{en:"The previous emergency notice is no longer verified. Refresh to check the current venue status. Do not rely on earlier instructions.",ar:"لم يعد التنبيه الطارئ السابق مؤكّدًا. حدّث الصفحة للتحقق من حالة المسجد الحالية، ولا تعتمد على التعليمات السابقة."},
  "discover.eyebrow":{en:"COMMUNITY · DISCOVER",ar:"المجتمع · استكشف"},
  "discover.title":{en:"Belong. Contribute. Grow.",ar:"انتماء وعطاء ونماء"},
  "discover.subtitle":{en:"All the ways your community comes together, in one thoughtful place.",ar:"كل ما يجمع مجتمعك في مكان واحد."},
