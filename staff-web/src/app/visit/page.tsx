@@ -315,7 +315,7 @@ export default async function VisitPage({ searchParams }: PageProps) {
                   <span className="visit-date">{visitDate(item.startAt,item.venue?.timeZone||timeZone,lang)}</span>
                   <h3><a href={href(`/visit/content/gatherings/${item.id}`)}><bdi dir="auto">{item.title}</bdi></a></h3><p dir="auto">{item.description}</p>
                   <p className="visit-event-place" dir="auto">{item.location}</p>
-                  {item.venue?<p className="visit-footnote">{t("verifiedVenue")}: <bdi dir="auto">{item.venue.name}</bdi></p>:null}
+                  {item.venue?<p className="visit-footnote">{t("verifiedVenue")+": "}<bdi dir="auto">{item.venue.name}</bdi></p>:null}
                   {item.category||item.audience?<p className="visit-footnote">
                    {item.category?t("category")+": "+visitFacet(lang,"category",item.category):""}
                    {item.category&&item.audience?" · ":""}

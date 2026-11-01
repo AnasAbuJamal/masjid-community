@@ -10,7 +10,8 @@ test("public gathering HTML filters never choose a tenant and fail closed",()=>{
  assert.match(page,/role="alert"/);
  assert.match(page,/const safeEvents=eventPage\.items/);
  assert.match(page,/gatherCursor/);
- assert.match(page,/Next 25 published gatherings/);
+ assert.match(page,/t\("moreGatherings"\)/);
+ assert.match(read("staff-web/src/lib/visit-i18n.ts"),/Next 25 published gatherings/);
  assert.match(page,/GATHERING_ACCESSIBILITY/);
  assert.match(page,/name="gatherVenue"/);
  assert.match(read("staff-web/scripts/test-public.mjs"),/CI_WEB_FILTERED_GATHERING/);
