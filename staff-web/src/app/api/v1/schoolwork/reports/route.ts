@@ -71,7 +71,9 @@ export async function GET(req:NextRequest){
     {publishedAt:null}]
   }:{publishedAt:null,id:{lt:pivot.id}};
   const rows=await db.studentReport.findMany({
-   where:{...owned,...before},take:PAGE_SIZE+1,
+   // Never spread two OR objects: that would replace ownership OR with
+   // cursor OR and expose another child's published report.
+   where:{AND:[owned,before]},take:PAGE_SIZE+1,
    orderBy:[{publishedAt:{sort:"desc",nulls:"last"}},{id:"desc"}],
    select:{id:true,studentId:true,summary:true,publishedAt:true,
     classSection:{select:{name:true}},
