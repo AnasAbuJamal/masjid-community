@@ -9,6 +9,7 @@ import {useLanguage} from "../../src/i18n";
 import {useVenue} from "../../src/venue";
 import {VenuePicker} from "../../src/VenuePicker";
 import {VenueEmergencyAlert} from "../../src/VenueEmergencyAlert";
+import {useVenueSafetyRefresh} from "../../src/useVenueSafetyRefresh";
 import {nextPublishedPrayer} from "../../src/nextPrayer";
 type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;localDate:string;source:string};
 type VenueEmergency={id:string;kind:string;title:string;body:string;
@@ -25,11 +26,7 @@ export default function HomeScreen(){
  const {data,loading,error,refresh}=useResource<Home>(path);
  // An already-open Today tab must not leave an old emergency notice onscreen
  // indefinitely; the endpoint rechecks publication and expiration each time.
- React.useEffect(()=>{
-  if(!path)return;
-  const timer=setInterval(()=>void refresh(),60_000);
-  return ()=>clearInterval(timer);
- },[path,refresh]);
+ useVenueSafetyRefresh(!!path,refresh);
  // Recheck the clock while Today is open; never call yesterday's prayer "next".
  const [now,setNow]=React.useState(()=>new Date());
  React.useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),60_000);return()=>clearInterval(timer)},[]);
