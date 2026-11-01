@@ -169,7 +169,7 @@ export default function Schoolwork(){
   <h2>Published progress reports · withdrawal review</h2>
   <p className="small">Private administrator list. Approved reports that are incorrect or unsafe can be withdrawn without deleting their history.</p>
   {publishedReports.map(item=><div key={item.id} className="tile section">
-   <p className="small">{item.classSection.name} · {item.student.firstName} {item.student.lastName} · published {new Date(item.publishedAt).toLocaleDateString()}</p>
+   <p className="small">{item.classSection.name} · {item.student.firstName} {item.student.lastName} · published {item.publishedAt?new Date(item.publishedAt).toLocaleDateString():"Publication date unavailable"}</p>
    <p>{item.summary}</p>
    {item.selfAuthored?<p className="small">Another administrator must review withdrawal of your own report.</p>:
     <div className="form">
