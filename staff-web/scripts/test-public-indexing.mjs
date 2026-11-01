@@ -77,6 +77,20 @@ try {
   assert.ok(!xml.includes(id),"unapproved, premature or foreign record entered public index: "+id);
  }
  assert.doesNotMatch(xml,/\/admin\/|\/api\/|\/schoolwork\/|\/kiosk\/|\/care\//);
+ const englishLanding=await fetch(base+"/visit");
+ const englishHtml=await englishLanding.text();
+ assert.match(englishHtml,/rel="canonical"/,
+  "approved visitor page must identify its canonical address");
+ assert.ok(englishHtml.includes(base+"/visit"));
+ const arabicLanding=await fetch(base+"/visit?lang=ar");
+ const arabicHtml=await arabicLanding.text();
+ assert.ok(arabicHtml.includes(base+"/visit?lang=ar"),
+  "Arabic locale must have its own correct absolute canonical URL");
+ const arabicDetail=await fetch(base+"/visit/content/gatherings/"+published.id+"?lang=ar");
+ assert.equal(arabicDetail.status,200);
+ const arabicDetailHtml=await arabicDetail.text();
+ assert.ok(arabicDetailHtml.includes(base+"/visit/content/gatherings/"+published.id+"?lang=ar"),
+  "approved Arabic gathering should have language-specific canonical metadata");
  console.log("Public SEO controls: owner opt-in, published-only sitemap, cross-tenant and future/draft exclusion passed.");
 } finally {
  if(temporaryDraftId)await db.announcement.deleteMany({where:{id:temporaryDraftId}});
