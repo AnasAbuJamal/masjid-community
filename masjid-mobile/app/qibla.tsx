@@ -129,7 +129,7 @@ export default function Qibla(){
      style={[S.input,{textAlign:"left",writingDirection:"ltr"}]}/>
    </View>
    <Action label={t("qibla.manualAction")} secondary
-    disabled={busy} icon="compass-outline" onPress={calculateManually}/>
+    icon="compass-outline" onPress={calculateManually}/>
   </Card>
   <Text style={[S.muted,{textAlign:align}]}>{t("qibla.caution")}</Text>
  </Shell>;
