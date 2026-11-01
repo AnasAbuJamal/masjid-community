@@ -304,7 +304,8 @@ try{
    assert.equal(page.data.status,status);
    assert.ok(page.data.items.length<=50);
    assert.equal(page.data.pageSize,50);
-   assert.ok(page.data.items.every(x=>x.selfAuthored===false));
+   assert.ok(page.data.items.every(x=>x.selfAuthored===(x.teacherId===admin.id)),
+    "private review pages must correctly label reports written by the current reviewer");
    collected.push(...page.data.items);
    if(page.data.complete){
     assert.equal(page.data.nextCursor,null);
@@ -318,6 +319,8 @@ try{
   throw Error("Private report history did not terminate in ten pages");
  };
  const draftHistory=await readAll("draft");
+ assert.ok(draftHistory.some(x=>x.id===selfId&&x.selfAuthored),
+  "a reviewer must see but cannot independently approve their own draft");
  const publishedHistory=await readAll("published");
  assert.ok(syntheticDrafts.every(x=>draftHistory.some(y=>y.id===x.id)));
  assert.ok(syntheticPublished.every(x=>publishedHistory.some(y=>y.id===x.id)));
