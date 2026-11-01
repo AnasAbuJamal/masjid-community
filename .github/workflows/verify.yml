@@ -48,6 +48,9 @@ jobs:
       SILA_OPERATIONS_SECRET: ci-operations-readonly-secret-00000000000000000
       SILA_DELIVERY_CI_CAPTURE: "test-only"
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      # Only synthetic, disposable CI visitor content may be indexed.
+      SILA_PUBLIC_INDEXING_ENABLED: "true"
+      SILA_PUBLIC_SITE_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -144,6 +147,7 @@ jobs:
           node scripts/test-payments.mjs
           node scripts/test-payout-register.mjs
           node scripts/test-public.mjs
+          node scripts/test-public-indexing.mjs
           node scripts/test-delivery-consent.mjs
           node scripts/test-analytics-consent.mjs
           node scripts/test-delivery.mjs
