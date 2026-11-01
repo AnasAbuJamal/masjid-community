@@ -5,6 +5,7 @@ import {Action,Card,Feedback,Head,Shell} from "../src/ui";
 import {S,T} from "../src/theme";
 import {useLanguage} from "../src/i18n";
 import {useResource} from "../src/useResource";
+import {useVenueSafetyRefresh} from "../src/useVenueSafetyRefresh";
 import {useSession} from "../src/session";
 import {useVenue} from "../src/venue";
 import {VenuePicker} from "../src/VenuePicker";
@@ -55,6 +56,8 @@ export default function Calendar(){
    "&venueId="+encodeURIComponent(venue.id)
   :null;
  const result=useResource<Schedule>(path);
+ // Revalidate publication/retraction after the app resumes or each minute.
+ useVenueSafetyRefresh(!!path,result.refresh);
 
  // Do not render a mismatched response, even when the request generation
  // guard already protects in-flight account and venue changes.
