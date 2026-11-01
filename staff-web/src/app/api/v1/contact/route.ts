@@ -10,7 +10,10 @@ export async function POST(req:NextRequest){
   assertSameOrigin(req);
   const input=form.parse(await jsonBody(req));
   if(input.website)return ok({received:true}); // Honeypot: ignore bot submissions
-  const org=await db.organization.findFirst();
+  // Public contact intake belongs only to the deterministic pilot mosque,
+  // matching the visitor home and venue catalog. Never infer the selected
+  // member tenant from an untrusted form field.
+  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","The mosque contact form is not ready.");
   const email=input.email.trim().toLowerCase();
   const recent=await db.contactSubmission.findFirst({where:{organizationId:org.id,email,createdAt:{gt:new Date(Date.now()-10*60_000)}}});
