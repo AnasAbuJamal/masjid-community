@@ -11,6 +11,7 @@ import {VenuePicker} from "../../src/VenuePicker";
 import {VenueEmergencyAlert} from "../../src/VenueEmergencyAlert";
 import {useVenueSafetyRefresh} from "../../src/useVenueSafetyRefresh";
 import {nextPublishedPrayer} from "../../src/nextPrayer";
+import {publishedPrayerDayLabel} from "../../src/prayer-civil-day";
 import {gatheringLocalTime} from "../../src/gathering-local-time";
 type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;localDate:string;source:string};
 type VenueEmergency={id:string;kind:string;title:string;body:string;
@@ -19,7 +20,7 @@ type Home={organization:{id:string;name:string;timeZone:string}|null;
  venue:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;
  emergency:VenueEmergency|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string;venue:{id:string;name:string;timeZone:string}|null}[]};
 export default function HomeScreen(){
- const {t,language}=useLanguage();
+ const {t,language,isRTL}=useLanguage();
  const {user}=useSession();
  const {venue,ready}=useVenue();
  const base=user?.isVerified?"organizations/view?resource=home":"public/home";
@@ -33,6 +34,7 @@ export default function HomeScreen(){
  React.useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),60_000);return()=>clearInterval(timer)},[]);
  const next=nextPublishedPrayer(data?.prayer,data?.venue?.timeZone||data?.organization?.timeZone,now);
  const prayerNames={fajr:t("prayer.fajr"),dhuhr:t("prayer.dhuhr"),asr:t("prayer.asr"),maghrib:t("prayer.maghrib"),isha:t("prayer.isha")};
+ const prayerDate=data?.prayer?publishedPrayerDayLabel(data.prayer.localDate,language):null;
  return <Shell>
   <Head eyebrow={t("home.eyebrow")} title={t("home.title")} subtitle={t("home.subtitle")}/>
   <Feedback loading={loading||!ready} error={error} empty={ready&&!data?.organization} refresh={refresh}/>
@@ -43,7 +45,7 @@ export default function HomeScreen(){
    <View style={{backgroundColor:T.deep,padding:25,gap:12}}>
     <Text style={{color:"#CFEAFE",fontSize:12,letterSpacing:1.7,fontWeight:"800"}}>{t("home.today")} · {data.organization.name}</Text>
     <Text style={{fontSize:31,fontWeight:"800",color:"white",letterSpacing:-1}}>{next?prayerNames[next.name]+" · "+next.time:t("home.prayerSchedule")}</Text>
-    <Text style={{color:"#DDF2FF",fontSize:14}}>{data.prayer?data.prayer.localDate+" · "+data.prayer.source:t("home.noPrayers")}</Text>
+    <Text style={{color:"#DDF2FF",fontSize:14,textAlign:isRTL?"right":"left"}}>{data.prayer?(prayerDate??t("home.dateUnavailable"))+" · "+data.prayer.source:t("home.noPrayers")}</Text>
    </View>
    <View style={{padding:16}}><Action label={t("home.explore")} icon="clock-outline" onPress={()=>router.push("/salah")} secondary/></View>
   </Card>:null}
