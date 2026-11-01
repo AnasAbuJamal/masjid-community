@@ -9,6 +9,7 @@ import {useSession} from "../../src/session";
 import {useVenue} from "../../src/venue";
 import {VenuePicker} from "../../src/VenuePicker";
 import {VenueEmergencyAlert} from "../../src/VenueEmergencyAlert";
+import {useVenueSafetyRefresh} from "../../src/useVenueSafetyRefresh";
 type Day={id:string;localDate:string;fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;fajrIqamah?:string;dhuhrIqamah?:string;asrIqamah?:string;maghribIqamah?:string;ishaIqamah?:string;source:string;updatedAt:string};
 type VenueEmergency={id:string;kind:string;title:string;body:string;
  instructions:string;revision:number;expiresAt:string;publishedAt:string};
@@ -22,11 +23,7 @@ export default function Salah(){
  const base=user?.isVerified?"organizations/view?resource=prayers":"public/prayers";
  const path=ready?(venue?base+(base.includes("?")?"&":"?")+"venueId="+encodeURIComponent(venue.id):base):null;
  const {data,loading,error,refresh}=useResource<Schedule>(path);
- React.useEffect(()=>{
-  if(!path)return;
-  const timer=setInterval(()=>void refresh(),60_000);
-  return ()=>clearInterval(timer);
- },[path,refresh]);
+ useVenueSafetyRefresh(!!path,refresh);
  const day=data?.days[0];
  return <Shell>
  <Head eyebrow={t("salah.eyebrow")} title={t("salah.title")} subtitle={t("salah.subtitle")}/>
