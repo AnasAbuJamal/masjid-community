@@ -35,6 +35,7 @@ async function webhook(type,payout,created){
  return {status:r.status,...await r.json().catch(()=>({})),payload,signature};
 }
 let adminSession=null,foreignOrg=null,payoutId=null,otherHistoryPayoutId=null;
+let syntheticPagePrefix=null,foreignCursorPayoutId=null;
 try{
  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"}});
  assert.ok(org);
@@ -229,10 +230,61 @@ try{
  await db.payoutReviewNote.delete({where:{id:foreignNote.id}});
  await db.providerPayout.delete({where:{id:otherHistoryPayoutId}});
  otherHistoryPayoutId=null;
+ // More than one hundred synthetic payouts force a second register page.
+ // The authenticated finance API must expose the whole scoped set without
+ // duplicates, treating the provider states as NOT independently reconciled.
+ assert.equal((await request("admin/payouts?registerCursor=bad","GET",undefined,adminToken)).status,422);
+ assert.equal((await request("admin/payouts?registerCursor=unavailable_123456","GET",undefined,adminToken)).status,404);
+ assert.equal((await request("admin/payouts?registerCursor=abcdefghi&registerCursor=abcdefghi","GET",undefined,adminToken)).status,422);
+ assert.equal((await request("admin/payouts?registerCursor=abcdefghi&payoutId="+payoutId,"GET",undefined,adminToken)).status,422);
+ syntheticPagePrefix="po_ci_page_"+randomUUID().replaceAll("-","")+"_";
+ const baseObserved=Date.now()-300000;
+ const saved=await db.providerPayout.createMany({data:Array.from({length:101},(_,i)=>({
+  organizationId:org.id,providerPayoutId:syntheticPagePrefix+String(i),
+  amountMinor:1000+i,currency:"usd",state:"pending",
+  lastProviderEventId:"evt_ci_page_"+randomUUID().replaceAll("-",""),
+  lastProviderEventCreated:now,observedAt:new Date(baseObserved-i*1000)
+ }))});
+ assert.equal(saved.count,101);
+ assert.equal((await request("admin/payouts?registerCursor=abcdefghi")).status,401);
+ assert.equal((await request("admin/payouts?registerCursor=abcdefghi","GET",undefined,memberToken)).status,403);
+ const registerFirst=await request("admin/payouts","GET",undefined,adminToken);
+ assert.equal(registerFirst.status,200);
+ assert.equal(registerFirst.data.payouts.length,100);
+ assert.equal(registerFirst.data.complete,false);
+ assert.ok(registerFirst.data.nextRegisterCursor);
+ assert.equal(registerFirst.data.reconciliationReady,false);
+ const registerSecond=await request("admin/payouts?registerCursor="+
+  encodeURIComponent(registerFirst.data.nextRegisterCursor),"GET",undefined,adminToken);
+ assert.equal(registerSecond.status,200);
+ assert.equal(registerSecond.data.complete,true);
+ assert.equal(registerSecond.data.nextRegisterCursor,null);
+ const combined=[...registerFirst.data.payouts,...registerSecond.data.payouts];
+ assert.equal(combined.length,102,"both payout pages return every provider record");
+ assert.equal(new Set(combined.map(x=>x.id)).size,combined.length,
+  "register pages cannot silently replay or omit provider payouts");
+ assert.ok(combined.every(x=>x.state!=="reconciled"&&
+  !Object.hasOwn(x,"reconciledAt")),
+  "a provider status cannot be represented as bank reconciliation");
+ await db.providerPayout.deleteMany({where:{
+  providerPayoutId:{startsWith:syntheticPagePrefix}
+ }});
+ syntheticPagePrefix=null;
  const foreign=await db.organization.create({data:{
   slug:"payout-isolation-"+randomUUID(),name:"Another private mosque"
  }});
  foreignOrg=foreign.id;
+ foreignCursorPayoutId=(await db.providerPayout.create({data:{
+  organizationId:foreignOrg,providerPayoutId:"po_ci_other_org_"+randomUUID().replaceAll("-",""),
+  amountMinor:990,currency:"usd",state:"pending",
+  lastProviderEventId:"evt_ci_other_org_"+randomUUID().replaceAll("-",""),
+  lastProviderEventCreated:now
+ }})).id;
+ assert.equal((await request("admin/payouts?registerCursor="+foreignCursorPayoutId,
+  "GET",undefined,adminToken)).status,404,
+  "a valid cursor from another mosque must never enumerate its payouts");
+ await db.providerPayout.delete({where:{id:foreignCursorPayoutId}});
+ foreignCursorPayoutId=null;
  const blocked=await webhook("payout.paid",{
   ...basePayout,id:"po_ci_foreign_"+randomUUID().replaceAll("-",""),status:"paid"
  },now+15);
@@ -244,6 +296,10 @@ try{
  console.log("Verified signed payout states, immutable amount, stale/failed event safety, private notes and multi-mosque fail-closed scope.");
 }finally{
  if(adminSession)await db.authSession.deleteMany({where:{id:adminSession.id}});
+ if(syntheticPagePrefix)await db.providerPayout.deleteMany({
+  where:{providerPayoutId:{startsWith:syntheticPagePrefix}}});
+ if(foreignCursorPayoutId)await db.providerPayout.deleteMany({
+  where:{id:foreignCursorPayoutId}});
  if(otherHistoryPayoutId){
   await db.payoutReviewNote.deleteMany({where:{payoutId:otherHistoryPayoutId}});
   await db.providerPayout.deleteMany({where:{id:otherHistoryPayoutId}});
