@@ -13,6 +13,15 @@ const malformed=await get("public/search?q="+encodeURIComponent("<private>"));
 assert.equal(malformed.status,422);
 const faith=await get("public/faith");
 assert.equal(faith.status,200);
+const publishedVenues=await get("public/venues");
+const publishedHome=await get("public/home");
+assert.equal(publishedVenues.status,200);
+assert.equal(publishedHome.status,200);
+assert.ok(faith.data.data.organization?.id,"the faith feed must identify its mosque");
+assert.equal(faith.data.data.organization.id,publishedVenues.data.data.organization.id,
+ "public faith and venue catalogs must refer to the same primary mosque");
+assert.equal(faith.data.data.organization.id,publishedHome.data.data.organization.id,
+ "public faith and worship home must not silently select different mosques");
 assert.ok(faith.data.data.notices.some(x=>x.title==="Integration fixture notice"));
 assert.ok(!faith.data.data.notices.some(x=>x.title==="Unpublished fixture"));
 const privateAdmin=await get("admin/worship");
