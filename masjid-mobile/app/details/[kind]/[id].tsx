@@ -14,7 +14,7 @@ import {useGatheringPages} from "../../../src/useGatheringPages";
 import {useLanguage} from "../../../src/i18n";
 import {gatheringLocalTime} from "../../../src/gathering-local-time";
 import {isGatheringDeadlineClosed} from "../../../src/gathering-deadline";
-type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
+type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;endAt?:string|null;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
  cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string;
  category?:string|null;audience?:string|null;accessibilityFeatures?:string[];
  accessibilityNotes?:string|null;venue?:{id:string;name:string;timeZone:string}|null};
