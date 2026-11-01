@@ -32,10 +32,10 @@ test("contact intake never exposes another account's submitted text or late rece
  assert.match(source,/const requestGeneration=useRef\(0\)/);
  assert.match(source,/const currentScope=useRef\(\{version:surface\.contextVersion,allowed:surface\.allowed\}\)/);
  assert.match(source,/\[surface\.contextVersion,surface\.allowed\]/);
- assert.match(source,/setName\(" "\)/);
- assert.match(source,/setEmail\(" "\)/);
- assert.match(source,/setSubject\(" "\)/);
- assert.match(source,/setMessage\(" "\)/);
+ assert.match(source,/setName\(""\)/);
+ assert.match(source,/setEmail\(""\)/);
+ assert.match(source,/setSubject\(""\)/);
+ assert.match(source,/setMessage\(""\)/);
  assert.match(source,/if\(pending\.current\)return/);
  assert.match(source,/version!==currentScope\.current\.version\|\|!currentScope\.current\.allowed/);
  assert.match(source,/if\(response\.received!==true\)throw/);
