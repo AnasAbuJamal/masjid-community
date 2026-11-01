@@ -38,7 +38,7 @@ export function searchTermProblem(value:string):"short"|"long"|"characters"|null
  const query=value.trim();
  if(query.length<2)return "short";
  if(query.length>80)return "long";
- if(!/^[\\p{L}\\p{N}\\s.'’\\-]+$/u.test(query))return "characters";
+ if(!/^[\p{L}\p{N}\s.'’\-]+$/u.test(query))return "characters";
  return null;
 }
 
