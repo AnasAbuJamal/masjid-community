@@ -79,3 +79,24 @@ small,.small{color:var(--muted);font-size:.84rem}
 @media (prefers-reduced-motion:reduce){
  .kiosk-safety-cover *, .kiosk-local-control *{transition:none!important;animation:none!important}
 }
+
+/* Keyboard-first access to the primary page content. */
+.skip-link{
+  position:fixed;
+  inset-block-start:12px;
+  inset-inline-start:12px;
+  z-index:200;
+  padding:12px 18px;
+  border-radius:12px;
+  background:#fff;
+  color:#122b43;
+  border:2px solid #15588e;
+  font-weight:700;
+  transform:translateY(-180%);
+}
+.skip-link:focus-visible{
+  transform:translateY(0);
+  outline:3px solid #15588e;
+  outline-offset:3px;
+}
+#page-content:focus{outline:none}
