@@ -198,8 +198,8 @@ try{
   assert.equal(arabicNextUrl.searchParams.get("gatherQ"),"CI_WEB_PAGED_GATHERING");
   const arabicSecond=await fetch(arabicNextUrl);
   assert.equal(arabicSecond.status,200);
-  assert.match(await arabicSecond.text(),/العودة إلى الصفحة الأولى/,
-   "Arabic pagination remains Arabic on a subsequent published page");
+  assert.match(await arabicSecond.text(),/إعادة عرض القائمة من البداية/,
+   "Arabic filtered pagination remains Arabic on the final published page");
   assert.doesNotMatch(secondHtml,/Next 25 published gatherings/);
   assert.match(secondHtml,/Restart the filtered gathering list/);
   const staleCursor=await fetch(pBase+"&gatherCursor="+encodeURIComponent(filtered.id));
