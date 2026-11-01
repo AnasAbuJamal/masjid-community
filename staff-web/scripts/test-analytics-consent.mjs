@@ -17,7 +17,7 @@ async function call(path,method="GET",body,token){
  },body:body?JSON.stringify(body):undefined});
  return {status:response.status,...await response.json().catch(()=>({}))};
 }
-let eventId=null,foreignOrgId=null,foreignEventId=null,adminSessionId=null;
+let eventId=null,foreignOrgId=null,foreignEventId=null,foreignMembershipId=null,adminSessionId=null;
 const createdUsers=[];
 try{
  const org=await db.organization.findFirstOrThrow({orderBy:[{createdAt:"asc"},{id:"asc"}]});
@@ -93,6 +93,41 @@ try{
  assert.ok(!serialized.includes(member.id));
  assert.ok(!serialized.includes(createdUsers[0]));
  assert.ok(!serialized.includes("checkedInAt")&&!serialized.includes("userId"));
+ // User eligibility is checked on every read. An active historical consent
+ // does not count while this account is in the student role.
+ const synthetic=await db.user.findUniqueOrThrow({where:{id:createdUsers[0]}});
+ const syntheticLogin=await call("auth/login","POST",{
+  email:synthetic.email,password
+ });
+ assert.equal(syntheticLogin.status,200);
+ await db.user.update({where:{id:synthetic.id},data:{role:"student"}});
+ try{
+  assert.equal((await call(consentRoute,"GET",undefined,syntheticLogin.data.token)).status,403);
+  assert.equal((await call(consentRoute,"PATCH",{enabled:true,confirm:true},
+   syntheticLogin.data.token)).status,403);
+  const noStudentCount=await call(metricsRoute,"GET",undefined,adminToken);
+  assert.ok(!noStudentCount.data.events.some(e=>e.eventId===eventId),
+   "student-role account cannot be counted despite historical opt-in");
+ }finally{
+  await db.user.update({where:{id:synthetic.id},data:{role:"member"}});
+ }
+ // Likewise a temporarily suspended mosque membership removes that RSVP.
+ const homeMembership=await db.organizationMembership.findUniqueOrThrow({where:{
+  organizationId_userId:{organizationId:org.id,userId:member.id}
+ }});
+ await db.organizationMembership.update({where:{id:homeMembership.id},
+  data:{status:"suspended"}});
+ try{
+  assert.equal((await call(consentRoute,"GET",undefined,memberToken)).status,403);
+  const noMembershipCount=await call(metricsRoute,"GET",undefined,adminToken);
+  assert.ok(!noMembershipCount.data.events.some(e=>e.eventId===eventId),
+   "suspended membership cannot still count in any published aggregate");
+ }finally{
+  await db.organizationMembership.update({where:{id:homeMembership.id},
+   data:{status:"active"}});
+ }
+ assert.ok((await call(metricsRoute,"GET",undefined,adminToken)).data.events.some(
+  e=>e.eventId===eventId),"after valid role and membership restoration the group is eligible again");
  // A second mosque's event must not be included or queried by a home admin.
  const foreign=await db.organization.create({data:{
   slug:"ci-analytics-foreign-"+randomUUID(),name:"Foreign private analytics"
@@ -107,6 +142,31 @@ try{
  foreignEventId=other.id;
  const foreignResult=await call(metricsRoute,"GET",undefined,adminToken);
  assert.ok(!JSON.stringify(foreignResult.data).includes(other.title));
+ // Consent is keyed to the session-selected mosque, not a stale device
+ // setting, header, request body or the user's other active memberships.
+ foreignMembershipId=(await db.organizationMembership.create({data:{
+  organizationId:foreign.id,userId:member.id,status:"active"
+ }})).id;
+ const foreignSelected=await call("organizations/context","POST",
+  {organizationId:foreign.id},memberToken);
+ assert.equal(foreignSelected.status,200);
+ const otherChoice=await call(consentRoute,"GET",undefined,memberToken);
+ assert.equal(otherChoice.status,200);
+ assert.equal(otherChoice.data.organization.id,foreign.id);
+ assert.equal(otherChoice.data.enabled,false,
+  "opt-in at the primary mosque does not opt in the secondary mosque");
+ const otherOptIn=await call(consentRoute,"PATCH",{enabled:true,confirm:true},memberToken);
+ assert.equal(otherOptIn.status,200);
+ assert.equal(otherOptIn.data.organization.id,foreign.id);
+ assert.equal(otherOptIn.data.enabled,true);
+ const homeSelected=await call("organizations/context","POST",{organizationId:org.id},memberToken);
+ assert.equal(homeSelected.status,200);
+ const restoredHome=await call(consentRoute,"GET",undefined,memberToken);
+ assert.equal(restoredHome.data.organization.id,org.id);
+ assert.equal(restoredHome.data.enabled,true,
+  "switching back restores only the primary mosque's independent consent");
+ assert.ok((await call(metricsRoute,"GET",undefined,adminToken)).data.events.some(
+  e=>e.eventId===eventId),"a secondary mosque's consent cannot affect home aggregate");
  const off=await call(consentRoute,"PATCH",{enabled:false,confirm:true},memberToken);
  assert.equal(off.status,200);assert.equal(off.data.enabled,false);
  assert.equal(off.data.consentedAt,null);
@@ -114,6 +174,14 @@ try{
  const after=await call(metricsRoute,"GET",undefined,adminToken);
  assert.ok(!after.data.events.some(e=>e.eventId===eventId),
   "consent withdrawal immediately removes the tenth eligible participant");
+ await call("organizations/context","POST",{organizationId:foreign.id},memberToken);
+ assert.equal((await call(consentRoute,"GET",undefined,memberToken)).data.enabled,true,
+  "home consent withdrawal does not silently revoke separate mosque consent");
+ const secondaryOff=await call(consentRoute,"PATCH",{enabled:false,confirm:true},memberToken);
+ assert.equal(secondaryOff.status,200);
+ assert.equal(secondaryOff.data.enabled,false);
+ assert.equal((await call("organizations/context","POST",
+  {organizationId:org.id},memberToken)).status,200);
  assert.equal(await db.auditEvent.count({where:{
   actorId:member.id,entity:"OrganizationAnalyticsConsent",entityId:org.id,
   action:"analytics.consent.change"
@@ -123,6 +191,16 @@ try{
  if(eventId)await db.eventRSVP.deleteMany({where:{eventId}});
  if(eventId)await db.event.deleteMany({where:{id:eventId}});
  if(foreignEventId)await db.event.deleteMany({where:{id:foreignEventId}});
+ const memberRecord=await db.user.findUnique({where:{email:memberEmail},select:{id:true}});
+ if(foreignOrgId&&memberRecord){
+  await db.auditEvent.deleteMany({where:{action:"analytics.consent.change",
+   actorId:memberRecord.id,entityId:foreignOrgId}});
+  await db.organizationAnalyticsConsent.deleteMany({where:{
+   organizationId:foreignOrgId,userId:memberRecord.id
+  }});
+ }
+ if(foreignMembershipId)await db.organizationMembership.deleteMany({
+  where:{id:foreignMembershipId}});
  if(foreignOrgId)await db.organization.deleteMany({where:{id:foreignOrgId}});
  await db.organizationAnalyticsConsent.deleteMany({where:{userId:{in:createdUsers}}});
  if(createdUsers.length)await db.organizationMembership.deleteMany({where:{userId:{in:createdUsers}}});

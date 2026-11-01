@@ -36,3 +36,14 @@ test("admin metrics have only consented coarse group-bands and no private rows",
  assert.ok(smoke.includes("nine opted-in participants are suppressed"));
  assert.ok(read(".github/workflows/verify.yml").includes("test-analytics-consent.mjs"));
 });
+
+test("CI verifies two-mosque consent isolation and current role and membership eligibility",()=>{
+ const test=read("staff-web/scripts/test-analytics-consent.mjs");
+ for(const token of [
+  'role:"student"','data:{status:"suspended"}',
+  'student-role account cannot be counted','suspended membership cannot still count',
+  'foreignSelected','otherOptIn','restoredHome','secondaryOff',
+  'opt-in at the primary mosque does not opt in the secondary mosque',
+  'home consent withdrawal does not silently revoke separate mosque consent'
+ ])assert.ok(test.includes(token),"Missing tenant/role consent regression: "+token);
+});
