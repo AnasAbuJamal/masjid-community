@@ -3,18 +3,78 @@ import {useCallback,useEffect,useState} from "react";
 type Enrolled={student:{id:string;firstName:string;lastName:string}};
 type ClassItem={id:string;name:string;enrollments:Enrolled[];assignments:{id:string;title:string;dueAt:string;published:boolean;submissions:{studentId:string;body:string;submittedAt:string;student:{firstName:string;lastName:string}}[]}[]};
 type ReviewItem={id:string;teacherId:string;summary:string;createdAt:string;selfAuthored:boolean;classSection:{id:string;name:string};student:{firstName:string;lastName:string};teacher:{firstName:string;lastName:string}};
-type PublishedItem=Omit<ReviewItem,"createdAt">&{publishedAt:string};
+type PublishedItem=Omit<ReviewItem,"createdAt">&{publishedAt:string|null};
+type ReviewStatus="draft"|"published";
+type ReportPage<T>={status:ReviewStatus;items:T[];complete:boolean;nextCursor:string|null;pageSize:number};
+type WithdrawalReason="incorrect-content"|"privacy-concern"|"safeguarding-review";
+const withdrawalReasons:{value:WithdrawalReason;label:string}[]=[
+ {value:"incorrect-content",label:"Incorrect content"},
+ {value:"privacy-concern",label:"Child privacy concern"},
+ {value:"safeguarding-review",label:"Safeguarding concern"}
+];
+async function reportPage<T>(status:ReviewStatus,cursor?:string):Promise<ReportPage<T>>{
+ const qs=new URLSearchParams({status,...(cursor?{cursor}:{})});
+ const r=await fetch("/api/v1/admin/school-reports?"+qs.toString(),{cache:"no-store"});
+ const value=await r.json();
+ if(!r.ok)throw new Error(value.error?.message||"The private report archive could not be loaded.");
+ const result=value.data as ReportPage<T>;
+ if(result.status!==status||!Array.isArray(result.items))
+  throw new Error("Unexpected private report archive response.");
+ return result;
+}
 export default function Schoolwork(){
  const [classes,setClasses]=useState<ClassItem[]>([]),[organization,setOrganization]=useState<{name:string;timeZone:string}|null>(null),[pendingReports,setPendingReports]=useState<ReviewItem[]>([]),[publishedReports,setPublishedReports]=useState<PublishedItem[]>([]),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
  const [kind,setKind]=useState<"assignment"|"report">("assignment"),[classId,setClassId]=useState(""),[studentId,setStudentId]=useState("");
+ const [pendingComplete,setPendingComplete]=useState(true),[publishedComplete,setPublishedComplete]=useState(true);
+ const [pendingCursor,setPendingCursor]=useState<string|null>(null),[publishedCursor,setPublishedCursor]=useState<string|null>(null);
+ const [pageLoading,setPageLoading]=useState<ReviewStatus|null>(null);
+ const [withdrawalSelection,setWithdrawalSelection]=useState<Record<string,WithdrawalReason|"" >>({});
  const [title,setTitle]=useState(""),[instructions,setInstructions]=useState(""),[dueAt,setDueAt]=useState(""),[published,setPublished]=useState(false);
  const refresh=useCallback(async()=>{
-  try{const res=await fetch("/api/v1/schoolwork",{cache:"no-store"});const j=await res.json();if(!res.ok)throw new Error(j.error?.message||"Teacher access required.");if(j.data.mode!=="teacher"||!j.data.organization?.timeZone)throw new Error("Assigned class and mosque timezone are required.");setClasses(j.data.classes);setOrganization(j.data.organization);setPendingReports(Array.isArray(j.data.pendingReports)?j.data.pendingReports:[]);
- setPublishedReports(Array.isArray(j.data.publishedReports)?j.data.publishedReports:[]);setError("");}
-  catch(e){setClasses([]);setOrganization(null);setPendingReports([]);setPublishedReports([]);setError(e instanceof Error?e.message:"Unable to load assigned classes.");}
+  try{
+   const res=await fetch("/api/v1/schoolwork",{cache:"no-store"});
+   const j=await res.json();
+   if(!res.ok)throw new Error(j.error?.message||"Teacher access required.");
+   if(j.data.mode!=="teacher"||!j.data.organization?.timeZone)
+    throw new Error("Assigned class and mosque timezone are required.");
+   // The main teaching response is limited for backwards compatibility.
+   // Staff use the separate MFA-gated history endpoint for every private page.
+   const [pending,published]=j.data.canReviewReports?await Promise.all([
+    reportPage<ReviewItem>("draft"),reportPage<PublishedItem>("published")
+   ]):[null,null];
+   setClasses(j.data.classes);setOrganization(j.data.organization);
+   setPendingReports(pending?.items||[]);setPublishedReports(published?.items||[]);
+   setPendingComplete(pending?.complete??true);setPublishedComplete(published?.complete??true);
+   setPendingCursor(pending?.nextCursor??null);setPublishedCursor(published?.nextCursor??null);
+   setWithdrawalSelection({});setError("");
+  }catch(e){
+   setClasses([]);setOrganization(null);
+   setPendingReports([]);setPublishedReports([]);
+   setPendingComplete(true);setPublishedComplete(true);
+   setPendingCursor(null);setPublishedCursor(null);
+   setError(e instanceof Error?e.message:"Unable to load assigned classes.");
+  }
  },[]);
  useEffect(()=>{void refresh()},[refresh]);
  const chosen=classes.find(c=>c.id===classId);
+ async function loadMore(status:ReviewStatus){
+  if(busy||pageLoading)return;
+  const cursor=status==="draft"?pendingCursor:publishedCursor;
+  if(!cursor)return;
+  setPageLoading(status);setError("");
+  try{
+   if(status==="draft"){
+    const page=await reportPage<ReviewItem>("draft",cursor);
+    setPendingReports(current=>[...current,...page.items.filter(x=>!current.some(y=>y.id===x.id))]);
+    setPendingComplete(page.complete);setPendingCursor(page.nextCursor);
+   }else{
+    const page=await reportPage<PublishedItem>("published",cursor);
+    setPublishedReports(current=>[...current,...page.items.filter(x=>!current.some(y=>y.id===x.id))]);
+    setPublishedComplete(page.complete);setPublishedCursor(page.nextCursor);
+   }
+  }catch(e){setError(e instanceof Error?e.message:"Unable to read older private reports. Refresh and retry.");}
+  finally{setPageLoading(null);}
+ }
  async function reviewReport(item:ReviewItem,action:"publish-report"|"reject-report"){
   if(busy||item.selfAuthored)return;
   const phrase=action==="publish-report"?"publish the student's private progress report":"reject this draft and keep it private";
@@ -33,8 +93,8 @@ export default function Schoolwork(){
  }
  async function retractReport(item:PublishedItem){
   if(busy||item.selfAuthored)return;
-  const reason=window.prompt("Reason code: incorrect-content, privacy-concern, safeguarding-review");
-  if(!["incorrect-content","privacy-concern","safeguarding-review"].includes(reason||""))return;
+  const reason=withdrawalSelection[item.id];
+  if(!reason)return;
   if(!window.confirm("Withdraw this published student report now? It will disappear from family views. Generic private notices will be queued. This action cannot be undone."))return;
   setBusy(true);setError("");setNotice("");
   try{
@@ -88,7 +148,7 @@ export default function Schoolwork(){
  <section className="panel"><h2>Assigned teaching</h2>{classes.length?classes.map(c=><div className="section" key={c.id}><h3>{c.name}</h3><p className="small">{c.enrollments.length} enrolled students · {c.assignments.length} assignments</p>
  {c.assignments.map(a=><div key={a.id} className="tile section"><strong style={{fontSize:16}}>{a.title}</strong><p className="small">Due {displayDue(a.dueAt)} · {a.published?"Published":"Draft"} · {a.submissions.length} submissions</p>
  {a.submissions.map((s,i)=><p className="small" key={i}>{s.student.firstName} {s.student.lastName}: {s.body}</p>)}</div>)}</div>):<p className="small">No classes assigned. Ask the school administrator to assign you to a class.</p>}</section></div>
- {pendingReports.length?<section className="panel section">
+ {(pendingReports.length||!pendingComplete)?<section className="panel section">
   <h2>Private student progress report review</h2>
   <p className="small">Authorized administrator only. Verify the current enrollment, author, and content. Never export or share unapproved child records.</p>
   {pendingReports.map(item=><div key={item.id} className="tile section">
@@ -100,18 +160,37 @@ export default function Schoolwork(){
      <button className="secondary" disabled={busy} onClick={()=>void reviewReport(item,"reject-report")}>Reject for correction</button>
     </div>}
   </div>)}
+  {!pendingComplete?<button className="secondary" disabled={busy||pageLoading!==null||!pendingCursor}
+    onClick={()=>void loadMore("draft")}>
+    {pageLoading==="draft"?"Loading older draft reports…":"Load 50 more private draft reports"}
+  </button>:<p className="small" role="status">All currently available draft reports loaded.</p>}
  </section>:null}
- {publishedReports.length?<section className="panel section">
+ {(publishedReports.length||!publishedComplete)?<section className="panel section">
   <h2>Published progress reports · withdrawal review</h2>
   <p className="small">Private administrator list. Approved reports that are incorrect or unsafe can be withdrawn without deleting their history.</p>
   {publishedReports.map(item=><div key={item.id} className="tile section">
    <p className="small">{item.classSection.name} · {item.student.firstName} {item.student.lastName} · published {new Date(item.publishedAt).toLocaleDateString()}</p>
    <p>{item.summary}</p>
    {item.selfAuthored?<p className="small">Another administrator must review withdrawal of your own report.</p>:
-    <button className="secondary" disabled={busy} onClick={()=>void retractReport(item)}>
-     Withdraw published report
-    </button>}
+    <div className="form">
+     <div className="field">
+      <label htmlFor={"withdraw-reason-"+item.id}>Reason for withdrawing this report</label>
+      <select id={"withdraw-reason-"+item.id}
+       value={withdrawalSelection[item.id]||""}
+       onChange={e=>setWithdrawalSelection(old=>({...old,
+        [item.id]:e.target.value as WithdrawalReason|""}))}>
+       <option value="">Select a review reason</option>
+       {withdrawalReasons.map(r=><option key={r.value} value={r.value}>{r.label}</option>)}
+      </select>
+     </div>
+     <button className="secondary" disabled={busy||!withdrawalSelection[item.id]}
+      onClick={()=>void retractReport(item)}>Withdraw published report</button>
+    </div>}
   </div>)}
+  {!publishedComplete?<button className="secondary" disabled={busy||pageLoading!==null||!publishedCursor}
+   onClick={()=>void loadMore("published")}>
+   {pageLoading==="published"?"Loading older published reports…":"Load 50 more published reports"}
+  </button>:<p className="small" role="status">All currently available published reports loaded.</p>}
  </section>:null}
  </main></>;
 }

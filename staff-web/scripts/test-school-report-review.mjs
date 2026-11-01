@@ -263,7 +263,67 @@ try{
  assert.ok(audit.every(x=>!x.detail?.includes(baseDraft.summary)&&
   !x.detail?.includes("Private other-mosque draft.")),
   "never put actual child reports in audit detail");
- console.log("Verified independent report publishing, private drafts/rejections, active author/enrollment, foreign scope, concurrent audit.");
+ // F-019: bounded admin-only archives must reach beyond the first 50,
+ // including reports sharing the exact same timestamp/id-sort tiebreaker.
+ const fixedTime=new Date("2026-10-20T12:00:00.000Z");
+ const syntheticDrafts=Array.from({length:53},()=>({
+  id:randomUUID(),classId:klass.id,studentId:student.id,teacherId:teacher.id,
+  summary:"Synthetic private draft for paginated review only.",status:"draft",
+  createdAt:fixedTime
+ }));
+ const syntheticPublished=Array.from({length:53},()=>({
+  id:randomUUID(),classId:klass.id,studentId:student.id,teacherId:teacher.id,
+  summary:"Synthetic private published report for paginated review only.",
+  status:"published",createdAt:fixedTime,publishedAt:fixedTime
+ }));
+ reports.push(...syntheticDrafts.map(x=>x.id),...syntheticPublished.map(x=>x.id));
+ await db.studentReport.createMany({data:[...syntheticDrafts,...syntheticPublished]});
+ const prefix="admin/school-reports?status=";
+ assert.equal((await call(prefix+"draft")).status,401);
+ assert.equal((await call(prefix+"draft","GET",undefined,teacherToken)).status,403);
+ assert.equal((await call(prefix+"published","GET",undefined,memberToken)).status,403);
+ for(const invalid of ["admin/school-reports",
+  "admin/school-reports?cursor="+syntheticDrafts[0].id,
+  prefix+"archived",prefix+"draft&rogue=1",
+  prefix+"draft&status=draft",
+  prefix+"draft&cursor=short"]){
+  assert.equal((await call(invalid,"GET",undefined,adminToken)).status,422,
+   "reject malformed private child report history query: "+invalid);
+ }
+ assert.equal((await call(prefix+"draft&cursor="+foreignReport.id,"GET",undefined,adminToken)).status,404);
+ assert.equal((await call(prefix+"published&cursor="+syntheticDrafts[0].id,
+  "GET",undefined,adminToken)).status,404);
+ assert.equal((await call(prefix+"draft&cursor="+randomUUID(),
+  "GET",undefined,adminToken)).status,404);
+ const readAll=async(status)=>{
+  let cursor=null;const collected=[];
+  for(let i=0;i<10;i++){
+   const url=prefix+status+(cursor?"&cursor="+encodeURIComponent(cursor):"");
+   const page=await call(url,"GET",undefined,adminToken);
+   assert.equal(page.status,200,JSON.stringify(page.error||{}));
+   assert.equal(page.data.status,status);
+   assert.ok(page.data.items.length<=50);
+   assert.equal(page.data.pageSize,50);
+   assert.ok(page.data.items.every(x=>x.selfAuthored===false));
+   collected.push(...page.data.items);
+   if(page.data.complete){
+    assert.equal(page.data.nextCursor,null);
+    assert.equal(new Set(collected.map(x=>x.id)).size,collected.length,
+     "private report pages must not skip or replay any report");
+    return collected;
+   }
+   assert.ok(page.data.nextCursor,"incomplete history must provide a next cursor");
+   cursor=page.data.nextCursor;
+  }
+  throw Error("Private report history did not terminate in ten pages");
+ };
+ const draftHistory=await readAll("draft");
+ const publishedHistory=await readAll("published");
+ assert.ok(syntheticDrafts.every(x=>draftHistory.some(y=>y.id===x.id)));
+ assert.ok(syntheticPublished.every(x=>publishedHistory.some(y=>y.id===x.id)));
+ assert.ok(!draftHistory.some(x=>x.id===foreignReport.id));
+ assert.ok(!publishedHistory.some(x=>x.id===foreignReport.id));
+ console.log("Verified independent student report review, safe historical pagination and withdrawal scope.");
 }finally{
  if(notices.length){
   await db.outboxEvent.deleteMany({where:{notificationId:{in:notices}}});

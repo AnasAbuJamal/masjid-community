@@ -68,7 +68,7 @@ export async function GET(req:NextRequest){
       teacher:{select:{firstName:true,lastName:true}}}
     })
    ]):[[],[]];
-   return ok({mode:"teacher",organization:{name:org.name,timeZone:org.timeZone},
+   return ok({mode:"teacher",canReviewReports:user.role==="admin",organization:{name:org.name,timeZone:org.timeZone},
     classes:activeClasses,pendingReports:pendingReports.map(x=>({...x,selfAuthored:x.teacherId===user.id})),
     publishedReports:publishedReports.map(x=>({...x,selfAuthored:x.teacherId===user.id}))});
   }
