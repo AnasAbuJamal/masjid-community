@@ -121,6 +121,10 @@ try{
   assert.equal(withdrawnFamily.status,200);
   assert.ok(!withdrawnFamily.data.reports.some(r=>r.id===firstId),
    "guardian of a second active sibling cannot view withdrawn child's report");
+  const deniedArchive=await call("schoolwork/reports","GET",undefined,memberToken);
+  assert.equal(deniedArchive.status,200);
+  assert.ok(!deniedArchive.data.items.some(r=>r.id===firstId),
+   "a withdrawn child/class pair must also disappear from private family archive");
   assert.ok(!withdrawnFamily.data.submissions.some(s=>s.id===persistedSubmission.id),
    "guardian of a second active sibling cannot view withdrawn child's submission");
   const withdrawnTeacher=await call("schoolwork","GET",undefined,teacherToken);
@@ -143,6 +147,10 @@ try{
  const restoredFamily=await call("schoolwork","GET",undefined,memberToken);
  assert.ok(restoredFamily.data.reports.some(r=>r.id===firstId),
   "student report becomes visible again only after an active exact-class link");
+ const restoredArchive=await call("schoolwork/reports","GET",undefined,memberToken);
+ assert.equal(restoredArchive.status,200);
+ assert.ok(restoredArchive.data.items.some(r=>r.id===firstId),
+  "current exact-class enrollment restores family archive access");
  assert.equal((await call("schoolwork","PATCH",publish,adminToken)).status,404,
   "replayed review must not produce another publication");
  const selfId=await newDraft(adminToken);
@@ -289,6 +297,76 @@ try{
  await db.studentReport.createMany({
   data:[...syntheticDrafts,...syntheticPublished,...legacyNullPublished]
  });
+ // A current guardian's personal archive must also expose every older report.
+ // The scoped cursor predicate intersects the exact pair authorization.
+ assert.equal((await call("schoolwork/reports")).status,401);
+ assert.equal((await call("schoolwork/reports","GET",undefined,teacherToken)).status,403);
+ assert.equal((await call("schoolwork/reports","GET",undefined,adminToken)).status,403);
+ for(const invalid of ["schoolwork/reports?unexpected=1",
+  "schoolwork/reports?cursor=bad",
+  "schoolwork/reports?cursor="+syntheticPublished[0].id+
+   "&cursor="+syntheticPublished[1].id]){
+  assert.equal((await call(invalid,"GET",undefined,memberToken)).status,422,
+   "reject unsafe family history query: "+invalid);
+ }
+ assert.equal((await call("schoolwork/reports?cursor="+syntheticDrafts[0].id,
+  "GET",undefined,memberToken)).status,404,
+  "an unpublished draft must not be a family cursor");
+ assert.equal((await call("schoolwork/reports?cursor="+randomUUID(),
+  "GET",undefined,memberToken)).status,404);
+ const foreignPublication=await db.studentReport.create({data:{
+  classId:foreignClass.id,studentId:foreignStudent.id,teacherId:teacher.id,
+  summary:"Synthetic private published report from another mosque.",
+  status:"published",publishedAt:fixedTime
+ }});
+ reports.push(foreignPublication.id);
+ assert.equal((await call("schoolwork/reports?cursor="+foreignPublication.id,
+  "GET",undefined,memberToken)).status,404);
+ const siblingPublication=await db.studentReport.create({data:{
+  classId:klass.id,studentId:activeSibling.id,teacherId:teacher.id,
+  summary:"Synthetic sibling report requiring approved guardian linkage.",
+  status:"published",publishedAt:fixedTime
+ }});
+ reports.push(siblingPublication.id);
+ const allFamily=async()=>{
+  let cursor=null;const rows=[];
+  for(let pageIndex=0;pageIndex<9;pageIndex++){
+   const url="schoolwork/reports"+(cursor?"?cursor="+encodeURIComponent(cursor):"");
+   const page=await call(url,"GET",undefined,memberToken);
+   assert.equal(page.status,200,JSON.stringify(page.error));
+   assert.equal(page.data.mode,"family-reports");
+   assert.equal(page.data.pageSize,25);
+   assert.ok(page.data.items.length<=25);
+   rows.push(...page.data.items);
+   if(page.data.complete){
+    assert.equal(page.data.nextCursor,null);
+    assert.equal(new Set(rows.map(x=>x.id)).size,rows.length,
+     "private family pages must not duplicate reports");
+    return rows;
+   }
+   cursor=page.data.nextCursor;
+   assert.ok(cursor,"incomplete family archive needs a cursor");
+  }
+  throw Error("Private family report history did not finish");
+ };
+ const familyHistory=await allFamily();
+ assert.ok(syntheticPublished.every(x=>familyHistory.some(y=>y.id===x.id)));
+ assert.ok(legacyNullPublished.every(x=>familyHistory.some(y=>
+  y.id===x.id&&y.publishedAt===null)));
+ assert.ok(familyHistory.some(x=>x.id===siblingPublication.id));
+ assert.ok(!familyHistory.some(x=>x.id===foreignPublication.id));
+ assert.ok(!familyHistory.some(x=>syntheticDrafts.some(y=>y.id===x.id)));
+ await db.guardianLink.update({where:{id:siblingLink.id},data:{revokedAt:new Date()}});
+ const revokedSiblingHistory=await allFamily();
+ assert.ok(!revokedSiblingHistory.some(x=>x.id===siblingPublication.id),
+  "revoked guardian link immediately removes sibling report from private history");
+ assert.ok(syntheticPublished.every(x=>revokedSiblingHistory.some(y=>y.id===x.id)),
+  "revoking one sibling's link must not hide the other currently linked child");
+ assert.equal((await call("schoolwork/reports?cursor="+siblingPublication.id,
+  "GET",undefined,memberToken)).status,404);
+ await db.guardianLink.update({where:{id:siblingLink.id},data:{revokedAt:null}});
+ assert.ok((await allFamily()).some(x=>x.id===siblingPublication.id),
+  "restored approved guardian link restores only current enrollment data");
  const prefix="admin/school-reports?status=";
  assert.equal((await call(prefix+"draft")).status,401);
  assert.equal((await call(prefix+"draft","GET",undefined,teacherToken)).status,403);
@@ -361,6 +439,8 @@ try{
  const currentPublished=await readAll("published");
  assert.ok(!currentPublished.some(x=>x.id===older.id),
   "withdrawn old report must be removed from all private publication pages");
+ assert.ok(!(await allFamily()).some(x=>x.id===older.id),
+  "withdrawn older report must disappear from paginated family history");
  const familyAfterOlderWithdrawal=await call("schoolwork","GET",undefined,memberToken);
  assert.ok(!familyAfterOlderWithdrawal.data.reports.some(x=>x.id===older.id));
  const newNotices=await db.notification.findMany({where:{
