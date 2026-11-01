@@ -69,3 +69,14 @@ test("event details never pretend organization time is a verified venue time",()
  assert.equal(gatheringLocalTime(when,"Invalid/Zone","Asia/Dubai","en"),null);
  assert.equal(gatheringLocalTime(when,null,null,"en"),null);
 });
+
+
+test("event detail revalidates publication after resume and checks deadlines again on click",()=>{
+ const screen=readFileSync("masjid-mobile/app/details/[kind]/[id].tsx","utf8");
+ const lifecycle=readFileSync("masjid-mobile/src/useVenueSafetyRefresh.ts","utf8");
+ assert.match(screen,/useVenueSafetyRefresh\(kind==="events"&&id!=="all"&&!!path,result\.refresh\)/);
+ assert.match(screen,/if\(kind==="events"&&isGatheringDeadlineClosed\(item\.rsvpDeadlineAt\|\|item\.startAt\)\)/);
+ assert.match(screen,/if\(isGatheringDeadlineClosed\(item\.cancellationDeadlineAt\|\|item\.startAt\)\)/);
+ assert.match(lifecycle,/AppState\.addEventListener\("change"/);
+ assert.match(lifecycle,/setInterval\(\(\)=>void refresh\(\),60_000\)/);
+});
