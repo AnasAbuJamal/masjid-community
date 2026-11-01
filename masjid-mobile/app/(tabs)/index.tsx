@@ -11,14 +11,15 @@ import {VenuePicker} from "../../src/VenuePicker";
 import {VenueEmergencyAlert} from "../../src/VenueEmergencyAlert";
 import {useVenueSafetyRefresh} from "../../src/useVenueSafetyRefresh";
 import {nextPublishedPrayer} from "../../src/nextPrayer";
+import {gatheringLocalTime} from "../../src/gathering-local-time";
 type Prayer={fajr:string;sunrise:string;dhuhr:string;asr:string;maghrib:string;isha:string;localDate:string;source:string};
 type VenueEmergency={id:string;kind:string;title:string;body:string;
  instructions:string;revision:number;expiresAt:string;publishedAt:string};
 type Home={organization:{id:string;name:string;timeZone:string}|null;
  venue:{id:string;name:string;timeZone:string}|null;prayer:Prayer|null;
- emergency:VenueEmergency|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string}[]};
+ emergency:VenueEmergency|null;announcements:{id:string;title:string;body:string}[];events:{id:string;title:string;startAt:string;location:string;venue:{id:string;name:string;timeZone:string}|null}[]};
 export default function HomeScreen(){
- const {t}=useLanguage();
+ const {t,language}=useLanguage();
  const {user}=useSession();
  const {venue,ready}=useVenue();
  const base=user?.isVerified?"organizations/view?resource=home":"public/home";
@@ -52,6 +53,17 @@ export default function HomeScreen(){
    <PressRow icon="hands-pray" title={t("home.qibla")} subtitle={t("home.qiblaSubtitle")} onPress={()=>router.push("/salah")}/></View>
   </View>
   {data?.announcements?.length?<View style={S.section}><Text style={S.headline}>{t("home.announcements")}</Text>{data.announcements.map(a=><Card key={a.id}><Text style={S.label}>{a.title}</Text><Text style={[S.bodyText,{marginTop:7}]} numberOfLines={3}>{a.body}</Text></Card>)}</View>:null}
-  {data?.events?.length?<View style={S.section}><Text style={S.headline}>{t("home.upcoming")}</Text>{data.events.map(e=><PressRow key={e.id} title={e.title} subtitle={new Date(e.startAt).toLocaleString()+" · "+e.location} icon="calendar-check-outline" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:"events",id:e.id}})}/>)}</View>:null}
+  {data?.events?.length?<View style={S.section}><Text style={S.headline}>{t("home.upcoming")}</Text>{data.events.map(e=>{
+   const when=gatheringLocalTime(e.startAt,e.venue?.timeZone,
+    data.organization?.timeZone,language);
+   const timeLabel=when?
+    when.text+" ("+t(when.source==="venue"?"home.verifiedVenueTime":"home.organizationTime")+
+    ", "+when.timeZone+")":
+    t("home.gatheringTimeUnavailable");
+   return <PressRow key={e.id} title={e.title}
+    subtitle={timeLabel+" · "+e.location}
+    icon="calendar-check-outline"
+    onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:"events",id:e.id}})}/>;
+  })}</View>:null}
  </Shell>;
 }
