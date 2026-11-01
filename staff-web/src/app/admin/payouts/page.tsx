@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 import {PAYOUT_EXCEPTION_REASONS,type PayoutExceptionCode} from "@/lib/payout-exceptions";
 type Note={id:string;body:string;createdAt:string;author:{firstName:string;lastName:string}};
 type Payout={id:string;providerPayoutId:string;amountMinor:number;currency:string;state:string;arrivalAt:string|null;failureCode:string|null;observedAt:string;updatedAt:string;notes:Note[];notesComplete:boolean};
@@ -7,19 +7,23 @@ type Result={payouts:Payout[];organization:{name:string};complete:boolean;nextRe
 type HistoryPage={payoutId:string;notes:Note[];complete:boolean;nextCursor:string|null;reconciliationReady:false};
 type LoadedHistory={notes:Note[];complete:boolean;nextCursor:string|null};
 export default function ProviderPayouts(){
+ const reloadEpoch=useRef(0);
  const [data,setData]=useState<Result|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [drafts,setDrafts]=useState<Record<string,PayoutExceptionCode|"" >>({}),[busy,setBusy]=useState(false);
  const [older,setOlder]=useState<Record<string,LoadedHistory>>({});
  const [historyLoading,setHistoryLoading]=useState<string|null>(null);
  const [registerLoading,setRegisterLoading]=useState(false);
  const reload=useCallback(async()=>{
+  const epoch=++reloadEpoch.current;
   // Never retain a previous finance register while revalidating access.
   setData(null);setOlder({});setHistoryLoading(null);setError("");
   try{
    const r=await fetch("/api/v1/admin/payouts",{cache:"no-store"});
    const v=await r.json();if(!r.ok)throw new Error(v.error?.message||"Authorized finance access required.");
-   setData(v.data);setError("");
-  }catch(e){setData(null);setError(e instanceof Error?e.message:"Payout register unavailable.");}
+   if(epoch===reloadEpoch.current){setData(v.data);setError("");}
+  }catch(e){if(epoch===reloadEpoch.current){
+   setData(null);setError(e instanceof Error?e.message:"Payout register unavailable.");
+  }}
  },[]);
  useEffect(()=>{void reload()},[reload]);
  async function note(payoutId:string){
