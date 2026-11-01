@@ -63,3 +63,11 @@ test("Calendar keeps the selected date tied to the correct venue and published r
    "English and Arabic calendar labels required for "+key);
  }
 });
+
+test("calendar revalidates withdrawn prayer publication when app resumes",()=>{
+ const source=readFileSync("masjid-mobile/app/calendar.tsx","utf8");
+ const shared=readFileSync("masjid-mobile/src/useVenueSafetyRefresh.ts","utf8");
+ assert.ok(source.includes("useVenueSafetyRefresh(!!path,result.refresh)"));
+ assert.ok(shared.includes('AppState.addEventListener("change"'));
+ assert.ok(shared.includes('shouldRefreshVenueOnResume(previous,state)'));
+});
