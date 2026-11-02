@@ -62,6 +62,34 @@ function checkArchive(response,organizationId,label,forbidden){
  assert.ok(response.data.exclusions.includes("care narratives"));
  assert.ok(response.data.exclusions.includes("finance-provider account data"));
 }
+async function changeDuringExport(change,{seed=786,key=owner.id}={}){
+ // Hold the actor's export lock, wait until the HTTP handler is actually
+ // queued behind it, then alter authorization. No timing-only race assertion.
+ let release,acquired;
+ const ready=new Promise(resolve=>{acquired=resolve;});
+ const held=new Promise(resolve=>{release=resolve;});
+ const holder=db.$transaction(async tx=>{
+  await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${key}::text, ${seed}::bigint))`;
+  acquired();await held;
+ },{timeout:10000});
+ await ready;
+ let request;
+ try{
+  request=call("account/export","POST",{password,confirm:true});
+  let waiting=false;
+  for(let attempt=0;attempt<75;attempt++){
+   const [row]=await db.$queryRaw`SELECT EXISTS (
+    SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted AND objsubid=1
+    AND ((classid::bigint << 32) | objid::bigint)=hashtextextended(${key}::text, ${seed}::bigint)
+   ) AS waiting`;
+   if(row.waiting){waiting=true;break;}
+   await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  assert.ok(waiting,"export must acquire its quota/authority or organization audit lock before auditing");
+  await change();
+ }finally{release();await holder;}
+ return await request;
+}
 try{
  home=await db.organization.findFirstOrThrow({orderBy:[{createdAt:"asc"},{id:"asc"}]});
  const source=await db.user.findUniqueOrThrow({where:{email:memberEmail}});
@@ -103,8 +131,31 @@ try{
  await db.authSession.update({where:{tokenHash},data:{mfaVerifiedAt:new Date(Date.now()-20*60000)}});
  assert.equal((await call("account/export","POST",{password,confirm:true})).status,403,"stale MFA cannot export secondary records");
  await db.authSession.update({where:{tokenHash},data:{mfaVerifiedAt:new Date()}});
+ const revokedWhileWaiting=await changeDuringExport(()=>db.organizationMembership.update({
+  where:membership,data:{status:"suspended"}
+ }));
+ assert.equal(revokedWhileWaiting.status,403,"revocation while export is preparing prevents audit and response");
+ await db.organizationMembership.update({where:membership,data:{status:"active"}});
+ const changedWhileWaiting=await changeDuringExport(async()=>{
+  assert.equal((await call("organizations/context","POST",{organizationId:home.id})).status,200);
+ });
+ assert.equal(changedWhileWaiting.status,409,"a preparing export must never return after selected mosque changed");
+ assert.equal(changedWhileWaiting.error.code,"EXPORT_CONTEXT_CHANGED");
+ assert.equal((await call("organizations/context","POST",{organizationId:secondary.id})).status,200);
+ const revokedAtAuditLock=await changeDuringExport(()=>db.organizationMembership.update({
+  where:membership,data:{status:"suspended"}
+ }),{seed:785,key:secondary.id});
+ assert.equal(revokedAtAuditLock.status,403,"revocation while waiting for organization audit lock must still prevent export");
+ await db.organizationMembership.update({where:membership,data:{status:"active"}});
+ const changedAtAuditLock=await changeDuringExport(async()=>{
+  assert.equal((await call("organizations/context","POST",{organizationId:home.id})).status,200);
+ },{seed:785,key:secondary.id});
+ assert.equal(changedAtAuditLock.status,409,"context change at the later audit lock must not return the old mosque archive");
+ assert.equal(changedAtAuditLock.error.code,"EXPORT_CONTEXT_CHANGED");
  assert.equal((await call("organizations/context","POST",{organizationId:home.id})).status,200);
- checkArchive(await call("account/export","POST",{password,confirm:true}),home.id,"HOME_OWNER",["SECOND_OWNER","HOME_OTHER","SECOND_OTHER"]);
+ const concurrent=await Promise.all(Array.from({length:3},()=>call("account/export","POST",{password,confirm:true})));
+ assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,429,429],"simultaneous exports cannot exceed the one remaining global download slot");
+ checkArchive(concurrent.find(r=>r.status===200),home.id,"HOME_OWNER",["SECOND_OWNER","HOME_OTHER","SECOND_OTHER"]);
  assert.equal((await call("organizations/context","POST",{organizationId:secondary.id})).status,200);
  const limited=await call("account/export","POST",{password,confirm:true});
  assert.equal(limited.status,429);assert.equal(limited.error.code,"EXPORT_RATE_LIMIT",

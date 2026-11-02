@@ -2,14 +2,14 @@ import {NextRequest} from "next/server";
 import {z} from "zod";
 import {db} from "@/lib/db";
 import {appendIntegrityAudit} from "@/lib/integrity-audit";
-import {requireVerified,checkLoginThrottle,checkPassword,recordFailedLogin,clearLoginThrottle,sessionFrom,tokenHash} from "@/lib/auth";
+import {requireMemberContext,checkLoginThrottle,checkPassword,recordFailedLogin,clearLoginThrottle,sessionFrom,tokenHash} from "@/lib/auth";
 import {assertSameOrigin,handled,HttpError,jsonBody,ok} from "@/lib/http";
 
 // This endpoint exports ONLY records held by the active mosque. The shared
 // identity (name/email) belongs to the account holder, not to a tenant.
 // A complete multi-organization data request requires separately authorized
 // export for each organization, not a one-click cross-tenant data join.
-const exportRequest=z.object({password:z.string().min(1).max(128),confirm:z.literal(true)});
+const exportRequest=z.object({password:z.string().min(1).max(128),confirm:z.literal(true)}).strict();
 
 // Fail closed: private exports may not be retrieved via GET, from prefetch,
 // an old browser tab or an authenticated bearer token without reauthentication.
@@ -20,7 +20,7 @@ export async function GET(){
 export async function POST(req:NextRequest){
  return handled(async()=>{
   assertSameOrigin(req);
-  const user=await requireVerified(req);
+  const {user,org,homeId}=await requireMemberContext(req);
   const input=exportRequest.parse(await jsonBody(req));
   await checkLoginThrottle(user.email);
   try{await checkPassword(user.email,input.password);}
@@ -34,8 +34,6 @@ export async function POST(req:NextRequest){
    if(!current)throw new HttpError(403,"EXPORT_MFA_STEP_UP",
     "Verify your authenticator again before exporting private records.");
   }
-  const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true}});
-  if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
   // Count completed exports by this actor, without retaining any export content.
   const recent=await db.auditEvent.count({where:{actorId:user.id,action:"account.export.read",
    occurredAt:{gt:new Date(Date.now()-3600000)}}});
@@ -74,6 +72,30 @@ export async function POST(req:NextRequest){
   const limited=Object.fromEntries(Object.entries(lists).map(([key,items])=>[key,items.slice(0,200)]));
   const truncatedCategories=Object.entries(lists).filter(([,items])=>items.length>200).map(([key])=>key);
   await db.$transaction(async tx=>{
+   // An account has one download allowance across all mosques and sessions.
+   // Serialize the final count + audit, not just a preflight read. Distinct
+   // seed 786 avoids the organization audit-chain lock's namespace (785).
+   await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${user.id}::text, 786::bigint))`;
+   const now=new Date();
+   const current=await tx.authSession.findUnique({where:{tokenHash:tokenHash(sessionFrom(req))},
+    select:{userId:true,revokedAt:true,expiresAt:true,selectedOrganizationId:true,mfaVerifiedAt:true,
+     user:{select:{status:true,verifiedAt:true,role:true,email:true,mfaEnabledAt:true}}}});
+   if(!current||current.userId!==user.id||current.revokedAt||current.expiresAt<=now||current.user.status!=="active")
+    throw new HttpError(401,"UNAUTHENTICATED","Sign in again before exporting private records.");
+   if((current.selectedOrganizationId||homeId)!==org.id||current.user.email!==user.email||current.user.role!==user.role)
+    throw new HttpError(409,"EXPORT_CONTEXT_CHANGED","Your account or selected mosque changed. Review the export again.");
+   if(!current.user.verifiedAt)
+    throw new HttpError(403,"EMAIL_NOT_VERIFIED","Verify your email before exporting private records.");
+   const membership=await tx.organizationMembership.findUnique({where:{
+    organizationId_userId:{organizationId:org.id,userId:user.id}
+   },select:{status:true}});
+   if(membership?.status!=="active")
+    throw new HttpError(403,"MEMBERSHIP_REQUIRED","Your selected mosque membership is no longer active.");
+   if(current.user.mfaEnabledAt&&(!current.mfaVerifiedAt||current.mfaVerifiedAt<=new Date(now.getTime()-10*60000)))
+    throw new HttpError(403,"EXPORT_MFA_STEP_UP","Verify your authenticator again before exporting private records.");
+   const completed=await tx.auditEvent.count({where:{actorId:user.id,action:"account.export.read",
+    occurredAt:{gt:new Date(now.getTime()-3600000)}}});
+   if(completed>=3)throw new HttpError(429,"EXPORT_RATE_LIMIT","Too many private exports. Try again later.");
    await tx.auditEvent.create({data:{actorId:user.id,action:"account.export.read",
     entity:"Organization",entityId:org.id,
     detail:JSON.stringify({organizationId:org.id,categories:Object.keys(lists),truncatedCategories})}});
