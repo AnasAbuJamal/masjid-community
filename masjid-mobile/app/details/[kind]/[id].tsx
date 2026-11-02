@@ -16,6 +16,7 @@ import {useLanguage} from "../../../src/i18n";
 import {gatheringLocalTime} from "../../../src/gathering-local-time";
 import {isGatheringDeadlineClosed} from "../../../src/gathering-deadline";
 import {createScopedActionGate} from "../../../src/scoped-action-gate";
+import {canonicalRentalRange} from "../../../src/rental-time-input";
 import {useVenueSafetyRefresh} from "../../../src/useVenueSafetyRefresh";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;endAt?:string|null;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
  cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string;
@@ -112,6 +113,15 @@ export default function Details(){
   isGatheringDeadlineClosed(item?.cancellationDeadlineAt||item?.startAt);
  // Date strings in the UI must use the gathering's own verified timezone,
  // not the venue selected for prayer or the user's device timezone.
+ // Non-event publication dates must also use the trusted mosque timezone.
+ // Do not silently interpret construction or volunteer dates on this phone.
+ const formatOrganizationInstant=(instant:string|null|undefined)=>{
+  const display=gatheringLocalTime(instant,null,
+   result.data?.organization?.timeZone,language);
+  return display
+   ?display.text+" ("+t("detail.organizationTime")+", "+display.timeZone+")"
+   :t("detail.unknownDate");
+ };
  const formatGatheringInstant=(instant:string|null|undefined)=>{
   const display=gatheringLocalTime(instant,item?.venue?.timeZone,
    result.data?.organization?.timeZone,language);
@@ -126,6 +136,15 @@ export default function Details(){
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError(t("detail.verifyEmail"));return;}
   if(!item)return;
+  if(kind==="jobs"&&letter.trim().length<10){
+   setError(t("detail.coverLetterMin"));return;
+  }
+  const rentalRange=kind==="rentals"?canonicalRentalRange(from,to):null;
+  if(rentalRange&&!rentalRange.valid){
+   setError(t(rentalRange.problem==="invalid"?"detail.rentalDateInvalid":
+    rentalRange.problem==="order"?"detail.rentalDateOrder":"detail.rentalDateTooLong"));
+   return;
+  }
   if(kind==="events"&&isGatheringDeadlineClosed(item.rsvpDeadlineAt||item.startAt)){
    setError(t("detail.rsvpExpired"));return;
   }
@@ -137,8 +156,8 @@ export default function Details(){
     :kind==="volunteers"?{kind:"volunteer",opportunityId:item.id}
     :kind==="proposals"?{kind:"vote",proposalId:item.id}
     :kind==="jobs"?{kind:"job",jobId:item.id,coverLetter:letter}
-    :kind==="rentals"?{kind:"rental",resourceId:item.id,
-       startAt:new Date(from).toISOString(),endAt:new Date(to).toISOString()}
+    :kind==="rentals"&&rentalRange?.valid?{kind:"rental",resourceId:item.id,
+       startAt:rentalRange.startAt,endAt:rentalRange.endAt}
     :null;
    if(!input)return;
    const response=await apiPost<{message?:string;status?:string}>("actions",input);
@@ -243,7 +262,7 @@ export default function Details(){
    {kind==="events"&&item.startAt?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
     {t("gathering.detailsStarts")}: {formatGatheringInstant(item.startAt)}
    </Text>:item.startAt||item.startsAt?<Text style={[S.muted,{textAlign:align}]}>
-    {t("detail.date")}: {new Date(item.startAt||item.startsAt||"").toLocaleString(language==="ar"?"ar-EG":"en-US")}
+    {t("detail.date")}: {formatOrganizationInstant(item.startAt||item.startsAt)}
    </Text>:null}
    {kind==="events"&&item.endAt?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
     {t("gathering.detailsEnds")}: {formatGatheringInstant(item.endAt)}
@@ -277,10 +296,10 @@ export default function Details(){
     </Text>:null}
    {kind==="events"&&user?.isVerified&&own.error?
     <Text accessibilityRole="alert" style={{color:T.danger}}>{own.error}</Text>:null}
-   {item.company?<Text style={S.muted}>Organization: {item.company}</Text>:null}
-   {item.milestones?.length?<View style={{gap:12}}><Text style={S.headline}>Project milestones</Text>{item.milestones.map(m=><Card key={m.id} style={{gap:6}}><Text style={S.label}>{m.title}</Text><Text style={S.bodyText}>{m.description}</Text><Text style={S.muted}>{m.completedAt?"Completed "+new Date(m.completedAt).toLocaleDateString():"In progress"}</Text></Card>)}</View>:null}
-   {kind==="jobs"?<Field label="Cover letter (minimum 10 characters)" value={letter} onChange={setLetter} multiline/>:null}
-   {kind==="rentals"?<><Field label="Start (ISO date/time)" value={from} onChange={setFrom}/><Field label="End (ISO date/time)" value={to} onChange={setTo}/></>:null}
+   {item.company?<Text style={[S.muted,{textAlign:align}]}>{t("detail.organization")}: {item.company}</Text>:null}
+   {item.milestones?.length?<View style={{gap:12}}><Text style={[S.headline,{textAlign:align}]}>{t("detail.projectMilestones")}</Text>{item.milestones.map(m=><Card key={m.id} style={{gap:6}}><Text style={S.label}>{m.title}</Text><Text style={S.bodyText}>{m.description}</Text><Text style={[S.muted,{textAlign:align}]}>{m.completedAt?t("detail.completed")+" "+formatOrganizationInstant(m.completedAt):t("detail.inProgress")}</Text></Card>)}</View>:null}
+   {kind==="jobs"?<Field label={t("detail.coverLetterLabel")} value={letter} onChange={setLetter} multiline/>:null}
+   {kind==="rentals"?<><Field label={t("detail.rentalFrom")} value={from} onChange={setFrom}/><Field label={t("detail.rentalTo")} value={to} onChange={setTo}/><Text style={[S.muted,{textAlign:align}]}>{t("detail.rentalDateExample")}</Text></>:null}
    {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
    {kind==="events"&&user?.isVerified?
@@ -290,8 +309,8 @@ export default function Details(){
      <Action label={t(own.data.registration.status==="waitlisted"?"detail.leaveWaitlist":"detail.cancelReservation")}
       secondary disabled={busy||contextChanging||!path||own.loading||cancellationClosed||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
     :null}
-   {kind==="campaigns"?<Action label="Choose a donation" icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
-    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?t("detail.signIn"):kind==="events"&&reservationClosed?t("detail.rsvpClosed"):kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(t(item.waitlistEnabled?"detail.joinWaitlist":"detail.full")):t("detail.rsvp")):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={busy||contextChanging||!path||own.loading||!!reservationClosed||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
+   {kind==="campaigns"?<Action label={t("detail.chooseDonation")} icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
+    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?t("detail.signIn"):kind==="events"&&reservationClosed?t("detail.rsvpClosed"):kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(t(item.waitlistEnabled?"detail.joinWaitlist":"detail.full")):t("detail.rsvp")):kind==="volunteers"?t("detail.actionVolunteer"):kind==="proposals"?t("detail.actionProposal"):kind==="jobs"?t("detail.actionJob"):t("detail.actionRental")} loading={busy} disabled={busy||contextChanging||!path||own.loading||!!reservationClosed||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
     :null}
   </Card>:null}
  </Shell>;
