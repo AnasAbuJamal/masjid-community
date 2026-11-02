@@ -93,6 +93,11 @@ try{
  assert.equal((await req("me/preferences","PATCH",{
   purpose:"event_updates",enabled:true,quietStartHour:26,quietEndHour:4
  },memberToken)).status,422,"invalid clock hours rejected");
+ assert.equal((await req("me/preferences","PATCH",{
+  purpose:"community_news",enabled:true,quietStartHour:null,quietEndHour:null,
+  trackingId:"not-approved"
+ },memberToken)).status,422,
+  "unexpected tracking fields cannot be silently accepted for consent");
  const deprecated=await req("account","PATCH",{newsletterOptIn:true},memberToken);
  assert.equal(deprecated.status,409,"legacy global newsletter toggles cannot bypass scoped opt-in");
  assert.equal(deprecated.error.code,"ORG_PREFERENCES_REQUIRED");
