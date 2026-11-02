@@ -30,7 +30,20 @@ export default function ProviderPayouts(){
  },[]);
  useEffect(()=>{
   void reload();
-  return ()=>{reloadEpoch.current++;};
+  const onVisibility=()=>{
+   if(document.visibilityState==="hidden"){
+    // A finance tab may sit open while privileges are revoked elsewhere.
+    // Clear private records immediately; reauthorize on return.
+    reloadEpoch.current++;
+    setData(null);setOlder({});setDrafts({});setNotice("");setError("");
+    setBusy(false);setHistoryLoading(null);setRegisterLoading(false);
+   }else if(document.visibilityState==="visible")void reload();
+  };
+  document.addEventListener("visibilitychange",onVisibility);
+  return ()=>{
+   document.removeEventListener("visibilitychange",onVisibility);
+   reloadEpoch.current++;
+  };
  },[reload]);
  async function note(payoutId:string){
   if(busy)return;const reasonCode=drafts[payoutId];
