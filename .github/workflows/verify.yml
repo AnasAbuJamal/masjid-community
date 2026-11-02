@@ -143,7 +143,6 @@ jobs:
           node scripts/test-care-intake.mjs
           node scripts/test-privacy-scope.mjs
           node scripts/test-privacy-export.mjs
-          node scripts/test-selected-privacy-export.mjs
           node scripts/test-shift-safety.mjs
           node scripts/test-payments.mjs
           node scripts/test-payout-register.mjs
@@ -158,6 +157,10 @@ jobs:
           node scripts/test-delivery.mjs
           node scripts/test-operations.mjs
           node scripts/test-support-cases.mjs
+          # This suite retains a synthetic secondary organization because its
+          # sealed export audit is append-only. Run after single-mosque payout
+          # fixtures; never weaken payout tenant mapping or delete audit chains.
+          node scripts/test-selected-privacy-export.mjs
 
       # Evidence-only screenshots of published guest pages. Uses the same
       # disposable PostgreSQL service as the smoke suite; no live data.
