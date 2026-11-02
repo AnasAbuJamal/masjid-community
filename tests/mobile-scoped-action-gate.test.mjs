@@ -82,7 +82,7 @@ test("native gathering actions check current ownership before showing success",(
   assert.match(section,/contextChanging/,name+" must block tenant transitions");
  }
  assert.match(details,/React\.useLayoutEffect\(\(\)=>\{/);
- assert.match(details,/setLetter\(" "\)/);
- assert.match(details,/setFrom\(" "\)/);
- assert.match(details,/setTo\(" "\)/);
+ assert.match(details,/setLetter\(""\)/);
+ assert.match(details,/setFrom\(""\)/);
+ assert.match(details,/setTo\(""\)/);
 });
