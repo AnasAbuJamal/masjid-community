@@ -56,6 +56,9 @@ test("secondary details UI validates requests before posting without claiming bo
  assert.match(screen,/t\("detail\.actionProposal"\)/);
  assert.match(screen,/t\("detail\.actionJob"\)/);
  assert.match(screen,/t\("detail\.actionRental"\)/);
+ assert.match(screen,/kind==="rentals"&&response\.status!=="requested"/);
+ assert.match(screen,/t\("detail\.rentalUnverified"\)/);
+ assert.match(screen,/kind==="rentals"\?t\("detail\.rentalRequested"\)/);
  assert.match(screen,/gatheringLocalTime\(instant,null,/);
  assert.match(screen,/result\.data\?\.organization\?\.timeZone,language/);
  assert.match(screen,/formatOrganizationInstant\(m\.completedAt\)/);
@@ -80,7 +83,8 @@ test("published and selected-mosque detail response carries the correct timezone
   "detail.projectMilestones","detail.completed","detail.inProgress",
   "detail.unknownDate","detail.organizationTime","detail.coverLetterMin",
   "detail.rentalDateInvalid","detail.rentalDateOrder",
-  "detail.rentalDateTooLong","detail.rentalDateExample"
+  "detail.rentalDateTooLong","detail.rentalDateExample",
+  "detail.rentalRequested","detail.rentalUnverified"
  ]){
   assert.match(locales,new RegExp('"'+key.replaceAll(".","\\.")+'":\\{en:".+",ar:".+"\\}'),key);
  }
