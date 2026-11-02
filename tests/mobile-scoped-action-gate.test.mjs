@@ -69,4 +69,20 @@ test("native gathering actions check current ownership before showing success",(
  assert.match(details,/disabled=\{busy\|\|contextChanging/);
  assert.match(api,/const revision=authority\.version\(\)/);
  assert.match(api,/check\(revision\)/);
+ for(const [name,start,end] of [
+  ["perform"," async function perform(){"," async function shareCalendar(){"],
+  ["calendar"," async function shareCalendar(){"," async function cancelEvent(){"],
+  ["cancel"," async function cancelEvent(){"," const iconName="]
+ ]){
+  const section=details.slice(details.indexOf(start),details.indexOf(end));
+  assert.ok(section.length>0,name+" handler should exist");
+  assert.match(section,/const ticket=actionGate\.current\.begin\(\)/,name);
+  assert.match(section,/actionGate\.current\.isCurrent\(ticket\)/,name);
+  assert.match(section,/if\(actionGate\.current\.finish\(ticket\)\)setBusy\(false\)/,name);
+  assert.match(section,/contextChanging/,name+" must block tenant transitions");
+ }
+ assert.match(details,/React\.useLayoutEffect\(\(\)=>\{/);
+ assert.match(details,/setLetter\(" "\)/);
+ assert.match(details,/setFrom\(" "\)/);
+ assert.match(details,/setTo\(" "\)/);
 });
