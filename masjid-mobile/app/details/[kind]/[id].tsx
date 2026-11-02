@@ -1,4 +1,4 @@
-import React,{useState} from "react";
+import React,{useRef,useState} from "react";
 import {Share,Text,View} from "react-native";
 import {router,useLocalSearchParams} from "expo-router";
 import {Action,Card,Feedback,Field,Head,PressRow,Shell} from "../../../src/ui";
@@ -15,6 +15,7 @@ import {useGatheringPages} from "../../../src/useGatheringPages";
 import {useLanguage} from "../../../src/i18n";
 import {gatheringLocalTime} from "../../../src/gathering-local-time";
 import {isGatheringDeadlineClosed} from "../../../src/gathering-deadline";
+import {createScopedActionGate} from "../../../src/scoped-action-gate";
 import {useVenueSafetyRefresh} from "../../../src/useVenueSafetyRefresh";
 type RecordItem={milestones?:{id:string;title:string;description:string;completedAt:string|null}[];id:string;title:string;description?:string;body?:string;purpose?:string;company?:string;location?:string;startAt?:string;endAt?:string|null;startsAt?:string;capacity?:number|null;rsvpCount?:number;waitlistEnabled?:boolean;rsvpDeadlineAt?:string|null;
  cancellationDeadlineAt?:string|null;cancellationTerms?:string|null;filled?:number;publishedAt?:string;currency?:string;
@@ -40,7 +41,7 @@ export default function Details(){
  const kind=String(params.kind||""),id=String(params.id||"all");
  const config=categories[kind];
  const {t,language,isRTL}=useLanguage();
- const {user,contextVersion}=useSession();
+ const {user,contextVersion,contextChanging}=useSession();
  const {venues}=useVenue();
  const [category,setCategory]=useState("");
  const [audience,setAudience]=useState("");
@@ -91,6 +92,19 @@ export default function Details(){
  const displayItems=kind==="events"&&id==="all"?paged.items:result.data?.items||[];
  const own=useResource<OwnRegistration>(kind==="events"&&id!=="all"&&user?.isVerified&&authorizedSelected?`events/registration?eventId=${encodeURIComponent(id)}`:null);
  const [message,setMessage]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[letter,setLetter]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState("");
+ // One in-flight command belongs to one account, server-selected mosque and
+ // detail resource. Switching any of them invalidates its eventual receipt.
+ const actionGate=useRef(createScopedActionGate());
+ const actionScope=[contextVersion,user?.id||"guest",kind,id,scope,
+  context.data?.selectedOrganizationId||"",
+  blocked?"blocked":"allowed",contextChanging?"switching":"stable",path||""
+ ].join("|");
+ React.useLayoutEffect(()=>{
+  actionGate.current.bind(actionScope);
+  setBusy(false);setError("");setMessage("");
+  setLetter("");setFrom("");setTo("");
+  return ()=>{actionGate.current.invalidate();};
+ },[actionScope]);
  const item=result.data?.items.find(x=>x.id===id);
  const reservationClosed=kind==="events"&&
   isGatheringDeadlineClosed(item?.rsvpDeadlineAt||item?.startAt);
@@ -108,51 +122,76 @@ export default function Details(){
    :t("gathering.detailsUnknownTime");
  };
  async function perform(){
-  if(blocked){setError(t("detail.unavailable"));return;}
+  if(blocked||contextChanging||!path){setError(t("detail.unavailable"));return;}
   if(!user){router.push("/auth");return;}
   if(!user.isVerified){setError(t("detail.verifyEmail"));return;}
   if(!item)return;
   if(kind==="events"&&isGatheringDeadlineClosed(item.rsvpDeadlineAt||item.startAt)){
    setError(t("detail.rsvpExpired"));return;
   }
+  const ticket=actionGate.current.begin();
+  if(ticket===null)return; // A synchronous duplicate tap cannot send twice.
   setBusy(true);setError("");setMessage("");
   try{
    const input=kind==="events"?{kind:"rsvp",eventId:item.id}
     :kind==="volunteers"?{kind:"volunteer",opportunityId:item.id}
     :kind==="proposals"?{kind:"vote",proposalId:item.id}
     :kind==="jobs"?{kind:"job",jobId:item.id,coverLetter:letter}
-    :kind==="rentals"?{kind:"rental",resourceId:item.id,startAt:new Date(from).toISOString(),endAt:new Date(to).toISOString()}
+    :kind==="rentals"?{kind:"rental",resourceId:item.id,
+       startAt:new Date(from).toISOString(),endAt:new Date(to).toISOString()}
     :null;
    if(!input)return;
    const response=await apiPost<{message?:string;status?:string}>("actions",input);
-   setMessage(response.message||t("detail.requestSaved"));
+   if(!actionGate.current.isCurrent(ticket))return;
    if(kind==="events")await own.refresh();
-  }catch(e){setError(e instanceof Error?e.message:t("detail.requestFailed"));}
-  finally{setBusy(false);}
+   if(!actionGate.current.isCurrent(ticket))return;
+   setMessage(response.message||t("detail.requestSaved"));
+  }catch(e){
+   if(actionGate.current.isCurrent(ticket))
+    setError(e instanceof Error?e.message:t("detail.requestFailed"));
+  }finally{
+   if(actionGate.current.finish(ticket))setBusy(false);
+  }
  }
  async function shareCalendar(){
-  if(!item||!user?.isVerified||blocked)return;
+  if(!item||!user?.isVerified||blocked||contextChanging||!path)return;
+  const ticket=actionGate.current.begin();
+  if(ticket===null)return;
   setBusy(true);setError("");setMessage("");
   try{
    const ics=await apiCalendar("events/calendar?eventId="+encodeURIComponent(item.id));
+   if(!actionGate.current.isCurrent(ticket))return;
    const result=await Share.share({message:ics,title:t("detail.calendarTitle")});
+   if(!actionGate.current.isCurrent(ticket))return;
    if(result.action===Share.sharedAction)
     setMessage(t("detail.calendarShared"));
-  }catch(e){setError(e instanceof Error?e.message:t("detail.calendarFailed"));}
-  finally{setBusy(false);}
+  }catch(e){
+   if(actionGate.current.isCurrent(ticket))
+    setError(e instanceof Error?e.message:t("detail.calendarFailed"));
+  }finally{
+   if(actionGate.current.finish(ticket))setBusy(false);
+  }
  }
  async function cancelEvent(){
-  if(!item||!user?.isVerified)return;
+  if(!item||!user?.isVerified||blocked||contextChanging||!path)return;
   if(isGatheringDeadlineClosed(item.cancellationDeadlineAt||item.startAt)){
    setError(t("detail.cancelExpired"));return;
   }
+  const ticket=actionGate.current.begin();
+  if(ticket===null)return;
   setBusy(true);setError("");setMessage("");
   try{
    await api("events/rsvp",{method:"DELETE",body:JSON.stringify({eventId:item.id})});
+   if(!actionGate.current.isCurrent(ticket))return;
    await own.refresh();
+   if(!actionGate.current.isCurrent(ticket))return;
    setMessage(t("detail.leftList"));
-  }catch(e){setError(e instanceof Error?e.message:t("detail.cancelFailed"));}
-  finally{setBusy(false);}
+  }catch(e){
+   if(actionGate.current.isCurrent(ticket))
+    setError(e instanceof Error?e.message:t("detail.cancelFailed"));
+  }finally{
+   if(actionGate.current.finish(ticket))setBusy(false);
+  }
  }
  const iconName=kind==="events"?"calendar-check-outline":kind==="volunteers"?"hand-heart-outline":kind==="proposals"?"vote-outline":kind==="jobs"?"briefcase-outline":"calendar-plus";
  return <Shell>
@@ -246,13 +285,13 @@ export default function Details(){
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
    {kind==="events"&&user?.isVerified?
     <Action label={t("detail.shareCalendar")} secondary icon="calendar-check-outline"
-     disabled={busy} onPress={()=>void shareCalendar()}/>:null}
+     disabled={busy||contextChanging||!path} onPress={()=>void shareCalendar()}/>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
      <Action label={t(own.data.registration.status==="waitlisted"?"detail.leaveWaitlist":"detail.cancelReservation")}
-      secondary disabled={busy||own.loading||cancellationClosed||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
+      secondary disabled={busy||contextChanging||!path||own.loading||cancellationClosed||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
     :null}
    {kind==="campaigns"?<Action label="Choose a donation" icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
-    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?t("detail.signIn"):kind==="events"&&reservationClosed?t("detail.rsvpClosed"):kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(t(item.waitlistEnabled?"detail.joinWaitlist":"detail.full")):t("detail.rsvp")):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={own.loading||!!reservationClosed||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
+    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?t("detail.signIn"):kind==="events"&&reservationClosed?t("detail.rsvpClosed"):kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(t(item.waitlistEnabled?"detail.joinWaitlist":"detail.full")):t("detail.rsvp")):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={busy||contextChanging||!path||own.loading||!!reservationClosed||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
     :null}
   </Card>:null}
  </Shell>;
