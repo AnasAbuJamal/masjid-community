@@ -108,12 +108,12 @@ export default function Details(){
    :t("gathering.detailsUnknownTime");
  };
  async function perform(){
-  if(blocked){setError("This action is unavailable at your selected mosque.");return;}
+  if(blocked){setError(t("detail.unavailable"));return;}
   if(!user){router.push("/auth");return;}
-  if(!user.isVerified){setError("Verify your email before participating.");return;}
+  if(!user.isVerified){setError(t("detail.verifyEmail"));return;}
   if(!item)return;
   if(kind==="events"&&isGatheringDeadlineClosed(item.rsvpDeadlineAt||item.startAt)){
-   setError("The RSVP deadline has passed.");return;
+   setError(t("detail.rsvpExpired"));return;
   }
   setBusy(true);setError("");setMessage("");
   try{
@@ -125,9 +125,9 @@ export default function Details(){
     :null;
    if(!input)return;
    const response=await apiPost<{message?:string;status?:string}>("actions",input);
-   setMessage(response.message||"Your request was received and saved.");
+   setMessage(response.message||t("detail.requestSaved"));
    if(kind==="events")await own.refresh();
-  }catch(e){setError(e instanceof Error?e.message:"Request unsuccessful.");}
+  }catch(e){setError(e instanceof Error?e.message:t("detail.requestFailed"));}
   finally{setBusy(false);}
  }
  async function shareCalendar(){
@@ -135,23 +135,23 @@ export default function Details(){
   setBusy(true);setError("");setMessage("");
   try{
    const ics=await apiCalendar("events/calendar?eventId="+encodeURIComponent(item.id));
-   const result=await Share.share({message:ics,title:"SILA gathering calendar entry"});
+   const result=await Share.share({message:ics,title:t("detail.calendarTitle")});
    if(result.action===Share.sharedAction)
-    setMessage("Calendar text shared. Save it as an .ics file to import into your calendar; this does not reserve a place.");
-  }catch(e){setError(e instanceof Error?e.message:"Calendar sharing was unavailable.");}
+    setMessage(t("detail.calendarShared"));
+  }catch(e){setError(e instanceof Error?e.message:t("detail.calendarFailed"));}
   finally{setBusy(false);}
  }
  async function cancelEvent(){
   if(!item||!user?.isVerified)return;
   if(isGatheringDeadlineClosed(item.cancellationDeadlineAt||item.startAt)){
-   setError("The cancellation deadline has passed. Contact an assigned host.");return;
+   setError(t("detail.cancelExpired"));return;
   }
   setBusy(true);setError("");setMessage("");
   try{
    await api("events/rsvp",{method:"DELETE",body:JSON.stringify({eventId:item.id})});
    await own.refresh();
-   setMessage("You have left the gathering reservation list.");
-  }catch(e){setError(e instanceof Error?e.message:"Could not cancel your reservation.");}
+   setMessage(t("detail.leftList"));
+  }catch(e){setError(e instanceof Error?e.message:t("detail.cancelFailed"));}
   finally{setBusy(false);}
  }
  const iconName=kind==="events"?"calendar-check-outline":kind==="volunteers"?"hand-heart-outline":kind==="proposals"?"vote-outline":kind==="jobs"?"briefcase-outline":"calendar-plus";
@@ -245,14 +245,14 @@ export default function Details(){
    {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
    {message?<Text style={{color:T.success}}>{message}</Text>:null}
    {kind==="events"&&user?.isVerified?
-    <Action label="Share calendar entry text" secondary icon="calendar-check-outline"
+    <Action label={t("detail.shareCalendar")} secondary icon="calendar-check-outline"
      disabled={busy} onPress={()=>void shareCalendar()}/>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
-     <Action label={own.data.registration.status==="waitlisted"?"Leave waitlist":"Cancel my reservation"}
+     <Action label={t(own.data.registration.status==="waitlisted"?"detail.leaveWaitlist":"detail.cancelReservation")}
       secondary disabled={busy||own.loading||cancellationClosed||!!own.data.registration.checkedInAt} loading={busy} icon="calendar-remove-outline" onPress={()=>void cancelEvent()}/>
     :null}
    {kind==="campaigns"?<Action label="Choose a donation" icon="heart-outline" onPress={()=>router.push({pathname:"/giving/[id]",params:{id:item.id}})}/>
-    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?"Sign in to participate":kind==="events"&&reservationClosed?"RSVP closed":kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(item.waitlistEnabled?"Join event waitlist":"Event full — no waitlist"):"RSVP to event"):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={own.loading||!!reservationClosed||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
+    :["events","volunteers","proposals","jobs","rentals"].includes(kind)&&!(kind==="events"&&user?.isVerified&&own.data?.registration)?<Action label={!user?t("detail.signIn"):kind==="events"&&reservationClosed?t("detail.rsvpClosed"):kind==="events"?(item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity?(t(item.waitlistEnabled?"detail.joinWaitlist":"detail.full")):t("detail.rsvp")):kind==="volunteers"?"Apply to volunteer":kind==="proposals"?"Support this proposal":kind==="jobs"?"Send application":"Request booking"} loading={busy} disabled={own.loading||!!reservationClosed||(kind==="events"&&item.capacity!==null&&item.capacity!==undefined&&(item.rsvpCount??0)>=item.capacity&&!item.waitlistEnabled)} icon={iconName} onPress={()=>void perform()}/>
     :null}
   </Card>:null}
  </Shell>;
