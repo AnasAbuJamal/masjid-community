@@ -53,7 +53,8 @@ export async function PATCH(req:NextRequest){
   const input=requestChange.parse(await jsonBody(req));
   const changes="preferences" in input?input.preferences:[input];
   const now=new Date();
-  let updated:Awaited<ReturnType<typeof db.organizationDeliveryPreference.findMany>>;
+  let updated:Array<{purpose:string;enabled:boolean;quietStartHour:number|null;
+   quietEndHour:number|null;updatedAt:Date}>;
   try{
    updated=await db.$transaction(async tx=>{
     const rows=[];
