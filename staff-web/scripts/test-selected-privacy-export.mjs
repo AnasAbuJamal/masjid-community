@@ -118,6 +118,11 @@ try{
  assert.equal((await call("account/export","POST",{password,confirm:true},null)).status,401);
  assert.equal((await call("account/export","POST",{password:"wrong-synthetic-password",confirm:true})).status,401);
  assert.equal((await call("account/export","POST",{password,confirm:false})).status,422);
+ await db.user.update({where:{id:owner.id},data:{verifiedAt:null}});
+ assert.equal((await call("account/export","POST",{password,confirm:true})).status,403,"unverified account cannot export");
+ await db.user.update({where:{id:owner.id},data:{verifiedAt:new Date(),status:"suspended"}});
+ assert.equal((await call("account/export","POST",{password,confirm:true})).status,401,"suspended account cannot export");
+ await db.user.update({where:{id:owner.id},data:{status:"active"}});
  const membership={organizationId_userId:{organizationId:secondary.id,userId:owner.id}};
  await db.organizationMembership.update({where:membership,data:{status:"suspended"}});
  assert.equal((await call("account/export","POST",{password,confirm:true})).status,403,"revoked selected membership cannot export");
@@ -153,18 +158,27 @@ try{
  assert.equal(changedAtAuditLock.status,409,"context change at the later audit lock must not return the old mosque archive");
  assert.equal(changedAtAuditLock.error.code,"EXPORT_CONTEXT_CHANGED");
  assert.equal((await call("organizations/context","POST",{organizationId:home.id})).status,200);
- const concurrent=await Promise.all(Array.from({length:3},()=>call("account/export","POST",{password,confirm:true})));
+ const secondToken=randomBytes(32).toString("base64url");
+ const secondHash=createHash("sha256").update(secondToken).digest("hex");
+ await db.authSession.create({data:{userId:owner.id,tokenHash:secondHash,
+  selectedOrganizationId:secondary.id,mfaVerifiedAt:new Date(),expiresAt:new Date(Date.now()+3600000)}});
+ const concurrent=await Promise.all([token,secondToken,token].map(bearer=>
+  call("account/export","POST",{password,confirm:true},bearer)));
  assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,429,429],"simultaneous exports cannot exceed the one remaining global download slot");
- checkArchive(concurrent.find(r=>r.status===200),home.id,"HOME_OWNER",["SECOND_OWNER","HOME_OTHER","SECOND_OTHER"]);
+ const secondWon=concurrent[1].status===200;
+ checkArchive(concurrent.find(r=>r.status===200),secondWon?secondary.id:home.id,
+  secondWon?"SECOND_OWNER":"HOME_OWNER",[secondWon?"HOME_OWNER":"SECOND_OWNER","HOME_OTHER","SECOND_OTHER"]);
  assert.equal((await call("organizations/context","POST",{organizationId:secondary.id})).status,200);
  const limited=await call("account/export","POST",{password,confirm:true});
  assert.equal(limited.status,429);assert.equal(limited.error.code,"EXPORT_RATE_LIMIT",
   "switching mosques does not reset the per-person private download limit");
  const audits=await db.auditEvent.findMany({where:{actorId:owner.id,action:"account.export.read"}});
  assert.equal(audits.length,3);
- assert.equal(audits.filter(a=>a.entityId===home.id).length,2);
- assert.equal(audits.filter(a=>a.entityId===secondary.id).length,1);
+ assert.equal(audits.filter(a=>a.entityId===home.id).length,secondWon?1:2);
+ assert.equal(audits.filter(a=>a.entityId===secondary.id).length,secondWon?2:1);
  assert.ok(!JSON.stringify(audits).includes("_OWNER"),"export audits contain metadata only");
+ await db.authSession.update({where:{tokenHash:secondHash},data:{revokedAt:new Date()}});
+ assert.equal((await call("account/export","POST",{password,confirm:true},secondToken)).status,401,"revoked session cannot export");
  await db.authSession.update({where:{tokenHash},data:{expiresAt:new Date(Date.now()-1000)}});
  assert.equal((await call("account/export","POST",{password,confirm:true})).status,401,"expired session cannot export");
  console.log("Verified two-mosque owner exports across eight categories, strict authority inputs, scoped audit, step-up, revocation and global download limits.");

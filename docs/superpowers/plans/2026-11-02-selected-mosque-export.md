@@ -9,5 +9,5 @@
 ## Work
 1. Add disposable PostgreSQL HTTP acceptance tests for two mosques and two synthetic owners across all eight export categories, context switching, expired/revoked membership/session, role escalation, password/MFA denial, injection rejection, no-store and per-person limits. Observe second-mosque export failing on current code.
 2. Change export authorization to the session-selected active member context, validate strict input and recheck context after retrieval; preserve category and owner filters and honest truncation.
-3. Run all root tests and both TypeScript checks, Prisma validation, Expo package compatibility and web build; run synthetic local PostgreSQL integration. Review and publish to existing privacy-export PR, then inspect exact-head GitHub CI.
+3. Run all root tests and both TypeScript checks, Prisma validation, Expo package compatibility and web build; run synthetic PostgreSQL integration in GitHub CI (no local PostgreSQL server is available). Review and publish to existing privacy-export PR, then inspect exact-head GitHub CI.
 4. Document evidence and remaining external/device/legal acceptance. No deployment, remote database change, actual user export or provider operations.

@@ -91,6 +91,14 @@ The server persists a private in-app notification and an `OutboxEvent` in the sa
 ## Database migration baseline
 A generated, versioned SQL baseline lives at `staff-web/prisma/migrations/20261027000000_initial/migration.sql` (56 tables). The CI pipeline installs an **empty** PostgreSQL instance using `npx prisma migrate deploy`, verifies migration status, then runs integration tests. **Never apply this empty-database baseline directly to an existing production database containing records**. Existing databases need a separately reviewed backfill, migration-history baseline, backup and restore rehearsal before any schema deployment.
 
+## Per-mosque private account export
+
+Verified members can export their own limited records from their session-selected active mosque through Settings. A separate export is required for each mosque; school/child records, confidential care narratives and provider-held financial data remain excluded. Password confirmation and fresh MFA where enabled are required. The native confirmation and sharing sheet are bound to the same account/mosque context, and export responses are never HTTP-cached.
+
+The download allowance is three completed exports per account per hour across all sessions and mosques. A PostgreSQL advisory transaction lock makes the final quota check and audit atomic. Both quota and organization-audit locks are acquired before checking the current session, selected mosque, membership and MFA again. Records are capped at 200 per category with explicit truncation metadata; this is not a complete statutory data-access process or permission to share someone else's records.
+
+`staff-web/scripts/test-selected-privacy-export.mjs` runs only against the exact disposable `masjid_ci` CI database and uses synthetic data, including lock-coordinated authorization changes and concurrent exports. Physical-device privacy and operational/legal acceptance remain required.
+
 ## Android and iPhone private previews
 
 See [docs/mobile-preview-runbook.md](docs/mobile-preview-runbook.md) for a gated, manual Expo EAS path. No installable phone builds are claimed until actual EAS artifacts and staging safety checks have been verified.

@@ -76,6 +76,10 @@ export async function POST(req:NextRequest){
    // Serialize the final count + audit, not just a preflight read. Distinct
    // seed 786 avoids the organization audit-chain lock's namespace (785).
    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${user.id}::text, 786::bigint))`;
+   // appendIntegrityAudit takes this same reentrant transaction lock. Obtain
+   // it BEFORE the last authority checks, so a long wait for another audit
+   // cannot make those checks stale before the archive is authorized.
+   await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${org.id}::text, 785::bigint))`;
    const now=new Date();
    const current=await tx.authSession.findUnique({where:{tokenHash:tokenHash(sessionFrom(req))},
     select:{userId:true,revokedAt:true,expiresAt:true,selectedOrganizationId:true,mfaVerifiedAt:true,
