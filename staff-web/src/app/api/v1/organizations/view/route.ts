@@ -44,7 +44,7 @@ export async function GET(req:NextRequest){
       take:itemId?1:50,orderBy:[{publishedAt:"desc"},{id:"asc"}],
       select:{id:true,title:true,body:true,publishedAt:true}});
    if(itemId&&!items.length)throw new HttpError(404,"NOT_FOUND","Published item unavailable.");
-   return ok({organization:{id:org.id,name:org.name},items,
+   return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone},items,
     note:"Only released, published community content from your selected mosque."});
   }
 
