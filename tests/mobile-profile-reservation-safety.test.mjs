@@ -16,6 +16,11 @@ test("dashboard never converts an unknown RSVP into a confirmed seat",()=>{
  assert.equal(profileReservationLabelKey("waitlisted",null),"profile.reservationWaitlisted");
  assert.equal(profileReservationLabelKey("confirmed",null),"profile.reservationConfirmed");
  assert.equal(profileReservationLabelKey("confirmed","2027-04-01T12:30:00.000Z"),"profile.reservationCheckedIn");
+ for(const ambiguous of ["2027-04-01","2027-04-01T12:30:00","0","2027-04-01 12:30:00","2027-04-01T12:30:00+99:99"]){
+  assert.equal(profileReservationLabelKey("confirmed",ambiguous),"profile.reservationConfirmed",ambiguous);
+  assert.equal(profileReservationLabelKey("checked_in",ambiguous),"profile.reservationUnverified",ambiguous);
+ }
+ assert.equal(profileReservationLabelKey("checked_in","2027-04-01T08:30:00-04:00"),"profile.reservationCheckedIn");
  assert.equal(profileReservationLabelKey("confirmed","not-a-date"),"profile.reservationConfirmed",
   "malformed check-in timestamps cannot establish attendance");
  assert.equal(profileReservationLabelKey("checked_in","not-a-date"),"profile.reservationUnverified");
