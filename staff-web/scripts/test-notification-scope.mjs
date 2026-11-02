@@ -109,6 +109,8 @@ try{
   const page=await call(path,"GET",undefined,memberToken);
   assert.equal(page.status,200,JSON.stringify(page).slice(0,500));
   assert.equal(page.data.organization.id,org.id);
+  assert.equal(page.data.organization.timeZone,org.timeZone,
+   "private inbox exposes only the currently selected mosque's configured IANA timezone");
   assert.equal(page.data.pageSize,25);
   assert.ok(page.data.items.length<=25);
   assert.ok(!JSON.stringify(page.data).includes("FOREIGN_PRIVATE_NOTE_MUST_NEVER_LEAK"));
