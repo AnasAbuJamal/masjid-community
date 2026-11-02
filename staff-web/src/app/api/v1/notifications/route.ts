@@ -33,7 +33,7 @@ export async function GET(req:NextRequest){
   });
   const hasMore=found.length>PAGE_SIZE;
   const items=hasMore?found.slice(0,PAGE_SIZE):found;
-  return ok({organization:{id:org.id,name:org.name},items,pageSize:PAGE_SIZE,
+  return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone},items,pageSize:PAGE_SIZE,
    hasMore,nextCursor:hasMore?items[items.length-1].id:null});
  });
 }
