@@ -72,10 +72,10 @@ export default function ProviderPayouts(){
    const page=j.data as HistoryPage;
    if(page.payoutId!==p.id||page.reconciliationReady!==false)
     throw new Error("Unexpected finance history response.");
-   setOlder(old=>({
+   setOlder(old=>epoch===reloadEpoch.current?{
     ...old,[p.id]:{notes:[...(old[p.id]?.notes||[]),...page.notes],
      complete:page.complete,nextCursor:page.nextCursor}
-   }));
+   }:old);
   }catch(e){
    if(epoch===reloadEpoch.current)
     setError(e instanceof Error?e.message:"Unable to load older notes.");
@@ -96,7 +96,7 @@ export default function ProviderPayouts(){
    const page=j.data as Result;
    if(page.reconciliationReady!==false||page.organization.name!==data.organization.name)
     throw new Error("Unexpected payout register response.");
-   setData(old=>old?{...old,payouts:[...old.payouts,...page.payouts.filter(p=>
+   setData(old=>epoch===reloadEpoch.current&&old?{...old,payouts:[...old.payouts,...page.payouts.filter(p=>
     !old.payouts.some(existing=>existing.id===p.id))],
     complete:page.complete,nextRegisterCursor:page.nextRegisterCursor}:old);
   }catch(e){
