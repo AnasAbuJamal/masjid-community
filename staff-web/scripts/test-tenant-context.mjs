@@ -187,6 +187,7 @@ try{
   organizationId:foreign.id,title:"FOREIGN_SYNTHETIC_PRIVATE_RSVP",description:"Private event",
   location:"Synthetic community",status:"published",startAt:new Date(Date.now()+86400000),
   endAt:new Date(Date.now()+90000000),rsvpCount:1,
+  cancellationDeadlineAt:new Date(Date.now()+43200000),
   venueId:foreignVenue.id,category:"workshop",audience:"families",
   accessibilityFeatures:["step_free"],accessibilityNotes:"Synthetic verified step-free route."
  }});
@@ -502,6 +503,12 @@ try{
  assert.ok(unchangedDevice.data.items.some(n=>n.id===homeNote.id));
  assert.ok(switched.data.donations.some(d=>d.campaign.title==="FOREIGN_SYNTHETIC_FUND"));
  assert.ok(switched.data.rsvps.some(r=>r.event.title==="FOREIGN_SYNTHETIC_PRIVATE_RSVP"));
+ const ownForeignRsvp=switched.data.rsvps.find(r=>r.event.id===event.id);
+ assert.equal(ownForeignRsvp?.event.cancellationDeadlineAt,
+  event.cancellationDeadlineAt.toISOString(),
+  "member dashboard receives the selected mosque's precise cancellation cutoff");
+ assert.ok(!switched.data.rsvps.some(r=>r.event.id===homeEvent.id),
+  "selected-mosque dashboard cannot expose a different mosque's RSVP");
  assert.ok(switched.data.upcoming.some(x=>x.kind==="gathering"&&x.eventId===event.id&&x.status==="confirmed"));
  assert.ok(switched.data.upcoming.some(x=>x.kind==="service_shift"&&x.id===shifts.FOREIGN.id&&x.status==="scheduled"));
  assert.ok(!switched.data.upcoming.some(x=>x.id===shifts.HOME.id));
