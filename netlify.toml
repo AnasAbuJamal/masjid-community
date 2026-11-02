@@ -1,0 +1,17 @@
+# Netlify staging configuration for the Next.js staff/public web application.
+# The native Expo application in masjid-mobile is deployed separately through EAS.
+# Runtime secrets and DATABASE_URL must be configured in Netlify, not in this file.
+[build]
+  base = "staff-web"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Keep the preview out of search discovery until public release is approved.
+[context.production.environment]
+  SILA_PUBLIC_INDEXING_ENABLED = "false"
+
+[context.deploy-preview.environment]
+  SILA_PUBLIC_INDEXING_ENABLED = "false"
