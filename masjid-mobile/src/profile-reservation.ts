@@ -7,7 +7,8 @@ import type {TranslationKey} from "./i18n";
 export function profileReservationLabelKey(
  status:string,checkedInAt:string|null|undefined
 ):TranslationKey{
- if(checkedInAt&&Number.isFinite(Date.parse(checkedInAt)))return "profile.reservationCheckedIn";
+ // A timestamp alone must not override a contradictory or unknown RSVP state.
+ if((status==="confirmed"||status==="checked_in")&&checkedInAt&&Number.isFinite(Date.parse(checkedInAt)))return "profile.reservationCheckedIn";
  if(status==="waitlisted")return "profile.reservationWaitlisted";
  if(status==="confirmed")return "profile.reservationConfirmed";
  return "profile.reservationUnverified";
