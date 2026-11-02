@@ -7,7 +7,7 @@ import type {TranslationKey} from "./i18n";
 export function profileReservationLabelKey(
  status:string,checkedInAt:string|null|undefined
 ):TranslationKey{
- if(checkedInAt)return "profile.reservationCheckedIn";
+ if(checkedInAt||status==="checked_in")return "profile.reservationCheckedIn";
  if(status==="waitlisted")return "profile.reservationWaitlisted";
  if(status==="confirmed")return "profile.reservationConfirmed";
  return "profile.reservationUnverified";
