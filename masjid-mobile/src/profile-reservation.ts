@@ -1,4 +1,4 @@
-import {isGatheringDeadlineClosed} from "./gathering-deadline";
+import {isGatheringDeadlineClosed} from "./gathering-deadline.ts";
 import type {TranslationKey} from "./i18n";
 
 /** A private dashboard may only describe server-known reservation states.
