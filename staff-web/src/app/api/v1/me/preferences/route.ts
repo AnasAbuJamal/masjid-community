@@ -12,7 +12,7 @@ const change=z.object({
  enabled:z.boolean(),
  quietStartHour:hour,
  quietEndHour:hour
-}).refine(v=>
+}).strict().refine(v=>
  (v.quietStartHour===null&&v.quietEndHour===null)||
  (v.quietStartHour!==null&&v.quietEndHour!==null&&v.quietStartHour!==v.quietEndHour),
  {message:"Select both different local quiet-hour boundaries, or turn quiet hours off."}
