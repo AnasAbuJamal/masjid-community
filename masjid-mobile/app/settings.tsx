@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from "react";
+import React,{useEffect,useRef,useState} from "react";
 import {Alert,Share,Switch,Text,View} from "react-native";
 import {router} from "expo-router";
 import {api,apiPost} from "../src/api";
@@ -7,16 +7,18 @@ import {Action,Card,Feedback,Field,Head,Shell} from "../src/ui";
 import {useResource} from "../src/useResource";
 import {S,T} from "../src/theme";
 import {useLanguage} from "../src/i18n";
+import {createScopedActionGate} from "../src/scoped-action-gate";
 type Session={id:string;createdAt:string;expiresAt:string};
 type Data={profile:{firstName:string;lastName:string;email:string;role:string};
  currentSessionId:string;sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
 type DeliveryPreference={purpose:"community_news"|"event_updates";enabled:boolean;quietStartHour:number|null;quietEndHour:number|null};
-type DeliveryData={organization:{name:string;timeZone:string};optional:DeliveryPreference[];policy:string};
+type DeliveryData={organization:{id:string;name:string;timeZone:string};optional:DeliveryPreference[];policy:string};
+type SavedDelivery={saved:boolean;organizationId:string;preferences:DeliveryPreference[]};
 type AnalyticsConsentData={organization:{name:string;id:string};enabled:boolean;consentedAt:string|null;policy:string};
 type ContextData={selectedOrganizationId:string;selectedActive:boolean;organizations:{id:string;name:string;slug:string;timeZone:string;selectable:boolean;memberWorkspace:string}[];policy:string};
 export default function Settings(){
  const {language,setLanguage,t}=useLanguage();
- const {refresh:refreshUser,logout,selectOrganization}=useSession();
+ const {refresh:refreshUser,logout,selectOrganization,user,contextVersion,contextChanging}=useSession();
  const result=useResource<Data>("account");
  const context=useResource<ContextData>("organizations/context");
  const delivery=useResource<DeliveryData>("me/preferences");
@@ -27,6 +29,16 @@ export default function Settings(){
  const [quietStart,setQuietStart]=useState("22"),[quietEnd,setQuietEnd]=useState("7");
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [exportPassword,setExportPassword]=useState("");
+ const deliveryGate=useRef(createScopedActionGate());
+ // Never allow a preference receipt from the former account or mosque to
+ // update the current Settings screen. Refreshing preferences alone does not
+ // change this scope because the resource temporarily clears its own data.
+ const deliveryScope=[contextVersion,user?.id||"guest",
+  contextChanging?"switching":"stable"].join("|");
+ React.useLayoutEffect(()=>{
+  deliveryGate.current.bind(deliveryScope);
+  return ()=>{deliveryGate.current.invalidate();};
+ },[deliveryScope]);
  useEffect(()=>{if(result.data){setFirst(result.data.profile.firstName);setLast(result.data.profile.lastName);}},[result.data]);
  useEffect(()=>{if(delivery.data){
   const community=delivery.data.optional.find(x=>x.purpose==="community_news");
@@ -71,21 +83,49 @@ export default function Settings(){
   finally{setBusy(false);}
  }
  async function saveDelivery(){
+  if(busy||contextChanging||!delivery.data)return;
   const from=Number(quietStart),until=Number(quietEnd);
-  if(quiet&&(!/^\\d{1,2}$/.test(quietStart)||!/^\\d{1,2}$/.test(quietEnd)||
-   from<0||from>23||until<0||until>23||from===until)){
+  // Avoid regex escape ambiguities: these must be real whole hours, not
+  // strings resembling the regex token \\d or empty/negative values.
+  const hourString=/^(?:[0-9]|1[0-9]|2[0-3])$/;
+  if(quiet&&(!hourString.test(quietStart)||!hourString.test(quietEnd)||
+   from===until)){
    setError(t("settings.quietInvalid"));return;
   }
-  setBusy(true);setNotice("");setError("");
+  const ticket=deliveryGate.current.begin();
+  if(ticket===null)return;
+  const expectedOrg=delivery.data.organization.id;
   const hours={quietStartHour:quiet?from:null,quietEndHour:quiet?until:null};
+  const choices=[
+   {purpose:"community_news" as const,enabled:newsletter,...hours},
+   {purpose:"event_updates" as const,enabled:events,...hours}
+  ];
+  setBusy(true);setNotice("");setError("");
   try{
-   await api("me/preferences",{method:"PATCH",body:JSON.stringify({purpose:"community_news",enabled:newsletter,...hours})});
-   await api("me/preferences",{method:"PATCH",body:JSON.stringify({purpose:"event_updates",enabled:events,...hours})});
-   await delivery.refresh();setNotice(t("settings.deliverySaved"));
-  }catch(e){
-   setError((e instanceof Error?e.message:"")+". "+t("settings.deliveryPartial"));
+   // One server transaction, never two sequential independent opt-in writes.
+   const response=await api<SavedDelivery>("me/preferences",{
+    method:"PATCH",body:JSON.stringify({preferences:choices})
+   });
+   if(!deliveryGate.current.isCurrent(ticket))return;
+   if(response.saved!==true||response.organizationId!==expectedOrg||
+    response.preferences.length!==choices.length||
+    choices.some(choice=>!response.preferences.some(item=>
+     item.purpose===choice.purpose&&item.enabled===choice.enabled&&
+     item.quietStartHour===choice.quietStartHour&&
+     item.quietEndHour===choice.quietEndHour)))
+    throw new Error(t("settings.deliveryUnverified"));
    await delivery.refresh();
-  }finally{setBusy(false);}
+   if(deliveryGate.current.isCurrent(ticket))
+    setNotice(t("settings.deliverySaved"));
+  }catch(e){
+   if(deliveryGate.current.isCurrent(ticket)){
+    setError(t("settings.deliveryFailed"));
+    // Only refresh when the same member and mosque are still authoritative.
+    await delivery.refresh();
+   }
+  }finally{
+   if(deliveryGate.current.finish(ticket))setBusy(false);
+  }
  }
  async function revoke(id:string){
   const current=id===result.data?.currentSessionId;
@@ -172,7 +212,7 @@ export default function Settings(){
  <Text style={S.muted}>{t("settings.quietZone")}</Text>
  </View>:null}
  <Text style={S.muted}>{t("settings.deliveryPolicy")}</Text>
- <Action label={t("settings.saveDelivery")} loading={busy} disabled={busy||!delivery.data}
+ <Action label={t("settings.saveDelivery")} loading={busy} disabled={busy||contextChanging||!delivery.data}
  onPress={()=>void saveDelivery()}/></Card>
  <Card style={{gap:13}}>
  <Text style={S.headline}>{t("settings.analyticsTitle")}</Text>
