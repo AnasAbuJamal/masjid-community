@@ -29,5 +29,8 @@ const labels:Record<ProfileStatusDomain,Record<string,TranslationKey>>={
 export function profileStatusLabelKey(
  domain:ProfileStatusDomain,status:string
 ):TranslationKey{
- return labels[domain][status]||"profile.statusUnverified";
+ // Unknown values (including inherited Object.prototype keys) must not
+ // become trusted translation keys or crash the member dashboard.
+ return Object.prototype.hasOwnProperty.call(labels[domain],status)
+  ?labels[domain][status]:"profile.statusUnverified";
 }
