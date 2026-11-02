@@ -1,6 +1,7 @@
 {
   "name": "masjid-community",
   "private": true,
+  "devDependencies": {"typescript":"~5.9.0"},
   "scripts": {
     "dev:web": "npm run dev --prefix staff-web",
     "dev:mobile": "npm run start --prefix masjid-mobile",

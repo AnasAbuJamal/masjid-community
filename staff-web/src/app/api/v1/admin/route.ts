@@ -28,13 +28,32 @@ const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("construction"),title:name,description,goalMinor:z.number().int().positive().optional(),published:z.boolean().default(false)}),
  z.object({kind:z.literal("milestone"),projectId:z.string().min(8),title:name,description,
   completedAt:z.iso.datetime().optional(),published:z.boolean().default(false)}),
- z.object({kind:z.literal("volunteer-decision"),applicationId:z.string().min(8),decision:z.enum(["approved","declined"])}),
+ z.object({kind:z.literal("volunteer-decision"),applicationId:z.string().min(8),decision:z.enum(["approved","declined"]),reason:z.string().trim().min(5).max(1000)}),
 ]);
 export async function GET(req:NextRequest){
  return handled(async()=>{
   const user=await requireVerified(req,["admin"]);
   const org=await db.organization.findFirst({orderBy:{createdAt:"asc"},select:{id:true,name:true}});
   if(!org)throw new HttpError(503,"NOT_CONFIGURED","Organization unavailable.");
+  const query=z.object({applicationsStatus:z.enum(["all","submitted","approved","declined","withdrawn"]).default("all"),
+    applicationsOpportunity:z.string().min(8).max(128).optional(),
+    applicationsLimit:z.coerce.number().int().min(1).max(50).default(25),
+    applicationsCursor:z.string().min(1).max(1500).optional()}).parse(Object.fromEntries(req.nextUrl.searchParams));
+  const applicationScope={opportunity:{organizationId:org.id},
+    ...(query.applicationsStatus!=="all"?{status:query.applicationsStatus}:{}),
+    ...(query.applicationsOpportunity?{opportunityId:query.applicationsOpportunity}:{})};
+  let afterId:string|undefined;
+  if(query.applicationsCursor){
+    try{
+      const cursor=z.object({purpose:z.literal("volunteer-review-v1"),organizationId:z.string(),
+        status:z.string(),opportunity:z.string().nullable(),id:z.string().min(8).max(128)}).strict()
+        .parse(JSON.parse(Buffer.from(query.applicationsCursor,"base64url").toString("utf8")));
+      if(cursor.organizationId!==org.id||cursor.status!==query.applicationsStatus||
+        cursor.opportunity!==(query.applicationsOpportunity||null))throw Error("scope");
+      if(!await db.volunteerApplication.findFirst({where:{...applicationScope,id:cursor.id},select:{id:true}}))throw Error("missing");
+      afterId=cursor.id;
+    }catch{throw new HttpError(422,"INVALID_CURSOR","Review page unavailable. Restart the queue. / صفحة المراجعة غير متاحة. أعد فتح القائمة.");}
+  }
   // Every overview count, child row and staff application is tenant-scoped.
   // Never query global totals before resolving the administrator's mosque.
   const [counts,venues,prayers,announcements,events,applications,construction]=await Promise.all([
@@ -50,12 +69,18 @@ export async function GET(req:NextRequest){
     db.prayerDay.findMany({where:{venue:{organizationId:org.id}},take:12,orderBy:{localDate:"desc"}}),
     db.announcement.findMany({where:{organizationId:org.id},take:12,orderBy:{createdAt:"desc"}}),
     db.event.findMany({where:{organizationId:org.id},take:12,orderBy:{startAt:"desc"}}),
-    db.volunteerApplication.findMany({where:{opportunity:{organizationId:org.id}},take:15,
+    db.volunteerApplication.findMany({where:{...applicationScope,...(afterId?{id:{gt:afterId}}:{})},
+      orderBy:{id:"asc"},take:query.applicationsLimit+1,
       include:{opportunity:{select:{title:true}},user:{select:{firstName:true,lastName:true}}}}),
     db.constructionProject.findMany({where:{organizationId:org.id},take:100,
       orderBy:{createdAt:"desc"},select:{id:true,title:true,status:true}})
   ]);
-  return ok({organization:org&&{id:org.id,name:org.name},counts:{users:counts[0],events:counts[1],announcements:counts[2],programs:counts[3],donations:counts[4]},venues,prayers,announcements,events,applications,construction,role:user.role});
+  const hasMore=applications.length>query.applicationsLimit;
+  if(hasMore)applications.pop();
+  const applicationPage={nextCursor:hasMore?Buffer.from(JSON.stringify({purpose:"volunteer-review-v1",
+    organizationId:org.id,status:query.applicationsStatus,opportunity:query.applicationsOpportunity||null,
+    id:applications[applications.length-1].id})).toString("base64url"):null,limit:query.applicationsLimit,status:query.applicationsStatus};
+  return ok({applicationPage,organization:org&&{id:org.id,name:org.name},counts:{users:counts[0],events:counts[1],announcements:counts[2],programs:counts[3],donations:counts[4]},venues,prayers,announcements,events,applications,construction,role:user.role});
  });
 }
 export async function POST(req:NextRequest){
@@ -119,8 +144,10 @@ export async function POST(req:NextRequest){
     },include:{opportunity:true}});
     if(!app)throw new HttpError(404,"NOT_FOUND","Application unavailable.");
     if(app.status!=="submitted")throw new HttpError(409,"ALREADY_DECIDED","Application has already been decided.");
+    const reviewedAt=new Date();
+    const decisionData={decisionReason:input.reason,reviewedAt,reviewedById:user.id};
+    result=await db.$transaction(async tx=>{
     if(input.decision==="approved"){
-      result=await db.$transaction(async tx=>{
         // Approval must use the account's CURRENT eligibility, not an old
         // submitted application or reviewer screen snapshot.
         const eligible=await tx.volunteerApplication.findFirst({where:{
@@ -144,19 +171,20 @@ export async function POST(req:NextRequest){
         if(!claimed.count)throw new HttpError(409,"FULL","No volunteer spaces remain.");
         const changed=await tx.volunteerApplication.updateMany({where:{
           id:app.id,status:"submitted",opportunity:{organizationId:org.id}
-        },data:{status:"approved"}});
+        },data:{status:"approved",...decisionData}});
         if(!changed.count)throw new HttpError(409,"ALREADY_DECIDED","Application has already changed.");
-        return {id:app.id};
-      },{isolationLevel:"Serializable"});
     }else{
-      const updated=await db.volunteerApplication.updateMany({where:{
+      const updated=await tx.volunteerApplication.updateMany({where:{
         id:app.id,status:"submitted",opportunity:{organizationId:org.id}
-      },data:{status:"declined"}});
+      },data:{status:"declined",...decisionData}});
       if(!updated.count)throw new HttpError(409,"ALREADY_DECIDED","Application has already changed.");
-      result={id:app.id};
     }
+    await tx.auditEvent.create({data:{actorId:user.id,action:"admin.volunteer-decision",entity:"record",entityId:app.id,
+      detail:JSON.stringify({decision:input.decision,reason:input.reason,reviewedAt:reviewedAt.toISOString(),reviewedById:user.id})}});
+    return {id:app.id};
+    },{isolationLevel:"Serializable"});
   }
-  await audit(user.id,"admin."+input.kind,"record",result.id);
+  if(input.kind!=="volunteer-decision")await audit(user.id,"admin."+input.kind,"record",result.id);
   return ok({id:result.id,saved:true},201);
  });
 }

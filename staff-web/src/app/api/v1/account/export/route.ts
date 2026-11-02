@@ -38,7 +38,7 @@ export async function POST(req:NextRequest){
   const recent=await db.auditEvent.count({where:{actorId:user.id,action:"account.export.read",
    occurredAt:{gt:new Date(Date.now()-3600000)}}});
   if(recent>=3)throw new HttpError(429,"EXPORT_RATE_LIMIT","Too many private exports. Try again later.");
-  const [rsvps,donations,jobApplications,volunteering,bookings,proposals,circles,careReferences]=await Promise.all([
+  const [rsvps,donations,jobApplications,volunteering,bookings,proposals,circles,careReferences,recurringGifts]=await Promise.all([
    db.eventRSVP.findMany({where:{userId:user.id,event:{organizationId:org.id}},
     take:201,orderBy:{createdAt:"desc"},
     select:{createdAt:true,status:true,checkedInAt:true,event:{select:{title:true,startAt:true}}}}),
@@ -61,14 +61,17 @@ export async function POST(req:NextRequest){
     take:201,orderBy:{requestedAt:"desc"},
     select:{status:true,requestedAt:true,reviewedAt:true,circle:{select:{title:true}}}}),
    db.careRequest.findMany({where:{organizationId:org.id,requesterId:user.id},
-    take:201,orderBy:{createdAt:"desc"},select:{reference:true,status:true,createdAt:true,closedAt:true}})
+    take:201,orderBy:{createdAt:"desc"},select:{reference:true,status:true,createdAt:true,closedAt:true}}),
+   db.recurringGift.findMany({where:{donorId:user.id,campaign:{organizationId:org.id}},take:201,
+    orderBy:[{createdAt:"desc"},{id:"desc"}],select:{id:true,amountMinor:true,currency:true,anonymous:true,
+     status:true,termsVersion:true,consentedAt:true,cancelRequestedAt:true,createdAt:true,campaign:{select:{title:true}}}})
   ]);
   const analyticsConsent=await db.organizationAnalyticsConsent.findUnique({where:{
    organizationId_userId:{organizationId:org.id,userId:user.id}
   },select:{enabled:true,consentedAt:true,updatedAt:true}});
   const lists={eventRegistrations:rsvps,donations,jobApplications,
    volunteerApplications:volunteering,rentalBookings:bookings,proposals,
-   circleMemberships:circles,careRequestReferences:careReferences};
+   circleMemberships:circles,careRequestReferences:careReferences,recurringGifts};
   const limited=Object.fromEntries(Object.entries(lists).map(([key,items])=>[key,items.slice(0,200)]));
   const truncatedCategories=Object.entries(lists).filter(([,items])=>items.length>200).map(([key])=>key);
   await db.$transaction(async tx=>{

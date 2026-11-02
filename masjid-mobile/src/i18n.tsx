@@ -1,8 +1,12 @@
+import {givingWords} from "./i18n-giving";
+import {accountWords} from "./i18n-account";
 import React,{createContext,useCallback,useContext,useEffect,useMemo,useState} from "react";
 import * as SecureStore from "expo-secure-store";
 export type Language="en"|"ar";
 const storageKey="masjid.community.language";
 const words={
+ ...givingWords,
+ ...accountWords,
  "venue.choose":{en:"Switch prayer venue",ar:"غيّر المسجد"},
  "venue.current":{en:"Selected venue",ar:"المسجد المحدد"},
  "venue.missing":{en:"Could not load venues",ar:"تعذر تحميل المساجد"},

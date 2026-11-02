@@ -3,6 +3,8 @@ import Stripe from "stripe";
 import { db } from "@/lib/db";
 import { postVerifiedPayment, reverseVerifiedPayment } from "@/lib/ledger";
 import { recordProviderPayout } from "@/lib/payouts";
+import {recordRecurringEvent} from "@/lib/recurring-events";
+import {hydrateRecurringInvoice} from "@/lib/recurring-provider";
 import { fail, handled, HttpError, ok } from "@/lib/http";
 
 export async function POST(req:NextRequest){
@@ -15,10 +17,17 @@ export async function POST(req:NextRequest){
   let event:Stripe.Event;
   try{event=stripe.webhooks.constructEvent(await req.text(),signature,secret);}
   catch{return fail(400,"BAD_SIGNATURE","Signature invalid.");}
+  let recurringObject:unknown=event.data.object;
+  if(["invoice.paid","invoice.payment_succeeded"].includes(event.type)){
+   const invoice=event.data.object as Stripe.Invoice;
+   if(invoice.parent?.subscription_details?.metadata?.recurringGiftId)
+    recurringObject=await hydrateRecurringInvoice(invoice);
+  }
   await db.$transaction(async tx=>{
    const already=await tx.paymentEvent.findUnique({where:{providerEventId:event.id}});
    if(already)return;
    await tx.paymentEvent.create({data:{providerEventId:event.id,type:event.type}});
+   if(await recordRecurringEvent(tx,{id:event.id,type:event.type,created:event.created,data:{object:recurringObject}}))return;
    // A signed payout notice is captured as evidence, never as a settled or
    // reconciled ledger movement. Fees/disputes/bank credits remain unknown.
    if(event.type.startsWith("payout.")){
