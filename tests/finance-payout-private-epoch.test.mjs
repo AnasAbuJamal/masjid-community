@@ -27,6 +27,7 @@ test("historical investigation notes cannot arrive after a later permission refr
  assert.match(load,/const j=await r\.json\(\);\s*if\(epoch!==reloadEpoch\.current\)return/);
  assert.match(load,/if\(page\.payoutId!==p\.id\|\|page\.reconciliationReady!==false\)/);
  assert.match(load,/if\(epoch===reloadEpoch\.current\)[\s\S]*setError/);
+ assert.match(load,/setOlder\(old=>epoch===reloadEpoch\.current\?/);
  assert.match(load,/if\(epoch===reloadEpoch\.current\)setHistoryLoading\(null\)/);
 });
 
@@ -36,6 +37,7 @@ test("older payout pages cannot repopulate a reauthorized register",()=>{
  assert.match(load,/const j=await r\.json\(\);\s*if\(epoch!==reloadEpoch\.current\)return/);
  assert.match(load,/page\.reconciliationReady!==false/);
  assert.match(load,/page\.organization\.name!==data\.organization\.name/);
+ assert.match(load,/setData\(old=>epoch===reloadEpoch\.current&&old\?/);
  assert.match(load,/if\(epoch===reloadEpoch\.current\)setRegisterLoading\(false\)/);
 });
 
