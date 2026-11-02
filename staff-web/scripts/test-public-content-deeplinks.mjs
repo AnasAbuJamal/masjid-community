@@ -19,7 +19,7 @@ async function lookup(resource,id){
 }
 try{
  const org=await db.organization.findFirst({
-  orderBy:[{createdAt:"asc"},{id:"asc"}],select:{id:true}
+  orderBy:[{createdAt:"asc"},{id:"asc"}],select:{id:true,timeZone:true}
  });
  assert.ok(org,"Disposable CI must seed the public mosque");
  foreign=await db.organization.create({data:{
@@ -52,6 +52,8 @@ try{
   assert.deepEqual(live.json.data.items.map(x=>x.id),[own.id]);
   assert.equal(live.json.data.items[0].body,"Approved public content");
   assert.equal(live.json.data.organization.id,org.id);
+  assert.equal(live.json.data.organization.timeZone,org.timeZone,
+   "published deep links must identify the original mosque's timezone");
   for(const forbidden of [draft.id,scheduled.id,other.id,"notfound-"+suffix]){
    const response=await lookup(resource,forbidden);
    assert.equal(response.status,404,resource+" must deny "+forbidden);
