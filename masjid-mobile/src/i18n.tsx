@@ -154,6 +154,8 @@ const words={
  "detail.rentalDateInvalid":{en:"Enter start and end times with a valid ISO timezone (Z or +HH:MM).",ar:"أدخل وقتي البداية والنهاية بتنسيق ISO صحيح يتضمن منطقة زمنية (Z أو ‎+HH:MM)."},
  "detail.rentalDateOrder":{en:"The booking end time must be after the start time.",ar:"يجب أن يكون وقت نهاية الحجز بعد وقت بدايته."},
  "detail.rentalDateTooLong":{en:"A facility booking request cannot exceed seven days.",ar:"لا يمكن أن تزيد مدة طلب حجز المرفق على سبعة أيام."},
+ "detail.rentalRequested":{en:"Booking request received for review. No facility has been reserved or approved yet.",ar:"تم استلام طلب الحجز للمراجعة. لم يُحجز المرفق أو تتم الموافقة عليه بعد."},
+ "detail.rentalUnverified":{en:"The booking result could not be verified. Review your account before retrying.",ar:"تعذر التحقق من نتيجة طلب الحجز. راجع حسابك قبل إعادة المحاولة."},
  "detail.rentalDateExample":{en:"Example: 2027-06-15T09:00:00-04:00. A request does not confirm a booking.",ar:"مثال: ‎2027-06-15T09:00:00-04:00. إرسال الطلب لا يعني تأكيد الحجز."},
  "detail.filterUnknown":{en:"Other",ar:"أخرى"},
  "detail.filterErrorLong":{en:"Search is limited to 80 characters.",ar:"يجب ألا يتجاوز البحث ٨٠ حرفًا."},
