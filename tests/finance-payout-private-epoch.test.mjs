@@ -13,7 +13,7 @@ function section(start,end){
 test("refresh and unmount invalidate previous private payout-page responses",()=>{
  const reload=section(" const reload=useCallback(async()=>{"," async function note(");
  assert.match(reload,/const epoch=\+\+reloadEpoch\.current/);
- assert.match(reload,/setData\(null\);setOlder\(\{\}\);setHistoryLoading\(null\);setError\(" "\)/.source.replace(" ",""));
+ assert.match(reload,/setData\(null\);setOlder\(\{\}\);setHistoryLoading\(null\);setError\(""\)/);
  assert.match(reload,/setRegisterLoading\(false\);setBusy\(false\);setDrafts\(\{\}\)/);
  assert.match(reload,/if\(epoch===reloadEpoch\.current\)\{setData\(v\.data\)/);
  assert.match(reload,/if\(epoch===reloadEpoch\.current\)\{[\s\S]*setData\(null\);setError/);
