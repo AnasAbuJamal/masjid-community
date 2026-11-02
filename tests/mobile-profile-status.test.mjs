@@ -17,7 +17,7 @@ test("payment, facility and application status keys never claim unverified compl
   for(const [value,expected] of Object.entries(values))
    assert.equal(profileStatusLabelKey(kind,value),expected,kind+":"+value);
   for(const unknown of ["", "pending_payment","PAID","approved ", "reconciled",
-   "verified","scheduled","waitlisted"])
+   "verified","scheduled","waitlisted","__proto__","toString","constructor"])
    if(!(unknown in values))
     assert.equal(profileStatusLabelKey(kind,unknown),"profile.statusUnverified",kind+":"+unknown);
  }
