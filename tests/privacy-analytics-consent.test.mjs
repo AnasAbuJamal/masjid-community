@@ -47,3 +47,24 @@ test("CI verifies two-mosque consent isolation and current role and membership e
   'home consent withdrawal does not silently revoke separate mosque consent'
  ])assert.ok(test.includes(token),"Missing tenant/role consent regression: "+token);
 });
+
+test("native analytics consent never confirms a stale account or different mosque",()=>{
+ const src=read("masjid-mobile/app/settings.tsx");
+ const start=src.indexOf(" async function saveAnalytics(){");
+ const end=src.indexOf(" async function switchMosque(",start);
+ assert.ok(start>=0&&end>start);
+ const save=src.slice(start,end);
+ for(const token of [
+  "busy||contextChanging","deliveryGate.current.begin()",
+  "const expectedOrg=analytics.data.organization.id",
+  "const expectedEnabled=analyticsEnabled",
+  "deliveryGate.current.isCurrent(ticket)",
+  "response.organization?.id!==expectedOrg",
+  "response.enabled!==expectedEnabled",
+  "deliveryGate.current.finish(ticket)"
+ ])assert.ok(save.includes(token),"Missing consent scope safeguard: "+token);
+ assert.ok(save.indexOf("deliveryGate.current.isCurrent(ticket)")<save.indexOf("await analytics.refresh()"),
+  "Old consent responses must not trigger private data refresh");
+ assert.ok(src.includes("deliveryGate.current.bind(deliveryScope)"),
+  "Consent gate must be invalidated on account/mosque change");
+});
