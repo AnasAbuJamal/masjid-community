@@ -24,13 +24,24 @@ function civilDate(value:string):Date|null{
  const date=new Date(year,month-1,day);
  return date.getFullYear()===year&&date.getMonth()===month-1&&date.getDate()===day?date:null;
 }
-export function gatheringFilterError(f:GatheringFilters):string|null{
- if(f.query.trim().length>80)return "Search is limited to 80 characters.";
- if(f.fromDay&&!civilDate(f.fromDay))return "Use YYYY-MM-DD for the start date.";
- if(f.toDay&&!civilDate(f.toDay))return "Use YYYY-MM-DD for the end date.";
+export type GatheringFilterProblem="long"|"start"|"end"|"order";
+export function gatheringFilterProblem(f:GatheringFilters):GatheringFilterProblem|null{
+ if(f.query.trim().length>80)return "long";
+ if(f.fromDay&&!civilDate(f.fromDay))return "start";
+ if(f.toDay&&!civilDate(f.toDay))return "end";
  if(f.fromDay&&f.toDay&&civilDate(f.toDay)!.getTime()<civilDate(f.fromDay)!.getTime())
-  return "End date must be on or after start date.";
+  return "order";
  return null;
+}
+// Preserve the existing English error contract for nonlocalized callers.
+export function gatheringFilterError(f:GatheringFilters):string|null{
+ switch(gatheringFilterProblem(f)){
+ case "long":return "Search is limited to 80 characters.";
+ case "start":return "Use YYYY-MM-DD for the start date.";
+ case "end":return "Use YYYY-MM-DD for the end date.";
+ case "order":return "End date must be on or after start date.";
+ default:return null;
+ }
 }
 export function gatheringCatalogPath(base:string,f:GatheringFilters):string|null{
  if(gatheringFilterError(f))return null;
