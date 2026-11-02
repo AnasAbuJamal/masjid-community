@@ -17,6 +17,9 @@ export default function ProviderPayouts(){
   const epoch=++reloadEpoch.current;
   // Never retain a previous finance register while revalidating access.
   setData(null);setOlder({});setHistoryLoading(null);setError("");
+  // A refresh/permission recheck invalidates old private requests and UI
+  // intent. Never leave an old action spinner or selected note category.
+  setRegisterLoading(false);setBusy(false);setDrafts({});
   try{
    const r=await fetch("/api/v1/admin/payouts",{cache:"no-store"});
    const v=await r.json();if(!r.ok)throw new Error(v.error?.message||"Authorized finance access required.");
@@ -25,23 +28,36 @@ export default function ProviderPayouts(){
    setData(null);setError(e instanceof Error?e.message:"Payout register unavailable.");
   }}
  },[]);
- useEffect(()=>{void reload()},[reload]);
+ useEffect(()=>{
+  void reload();
+  return ()=>{reloadEpoch.current++;};
+ },[reload]);
  async function note(payoutId:string){
   if(busy)return;const reasonCode=drafts[payoutId];
   if(!reasonCode)return;
+  const epoch=reloadEpoch.current;
   setBusy(true);setError("");setNotice("");
   try{
    const r=await fetch("/api/v1/admin/payouts",{method:"POST",
     headers:{"Content-Type":"application/json"},body:JSON.stringify({payoutId,reasonCode})});
-   const v=await r.json();if(!r.ok)throw new Error(v.error?.message||"Unable to record review note.");
+   const v=await r.json();if(epoch!==reloadEpoch.current)return;
+   if(!r.ok)throw new Error(v.error?.message||"Unable to record review note.");
+   if(v.data?.settlementCertified!==false||v.data?.reasonCode!==reasonCode||
+      typeof v.data?.noteId!=="string")
+    throw new Error("Exception outcome could not be verified. Review the register before retrying.");
    setDrafts(old=>({...old,[payoutId]:""}));
    setNotice("Review note recorded without changing reconciliation status.");
    await reload();
-  }catch(e){setError(e instanceof Error?e.message:"Review note was not saved.");}
-  finally{setBusy(false);}
+  }catch(e){
+   if(epoch===reloadEpoch.current)
+    setError(e instanceof Error?e.message:"Review note was not saved.");
+  }finally{
+   if(epoch===reloadEpoch.current)setBusy(false);
+  }
  }
  async function loadOlder(p:Payout){
-  if(historyLoading||busy)return;
+  if(historyLoading||busy||!data||!data.payouts.some(x=>x.id===p.id))return;
+  const epoch=reloadEpoch.current;
   const previous=older[p.id];
   if(previous?.complete||(!previous&&p.notesComplete))return;
   const cursor=previous?previous.nextCursor:p.notes[p.notes.length-1]?.id;
@@ -51,6 +67,7 @@ export default function ProviderPayouts(){
    const r=await fetch("/api/v1/admin/payouts?payoutId="+encodeURIComponent(p.id)+
     "&cursor="+encodeURIComponent(cursor),{cache:"no-store"});
    const j=await r.json();
+   if(epoch!==reloadEpoch.current)return;
    if(!r.ok)throw new Error(j.error?.message||"Unable to retrieve historical notes.");
    const page=j.data as HistoryPage;
    if(page.payoutId!==p.id||page.reconciliationReady!==false)
@@ -59,16 +76,22 @@ export default function ProviderPayouts(){
     ...old,[p.id]:{notes:[...(old[p.id]?.notes||[]),...page.notes],
      complete:page.complete,nextCursor:page.nextCursor}
    }));
-  }catch(e){setError(e instanceof Error?e.message:"Unable to load older notes.");}
-  finally{setHistoryLoading(null);}
+  }catch(e){
+   if(epoch===reloadEpoch.current)
+    setError(e instanceof Error?e.message:"Unable to load older notes.");
+  }finally{
+   if(epoch===reloadEpoch.current)setHistoryLoading(null);
+  }
  }
  async function loadMorePayouts(){
   if(registerLoading||busy||historyLoading||!data||data.complete||!data.nextRegisterCursor)return;
+  const epoch=reloadEpoch.current;
   setRegisterLoading(true);setError("");
   try{
    const r=await fetch("/api/v1/admin/payouts?registerCursor="+
     encodeURIComponent(data.nextRegisterCursor),{cache:"no-store"});
    const j=await r.json();
+   if(epoch!==reloadEpoch.current)return;
    if(!r.ok)throw new Error(j.error?.message||"Unable to load older payout records.");
    const page=j.data as Result;
    if(page.reconciliationReady!==false||page.organization.name!==data.organization.name)
@@ -76,8 +99,12 @@ export default function ProviderPayouts(){
    setData(old=>old?{...old,payouts:[...old.payouts,...page.payouts.filter(p=>
     !old.payouts.some(existing=>existing.id===p.id))],
     complete:page.complete,nextRegisterCursor:page.nextRegisterCursor}:old);
-  }catch(e){setError(e instanceof Error?e.message:"Unable to load older payouts.");}
-  finally{setRegisterLoading(false);}
+  }catch(e){
+   if(epoch===reloadEpoch.current)
+    setError(e instanceof Error?e.message:"Unable to load older payouts.");
+  }finally{
+   if(epoch===reloadEpoch.current)setRegisterLoading(false);
+  }
  }
  const money=(v:number,currency:string)=>new Intl.NumberFormat("en-US",{
   style:"currency",currency:currency.toUpperCase()
