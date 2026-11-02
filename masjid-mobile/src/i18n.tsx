@@ -149,6 +149,7 @@ const words={
  "detail.completed":{en:"Completed",ar:"اكتمل"},
  "detail.inProgress":{en:"In progress",ar:"قيد التنفيذ"},
  "detail.unknownDate":{en:"Date unavailable — contact the mosque to confirm",ar:"التاريخ غير متاح؛ تواصل مع المسجد للتأكيد"},
+ "detail.organizationTime":{en:"verified mosque timezone",ar:"المنطقة الزمنية المعتمدة للمسجد"},
  "detail.coverLetterMin":{en:"Enter at least 10 characters before sending your application.",ar:"أدخل ١٠ أحرف على الأقل قبل إرسال طلب التوظيف."},
  "detail.rentalDateInvalid":{en:"Enter start and end times with a valid ISO timezone (Z or +HH:MM).",ar:"أدخل وقتي البداية والنهاية بتنسيق ISO صحيح يتضمن منطقة زمنية (Z أو ‎+HH:MM)."},
  "detail.rentalDateOrder":{en:"The booking end time must be after the start time.",ar:"يجب أن يكون وقت نهاية الحجز بعد وقت بدايته."},
