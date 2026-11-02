@@ -8,32 +8,68 @@ import {S,T} from "../../src/theme";
 import {useLanguage} from "../../src/i18n";
 import {api} from "../../src/api";
 import {usePilotSurface} from "../../src/usePilotSurface";
+import {gatheringLocalTime} from "../../src/gathering-local-time";
+import {createScopedActionGate} from "../../src/scoped-action-gate";
+import {profileReservationLabelKey,canOfferProfileCancellation} from "../../src/profile-reservation";
 type Commitment={id:string;kind:"gathering"|"service_shift";title:string;status:string;startAt:string;eventId?:string};
-type Me={organization?:{name:string;timeZone?:string};upcoming?:Commitment[];bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;status:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;status:string;checkedInAt:string|null;event:{id:string;title:string;startAt:string}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
+type Me={organization?:{id:string;name:string;timeZone?:string};upcoming?:Commitment[];bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;status:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;status:string;checkedInAt:string|null;event:{id:string;title:string;startAt:string;cancellationDeadlineAt:string|null}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
 export default function Profile(){
- const {t,language}=useLanguage();
- const {user,logout,sessionExpired,refresh:refreshUser}=useSession();
+ const {t,language,isRTL}=useLanguage();
+ const {user,logout,sessionExpired,refresh:refreshUser,contextVersion,contextChanging}=useSession();
  const surface=usePilotSurface();
  const pilotAllowed=surface.allowed;
- const [error,setError]=useState(""),[busy,setBusy]=useState("");
- async function cancel(eventId:string){setBusy(eventId);setError("");try{await api("events/rsvp",{method:"DELETE",body:JSON.stringify({eventId})});await result.refresh();}catch(e){setError(e instanceof Error?e.message:"Could not cancel RSVP.");}finally{setBusy("");}}
- const result=useResource<Me>(user?"me":"public/announcements");
- function upcomingWhen(iso:string){
-  const value=new Date(iso),timeZone=result.data?.organization?.timeZone;
-  if(!Number.isFinite(value.getTime()))return "Time unavailable";
-  if(!timeZone)return value.toLocaleString()+" (device time)";
+ const [error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState("");
+ const [nowMs,setNowMs]=useState(()=>Date.now());
+ React.useEffect(()=>{
+  const timer=setInterval(()=>setNowMs(Date.now()),60_000);
+  return ()=>clearInterval(timer);
+ },[]);
+ // Only read an authenticated, verified member's own mosque records.
+ const result=useResource<Me>(user?.isVerified?"me":null);
+ const actionGate=React.useRef(createScopedActionGate());
+ const actionScope=[contextVersion,user?.id||"guest",contextChanging?"switching":"stable",
+  surface.scope].join("|");
+ React.useLayoutEffect(()=>{
+  actionGate.current.bind(actionScope);
+  setBusy("");setError("");setNotice("");
+  return ()=>{actionGate.current.invalidate();};
+ },[actionScope]);
+ const canChange=!!user?.isVerified&&!contextChanging&&!result.loading&&
+  !!result.data?.organization?.id&&!result.error&&
+  (surface.scope==="pilot"||surface.scope==="limited");
+ async function cancel(eventId:string){
+  if(!canChange)return;
+  const registration=result.data?.rsvps.find(r=>r.event.id===eventId);
+  if(!registration||!canOfferProfileCancellation(
+   registration.status,registration.checkedInAt,registration.event.startAt,
+   registration.event.cancellationDeadlineAt))return;
+  const ticket=actionGate.current.begin();
+  if(ticket===null)return; // Prevent rapid repeated cancellation commands.
+  setBusy(eventId);setError("");setNotice("");
   try{
-   return new Intl.DateTimeFormat(undefined,{
-    timeZone,dateStyle:"medium",timeStyle:"short"
-   }).format(value)+" ("+timeZone+")";
-  }catch{return value.toISOString()+" (UTC)";}
+   const response=await api<{cancelled:boolean;alreadyCancelled:boolean}>(
+    "events/rsvp",{method:"DELETE",body:JSON.stringify({eventId})});
+   if(!actionGate.current.isCurrent(ticket))return;
+   if(response.cancelled!==true)throw new Error(t("profile.cancelUnverified"));
+   await result.refresh();
+   if(actionGate.current.isCurrent(ticket))setNotice(t("profile.cancelled"));
+  }catch(e){
+   if(actionGate.current.isCurrent(ticket)){
+    setError(t("profile.cancelFailed"));
+    await result.refresh();
+   }
+  }finally{
+   if(actionGate.current.finish(ticket))setBusy("");
+  }
+ }
+ function upcomingWhen(iso:string){
+  const display=gatheringLocalTime(iso,null,result.data?.organization?.timeZone,language);
+  return display?display.text+" ("+t("profile.organizationTime")+", "+display.timeZone+")":
+   t("profile.timeUnavailable");
  }
  function commitmentStatus(c:Commitment){
-  if(c.kind==="service_shift")return "Scheduled shift";
-  if(c.status==="waitlisted")return "Waitlisted — not confirmed";
-  if(c.status==="checked_in")return "Checked in — arrival recorded";
-  if(c.status==="confirmed")return "Confirmed reservation";
-  return "Reservation status: "+c.status;
+  if(c.kind==="service_shift")return t("profile.shiftScheduled");
+  return t(profileReservationLabelKey(c.status,c.status==="checked_in"?"checked":null));
  }
  return <Shell>
  <Head eyebrow={t("profile.eyebrow")} title={user?(language==="ar"?"مرحبًا، "+user.firstName:"Welcome, "+user.firstName+"."):t("profile.guest")} subtitle={user?t("profile.member"):t("profile.subtitle")}/>
