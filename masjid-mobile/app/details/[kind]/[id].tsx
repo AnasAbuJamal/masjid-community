@@ -164,7 +164,13 @@ export default function Details(){
    if(!actionGate.current.isCurrent(ticket))return;
    if(kind==="events")await own.refresh();
    if(!actionGate.current.isCurrent(ticket))return;
-   setMessage(response.message||t("detail.requestSaved"));
+   // A facility request is pending review, not a confirmed booking.
+   // Do not translate an unknown server status into a false success.
+   if(kind==="rentals"&&response.status!=="requested"){
+    setError(t("detail.rentalUnverified"));return;
+   }
+   setMessage(kind==="rentals"?t("detail.rentalRequested"):
+    response.message||t("detail.requestSaved"));
   }catch(e){
    if(actionGate.current.isCurrent(ticket))
     setError(e instanceof Error?e.message:t("detail.requestFailed"));
