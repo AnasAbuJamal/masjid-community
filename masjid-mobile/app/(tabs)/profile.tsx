@@ -11,6 +11,7 @@ import {usePilotSurface} from "../../src/usePilotSurface";
 import {gatheringLocalTime} from "../../src/gathering-local-time";
 import {createScopedActionGate} from "../../src/scoped-action-gate";
 import {profileReservationLabelKey,canOfferProfileCancellation} from "../../src/profile-reservation";
+import {profileStatusLabelKey} from "../../src/profile-status";
 type Commitment={id:string;kind:"gathering"|"service_shift";title:string;status:string;startAt:string;eventId?:string};
 type Me={organization?:{id:string;name:string;timeZone?:string};upcoming?:Commitment[];bookings:{id:string;status:string;startAt:string;resource:{title:string}}[];volunteerApplications:{id:string;status:string;opportunity:{title:string}}[];jobApplications:{id:string;status:string;job:{title:string}}[];donations:{id:string;amountMinor:number;status:string;currency:string;campaign:{title:string};receipt:{id:string;receiptNumber:string}|null}[];rsvps:{id:string;status:string;checkedInAt:string|null;event:{id:string;title:string;startAt:string;cancellationDeadlineAt:string|null}}[];notifications:{id:string;title:string;body:string;readAt:string|null}[]};
 export default function Profile(){
@@ -100,7 +101,8 @@ export default function Profile(){
      ?router.push({pathname:"/details/[kind]/[id]",params:{kind:"events",id:c.eventId}})
      :router.push("/volunteer/shifts")}/>)}
  </View>:null}
- {result.data?.donations?.length?<View style={S.section}><Text style={S.headline}>{t("profile.giving")}</Text>{result.data.donations.map(d=><Card key={d.id}><Text style={S.label}>{d.campaign.title}</Text><Text style={S.bodyText}>{(d.amountMinor/100).toLocaleString("en-US",{style:"currency",currency:d.currency.toUpperCase()})} · {d.status}</Text>
+ {result.data?.donations?.length?<View style={S.section}><Text style={S.headline}>{t("profile.giving")}</Text>{result.data.donations.map(d=><Card key={d.id}><Text style={S.label}>{d.campaign.title}</Text><Text style={S.bodyText}>{(d.amountMinor/100).toLocaleString(language==="ar"?"ar-EG":"en-US",
+  {style:"currency",currency:d.currency.toUpperCase()})} · {t(profileStatusLabelKey("payment",d.status))}</Text>
  {d.receipt&&pilotAllowed?<Action label={t("profile.receipt")+" "+d.receipt.receiptNumber} secondary onPress={()=>router.push({pathname:"/receipt/[id]",params:{id:d.receipt!.id}})}/>:null}</Card>)}</View>:null}
  {result.data?.rsvps?.length?<View style={S.section}><Text style={S.headline}>{t("profile.events")}</Text>{result.data.rsvps.map(r=><Card key={r.id} style={{gap:10}}>
   <Text style={[S.label,{textAlign:isRTL?"right":"left"}]}>{r.event.title}</Text>
@@ -113,9 +115,9 @@ export default function Profile(){
    secondary disabled={!!busy||contextChanging} loading={busy===r.event.id}
    onPress={()=>void cancel(r.event.id)}/>:null}
  </Card>)}</View>:null}
- {result.data?.bookings?.length?<View style={S.section}><Text style={S.headline}>{t("profile.bookings")}</Text>{result.data.bookings.map(b=><Card key={b.id}><Text style={S.label}>{b.resource.title}</Text><Text style={S.muted}>{upcomingWhen(b.startAt)} · {b.status}</Text></Card>)}</View>:null}
- {result.data?.volunteerApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.volunteer")}</Text>{result.data.volunteerApplications.map(v=><Card key={v.id}><Text style={S.label}>{v.opportunity.title}</Text><Text style={S.muted}>{v.status}</Text></Card>)}</View>:null}
- {result.data?.jobApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.jobs")}</Text>{result.data.jobApplications.map(j=><Card key={j.id}><Text style={S.label}>{j.job.title}</Text><Text style={S.muted}>{j.status}</Text></Card>)}</View>:null}
+ {result.data?.bookings?.length?<View style={S.section}><Text style={S.headline}>{t("profile.bookings")}</Text>{result.data.bookings.map(b=><Card key={b.id}><Text style={S.label}>{b.resource.title}</Text><Text style={S.muted}>{upcomingWhen(b.startAt)} · {t(profileStatusLabelKey("booking",b.status))}</Text></Card>)}</View>:null}
+ {result.data?.volunteerApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.volunteer")}</Text>{result.data.volunteerApplications.map(v=><Card key={v.id}><Text style={S.label}>{v.opportunity.title}</Text><Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>{t(profileStatusLabelKey("application",v.status))}</Text></Card>)}</View>:null}
+ {result.data?.jobApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.jobs")}</Text>{result.data.jobApplications.map(j=><Card key={j.id}><Text style={S.label}>{j.job.title}</Text><Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>{t(profileStatusLabelKey("application",j.status))}</Text></Card>)}</View>:null}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
  {notice?<Text accessibilityLiveRegion="polite" style={{color:T.success}}>{notice}</Text>:null}
  <View style={S.section}><Text style={S.headline}>{t("profile.account")}</Text>
