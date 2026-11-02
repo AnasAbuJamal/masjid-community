@@ -16,6 +16,9 @@ test("dashboard never converts an unknown RSVP into a confirmed seat",()=>{
  assert.equal(profileReservationLabelKey("waitlisted",null),"profile.reservationWaitlisted");
  assert.equal(profileReservationLabelKey("confirmed",null),"profile.reservationConfirmed");
  assert.equal(profileReservationLabelKey("confirmed","2027-04-01T12:30:00.000Z"),"profile.reservationCheckedIn");
+ assert.equal(profileReservationLabelKey("confirmed","not-a-date"),"profile.reservationConfirmed",
+  "malformed check-in timestamps cannot establish attendance");
+ assert.equal(profileReservationLabelKey("checked_in","not-a-date"),"profile.reservationUnverified");
  assert.equal(profileReservationLabelKey("checked_in",null),"profile.reservationUnverified",
   "an unverified stored status without a check-in timestamp is not arrival proof");
  for(const unknown of ["", "pending","cancelled","rejected","admin","CONFIRMED"]){
