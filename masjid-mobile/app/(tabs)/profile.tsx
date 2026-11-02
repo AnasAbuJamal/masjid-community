@@ -69,6 +69,8 @@ export default function Profile(){
  }
  function commitmentStatus(c:Commitment){
   if(c.kind==="service_shift")return t("profile.shiftScheduled");
+  // The dashboard endpoint only emits checked_in after checking checkedInAt.
+  if(c.status==="checked_in")return t("profile.reservationCheckedIn");
   return t(profileReservationLabelKey(c.status,null));
  }
  return <Shell>
