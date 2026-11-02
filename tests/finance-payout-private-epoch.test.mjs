@@ -21,7 +21,7 @@ test("refresh and unmount invalidate previous private payout-page responses",()=
  assert.match(reload,/document\.removeEventListener\("visibilitychange",onVisibility\)/);
  assert.match(reload,/if\(document\.visibilityState==="hidden"\)/);
  assert.match(reload,/reloadEpoch\.current\+\+;/);
- assert.match(reload,/setData\(null\);setOlder\(\{\}\);setDrafts\(\{\}\);setNotice\(" "\);setError\(" "\)/.source.replaceAll(" ",""));
+ assert.match(reload,/setData\(null\);setOlder\(\{\}\);setDrafts\(\{\}\);setNotice\(""\);setError\(""\)/);
 });
 
 test("historical investigation notes cannot arrive after a later permission refresh",()=>{
