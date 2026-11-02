@@ -16,7 +16,8 @@ test("dashboard never converts an unknown RSVP into a confirmed seat",()=>{
  assert.equal(profileReservationLabelKey("waitlisted",null),"profile.reservationWaitlisted");
  assert.equal(profileReservationLabelKey("confirmed",null),"profile.reservationConfirmed");
  assert.equal(profileReservationLabelKey("confirmed","2027-04-01T12:30:00.000Z"),"profile.reservationCheckedIn");
- assert.equal(profileReservationLabelKey("checked_in",null),"profile.reservationCheckedIn");
+ assert.equal(profileReservationLabelKey("checked_in",null),"profile.reservationUnverified",
+  "an unverified stored status without a check-in timestamp is not arrival proof");
  for(const unknown of ["", "pending","cancelled","rejected","admin","CONFIRMED"]){
   assert.equal(profileReservationLabelKey(unknown,null),"profile.reservationUnverified",unknown);
  }
@@ -89,6 +90,7 @@ test("native profile cancel UI and backend agree on current owner and cutoff",()
  assert.match(screen,/r\.event\.cancellationDeadlineAt,nowMs/);
  assert.match(screen,/gatheringLocalTime\(iso,null,result\.data\?\.organization\?\.timeZone,language\)/);
  assert.match(screen,/profileReservationLabelKey\(r\.status,r\.checkedInAt\)/);
+ assert.match(screen,/if\(c\.status==="checked_in"\)return t\("profile\.reservationCheckedIn"\)/);
  assert.match(screen,/t\("profile\.cancelFailed"\)/);
  assert.doesNotMatch(screen,/new Date\(b\.startAt\)\.toLocaleString\(/);
  assert.doesNotMatch(screen,/value\.toLocaleString\(\)/);
