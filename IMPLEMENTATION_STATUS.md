@@ -1,5 +1,12 @@
 # Implementation status — 2026-10-26
 
+### Private native export scope safety (2026-11-02)
+- F-043/F-048: native Settings now captures the confirmed account/session/mosque generation before export. Obsolete confirmation callbacks cannot send a request; delayed results from another context or an unmounted screen cannot open the OS sharing sheet or update current feedback.
+- Added a dependency-free private-export controller with synchronous single-flight protection across the request and native sharing sheet. It validates the exact organization ID, account email and limited-export metadata before sharing, preserving explicit category truncation and exclusion information. It never retains a password or export payload after the operation finishes. Server reauthentication, rate limiting and tenant authorization remain unchanged.
+- The password field clears when the export context changes and before dispatch. Old failures and cleanup cannot release a newer export operation. Existing English/Arabic private-export consent and generic failure copy are retained; no raw server exception is displayed for this operation.
+- Verification: 12 focused runtime/wiring cases and **236/236 repository tests** passed locally. Both web/native TypeScript checks, Prisma validation/generation, Expo package compatibility and the Next.js web build passed. A separate code review found no blocking issues. Exact commit CI is tracked in the pull request; local checks do not substitute for disposable PostgreSQL CI integration.
+- Remaining: a React/native component lifecycle test (current screen integration checks inspect wiring), physical Android/iOS share-sheet interruption and account-switch acceptance, assistive-technology and Arabic review, safeguarded full-export handling and independent privacy/legal acceptance. An OS share sheet already opened cannot be recalled by later scope invalidation; a request already delivered may still be recorded server-side. **No deployment, live export, real personal data, provider operation or database migration.**
+
 ## Reality check
 \`document.md\` describes the intended entire community platform. This new code is a **foundational implementation**, not an assertion that all specified features are complete. The former program was deleted from the active Git tree before this rebuild, and no old application code was restored.
 
