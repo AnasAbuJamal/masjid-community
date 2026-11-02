@@ -69,6 +69,10 @@ try{
  assert.ok(!JSON.stringify(inbox.data).includes("FOREIGN_PRIVATE_NOTE_MUST_NEVER_LEAK"));
  assert.ok(!JSON.stringify(inbox.data).includes("HISTORIC_UNOWNED_NOTE_MUST_NEVER_LEAK"));
  assert.equal((await call("notifications/"+local.id,"PATCH")).status,401);
+ for(const invalidId of ["bad","%3Cscript%3E","x".repeat(129)]){
+  assert.equal((await call("notifications/"+invalidId,"PATCH",undefined,memberToken)).status,422,
+   "invalid notification IDs cannot reach a private write");
+ }
  assert.equal((await call("notifications/"+foreign.id,"PATCH",undefined,memberToken)).status,404,
   "foreign private notification ID cannot be marked read");
  assert.equal((await call("notifications/"+legacy.id,"PATCH",undefined,memberToken)).status,404,
