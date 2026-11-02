@@ -143,6 +143,7 @@ jobs:
           node scripts/test-care-intake.mjs
           node scripts/test-privacy-scope.mjs
           node scripts/test-privacy-export.mjs
+          node scripts/test-selected-privacy-export.mjs
           node scripts/test-shift-safety.mjs
           node scripts/test-payments.mjs
           node scripts/test-payout-register.mjs
