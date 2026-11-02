@@ -407,6 +407,8 @@ const words={
  "settings.saveDelivery":{en:"Save email choices",ar:"حفظ خيارات البريد"},
  "settings.deliverySaved":{en:"Your mosque email choices were saved.",ar:"تم حفظ خيارات بريد المسجد."},
  "settings.deliveryPartial":{en:"Some choices may have saved. The current values have been refreshed.",ar:"ربما حُفظت بعض الخيارات. تم تحديث القيم الحالية."},
+ "settings.deliveryFailed":{en:"Email choices could not be saved. Both previous choices remain in effect; review the current settings before retrying.",ar:"تعذر حفظ خيارات البريد الإلكتروني. تبقى الخيارات السابقة سارية؛ راجع الإعدادات الحالية قبل إعادة المحاولة."},
+ "settings.deliveryUnverified":{en:"The email preference receipt could not be verified. Refresh your settings before retrying.",ar:"تعذر التحقق من تأكيد خيارات البريد. حدّث الإعدادات قبل إعادة المحاولة."},
  "schoolwork.received":{en:"Submission received · final",ar:"تم استلام الواجب · التسليم نهائي"},
  "schoolwork.receivedAt":{en:"Received at:",ar:"وقت الاستلام:"},
  "schoolwork.receiptId":{en:"Submission reference:",ar:"مرجع التسليم:"},
