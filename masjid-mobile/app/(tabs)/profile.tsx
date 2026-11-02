@@ -69,7 +69,7 @@ export default function Profile(){
  }
  function commitmentStatus(c:Commitment){
   if(c.kind==="service_shift")return t("profile.shiftScheduled");
-  return t(profileReservationLabelKey(c.status,c.status==="checked_in"?"checked":null));
+  return t(profileReservationLabelKey(c.status,null));
  }
  return <Shell>
  <Head eyebrow={t("profile.eyebrow")} title={user?(language==="ar"?"مرحبًا، "+user.firstName:"Welcome, "+user.firstName+"."):t("profile.guest")} subtitle={user?t("profile.member"):t("profile.subtitle")}/>
@@ -77,18 +77,18 @@ export default function Profile(){
  {sessionExpired?<Text accessibilityRole="alert" style={{color:T.danger}}>
   {t("profile.sessionExpired")}
  </Text>:null}
- <Text style={S.headline}>{t("profile.connect")}</Text><Text style={S.bodyText}>Create a member account or sign in to join events, donate, volunteer and view private records.</Text><Action label={t("profile.login")} icon="account-circle-outline" onPress={()=>router.push("/auth")}/></Card>:
+ <Text style={[S.headline,{textAlign:isRTL?"right":"left"}]}>{t("profile.connect")}</Text><Text style={[S.bodyText,{textAlign:isRTL?"right":"left"}]}>{t("profile.guestHelp")}</Text><Action label={t("profile.login")} icon="account-circle-outline" onPress={()=>router.push("/auth")}/></Card>:
  <><Card style={{gap:9}}><View style={S.row}><Text style={S.label}>{user.firstName} {user.lastName}</Text><Text style={S.muted}>{user.role}</Text></View><Text style={S.muted}>{user.email}</Text><Text style={{fontWeight:"800",color:user.isVerified?T.success:T.danger}}>{user.isVerified?t("common.verified"):t("common.unverified")}</Text>
- {!user.isVerified?<Action secondary label="Refresh verification status" onPress={()=>void refreshUser()}/>:null}</Card>
+ {!user.isVerified?<Action secondary label={t("profile.refreshVerification")} onPress={()=>void refreshUser()}/>:null}</Card>
  {result.data?.organization?.name?<Text style={S.muted}>{result.data.organization.name}</Text>:null}
  <Feedback loading={result.loading} error={result.error} empty={false} refresh={result.refresh}/>
  {result.data?.upcoming?.length?<View style={S.section}>
-  <Text style={S.headline}>{language==="ar"?"التزاماتي القادمة":"Upcoming commitments"}</Text>
+  <Text style={[S.headline,{textAlign:isRTL?"right":"left"}]}>{t("profile.upcoming")}</Text>
   {result.data.upcoming.map(c=>c.kind==="service_shift"&&!pilotAllowed?
    <Card key={c.kind+":"+c.id} style={{gap:6}}>
     <Text style={S.label}>{c.title}</Text>
     <Text style={S.muted}>{upcomingWhen(c.startAt)+" · "+commitmentStatus(c)}</Text>
-    <Text style={S.muted}>Shift detail actions are not available in this mosque yet.</Text>
+    <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>{t("profile.shiftUnavailable")}</Text>
    </Card>:
    <PressRow key={c.kind+":"+c.id}
     icon={c.kind==="gathering"?"calendar-check-outline":"hand-heart-outline"}
@@ -99,23 +99,34 @@ export default function Profile(){
      :router.push("/volunteer/shifts")}/>)}
  </View>:null}
  {result.data?.donations?.length?<View style={S.section}><Text style={S.headline}>{t("profile.giving")}</Text>{result.data.donations.map(d=><Card key={d.id}><Text style={S.label}>{d.campaign.title}</Text><Text style={S.bodyText}>{(d.amountMinor/100).toLocaleString("en-US",{style:"currency",currency:d.currency.toUpperCase()})} · {d.status}</Text>
- {d.receipt&&pilotAllowed?<Action label={"Receipt "+d.receipt.receiptNumber} secondary onPress={()=>router.push({pathname:"/receipt/[id]",params:{id:d.receipt!.id}})}/>:null}</Card>)}</View>:null}
- {result.data?.rsvps?.length?<View style={S.section}><Text style={S.headline}>{t("profile.events")}</Text>{result.data.rsvps.map(r=><Card key={r.id} style={{gap:10}}><Text style={S.label}>{r.event.title}</Text><Text style={S.muted}>{upcomingWhen(r.event.startAt)} · {r.status==="waitlisted"?"Waitlisted — not confirmed":r.checkedInAt?"Checked in — arrival confirmed":"Confirmed reservation"}</Text>{new Date(r.event.startAt)>new Date()&&!r.checkedInAt?<Action label={r.status==="waitlisted"?"Leave waitlist":"Cancel my RSVP"} secondary disabled={!!busy} onPress={()=>void cancel(r.event.id)}/>:null}</Card>)}</View>:null}
- {result.data?.bookings?.length?<View style={S.section}><Text style={S.headline}>{t("profile.bookings")}</Text>{result.data.bookings.map(b=><Card key={b.id}><Text style={S.label}>{b.resource.title}</Text><Text style={S.muted}>{new Date(b.startAt).toLocaleString()} · {b.status}</Text></Card>)}</View>:null}
+ {d.receipt&&pilotAllowed?<Action label={t("profile.receipt")+" "+d.receipt.receiptNumber} secondary onPress={()=>router.push({pathname:"/receipt/[id]",params:{id:d.receipt!.id}})}/>:null}</Card>)}</View>:null}
+ {result.data?.rsvps?.length?<View style={S.section}><Text style={S.headline}>{t("profile.events")}</Text>{result.data.rsvps.map(r=><Card key={r.id} style={{gap:10}}>
+  <Text style={[S.label,{textAlign:isRTL?"right":"left"}]}>{r.event.title}</Text>
+  <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
+   {upcomingWhen(r.event.startAt)} · {t(profileReservationLabelKey(r.status,r.checkedInAt))}
+  </Text>
+  {canChange&&canOfferProfileCancellation(r.status,r.checkedInAt,r.event.startAt,
+   r.event.cancellationDeadlineAt,nowMs)?<Action
+   label={t(r.status==="waitlisted"?"profile.leaveWaitlist":"profile.cancelRsvp")}
+   secondary disabled={!!busy||contextChanging} loading={busy===r.event.id}
+   onPress={()=>void cancel(r.event.id)}/>:null}
+ </Card>)}</View>:null}
+ {result.data?.bookings?.length?<View style={S.section}><Text style={S.headline}>{t("profile.bookings")}</Text>{result.data.bookings.map(b=><Card key={b.id}><Text style={S.label}>{b.resource.title}</Text><Text style={S.muted}>{upcomingWhen(b.startAt)} · {b.status}</Text></Card>)}</View>:null}
  {result.data?.volunteerApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.volunteer")}</Text>{result.data.volunteerApplications.map(v=><Card key={v.id}><Text style={S.label}>{v.opportunity.title}</Text><Text style={S.muted}>{v.status}</Text></Card>)}</View>:null}
  {result.data?.jobApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.jobs")}</Text>{result.data.jobApplications.map(j=><Card key={j.id}><Text style={S.label}>{j.job.title}</Text><Text style={S.muted}>{j.status}</Text></Card>)}</View>:null}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
+ {notice?<Text accessibilityRole="status" style={{color:T.success}}>{notice}</Text>:null}
  <View style={S.section}><Text style={S.headline}>{t("profile.account")}</Text>
- {!pilotAllowed&&user?.isVerified?<Text style={S.muted}>Only supported private mosque features are available. Giving, school, circle, shift and receipt actions are limited to the primary mosque until their separate policies are implemented.</Text>:null}
- {user.mfaRequired?<PressRow icon="shield-key-outline" title="Complete administrator MFA" subtitle="Required to access privileged actions" onPress={()=>router.push("/mfa")}/>:null}
- <PressRow icon="account-cog-outline" title="Settings & privacy" subtitle="Profile, communications, sessions and data" onPress={()=>router.push("/settings")}/>
- <PressRow icon="lock-reset" title="Account security" subtitle="Reset your password if needed" onPress={()=>router.push("/recover")}/>
- {pilotAllowed?<PressRow icon="account-group-outline" title={language==="ar"?"حلقاتي المجتمعية":"My community circles"} subtitle={language==="ar"?"طلباتك والحلقات المعتمدة والتحديثات الخاصة":"Your requests, approved groups and private updates"} onPress={()=>router.push("/circles")}/>:null}
- {pilotAllowed?<PressRow icon="lightbulb-outline" title="My community proposals" subtitle="View your submitted ideas" onPress={()=>router.push("/community/proposal")}/>:null}
- <PressRow icon="bell-outline" title="Notifications" subtitle="Your private inbox" onPress={()=>router.push("/notifications")}/>
- {pilotAllowed?<PressRow icon="hand-heart-outline" title="My volunteer shifts" subtitle="Your schedule and attendance status" onPress={()=>router.push("/volunteer/shifts")}/>:null}
- {pilotAllowed?<PressRow icon="school-outline" title="School and family" subtitle="Only verified linked records" onPress={()=>router.push("/school")}/>:null}
- {pilotAllowed?<PressRow icon="heart-outline" title="Explore giving" subtitle="Donate to published campaigns" onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:"campaigns",id:"all"}})}/>:null}
+ {!pilotAllowed&&user?.isVerified?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>{t("profile.pilotLimit")}</Text>:null}
+ {user.mfaRequired?<PressRow icon="shield-key-outline" title={t("profile.mfaTitle")} subtitle={t("profile.mfaSubtitle")} onPress={()=>router.push("/mfa")}/>:null}
+ <PressRow icon="account-cog-outline" title={t("profile.settingsTitle")} subtitle={t("profile.settingsSubtitle")} onPress={()=>router.push("/settings")}/>
+ <PressRow icon="lock-reset" title={t("profile.securityTitle")} subtitle={t("profile.securitySubtitle")} onPress={()=>router.push("/recover")}/>
+ {pilotAllowed?<PressRow icon="account-group-outline" title={t("profile.circlesTitle")} subtitle={t("profile.circlesSubtitle")} onPress={()=>router.push("/circles")}/>:null}
+ {pilotAllowed?<PressRow icon="lightbulb-outline" title={t("profile.proposalsTitle")} subtitle={t("profile.proposalsSubtitle")} onPress={()=>router.push("/community/proposal")}/>:null}
+ <PressRow icon="bell-outline" title={t("profile.notificationsTitle")} subtitle={t("profile.notificationsSubtitle")} onPress={()=>router.push("/notifications")}/>
+ {pilotAllowed?<PressRow icon="hand-heart-outline" title={t("profile.shiftsTitle")} subtitle={t("profile.shiftsSubtitle")} onPress={()=>router.push("/volunteer/shifts")}/>:null}
+ {pilotAllowed?<PressRow icon="school-outline" title={t("profile.schoolTitle")} subtitle={t("profile.schoolSubtitle")} onPress={()=>router.push("/school")}/>:null}
+ {pilotAllowed?<PressRow icon="heart-outline" title={t("profile.givingTitle")} subtitle={t("profile.givingSubtitle")} onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind:"campaigns",id:"all"}})}/>:null}
  <Action label={t("profile.signout")} secondary icon="logout" onPress={()=>void logout()}/></View>
  </>}
  </Shell>;
