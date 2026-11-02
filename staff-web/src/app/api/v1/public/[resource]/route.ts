@@ -88,6 +88,6 @@ export async function GET(req:NextRequest,{params}:Context){
    :null;
   if(data===null)throw new HttpError(404,"NOT_FOUND","Unknown resource.");
   if(itemId&&!data.length)throw new HttpError(404,"NOT_FOUND","Published content unavailable.");
-  return ok({organization:{id:org.id,name:org.name},items:data});
+  return ok({organization:{id:org.id,name:org.name,timeZone:org.timeZone},items:data});
  });
 }
