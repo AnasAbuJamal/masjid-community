@@ -8,6 +8,7 @@ import {useResource} from "../src/useResource";
 import {S,T} from "../src/theme";
 import {useLanguage} from "../src/i18n";
 import {createScopedActionGate} from "../src/scoped-action-gate";
+import {parseEmailQuietHours} from "../src/delivery-hours";
 type Session={id:string;createdAt:string;expiresAt:string};
 type Data={profile:{firstName:string;lastName:string;email:string;role:string};
  currentSessionId:string;sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
@@ -37,6 +38,7 @@ export default function Settings(){
   contextChanging?"switching":"stable"].join("|");
  React.useLayoutEffect(()=>{
   deliveryGate.current.bind(deliveryScope);
+  setBusy(false);setNotice("");setError("");
   return ()=>{deliveryGate.current.invalidate();};
  },[deliveryScope]);
  useEffect(()=>{if(result.data){setFirst(result.data.profile.firstName);setLast(result.data.profile.lastName);}},[result.data]);
@@ -84,18 +86,11 @@ export default function Settings(){
  }
  async function saveDelivery(){
   if(busy||contextChanging||!delivery.data)return;
-  const from=Number(quietStart),until=Number(quietEnd);
-  // Avoid regex escape ambiguities: these must be real whole hours, not
-  // strings resembling the regex token \\d or empty/negative values.
-  const hourString=/^(?:[0-9]|1[0-9]|2[0-3])$/;
-  if(quiet&&(!hourString.test(quietStart)||!hourString.test(quietEnd)||
-   from===until)){
-   setError(t("settings.quietInvalid"));return;
-  }
+  const hours=parseEmailQuietHours(quiet,quietStart,quietEnd);
+  if(!hours){setError(t("settings.quietInvalid"));return;}
   const ticket=deliveryGate.current.begin();
   if(ticket===null)return;
   const expectedOrg=delivery.data.organization.id;
-  const hours={quietStartHour:quiet?from:null,quietEndHour:quiet?until:null};
   const choices=[
    {purpose:"community_news" as const,enabled:newsletter,...hours},
    {purpose:"event_updates" as const,enabled:events,...hours}
@@ -108,7 +103,7 @@ export default function Settings(){
    });
    if(!deliveryGate.current.isCurrent(ticket))return;
    if(response.saved!==true||response.organizationId!==expectedOrg||
-    response.preferences.length!==choices.length||
+    !Array.isArray(response.preferences)||response.preferences.length!==choices.length||
     choices.some(choice=>!response.preferences.some(item=>
      item.purpose===choice.purpose&&item.enabled===choice.enabled&&
      item.quietStartHour===choice.quietStartHour&&
@@ -203,6 +198,7 @@ export default function Settings(){
  <Feedback loading={delivery.loading} error={delivery.error} empty={false} refresh={delivery.refresh}/>
  <Text style={S.muted}>{delivery.data?.organization.name||t("inbox.currentMosque")} · {delivery.data?.organization.timeZone||""}</Text>
  <Text style={S.bodyText}>{t("settings.serviceEmail")}</Text>
+ {delivery.data?<>
  {pref(t("settings.communityOptIn"),newsletter,setNewsletter)}
  {pref(t("settings.eventOptIn"),events,setEvents)}
  {pref(t("settings.quietHours"),quiet,setQuiet)}
@@ -211,6 +207,7 @@ export default function Settings(){
  <Field label={t("settings.quietEnd")} value={quietEnd} onChange={setQuietEnd}/>
  <Text style={S.muted}>{t("settings.quietZone")}</Text>
  </View>:null}
+ </>:null}
  <Text style={S.muted}>{t("settings.deliveryPolicy")}</Text>
  <Action label={t("settings.saveDelivery")} loading={busy} disabled={busy||contextChanging||!delivery.data}
  onPress={()=>void saveDelivery()}/></Card>
