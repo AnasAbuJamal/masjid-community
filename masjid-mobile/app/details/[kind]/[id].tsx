@@ -9,7 +9,8 @@ import {useSession} from "../../../src/session";
 import {memberSurfaceScope,allowPilotContent,type MembershipSearchContext} from "../../../src/searchScope";
 import {MemberScopeNotice} from "../../../src/MemberScopeNotice";
 import {useVenue} from "../../../src/venue";
-import {CATEGORIES,AUDIENCES,ACCESSIBILITY,gatheringCatalogPath,gatheringFilterError} from "../../../src/gatheringFilters";
+import {CATEGORIES,AUDIENCES,ACCESSIBILITY,gatheringCatalogPath,gatheringFilterError,gatheringFilterProblem} from "../../../src/gatheringFilters";
+import {gatheringFilterLabelKey,gatheringContentLabelKey,gatheringContentSubtitleKey} from "../../../src/gathering-presentation";
 import {useGatheringPages} from "../../../src/useGatheringPages";
 import {useLanguage} from "../../../src/i18n";
 import {gatheringLocalTime} from "../../../src/gathering-local-time";
@@ -65,6 +66,9 @@ export default function Details(){
  const safeVenue=venues.some(v=>v.id===filterVenue)?filterVenue:"";
  const filters={query:settledSearch,fromDay,toDay,venueId:safeVenue,category,audience,accessibility};
  const filterError=gatheringFilterError(filters);
+ const filterProblem=gatheringFilterProblem(filters);
+ const filterErrorKey=filterProblem?({long:"detail.filterErrorLong",start:"detail.filterErrorStart",end:"detail.filterErrorEnd",order:"detail.filterErrorOrder"} as const)[filterProblem]:null;
+ const align=isRTL?"right":"left";
  const path=kind==="events"
   ?(user?.isVerified?authorizedSelected?"events/catalog":null:pilotContent?"public/events":null)
     ?id==="all"
@@ -152,68 +156,68 @@ export default function Details(){
  }
  const iconName=kind==="events"?"calendar-check-outline":kind==="volunteers"?"hand-heart-outline":kind==="proposals"?"vote-outline":kind==="jobs"?"briefcase-outline":"calendar-plus";
  return <Shell>
-  <Action label="Back" secondary icon="arrow-left" onPress={()=>router.back()}/>
-  <Head eyebrow="DISCOVER · COMMUNITY" title={id==="all"?(config?.label||"Discover"):(item?.title||"Community")} subtitle={kind==="events"&&result.data?.organization?.name?result.data.organization.name:id==="all"?config?.subtitle:"Published by the mosque."}/>
+  <Action label={t("detail.back")} secondary icon="arrow-left" onPress={()=>router.back()}/>
+  <Head eyebrow={t("detail.eyebrow")} title={id==="all"?t(gatheringContentLabelKey(kind)):(item?.title||t("detail.titleFallback"))} subtitle={kind==="events"&&result.data?.organization?.name?result.data.organization.name:id==="all"?t(gatheringContentSubtitleKey(kind)):t("detail.published")}/>
   {kind==="events"&&id==="all"&&!blocked?
    <Card style={{gap:10}}>
-    <Field label="Search by name or location" value={search} onChange={setSearch}/>
-    {search.trim().length===1?<Text style={S.muted}>Enter at least two characters to search.</Text>:null}
-    <Text style={S.label}>Category</Text>
-    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>{CATEGORIES.map(([value,label])=>
-     <Action key={value||"all"} label={label} secondary={category!==value} onPress={()=>setCategory(value)}/>)}</View>
-    <Text style={S.label}>Intended audience</Text>
-    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>{AUDIENCES.map(([value,label])=>
-     <Action key={value||"any"} label={label} secondary={audience!==value} onPress={()=>setAudience(value)}/>)}</View>
-    <Text style={S.label}>Verified accessibility feature</Text>
-    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>{ACCESSIBILITY.map(([value,label])=>
-     <Action key={value||"any"} label={label} secondary={accessibility!==value} onPress={()=>setAccessibility(value)}/>)}</View>
-    <Text style={S.label}>Venue</Text>
-    <View style={{flexDirection:"row",flexWrap:"wrap",gap:6}}>
-     <Action label="Any venue" secondary={!!safeVenue} onPress={()=>setFilterVenue("")}/>
+    <Field label={t("detail.searchLabel")} value={search} onChange={setSearch}/>
+    {search.trim().length===1?<Text style={[S.muted,{textAlign:align}]}>{t("detail.searchMinimum")}</Text>:null}
+    <Text style={[S.label,{textAlign:align}]}>{t("detail.filterCategory")}</Text>
+    <View style={{flexDirection:isRTL?"row-reverse":"row",flexWrap:"wrap",gap:6}}>{CATEGORIES.map(([value])=>
+     <Action key={value||"all"} label={t(gatheringFilterLabelKey("category",value))} secondary={category!==value} onPress={()=>setCategory(value)}/>)}</View>
+    <Text style={[S.label,{textAlign:align}]}>{t("detail.filterAudience")}</Text>
+    <View style={{flexDirection:isRTL?"row-reverse":"row",flexWrap:"wrap",gap:6}}>{AUDIENCES.map(([value])=>
+     <Action key={value||"any"} label={t(gatheringFilterLabelKey("audience",value))} secondary={audience!==value} onPress={()=>setAudience(value)}/>)}</View>
+    <Text style={[S.label,{textAlign:align}]}>{t("detail.filterAccessibility")}</Text>
+    <View style={{flexDirection:isRTL?"row-reverse":"row",flexWrap:"wrap",gap:6}}>{ACCESSIBILITY.map(([value])=>
+     <Action key={value||"any"} label={t(gatheringFilterLabelKey("accessibility",value))} secondary={accessibility!==value} onPress={()=>setAccessibility(value)}/>)}</View>
+    <Text style={[S.label,{textAlign:align}]}>{t("detail.filterVenue")}</Text>
+    <View style={{flexDirection:isRTL?"row-reverse":"row",flexWrap:"wrap",gap:6}}>
+     <Action label={t("detail.anyVenue")} secondary={!!safeVenue} onPress={()=>setFilterVenue("")}/>
      {venues.map(v=><Action key={v.id} label={v.name} secondary={safeVenue!==v.id}
       onPress={()=>setFilterVenue(v.id)}/>)}
     </View>
-    <Field label="From date YYYY-MM-DD (device timezone)" value={fromDay} onChange={setFromDay}/>
-    <Field label="Through date YYYY-MM-DD (device timezone)" value={toDay} onChange={setToDay}/>
-    <Text style={S.muted}>Dates filter real instants using your device timezone. Gathering times use the confirmed venue timezone where available. Missing accessibility details are not a guarantee.</Text>
-    {filterError?<Text accessibilityRole="alert" style={{color:T.danger}}>{filterError}</Text>:null}
+    <Field label={t("detail.fromDate")} value={fromDay} onChange={setFromDay}/>
+    <Field label={t("detail.toDate")} value={toDay} onChange={setToDay}/>
+    <Text style={[S.muted,{textAlign:align}]}>{t("detail.filterDisclaimer")}</Text>
+    {filterErrorKey?<Text accessibilityRole="alert" style={{color:T.danger,textAlign:align}}>{t(filterErrorKey)}</Text>:null}
    </Card>:null}
   {blocked?<MemberScopeNotice scope={scope} loading={context.loading} error={context.error} refresh={context.refresh}/>:null}
   {!blocked?<Feedback loading={result.loading} error={result.error} empty={!result.data?.items.length} refresh={result.refresh}/>:null}
   {!blocked&&(id==="all")?<View style={S.section}>
    {displayItems.map(x=><PressRow key={x.id} title={x.title}
-    subtitle={x.description||x.body||x.purpose||x.company||"View details and next steps"}
+    subtitle={x.description||x.body||x.purpose||x.company||t("detail.listEmptySubtitle")}
     icon="chevron-right-circle-outline"
     onPress={()=>router.push({pathname:"/details/[kind]/[id]",params:{kind,id:x.id}})}/>)}
    {kind==="events"&&paged.error?<Card><Text accessibilityRole="alert" style={{color:T.danger}}>{paged.error}</Text>
-    <Action label="Refresh list to restart" secondary onPress={()=>void result.refresh()}/></Card>:null}
+    <Action label={t("detail.refreshList")} secondary onPress={()=>void result.refresh()}/></Card>:null}
    {kind==="events"&&paged.hasMore?<Action
-    label={paged.busy?"Loading gatherings…":"Load more published gatherings"}
+    label={t(paged.busy?"detail.loadingMore":"detail.loadMore")}
     secondary disabled={paged.busy} icon="chevron-down"
     onPress={()=>void paged.loadMore()}/>:null}
    {kind==="events"&&displayItems.length>0?<Text style={S.muted}>
-    Showing {displayItems.length} published gatherings{paged.hasMore?" · more available":""}
+    {t("detail.showing")} {displayItems.length} {t("detail.publishedGatherings")}{paged.hasMore?" · "+t("detail.moreAvailable"):""}
    </Text>:null}
   </View>
   :!blocked&&item?<Card style={{gap:18}}><Text style={S.headline}>{item.title}</Text><Text style={S.bodyText}>{item.description||item.body||item.purpose||""}</Text>
-   {item.location?<Text style={S.muted}>Location: {item.location}</Text>:null}
+   {item.location?<Text style={[S.muted,{textAlign:align}]}>{t("detail.location")}: {item.location}</Text>:null}
    {kind==="events"&&item.startAt?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
     {t("gathering.detailsStarts")}: {formatGatheringInstant(item.startAt)}
-   </Text>:item.startAt||item.startsAt?<Text style={S.muted}>
-    Date: {new Date(item.startAt||item.startsAt||"").toLocaleString()}
+   </Text>:item.startAt||item.startsAt?<Text style={[S.muted,{textAlign:align}]}>
+    {t("detail.date")}: {new Date(item.startAt||item.startsAt||"").toLocaleString(language==="ar"?"ar-EG":"en-US")}
    </Text>:null}
    {kind==="events"&&item.endAt?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
     {t("gathering.detailsEnds")}: {formatGatheringInstant(item.endAt)}
    </Text>:null}
    {kind==="events"&&item.capacity!==null&&item.capacity!==undefined?
-    <Text style={S.muted}>{item.rsvpCount??0} of {item.capacity} places confirmed · {item.waitlistEnabled?"Waitlist available if full":"No waitlist"}</Text>:null}
+    <Text style={[S.muted,{textAlign:align}]}>{item.rsvpCount??0} {t("detail.of")} {item.capacity} {t("detail.placesConfirmed")} · {t(item.waitlistEnabled?"detail.waitlistAvailable":"detail.noWaitlist")}</Text>:null}
    {kind==="events"&&item.startAt?<View style={{gap:6}}>
-    {item.venue?<Text style={S.muted}>Verified venue: {item.venue.name}</Text>:null}
-    {item.category?<Text style={S.muted}>Category: {item.category.replaceAll("_"," ")}</Text>:null}
-    {item.audience?<Text style={S.muted}>Intended audience: {item.audience}</Text>:null}
-    {item.accessibilityFeatures?.length?<Text style={S.muted}>Confirmed accessibility features: {item.accessibilityFeatures.map(x=>x.replaceAll("_"," ")).join(", ")}</Text>
-     :<Text style={S.muted}>Accessibility features are not verified for this gathering.</Text>}
-    {item.accessibilityNotes?<Text style={S.bodyText}>Accommodation details: {item.accessibilityNotes}</Text>:null}
+    {item.venue?<Text style={[S.muted,{textAlign:align}]}>{t("detail.venueVerified")}: {item.venue.name}</Text>:null}
+    {item.category?<Text style={[S.muted,{textAlign:align}]}>{t("detail.category")}: {t(gatheringFilterLabelKey("category",item.category))}</Text>:null}
+    {item.audience?<Text style={[S.muted,{textAlign:align}]}>{t("detail.audience")}: {t(gatheringFilterLabelKey("audience",item.audience))}</Text>:null}
+    {item.accessibilityFeatures?.length?<Text style={[S.muted,{textAlign:align}]}>{t("detail.accessibility")}: {item.accessibilityFeatures.map(x=>t(gatheringFilterLabelKey("accessibility",x))).join(", ")}</Text>
+     :<Text style={[S.muted,{textAlign:align}]}>{t("detail.accessibilityUnverified")}</Text>}
+    {item.accessibilityNotes?<Text style={[S.bodyText,{textAlign:align}]}>{t("detail.accommodation")}: {item.accessibilityNotes}</Text>:null}
     <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
      {t("gathering.detailsRsvpCloses")}: {formatGatheringInstant(item.rsvpDeadlineAt||item.startAt)}
      {reservationClosed?" · "+t("gathering.detailsClosed"):""}
@@ -222,11 +226,11 @@ export default function Details(){
      {t("gathering.detailsCancelCloses")}: {formatGatheringInstant(item.cancellationDeadlineAt||item.startAt)}
      {cancellationClosed?" · "+t("gathering.detailsClosed"):""}
     </Text>
-    <Text style={S.bodyText}>{item.cancellationTerms||"Cancellations are allowed before the stated cutoff, unless attendance was already checked in."}</Text>
+    <Text style={[S.bodyText,{textAlign:align}]}>{item.cancellationTerms||t("detail.cancellationDefault")}</Text>
    </View>:null}
    {kind==="events"&&user?.isVerified&&own.data?.registration?
     <Text style={[S.label,{color:T.deep}]} accessibilityRole="text">
-     Your registration: {own.data.registration.status==="waitlisted"?"Waitlisted — not confirmed":own.data.registration.checkedInAt?"Checked in — arrival confirmed":"Confirmed place"}
+     {t("detail.registration")}: {t(own.data.registration.status==="waitlisted"?"detail.waitlisted":own.data.registration.checkedInAt?"detail.checkedIn":"detail.confirmed")}
     </Text>:null}
    {kind==="events"&&own.data?.registration?.checkedInAt?
     <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>
