@@ -152,6 +152,7 @@ const words={
  "detail.coverLetterMin":{en:"Enter at least 10 characters before sending your application.",ar:"أدخل ١٠ أحرف على الأقل قبل إرسال طلب التوظيف."},
  "detail.rentalDateInvalid":{en:"Enter start and end times with a valid ISO timezone (Z or +HH:MM).",ar:"أدخل وقتي البداية والنهاية بتنسيق ISO صحيح يتضمن منطقة زمنية (Z أو ‎+HH:MM)."},
  "detail.rentalDateOrder":{en:"The booking end time must be after the start time.",ar:"يجب أن يكون وقت نهاية الحجز بعد وقت بدايته."},
+ "detail.rentalDateTooLong":{en:"A facility booking request cannot exceed seven days.",ar:"لا يمكن أن تزيد مدة طلب حجز المرفق على سبعة أيام."},
  "detail.rentalDateExample":{en:"Example: 2027-06-15T09:00:00-04:00. A request does not confirm a booking.",ar:"مثال: ‎2027-06-15T09:00:00-04:00. إرسال الطلب لا يعني تأكيد الحجز."},
  "detail.filterUnknown":{en:"Other",ar:"أخرى"},
  "detail.filterErrorLong":{en:"Search is limited to 80 characters.",ar:"يجب ألا يتجاوز البحث ٨٠ حرفًا."},
