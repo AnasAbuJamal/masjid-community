@@ -189,6 +189,54 @@ try{
  assert.equal((await result(inactive)).lastErrorCode,"tenant_recipient_unavailable");
  await db.organizationMembership.update({where:{id:home.id},data:{status:"active"}});
 
+ // A two-purpose choice form is one transaction, not two PATCHes that
+ // could save only the first checkbox if the second request fails.
+ const beforeAtomic=await req("me/preferences","GET",undefined,memberToken);
+ assert.equal(beforeAtomic.data.optional.find(x=>x.purpose==="community_news").enabled,true);
+ assert.equal(beforeAtomic.data.optional.find(x=>x.purpose==="event_updates").enabled,false);
+ const duplicateBatch=await req("me/preferences","PATCH",{preferences:[
+  {purpose:"community_news",enabled:false,quietStartHour:null,quietEndHour:null},
+  {purpose:"community_news",enabled:true,quietStartHour:null,quietEndHour:null}
+ ]},memberToken);
+ assert.equal(duplicateBatch.status,422,"the same purpose cannot be repeated to overwrite consent");
+ const invalidBatch=await req("me/preferences","PATCH",{preferences:[
+  {purpose:"community_news",enabled:false,quietStartHour:null,quietEndHour:null},
+  {purpose:"event_updates",enabled:true,quietStartHour:22,quietEndHour:22}
+ ]},memberToken);
+ assert.equal(invalidBatch.status,422,"invalid second choice rejects the whole batch");
+ const serviceBatch=await req("me/preferences","PATCH",{preferences:[
+  {purpose:"community_news",enabled:false,quietStartHour:null,quietEndHour:null},
+  {purpose:"service",enabled:false,quietStartHour:null,quietEndHour:null}
+ ]},memberToken);
+ assert.equal(serviceBatch.status,422,"service emails cannot be disabled in an optional batch");
+ const afterRejectedBatch=await req("me/preferences","GET",undefined,memberToken);
+ assert.equal(afterRejectedBatch.data.optional.find(x=>x.purpose==="community_news").enabled,true,
+  "a rejected batch cannot withdraw only the first purpose");
+ assert.equal(afterRejectedBatch.data.optional.find(x=>x.purpose==="event_updates").enabled,false);
+ const batch=await req("me/preferences","PATCH",{preferences:[
+  {purpose:"community_news",enabled:false,quietStartHour:null,quietEndHour:null},
+  {purpose:"event_updates",enabled:true,quietStartHour:22,quietEndHour:7}
+ ]},memberToken);
+ assert.equal(batch.status,200,JSON.stringify(batch).slice(0,200));
+ assert.equal(batch.data.saved,true);
+ assert.equal(batch.data.organizationId,org.id);
+ assert.equal(batch.data.preferences.length,2);
+ assert.ok(batch.data.preferences.some(x=>x.purpose==="community_news"&&x.enabled===false));
+ assert.ok(batch.data.preferences.some(x=>x.purpose==="event_updates"&&x.enabled===true&&
+  x.quietStartHour===22&&x.quietEndHour===7));
+ const eventPref=await db.organizationDeliveryPreference.findUniqueOrThrow({where:{
+  organizationId_userId_purpose_channel:{organizationId:org.id,userId:member.id,
+   purpose:"event_updates",channel:"email"}
+ }});
+ prefIds.push(eventPref.id);
+ assert.ok(eventPref.consentedAt instanceof Date);
+ const atomicCommunity=await db.organizationDeliveryPreference.findUniqueOrThrow({where:{id:own.id}});
+ assert.equal(atomicCommunity.enabled,false);
+ assert.equal(atomicCommunity.consentedAt,null,"batch opt-out clears consent while independent opt-in is saved");
+ const afterAtomic=await req("me/preferences","GET",undefined,memberToken);
+ assert.equal(afterAtomic.data.optional.find(x=>x.purpose==="community_news").enabled,false);
+ assert.equal(afterAtomic.data.optional.find(x=>x.purpose==="event_updates").enabled,true);
+
  const activity=await db.auditEvent.findMany({where:{
   actorId:member.id,action:"delivery.preference.change",
   entity:"OrganizationDeliveryPreference",entityId:org.id
