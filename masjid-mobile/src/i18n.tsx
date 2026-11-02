@@ -361,6 +361,8 @@ const words={
  "inbox.moreError":{en:"Older messages could not be loaded. Refresh this inbox.",ar:"تعذر تحميل الرسائل الأقدم. حدّث صندوق الوارد."},
  "inbox.verify":{en:"Sign in and verify your email to read private mosque messages.",ar:"سجّل الدخول ووثّق بريدك الإلكتروني لعرض رسائل المسجد الخاصة."},
  "inbox.readError":{en:"Could not mark notification as read.",ar:"تعذر تحديد الإشعار كمقروء."},
+ "inbox.mosqueTime":{en:"verified selected-mosque time",ar:"التوقيت المعتمد للمسجد المحدد"},
+ "inbox.timeUnavailable":{en:"Message time unavailable — refresh to verify",ar:"وقت الرسالة غير متاح؛ حدّث الصفحة للتحقق"},
  "settings.saveProfile":{en:"Save profile",ar:"حفظ الملف الشخصي"},
  "settings.profileSaved":{en:"Your profile was saved.",ar:"تم حفظ ملفك الشخصي."},
  "settings.saveError":{en:"Unable to save changes.",ar:"تعذر حفظ التغييرات."},
