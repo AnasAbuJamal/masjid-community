@@ -73,7 +73,7 @@ test("gathering native screen presents important booking statuses without Englis
  assert.match(screen,/t\("detail\.cancelExpired"\)/);
  assert.match(screen,/t\("detail\.shareCalendar"\)/);
  assert.match(screen,/t\("detail\.leftList"\)/);
- assert.match(screen,/t\("detail\.loadMore"\)/);
+ assert.match(screen,/t\(paged\.busy\?"detail\.loadingMore":"detail\.loadMore"\)/);
  assert.doesNotMatch(screen,/label="RSVP to event"/);
  assert.doesNotMatch(screen,/label="Cancel my reservation"/);
  assert.doesNotMatch(screen,/>Accessibility features are not verified for this gathering\.</);
