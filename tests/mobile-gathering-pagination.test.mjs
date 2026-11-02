@@ -20,6 +20,9 @@ test("mobile resets pagination on context, filters and first-page changes",()=>{
  assert.match(hook,/\},\[key,first\]\)/);
  assert.match(hook,/generation\.current!==startingGeneration/);
  assert.match(hook,/first\.organization\?\.id!==page\.organization\?\.id/);
- assert.match(screen,/Load more published gatherings/);
- assert.match(screen,/Refresh list to restart/);
+ assert.match(screen,/t\(paged\.busy\?"detail\.loadingMore":"detail\.loadMore"\)/);
+ assert.match(screen,/t\("detail\.refreshList"\)/);
+ const locale=readFileSync("masjid-mobile/src/i18n.tsx","utf8");
+ assert.match(locale,/"detail\.loadMore":\{en:"Load more published gatherings",ar:".+"\}/);
+ assert.match(locale,/"detail\.refreshList":\{en:"Refresh list to restart",ar:".+"\}/);
 });
