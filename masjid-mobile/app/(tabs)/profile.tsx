@@ -115,7 +115,7 @@ export default function Profile(){
  {result.data?.volunteerApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.volunteer")}</Text>{result.data.volunteerApplications.map(v=><Card key={v.id}><Text style={S.label}>{v.opportunity.title}</Text><Text style={S.muted}>{v.status}</Text></Card>)}</View>:null}
  {result.data?.jobApplications?.length?<View style={S.section}><Text style={S.headline}>{t("profile.jobs")}</Text>{result.data.jobApplications.map(j=><Card key={j.id}><Text style={S.label}>{j.job.title}</Text><Text style={S.muted}>{j.status}</Text></Card>)}</View>:null}
  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
- {notice?<Text accessibilityRole="status" style={{color:T.success}}>{notice}</Text>:null}
+ {notice?<Text accessibilityLiveRegion="polite" style={{color:T.success}}>{notice}</Text>:null}
  <View style={S.section}><Text style={S.headline}>{t("profile.account")}</Text>
  {!pilotAllowed&&user?.isVerified?<Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>{t("profile.pilotLimit")}</Text>:null}
  {user.mfaRequired?<PressRow icon="shield-key-outline" title={t("profile.mfaTitle")} subtitle={t("profile.mfaSubtitle")} onPress={()=>router.push("/mfa")}/>:null}
