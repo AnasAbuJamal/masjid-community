@@ -7,6 +7,8 @@ export async function PATCH(req:NextRequest,{params}:{params:Promise<{id:string}
   assertSameOrigin(req);
   const {user,org}=await requireMemberContext(req);
   const {id}=await params;
+  if(!/^[A-Za-z0-9_-]{8,128}$/.test(id))
+   throw new HttpError(422,"BAD_ID","Invalid private notification identifier.");
   // Do not mutate foreign-mosque or historical unscoped notifications by ID,
   // even when the recipient's shared identity matches this authenticated user.
   const owner={id,userId:user.id,organizationId:org.id};
