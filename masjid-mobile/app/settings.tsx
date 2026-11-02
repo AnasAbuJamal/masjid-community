@@ -18,7 +18,7 @@ type SavedDelivery={saved:boolean;organizationId:string;preferences:DeliveryPref
 type AnalyticsConsentData={organization:{name:string;id:string};enabled:boolean;consentedAt:string|null;policy:string};
 type ContextData={selectedOrganizationId:string;selectedActive:boolean;organizations:{id:string;name:string;slug:string;timeZone:string;selectable:boolean;memberWorkspace:string}[];policy:string};
 export default function Settings(){
- const {language,setLanguage,t}=useLanguage();
+ const {language,setLanguage,t,isRTL}=useLanguage();
  const {refresh:refreshUser,logout,selectOrganization,user,contextVersion,contextChanging}=useSession();
  const result=useResource<Data>("account");
  const context=useResource<ContextData>("organizations/context");
@@ -158,7 +158,7 @@ export default function Settings(){
   setBusy(true);setError("");setNotice("");
   try{const response=await apiPost<{message:string}>("account/deletion-request",{confirm:true});
    setNotice(response.message);await result.refresh();}
-  catch(e){setError(e instanceof Error?e.message:"Unable to record request.");}finally{setBusy(false);}
+  catch(e){setError(e instanceof Error?e.message:t("settings.requestSubmitFailed"));}finally{setBusy(false);}
  }
  async function logoutEverywhere(){
   setBusy(true);
@@ -166,18 +166,18 @@ export default function Settings(){
   finally{await logout();setBusy(false);router.replace("/(tabs)/profile");}
  }
  const currentSessionId=result.data?.currentSessionId;
- const pref=(label:string,value:boolean,onValueChange:(v:boolean)=>void)=><View key={label} style={[S.row,{paddingVertical:7}]}><Text style={[S.label,{flex:1}]}>{label}</Text>
+ const pref=(label:string,value:boolean,onValueChange:(v:boolean)=>void)=><View key={label} style={[S.row,{paddingVertical:7,flexDirection:isRTL?"row-reverse":"row"}]}><Text style={[S.label,{flex:1,textAlign:isRTL?"right":"left"}]}>{label}</Text>
   <Switch accessibilityLabel={label} value={value} onValueChange={onValueChange} trackColor={{true:T.blue}}/></View>;
- return <Shell><Action label="Back to profile" secondary icon="arrow-left" onPress={()=>router.back()}/>
- <Head eyebrow="ACCOUNT · PRIVACY" title="Your account, your choice." subtitle="Manage your identity, communication preferences, and active device sessions."/>
+ return <Shell><Action label={t("settings.back")} secondary icon="arrow-left" onPress={()=>router.back()}/>
+ <Head eyebrow={t("settings.eyebrow")} title={t("settings.pageTitle")} subtitle={t("settings.pageSubtitle")}/>
  <Feedback loading={result.loading} error={result.error} empty={false} refresh={result.refresh}/>
  {result.data?<><Card style={{gap:14}}><Text style={S.headline}>{t("settings.language")}</Text>
  <View style={{flexDirection:"row",gap:10}}><View style={{flex:1}}><Action label={t("settings.english")} secondary={language!=="en"} onPress={()=>void setLanguage("en")}/></View>
  <View style={{flex:1}}><Action label={t("settings.arabic")} secondary={language!=="ar"} onPress={()=>void setLanguage("ar")}/></View></View>
- <Text style={S.muted}>Arabic labels and layout are being introduced progressively. Financial records stay unchanged.</Text>
- <Text style={S.headline}>Profile</Text>
+ <Text style={[S.muted,{textAlign:isRTL?"right":"left"}]}>{t("settings.languageNotice")}</Text>
+ <Text style={[S.headline,{textAlign:isRTL?"right":"left"}]}>{t("settings.profileTitle")}</Text>
  <Text style={S.muted}>{result.data.profile.email}</Text>
- <Field label="First name" value={first} onChange={setFirst}/><Field label="Last name" value={last} onChange={setLast}/>
+ <Field label={t("settings.firstName")} value={first} onChange={setFirst}/><Field label={t("settings.lastName")} value={last} onChange={setLast}/>
  <Action label={t("settings.saveProfile")} loading={busy} disabled={busy} onPress={()=>void saveProfile()}/></Card>
  <Card style={{gap:12}}>
  <Text style={S.headline}>{t("settings.mosqueTitle")}</Text>
@@ -232,9 +232,9 @@ export default function Settings(){
  {result.data.sessions.map(s=><View key={s.id} style={[S.row,{paddingVertical:8,
   flexDirection:language==="ar"?"row-reverse":"row"}]}>
   <View style={{flex:1}}>
-   <Text style={S.label}>{t("settings.signedIn")} {new Date(s.createdAt).toLocaleDateString(language==="ar"?"ar":"en-US")}
+   <Text style={S.label}>{t("settings.signedIn")} {new Date(s.createdAt).toLocaleDateString(language==="ar"?"ar-EG-u-ca-gregory":"en-US")}
     {s.id===currentSessionId?" · "+t("settings.currentDevice"):""}</Text>
-   <Text style={S.muted}>{t("settings.sessionExpires")} {new Date(s.expiresAt).toLocaleDateString(language==="ar"?"ar":"en-US")}</Text>
+   <Text style={S.muted}>{t("settings.sessionExpires")} {new Date(s.expiresAt).toLocaleDateString(language==="ar"?"ar-EG-u-ca-gregory":"en-US")}</Text>
   </View>
   <Action label={t("settings.sessionRevoke")} secondary disabled={busy}
    onPress={()=>{
@@ -246,8 +246,8 @@ export default function Settings(){
     }else void revoke(s.id);
    }}/>
  </View>)}
- <Action label="Sign out on all devices" secondary icon="shield-lock-outline" disabled={busy} onPress={()=>Alert.alert("Sign out all sessions?","You will need to sign in again on every device.",[
-  {text:"Cancel",style:"cancel"},{text:"Sign out all",style:"destructive",onPress:()=>void logoutEverywhere()}])}/>
+ <Action label={t("settings.logoutEverywhere")} secondary icon="shield-lock-outline" disabled={busy} onPress={()=>Alert.alert(t("settings.logoutTitle"),t("settings.logoutBody"),[
+  {text:t("settings.cancel"),style:"cancel"},{text:t("settings.logoutConfirm"),style:"destructive",onPress:()=>void logoutEverywhere()}])}/>
  </Card>
  <Card style={{gap:13}}><Text style={S.headline}>{t("settings.privacy")}</Text>
  <Text style={S.bodyText}>{t("settings.exportScope")}</Text>
