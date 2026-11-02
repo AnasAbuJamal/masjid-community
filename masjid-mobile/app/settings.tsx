@@ -56,17 +56,28 @@ export default function Settings(){
   setAnalyticsEnabled(analytics.data?.enabled||false);
  },[analytics.data]);
  async function saveAnalytics(){
-  if(!analytics.data||analyticsEnabled===analytics.data.enabled||busy)return;
+  if(!analytics.data||analyticsEnabled===analytics.data.enabled||busy||contextChanging)return;
+  const ticket=deliveryGate.current.begin();
+  if(ticket===null)return;
+  const expectedOrg=analytics.data.organization.id;
+  const expectedEnabled=analyticsEnabled;
   setBusy(true);setError("");setNotice("");
   try{
-   await api("me/analytics-consent",{method:"PATCH",
-    body:JSON.stringify({enabled:analyticsEnabled,confirm:true})});
+   const response=await api<{organization:{id:string};enabled:boolean}>("me/analytics-consent",{method:"PATCH",
+    body:JSON.stringify({enabled:expectedEnabled,confirm:true})});
+   if(!deliveryGate.current.isCurrent(ticket))return;
+   if(response.organization?.id!==expectedOrg||response.enabled!==expectedEnabled)
+    throw new Error("Analytics consent confirmation did not match the selected mosque.");
    await analytics.refresh();
-   setNotice(t("settings.analyticsSaved"));
+   if(deliveryGate.current.isCurrent(ticket))setNotice(t("settings.analyticsSaved"));
   }catch(e){
-   await analytics.refresh();
-   setError(e instanceof Error?e.message:t("settings.analyticsError"));
-  }finally{setBusy(false);}
+   if(deliveryGate.current.isCurrent(ticket)){
+    setError(e instanceof Error?e.message:t("settings.analyticsError"));
+    await analytics.refresh();
+   }
+  }finally{
+   if(deliveryGate.current.finish(ticket))setBusy(false);
+  }
  }
  async function switchMosque(id:string){
   setBusy(true);setNotice("");setError("");
