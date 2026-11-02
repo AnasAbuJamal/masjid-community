@@ -20,6 +20,9 @@ export function createScopedActionGate(){
   },
   begin():number|null{
    if(scope===null||inFlight)return null;
+   // Each new request needs a unique receipt ticket, even in the same
+   // account/mosque scope. An older finally block must never unlock it.
+   generation++;
    inFlight=true;
    return generation;
   },
