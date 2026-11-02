@@ -15,7 +15,7 @@ test("You screen distinguishes foreign commitments from unsupported actions",()=
  const src=readFileSync("masjid-mobile/app/(tabs)/profile.tsx","utf8");
  assert.match(src,/const pilotAllowed=surface\.allowed/);
  assert.match(src,/service_shift"&&!pilotAllowed/);
- assert.match(src,/Shift detail actions are not available/);
+ assert.match(src,/t\("profile\.shiftUnavailable"\)/);
  assert.match(src,/d\.receipt&&pilotAllowed/);
  assert.match(src,/pilotAllowed\?<PressRow icon="school-outline"/);
  assert.match(src,/pilotAllowed\?<PressRow icon="heart-outline"/);
