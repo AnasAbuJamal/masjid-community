@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import {createCredentialAuthority} from "./credential-authority";
 import {createSessionExpiryGuard} from "./session-expiry";
+import {sessionHeaders} from "./session-headers";
 const tokenKey="masjid.session";
 const raw=(process.env.EXPO_PUBLIC_API_URL||"").replace(/\/+$/,"");
 const authority=createCredentialAuthority(SecureStore,tokenKey);
@@ -23,10 +24,9 @@ export async function api<T>(path:string,options:RequestInit={}):Promise<T>{
  const revision=authority.version();
  const saved=await token();
  check(revision);
+ const headers=sessionHeaders(options.headers,saved,!!options.body);
  const response=await fetch(raw+"/api/v1/"+path.replace(/^\/+/, ""),{
-  ...options,headers:{"Accept":"application/json",
-   ...(options.body?{"Content-Type":"application/json"}:{}),
-   ...(saved?{"Authorization":"Bearer "+saved}:{}),...options.headers}
+  ...options,headers
  });
  check(revision);
  if(expiry.expire({status:response.status,revision,authenticated:!!saved,path}))
