@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 type Enrolled={student:{id:string;firstName:string;lastName:string}};
 type ClassItem={id:string;name:string;enrollments:Enrolled[];assignments:{id:string;title:string;dueAt:string;published:boolean;submissions:{studentId:string;body:string;submittedAt:string;student:{firstName:string;lastName:string}}[]}[]};
 type ReviewItem={id:string;teacherId:string;summary:string;createdAt:string;selfAuthored:boolean;classSection:{id:string;name:string};student:{firstName:string;lastName:string};teacher:{firstName:string;lastName:string}};
@@ -28,9 +28,14 @@ export default function Schoolwork(){
  const [pendingComplete,setPendingComplete]=useState(true),[publishedComplete,setPublishedComplete]=useState(true);
  const [pendingCursor,setPendingCursor]=useState<string|null>(null),[publishedCursor,setPublishedCursor]=useState<string|null>(null);
  const [pageLoading,setPageLoading]=useState<ReviewStatus|null>(null);
+ // Invalidate older private report pages whenever a new authorization read
+ // begins. A late page must not repopulate records after a failed refresh.
+ const reviewEpoch=useRef(0);
  const [withdrawalSelection,setWithdrawalSelection]=useState<Record<string,WithdrawalReason|"" >>({});
  const [title,setTitle]=useState(""),[instructions,setInstructions]=useState(""),[dueAt,setDueAt]=useState(""),[published,setPublished]=useState(false);
  const refresh=useCallback(async()=>{
+  const epoch=++reviewEpoch.current;
+  setPageLoading(null);
   try{
    const res=await fetch("/api/v1/schoolwork",{cache:"no-store"});
    const j=await res.json();
@@ -42,12 +47,14 @@ export default function Schoolwork(){
    const [pending,published]=j.data.canReviewReports?await Promise.all([
     reportPage<ReviewItem>("draft"),reportPage<PublishedItem>("published")
    ]):[null,null];
+   if(epoch!==reviewEpoch.current)return;
    setClasses(j.data.classes);setOrganization(j.data.organization);
    setPendingReports(pending?.items||[]);setPublishedReports(published?.items||[]);
    setPendingComplete(pending?.complete??true);setPublishedComplete(published?.complete??true);
    setPendingCursor(pending?.nextCursor??null);setPublishedCursor(published?.nextCursor??null);
    setWithdrawalSelection({});setError("");
   }catch(e){
+   if(epoch!==reviewEpoch.current)return;
    setClasses([]);setOrganization(null);
    setPendingReports([]);setPublishedReports([]);
    setPendingComplete(true);setPublishedComplete(true);
@@ -55,25 +62,33 @@ export default function Schoolwork(){
    setError(e instanceof Error?e.message:"Unable to load assigned classes.");
   }
  },[]);
- useEffect(()=>{void refresh()},[refresh]);
+ useEffect(()=>{
+  void refresh();
+  return ()=>{reviewEpoch.current++};
+ },[refresh]);
  const chosen=classes.find(c=>c.id===classId);
  async function loadMore(status:ReviewStatus){
   if(busy||pageLoading)return;
   const cursor=status==="draft"?pendingCursor:publishedCursor;
   if(!cursor)return;
+  const epoch=reviewEpoch.current;
   setPageLoading(status);setError("");
   try{
    if(status==="draft"){
     const page=await reportPage<ReviewItem>("draft",cursor);
+    if(epoch!==reviewEpoch.current)return;
     setPendingReports(current=>[...current,...page.items.filter(x=>!current.some(y=>y.id===x.id))]);
     setPendingComplete(page.complete);setPendingCursor(page.nextCursor);
    }else{
     const page=await reportPage<PublishedItem>("published",cursor);
+    if(epoch!==reviewEpoch.current)return;
     setPublishedReports(current=>[...current,...page.items.filter(x=>!current.some(y=>y.id===x.id))]);
     setPublishedComplete(page.complete);setPublishedCursor(page.nextCursor);
    }
-  }catch(e){setError(e instanceof Error?e.message:"Unable to read older private reports. Refresh and retry.");}
-  finally{setPageLoading(null);}
+  }catch(e){
+   if(epoch===reviewEpoch.current)
+    setError(e instanceof Error?e.message:"Unable to read older private reports. Refresh and retry.");
+  }finally{if(epoch===reviewEpoch.current)setPageLoading(null);}
  }
  async function reviewReport(item:ReviewItem,action:"publish-report"|"reject-report"){
   if(busy||item.selfAuthored)return;
