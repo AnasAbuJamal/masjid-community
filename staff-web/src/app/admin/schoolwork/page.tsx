@@ -35,6 +35,11 @@ export default function Schoolwork(){
  const [title,setTitle]=useState(""),[instructions,setInstructions]=useState(""),[dueAt,setDueAt]=useState(""),[published,setPublished]=useState(false);
  const refresh=useCallback(async()=>{
   const epoch=++reviewEpoch.current;
+  // Hide previously authorized child records before any new access check.
+  setClasses([]);setOrganization(null);
+  setPendingReports([]);setPublishedReports([]);
+  setPendingComplete(true);setPublishedComplete(true);
+  setPendingCursor(null);setPublishedCursor(null);
   setPageLoading(null);
   try{
    const res=await fetch("/api/v1/schoolwork",{cache:"no-store"});
