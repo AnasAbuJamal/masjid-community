@@ -35,7 +35,7 @@ export async function GET(req:NextRequest){
   return ok({selectedOrganizationId:selectedId,
    selectedActive:choices.some(x=>x.id===selectedId),
    organizations:choices,
-   policy:"Mosque choices belong to this one session. A second mosque supports published worship/venue/faith views, gathering discovery, member RSVP management, the private dashboard, notifications and email preferences. Other protected workflows remain unsupported. No privileged global role transfers."});
+   policy:"Mosque choices belong to this one session. A second mosque supports published worship/venue/faith views, gathering discovery, member RSVP management, the private dashboard, notifications, email preferences and reauthenticated owner-only data export. Other protected workflows remain unsupported. No privileged global role transfers."});
  });
 }
 export async function POST(req:NextRequest){
@@ -66,6 +66,6 @@ export async function POST(req:NextRequest){
   });
   return ok({selectedOrganizationId:result.id,organization:result,
    limited:result.id!==home.id,
-   policy:result.id===home.id?"Primary community workspace.":"Limited member context: published worship, venue and faith views, gatherings and RSVPs, dashboard, notifications and email preferences. Other private actions remain blocked."});
+   policy:result.id===home.id?"Primary community workspace.":"Limited member context: published worship, venue and faith views, gatherings and RSVPs, dashboard, notifications, email preferences and reauthenticated owner-only data export. Other private actions remain blocked."});
  });
 }

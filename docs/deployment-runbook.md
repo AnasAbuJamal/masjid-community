@@ -1,5 +1,17 @@
 # SILA deployment gates — Vercel and PostgreSQL
 
+## November 2 completion batch: monthly giving and volunteer decision evidence
+
+Two additive migrations add `RecurringGift` / `RecurringInstallment` and nullable volunteer decision reason/reviewer/time. Historical volunteer decisions remain NULL; no invented reviewer or justification is backfilled. Rehearse these migrations and restores on a disposable copy under existing safeguarding/change-control gates before any nonempty remote database change.
+
+New monthly giving is disabled by default. An authorized finance owner must configure/test the Stripe webhook endpoint at the installed SDK's supported API shape, including `checkout.session.completed`, `checkout.session.expired`, `customer.subscription.created/updated/deleted`, `invoice.payment_succeeded` / `invoice.paid`, `invoice.payment_failed`, and the existing signed refund events. Actual invoice-payment evidence is required; out-of-band/no-payment invoices never create donation receipts. Exact amount, USD currency, one monthly item, subscriber identity and mandate metadata must match recorded consent. Unsupported billing changes remain rejected for human reconciliation.
+
+Before enablement, provide real provider test-mode evidence for checkout interruption, renewal, duplicate/out-of-order events, failed payment recovery, cancellation (including unbound/pending checkout), per-period receipts and refunds. Finance must approve monthly authorization/cancellation/refund wording. Payment-method recovery and cancellation before the provider mandate is linked require further work; do not describe those as finished. The current native flow can review and cancel linked mandates; it never treats a checkout return as payment proof.
+
+`SILA_RECURRING_GIVING_ENABLED=true` permits NEW monthly checkout only after these gates. Existing cancellation and signed installment processing still require provider keys when new mandates are disabled. `SILA_RECURRING_CI_CAPTURE=test-only` is a synthetic CI-only adapter requiring the exact loopback `masjid_ci` URL, GitHub Actions and a non-real dummy Stripe key. Never configure it in a deployed environment. Synthetic tests neither make provider calls nor prove live mandate functionality.
+
+The shared native control and account/giving Arabic changes need actual Android/iOS font scaling, keyboard, RTL and VoiceOver/TalkBack review. `docs/FEATURE_ACCEPTANCE.md` remains the open acceptance register; no release gate is waived by passing automation.
+
 This runbook follows `document.md` sections 24–28. Code passing GitHub Actions is **not** the same as a safe production release. The current Vercel project `masjid-community` has no configured `DATABASE_URL`, and its prior production deployments failed.
 
 ## Connected targets

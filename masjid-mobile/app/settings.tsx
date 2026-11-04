@@ -9,6 +9,7 @@ import {S,T} from "../src/theme";
 import {useLanguage} from "../src/i18n";
 import {createScopedActionGate} from "../src/scoped-action-gate";
 import {parseEmailQuietHours} from "../src/delivery-hours";
+import {createPrivateExportAction,type ExportOwner} from "../src/private-export";
 type Session={id:string;createdAt:string;expiresAt:string};
 type Data={profile:{firstName:string;lastName:string;email:string;role:string};
  currentSessionId:string;sessions:Session[];deletion:{id:string;status:string;createdAt:string}|null};
@@ -30,6 +31,14 @@ export default function Settings(){
  const [quietStart,setQuietStart]=useState("22"),[quietEnd,setQuietEnd]=useState("7");
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [exportPassword,setExportPassword]=useState("");
+ const privateExport=useRef(createPrivateExportAction());
+ const exportScope=user?.isVerified&&!contextChanging&&context.data?.selectedActive?
+  [contextVersion,user.id,context.data.selectedOrganizationId].join("|"):null;
+ React.useLayoutEffect(()=>{
+  privateExport.current.bind(exportScope);
+  setExportPassword("");
+  return ()=>{privateExport.current.invalidate();};
+ },[exportScope]);
  const deliveryGate=useRef(createScopedActionGate());
  // Never allow a preference receipt from the former account or mosque to
  // update the current Settings screen. Refreshing preferences alone does not
@@ -149,21 +158,31 @@ export default function Settings(){
   }catch(e){setError(e instanceof Error?e.message:t("settings.sessionError"));}
   finally{setBusy(false);}
  }
- async function exportData(){
+ async function exportData(intent:number,expected:ExportOwner){
+  if(!privateExport.current.isCurrent(intent))return;
   if(!exportPassword){setError(t("settings.exportPasswordRequired"));return;}
+  let ownsRequest=true;
   setBusy(true);setError("");setNotice("");
   try{
-   const value=await apiPost<{organization:{name:string};scope:string;truncatedCategories:string[]}&Record<string,unknown>>("account/export",{
-    password:exportPassword,confirm:true
-   });
    setExportPassword("");
-   setNotice(value.truncatedCategories.length?t("settings.exportPartialNotice"):t("settings.exportSuccessNotice"));
-   // Native sharing is an explicit user action; the OS sharing destination is
-   // outside SILA's control. Warn before disclosing personal account content.
-   await Share.share({title:t("settings.export")+" — "+value.organization.name,
-    message:JSON.stringify(value,null,2)});
-  }catch(e){setError(e instanceof Error?e.message:t("settings.exportFailed"));}
-  finally{setExportPassword("");setBusy(false);}
+   const outcome=await privateExport.current.run(intent,expected,
+    ()=>apiPost("account/export",{password:exportPassword,confirm:true}),
+    async value=>{
+     // Already validated against the account/mosque that confirmed sharing.
+     // The OS destination can retain a copy; no delivery is inferred here.
+     await Share.share({title:t("settings.export")+" — "+value.organization.name,
+      message:JSON.stringify(value,null,2)});
+     if(privateExport.current.isCurrent(intent))
+      setNotice(value.truncatedCategories.length?t("settings.exportPartialNotice"):t("settings.exportSuccessNotice"));
+    });
+   if(outcome==="busy")ownsRequest=false;
+  }catch{
+   if(privateExport.current.isCurrent(intent))setError(t("settings.exportFailed"));
+  }finally{
+   if(ownsRequest){
+    if(privateExport.current.isCurrent(intent))setBusy(false);
+   }
+  }
  }
  async function deleteRequest(){
   setBusy(true);setError("");setNotice("");
@@ -264,11 +283,16 @@ export default function Settings(){
  <Text style={S.bodyText}>{t("settings.exportScope")}</Text>
  <Text style={S.muted}>{t("settings.exportSecurity")}</Text>
  <Field label={t("settings.exportPasswordLabel")} value={exportPassword} onChange={setExportPassword} secure/>
- <Action label={t("settings.export")} secondary icon="download-outline" disabled={busy||!exportPassword}
- onPress={()=>Alert.alert(t("settings.exportConfirmTitle"),t("settings.exportConfirmBody"),[
+ <Action label={t("settings.export")} secondary icon="download-outline" disabled={busy||!exportPassword||contextChanging||exportScope===null}
+ onPress={()=>{
+  const intent=privateExport.current.capture();
+  if(intent===null||!context.data||!user?.isVerified)return;
+  const expected={organizationId:context.data.selectedOrganizationId,email:user.email};
+  Alert.alert(t("settings.exportConfirmTitle"),t("settings.exportConfirmBody"),[
   {text:t("settings.cancel"),style:"cancel"},
-  {text:t("settings.export"),onPress:()=>void exportData()}
- ])}/>
+  {text:t("settings.export"),onPress:()=>void exportData(intent,expected)}
+  ]);
+ }}/>
  {result.data.deletion?<Text style={S.muted}>{t("settings.requestStatus")}: {result.data.deletion.status}</Text>:null}
  <Action label={t("settings.requestReview")} secondary icon="account-remove-outline" disabled={busy}
  onPress={()=>Alert.alert(t("settings.requestConfirmTitle"),t("settings.requestConfirmBody"),[

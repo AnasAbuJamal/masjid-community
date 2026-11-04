@@ -33,6 +33,8 @@ jobs:
       MFA_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       STRIPE_SECRET_KEY: sk_test_ci_synthetic_no_network
       STRIPE_WEBHOOK_SECRET: whsec_ci_synthetic_no_network
+      SILA_RECURRING_GIVING_ENABLED: "true"
+      SILA_RECURRING_CI_CAPTURE: "test-only" # exact CI database + dummy key, never real provider
       # Synthetic confidentiality policy in disposable CI only. Real care
       # intake is disabled by default in all other environments.
       SILA_CARE_INTAKE_ENABLED: "true"
@@ -157,6 +159,11 @@ jobs:
           node scripts/test-delivery.mjs
           node scripts/test-operations.mjs
           node scripts/test-support-cases.mjs
+          node scripts/test-recurring-giving.mjs
+          # This suite retains a synthetic secondary organization because its
+          # sealed export audit is append-only. Run after single-mosque payout
+          # fixtures; never weaken payout tenant mapping or delete audit chains.
+          node scripts/test-selected-privacy-export.mjs
 
       # Evidence-only screenshots of published guest pages. Uses the same
       # disposable PostgreSQL service as the smoke suite; no live data.
@@ -218,4 +225,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - run: npm install --no-audit --no-fund
       - run: npm test
