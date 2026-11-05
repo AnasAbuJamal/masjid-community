@@ -53,6 +53,34 @@ export async function revokeCapturedBearer(saved:string|null):Promise<boolean>{
  }catch{return false;}
 }
 
+
+// Bound calendar downloads *while streaming*, before an untrusted server
+// can buffer an arbitrarily large private export in native memory.
+// UTF-8 is decoded strictly and the limit is measured in bytes, not UTF-16.
+export async function readBoundedCalendar(response:Response,maxBytes:number):Promise<string>{
+ if(!response.body)throw new Error("Calendar export has no response body.");
+ const reader=response.body.getReader();
+ const decoder=new TextDecoder("utf-8",{fatal:true});
+ let bytes=0,content="";
+ try{
+  while(true){
+   const {done,value}=await reader.read();
+   if(done)break;
+   bytes+=value.byteLength;
+   if(bytes>maxBytes)throw new Error("The calendar entry is malformed or too large.");
+   content+=decoder.decode(value,{stream:true});
+  }
+  content+=decoder.decode();
+  return content;
+ }catch(error){
+  if(error instanceof TypeError)throw new Error("The calendar entry is not valid UTF-8.");
+  throw error;
+ }finally{
+  if(bytes>maxBytes)await reader.cancel().catch(()=>{});
+  reader.releaseLock();
+ }
+}
+
 // Download membership-scoped iCalendar text without a token in a URL.
 // Refuse a response if the account/mosque changed during the request.
 export async function apiCalendar(path:string):Promise<string>{
@@ -74,9 +102,9 @@ export async function apiCalendar(path:string):Promise<string>{
  }
  if(!response.headers.get("content-type")?.startsWith("text/calendar"))
   throw new Error("The server returned an unexpected calendar format.");
- const content=await response.text();
+ const content=await readBoundedCalendar(response,65536);
  check(revision);
- if(!content.startsWith("BEGIN:VCALENDAR")||content.length>65536)
+ if(!content.startsWith("BEGIN:VCALENDAR"))
   throw new Error("The calendar entry is malformed or too large.");
  return content;
 }
