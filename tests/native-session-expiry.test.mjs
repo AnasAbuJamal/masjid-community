@@ -2,6 +2,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {createSessionExpiryGuard} from "../masjid-mobile/src/session-expiry.ts";
+import {readBoundedCalendar} from "../masjid-mobile/src/calendar-stream.ts";
 function deferred(){let resolve;const promise=new Promise(r=>{resolve=r});return {resolve,promise};}
 function harness(){
  let version=4,clears=0;
@@ -69,4 +70,38 @@ test("both native transports and guest screen receive session expiry handling",(
  assert.ok(screen.includes('accessibilityRole="alert"'));
  assert.ok(screen.includes('t("profile.sessionExpired")'));
  assert.ok(i18n.includes('"profile.sessionExpired":{en:'));
+});
+
+test("calendar export streams exact byte limit without unbounded buffering",async()=>{
+ const body="BEGIN:VCALENDAR\\nEND:VCALENDAR";
+ const response=new Response(new ReadableStream({start(c){
+  c.enqueue(new TextEncoder().encode(body.slice(0,10)));
+  c.enqueue(new TextEncoder().encode(body.slice(10)));
+  c.close();
+ }}));
+ assert.equal(await readBoundedCalendar(response,new TextEncoder().encode(body).length),body);
+});
+test("oversized calendar export is cancelled before reading the rest",async()=>{
+ let cancelled=false,reads=0;
+ const response=new Response(new ReadableStream({
+  pull(c){reads++;c.enqueue(new Uint8Array(100));},
+  cancel(){cancelled=true;}
+ }));
+ await assert.rejects(readBoundedCalendar(response,64),/too large/);
+ assert.equal(cancelled,true);
+ assert.ok(reads<=2,"reader must not drain the oversized response");
+});
+test("calendar stream rejects malformed UTF-8 including split sequences",async()=>{
+ const response=new Response(new ReadableStream({start(c){
+  c.enqueue(new Uint8Array([0x42,0xc3]));
+  c.enqueue(new Uint8Array([0x28]));
+  c.close();
+ }}));
+ await assert.rejects(readBoundedCalendar(response,64),/valid UTF-8/);
+});
+test("native calendar transport uses bounded streaming and generation recheck",()=>{
+ const api=readFileSync("masjid-mobile/src/api.ts","utf8");
+ assert.ok(api.includes("await readBoundedCalendar(response,65536)"));
+ assert.ok(api.includes('import {readBoundedCalendar} from "./calendar-stream"'));
+ assert.ok(!api.includes("await response.text()"));
 });
