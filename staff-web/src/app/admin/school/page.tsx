@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 type User={id:string;firstName:string;lastName:string;role:string;email:string;verifiedAt:string|null};
 type Student={id:string;studentNumber:string;firstName:string;lastName:string;enrollments:{classSection:{name:string}}[]};
 type Program={id:string;title:string;classes:{id:string;name:string;schedule:string;enrollments:{id:string}[]}[]};
@@ -10,11 +10,43 @@ const titles:Record<Kind,string>={class:"Create class",student:"Register student
 export default function SchoolAdmin(){
  const [data,setData]=useState<Data|null>(null),[kind,setKind]=useState<Kind>("class"),[form,setForm]=useState<Record<string,string>>({}),[notice,setNotice]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  const [guardianConfirmed,setGuardianConfirmed]=useState(false);
+ // School rosters and guardian identities are private. Invalidate the previous
+ // response before every authorization refresh and when leaving this screen.
+ const requestVersion=useRef(0);
+ const activeRequest=useRef<AbortController|null>(null);
+ const mounted=useRef(false);
  const refresh=useCallback(async()=>{
-  try{const res=await fetch("/api/v1/admin/school",{cache:"no-store"});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Access denied.");setData(json.data);setError("");}
-  catch(e){setError(e instanceof Error?e.message:"Unable to load school data.");}
+  const version=++requestVersion.current;
+  activeRequest.current?.abort();
+  const controller=new AbortController();
+  activeRequest.current=controller;
+  setData(null);
+  setNotice("");
+  setError("");
+  try{
+   const res=await fetch("/api/v1/admin/school",{cache:"no-store",signal:controller.signal});
+   const json=await res.json();
+   if(!mounted.current||controller.signal.aborted||version!==requestVersion.current)return;
+   if(!res.ok)throw new Error(json.error?.message||"Access denied.");
+   setData(json.data);
+  }catch(e){
+   if(!mounted.current||controller.signal.aborted||version!==requestVersion.current)return;
+   setData(null);
+   setError(e instanceof Error?e.message:"Unable to load school data.");
+  }finally{
+   if(activeRequest.current===controller)activeRequest.current=null;
+  }
  },[]);
- useEffect(()=>{void refresh()},[refresh]);
+ useEffect(()=>{
+  mounted.current=true;
+  void refresh();
+  return ()=>{
+   mounted.current=false;
+   ++requestVersion.current;
+   activeRequest.current?.abort();
+   activeRequest.current=null;
+  };
+ },[refresh]);
  const field=(key:string,label:string,options?:{id:string;title:string}[],type="text")=><div key={key} className="field"><label htmlFor={key}>{label}</label>{options?<select id={key} value={form[key]||""} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))}><option value="">Select…</option>{options.map(x=><option key={x.id} value={x.id}>{x.title}</option>)}</select>:<input id={key} type={type} value={form[key]||""} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))}/>}</div>;
  const classes=data?.programs.flatMap(p=>p.classes.map(c=>({id:c.id,title:p.title+" / "+c.name})))||[];
  const users=data?.users.map(u=>({id:u.id,title:u.firstName+" "+u.lastName+" · "+u.role}))||[];
