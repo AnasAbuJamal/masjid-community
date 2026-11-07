@@ -12,9 +12,9 @@ const withdrawalReasons:{value:WithdrawalReason;label:string}[]=[
  {value:"privacy-concern",label:"Child privacy concern"},
  {value:"safeguarding-review",label:"Safeguarding concern"}
 ];
-async function reportPage<T>(status:ReviewStatus,cursor?:string):Promise<ReportPage<T>>{
+async function reportPage<T>(status:ReviewStatus,cursor?:string,signal?:AbortSignal):Promise<ReportPage<T>>{
  const qs=new URLSearchParams({status,...(cursor?{cursor}:{})});
- const r=await fetch("/api/v1/admin/school-reports?"+qs.toString(),{cache:"no-store"});
+ const r=await fetch("/api/v1/admin/school-reports?"+qs.toString(),{cache:"no-store",signal});
  const value=await r.json();
  if(!r.ok)throw new Error(value.error?.message||"The private report archive could not be loaded.");
  const result=value.data as ReportPage<T>;
@@ -31,10 +31,14 @@ export default function Schoolwork(){
  // Invalidate older private report pages whenever a new authorization read
  // begins. A late page must not repopulate records after a failed refresh.
  const reviewEpoch=useRef(0);
+ const reviewController=useRef<AbortController|null>(null);
  const [withdrawalSelection,setWithdrawalSelection]=useState<Record<string,WithdrawalReason|"" >>({});
  const [title,setTitle]=useState(""),[instructions,setInstructions]=useState(""),[dueAt,setDueAt]=useState(""),[published,setPublished]=useState(false);
  const refresh=useCallback(async()=>{
   const epoch=++reviewEpoch.current;
+  reviewController.current?.abort();
+  const controller=new AbortController();
+  reviewController.current=controller;
   // Hide previously authorized child records before any new access check.
   setClasses([]);setOrganization(null);
   setPendingReports([]);setPublishedReports([]);
@@ -42,7 +46,7 @@ export default function Schoolwork(){
   setPendingCursor(null);setPublishedCursor(null);
   setPageLoading(null);
   try{
-   const res=await fetch("/api/v1/schoolwork",{cache:"no-store"});
+   const res=await fetch("/api/v1/schoolwork",{cache:"no-store",signal:controller.signal});
    const j=await res.json();
    if(!res.ok)throw new Error(j.error?.message||"Teacher access required.");
    if(j.data.mode!=="teacher"||!j.data.organization?.timeZone)
@@ -50,16 +54,16 @@ export default function Schoolwork(){
    // The main teaching response is limited for backwards compatibility.
    // Staff use the separate MFA-gated history endpoint for every private page.
    const [pending,published]=j.data.canReviewReports?await Promise.all([
-    reportPage<ReviewItem>("draft"),reportPage<PublishedItem>("published")
+    reportPage<ReviewItem>("draft",undefined,controller.signal),reportPage<PublishedItem>("published",undefined,controller.signal)
    ]):[null,null];
-   if(epoch!==reviewEpoch.current)return;
+   if(epoch!==reviewEpoch.current||controller.signal.aborted)return;
    setClasses(j.data.classes);setOrganization(j.data.organization);
    setPendingReports(pending?.items||[]);setPublishedReports(published?.items||[]);
    setPendingComplete(pending?.complete??true);setPublishedComplete(published?.complete??true);
    setPendingCursor(pending?.nextCursor??null);setPublishedCursor(published?.nextCursor??null);
    setWithdrawalSelection({});setError("");
   }catch(e){
-   if(epoch!==reviewEpoch.current)return;
+   if(epoch!==reviewEpoch.current||controller.signal.aborted)return;
    setClasses([]);setOrganization(null);
    setPendingReports([]);setPublishedReports([]);
    setPendingComplete(true);setPublishedComplete(true);
@@ -69,7 +73,7 @@ export default function Schoolwork(){
  },[]);
  useEffect(()=>{
   void refresh();
-  return ()=>{reviewEpoch.current++};
+  return ()=>{reviewEpoch.current++;reviewController.current?.abort();reviewController.current=null};
  },[refresh]);
  const chosen=classes.find(c=>c.id===classId);
  async function loadMore(status:ReviewStatus){
@@ -77,23 +81,25 @@ export default function Schoolwork(){
   const cursor=status==="draft"?pendingCursor:publishedCursor;
   if(!cursor)return;
   const epoch=reviewEpoch.current;
+  const controller=reviewController.current;
+  if(!controller||controller.signal.aborted)return;
   setPageLoading(status);setError("");
   try{
    if(status==="draft"){
-    const page=await reportPage<ReviewItem>("draft",cursor);
-    if(epoch!==reviewEpoch.current)return;
+    const page=await reportPage<ReviewItem>("draft",cursor,controller.signal);
+    if(epoch!==reviewEpoch.current||controller.signal.aborted)return;
     setPendingReports(current=>[...current,...page.items.filter(x=>!current.some(y=>y.id===x.id))]);
     setPendingComplete(page.complete);setPendingCursor(page.nextCursor);
    }else{
-    const page=await reportPage<PublishedItem>("published",cursor);
-    if(epoch!==reviewEpoch.current)return;
+    const page=await reportPage<PublishedItem>("published",cursor,controller.signal);
+    if(epoch!==reviewEpoch.current||controller.signal.aborted)return;
     setPublishedReports(current=>[...current,...page.items.filter(x=>!current.some(y=>y.id===x.id))]);
     setPublishedComplete(page.complete);setPublishedCursor(page.nextCursor);
    }
   }catch(e){
-   if(epoch===reviewEpoch.current)
+   if(epoch===reviewEpoch.current&&!controller.signal.aborted)
     setError(e instanceof Error?e.message:"Unable to read older private reports. Refresh and retry.");
-  }finally{if(epoch===reviewEpoch.current)setPageLoading(null);}
+  }finally{if(epoch===reviewEpoch.current&&!controller.signal.aborted)setPageLoading(null);}
  }
  async function reviewReport(item:ReviewItem,action:"publish-report"|"reject-report"){
   if(busy||item.selfAuthored)return;
