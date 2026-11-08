@@ -27,8 +27,8 @@ test("teacher form saves private drafts and admin has a distinct review queue",(
  assert.ok(ui.includes('pendingReports.map'));
  assert.ok(ui.includes('item.selfAuthored'));
  assert.ok(ui.includes('window.confirm('));
- assert.ok(ui.includes('reportPage<ReviewItem>("draft")'));
- assert.ok(ui.includes('reportPage<PublishedItem>("published")'));
+ assert.ok(ui.includes('reportPage<ReviewItem>("draft",undefined,controller.signal)'));
+ assert.ok(ui.includes('reportPage<PublishedItem>("published",undefined,controller.signal)'));
  assert.ok(ui.includes('reviewReport(item,"publish-report")'));
  assert.ok(ui.includes('reviewReport(item,"reject-report")'));
  assert.ok(read(".github/workflows/verify.yml").includes("test-school-report-review.mjs"));
@@ -93,7 +93,7 @@ test("admin-only report archive supports complete scoped cursor pages",()=>{
  for(const token of [
   'loadMore("draft")','loadMore("published")',
   'pendingComplete','publishedComplete','pendingCursor','publishedCursor',
-  'reportPage<ReviewItem>("draft")','reportPage<PublishedItem>("published")'
+  'reportPage<ReviewItem>("draft",undefined,controller.signal)','reportPage<PublishedItem>("published",undefined,controller.signal)'
  ])assert.ok(ui.includes(token),"Missing complete child history UI: "+token);
  assert.ok(!ui.includes('window.prompt('),
   "withdrawal controls must never rely on inaccessible free-text prompts");
