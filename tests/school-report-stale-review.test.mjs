@@ -10,8 +10,8 @@ test("school report history invalidates stale private responses",()=>{
  assert.match(src,/const epoch=\+\+reviewEpoch\.current;[\s\S]*?setPageLoading\(null\)/);
  assert.match(src,/return \(\)=>\{reviewEpoch\.current\+\+;reviewController\.current\?\.abort\(\);reviewController\.current=null\}/);
  const refresh=src.slice(src.indexOf(" const refresh=useCallback"),src.indexOf(" const chosen="));
- assert.match(refresh,/if\(epoch!==reviewEpoch\.current\)return;\s*setClasses\(/);
- assert.match(refresh,/catch\(e\)\{\s*if\(epoch!==reviewEpoch\.current\)return;\s*setClasses\(\[\]\)/);
+ assert.match(refresh,/if\(epoch!==reviewEpoch\.current\|\|controller\.signal\.aborted\)return;\s*setClasses\(/);
+ assert.match(refresh,/catch\(e\)\{\s*if\(epoch!==reviewEpoch\.current\|\|controller\.signal\.aborted\)return;\s*setClasses\(\[\]\)/);
  const load=src.slice(src.indexOf(" async function loadMore("),src.indexOf(" async function reviewReport("));
  assert.equal(load.match(/if\(epoch!==reviewEpoch\.current\|\|controller\.signal\.aborted\)return;/g)?.length,2);
  assert.match(load,/if\(epoch===reviewEpoch\.current&&!controller\.signal\.aborted\)\s*setError\(/);
