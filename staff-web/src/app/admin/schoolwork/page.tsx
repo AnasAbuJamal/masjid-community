@@ -12,7 +12,7 @@ const withdrawalReasons:{value:WithdrawalReason;label:string}[]=[
  {value:"privacy-concern",label:"Child privacy concern"},
  {value:"safeguarding-review",label:"Safeguarding concern"}
 ];
-async function reportPage<T>(status:ReviewStatus,cursor?:string,signal?:AbortSignal):Promise<ReportPage<T>>{
+async function reportPage<T extends {id:string;summary:string;student:unknown;classSection:unknown}>(status:ReviewStatus,cursor?:string,signal?:AbortSignal):Promise<ReportPage<T>>{
  const qs=new URLSearchParams({status,...(cursor?{cursor}:{})});
  const r=await fetch("/api/v1/admin/school-reports?"+qs.toString(),{cache:"no-store",signal});
  const value=await r.json();
