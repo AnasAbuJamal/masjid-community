@@ -18,7 +18,15 @@ async function reportPage<T>(status:ReviewStatus,cursor?:string,signal?:AbortSig
  const value=await r.json();
  if(!r.ok)throw new Error(value.error?.message||"The private report archive could not be loaded.");
  const result=value.data as ReportPage<T>;
- if(result.status!==status||!Array.isArray(result.items))
+ // Reject malformed pagination metadata before rendering any child record.
+ // A partial page without a usable cursor would silently hide older reports.
+ if(result.status!==status||!Array.isArray(result.items)||
+    result.items.length>50||result.pageSize!==50||
+    typeof result.complete!=="boolean"||
+    (result.complete?result.nextCursor!==null:
+     typeof result.nextCursor!=="string"||!/^[-_A-Za-z0-9]{8,128}$/.test(result.nextCursor))||
+    result.items.some(item=>!item||typeof item.id!=="string"||
+     typeof item.summary!=="string"||!item.student||!item.classSection))
   throw new Error("Unexpected private report archive response.");
  return result;
 }
