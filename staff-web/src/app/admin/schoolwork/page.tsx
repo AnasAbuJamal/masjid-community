@@ -26,7 +26,20 @@ async function reportPage<T extends {id:string;summary:string;student:unknown;cl
     (result.complete?result.nextCursor!==null:
      typeof result.nextCursor!=="string"||!/^[-_A-Za-z0-9]{8,128}$/.test(result.nextCursor))||
     result.items.some(item=>!item||typeof item.id!=="string"||
-     typeof item.summary!=="string"||!item.student||!item.classSection))
+     !/^[-_A-Za-z0-9]{8,128}$/.test(item.id)||
+     typeof item.summary!=="string"||
+     !item.student||typeof item.student!=="object"||
+     typeof (item.student as {firstName?:unknown}).firstName!=="string"||
+     typeof (item.student as {lastName?:unknown}).lastName!=="string"||
+     !item.classSection||typeof item.classSection!=="object"||
+     typeof (item.classSection as {id?:unknown}).id!=="string"||
+     typeof (item.classSection as {name?:unknown}).name!=="string"||
+     typeof (item as {selfAuthored?:unknown}).selfAuthored!=="boolean"||
+     typeof (item as {teacher?:{firstName?:unknown;lastName?:unknown}}).teacher?.firstName!=="string"||
+     typeof (item as {teacher?:{firstName?:unknown;lastName?:unknown}}).teacher?.lastName!=="string"||
+     (status==="draft"?typeof (item as {createdAt?:unknown}).createdAt!=="string":
+      !("publishedAt" in item)||
+      ((item as {publishedAt?:unknown}).publishedAt!==null&&typeof (item as {publishedAt?:unknown}).publishedAt!=="string"))))
   throw new Error("Unexpected private report archive response.");
  return result;
 }
