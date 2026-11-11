@@ -103,3 +103,21 @@ test("admin-only report archive supports complete scoped cursor pages",()=>{
   'new Set(collected.map(x=>x.id)).size'])
   assert.ok(ci.includes(token),"Missing disposable-DB history proof: "+token);
 });
+
+test("private report archive rejects malformed nested child and reviewer records",()=>{
+ const ui=read("staff-web/src/app/admin/schoolwork/page.tsx");
+ const guard=ui.slice(ui.indexOf("async function reportPage<"),ui.indexOf("export default function Schoolwork"));
+ for(const token of [
+  'typeof item.student!=="object"',
+  'firstName!=="string"',
+  'lastName!=="string"',
+  'typeof item.classSection!=="object"',
+  'name!=="string"',
+  'selfAuthored!=="boolean"',
+  'teacher?.firstName',
+  'teacher?.lastName',
+  'createdAt?:unknown',
+  'publishedAt?:unknown',
+  '/^[-_A-Za-z0-9]{8,128}$/.test(item.id)'
+ ])assert.ok(guard.includes(token),"Missing private archive response validation: "+token);
+});
