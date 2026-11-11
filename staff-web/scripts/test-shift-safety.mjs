@@ -124,7 +124,7 @@ try{
    "student volunteer applications cannot be submitted from an old eligible session");
   assert.equal(studentApplication.error.code,"VOLUNTEER_INELIGIBLE");
   const studentApproval=await request("admin","POST",{
-   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved"
+   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved",reason:"Synthetic coordinator eligibility review completed"
   },adminToken);
   assert.equal(studentApproval.status,409,
    "submitted application cannot override current student role at approval");
@@ -147,7 +147,7 @@ try{
  try{
   await db.volunteerOpportunity.update({where:{id:reviewOpp.id},data:{published:false}});
   const unpublishedApproval=await request("admin","POST",{
-   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved"
+   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved",reason:"Synthetic coordinator eligibility review completed"
   },adminToken);
   assert.equal(unpublishedApproval.status,409,
    "unpublished volunteer opportunities cannot receive fresh application approval");
@@ -160,8 +160,16 @@ try{
  }finally{
   await db.volunteerOpportunity.update({where:{id:reviewOpp.id},data:{published:true}});
  }
- const positiveApproval=await request("admin","POST",{
+ const missingDecisionReason=await request("admin","POST",{
   kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved"
+ },adminToken);
+ assert.equal(missingDecisionReason.status,422,"review decisions require an actual explanation");
+ const excessiveDecisionReason=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:reviewApp.id,decision:"declined",reason:"x".repeat(1001)
+ },adminToken);
+ assert.equal(excessiveDecisionReason.status,422,"decision explanation is bounded");
+ const positiveApproval=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:reviewApp.id,decision:"approved",reason:"Synthetic coordinator eligibility review completed"
  },adminToken);
  assert.equal(positiveApproval.status,201,
   "reviewer may approve an eligible adult's local application");
@@ -173,6 +181,70 @@ try{
  })).filled,1,"successful approval claims one volunteer slot");
  assert.equal(await db.volunteerShift.count({where:{opportunityId:localOpp.id}}),0,
   "denied eligibility and unpublished-opportunity attempts created no shift");
+ const reviewed=await db.volunteerApplication.findUniqueOrThrow({where:{id:reviewApp.id}});
+ assert.equal(reviewed.decisionReason,"Synthetic coordinator eligibility review completed");
+ assert.equal(reviewed.reviewedById,admin.id);
+ assert.ok(reviewed.reviewedAt);
+ const decisionAudit=await db.auditEvent.findFirstOrThrow({where:{entityId:reviewApp.id,action:"admin.volunteer-decision"}});
+ assert.equal(JSON.parse(decisionAudit.detail).reason,reviewed.decisionReason);
+ const ownHistory=await request("me","GET",null,memberToken);
+ assert.equal(ownHistory.data.volunteerApplications.find(a=>a.id===reviewApp.id).decisionReason,reviewed.decisionReason);
+ const repeatDecision=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:reviewApp.id,decision:"declined",reason:"Synthetic duplicate review must fail"
+ },adminToken);
+ assert.equal(repeatDecision.status,409);
+ assert.equal((await db.volunteerOpportunity.findUniqueOrThrow({where:{id:reviewOpp.id}})).filled,1);
+ const declineOpportunity=await db.volunteerOpportunity.create({data:{
+  organizationId:org.id,title:"Synthetic declined service",description:"Synthetic review decision fixture",
+  startsAt:new Date(now+15*hour),capacity:1,published:true
+ }});
+ opportunities.push(declineOpportunity.id);
+ const pendingDecline=await db.volunteerApplication.create({data:{opportunityId:declineOpportunity.id,userId:member.id}});
+ const declineReason="Synthetic coordinator confirmed unsuitable service availability";
+ const declineDecision=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:pendingDecline.id,decision:"declined",reason:declineReason
+ },adminToken);
+ assert.equal(declineDecision.status,201);
+ const persistedDecline=await db.volunteerApplication.findUniqueOrThrow({where:{id:pendingDecline.id}});
+ assert.equal(persistedDecline.status,"declined");
+ assert.equal(persistedDecline.decisionReason,declineReason);
+ assert.equal(persistedDecline.reviewedById,admin.id);
+ assert.ok(persistedDecline.reviewedAt);
+ assert.equal((await db.volunteerOpportunity.findUniqueOrThrow({where:{id:declineOpportunity.id}})).filled,0,"declining an application never reserves capacity");
+ const declinedPage=await request("admin?applicationsStatus=declined&applicationsOpportunity="+declineOpportunity.id,"GET",null,adminToken);
+ assert.equal(declinedPage.status,200);
+ assert.deepEqual(declinedPage.data.applications.map(a=>a.id),[pendingDecline.id]);
+ // Small pages must traverse the complete scoped result without duplicates;
+ // cursor scope, query filters and purpose cannot be changed by callers.
+ const queuePath="admin?applicationsLimit=1&applicationsStatus=all";
+ const queueIds=[];
+ let queueCursor=null;
+ do{
+  const page=await request(queuePath+(queueCursor?"&applicationsCursor="+encodeURIComponent(queueCursor):""),"GET",null,adminToken);
+  assert.equal(page.status,200);
+  assert.ok(page.data.applications.length<=1);
+  queueIds.push(...page.data.applications.map(a=>a.id));
+  queueCursor=page.data.applicationPage.nextCursor;
+  if(queueIds.length>200)throw Error("Review queue did not terminate");
+ }while(queueCursor);
+ assert.equal(new Set(queueIds).size,queueIds.length);
+ assert.ok(queueIds.includes(localApp.id)&&queueIds.includes(reviewApp.id));
+ assert.ok(!queueIds.includes(foreignApp.id),"foreign review application must stay private");
+ assert.equal(queueIds.length,await db.volunteerApplication.count({where:{opportunity:{organizationId:org.id}}}));
+ const firstPage=await request(queuePath,"GET",null,adminToken);
+ assert.ok(firstPage.data.applicationPage.nextCursor);
+ const scopeMismatch=await request("admin?applicationsStatus=submitted&applicationsCursor="+encodeURIComponent(firstPage.data.applicationPage.nextCursor),"GET",null,adminToken);
+ assert.equal(scopeMismatch.status,422);
+ const forged=Buffer.from(JSON.stringify({purpose:"volunteer-review-v1",organizationId:org.id,status:"all",opportunity:null,id:foreignApp.id})).toString("base64url");
+ assert.equal((await request("admin?applicationsCursor="+forged,"GET",null,adminToken)).status,422,"foreign legacy IDs cannot anchor a local queue");
+ const wrongPurpose=Buffer.from(JSON.stringify({purpose:"gathering-list",organizationId:org.id,status:"all",opportunity:null,id:localApp.id})).toString("base64url");
+ assert.equal((await request("admin?applicationsCursor="+wrongPurpose,"GET",null,adminToken)).status,422);
+ assert.equal((await request("admin?applicationsLimit=51","GET",null,adminToken)).status,422);
+ const declinedReview=await request("admin","POST",{
+  kind:"volunteer-decision",applicationId:localApp.id,decision:"declined",reason:"Synthetic already decided approval must stay unchanged"
+ },adminToken);
+ assert.equal(declinedReview.status,409);
+
 
  const list=await request("admin/shifts","GET",null,adminToken);
  assert.equal(list.status,200);

@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-type Data={organization:{name:string}|null;role:"admin"|"staff";counts:Record<string,number>;construction:{id:string;title:string;status:string}[];venues:{id:string;name:string;timeZone:string}[];prayers:{id:string;localDate:string;fajr:string;dhuhr:string;asr:string;maghrib:string;isha:string;published:boolean}[];announcements:{id:string;title:string;status:string}[];events:{id:string;title:string;status:string;startAt:string}[];applications:{id:string;status:string;opportunity:{title:string};user:{firstName:string;lastName:string}}[]};
+import { useCallback, useEffect, useRef, useState } from "react";
+type Data={applicationPage:{nextCursor:string|null;limit:number;status:string};organization:{name:string}|null;role:"admin"|"staff";counts:Record<string,number>;construction:{id:string;title:string;status:string}[];venues:{id:string;name:string;timeZone:string}[];prayers:{id:string;localDate:string;fajr:string;dhuhr:string;asr:string;maghrib:string;isha:string;published:boolean}[];announcements:{id:string;title:string;status:string}[];events:{id:string;title:string;status:string;startAt:string}[];applications:{id:string;status:string;decisionReason:string|null;reviewedAt:string|null;reviewedById:string|null;opportunity:{title:string};user:{firstName:string;lastName:string}}[]};
 type Kind="announcement"|"event"|"program"|"campaign"|"volunteer"|"job"|"proposal"|"rental"|"article"|"construction"|"milestone";
 const fields:Record<Kind,{key:string;label:string;type?:string}[]>={
  announcement:[{key:"title",label:"Headline"},{key:"body",label:"Announcement",type:"textarea"}],
@@ -30,11 +30,28 @@ export default function Admin(){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [kind,setKind]=useState<Kind>("announcement"),[form,setForm]=useState<Record<string,string>>({}),[published,setPublished]=useState(false),[waitlistEnabled,setWaitlistEnabled]=useState(false),[busy,setBusy]=useState(false);
  const [accessibilityFeatures,setAccessibilityFeatures]=useState<string[]>([]);
+ const [reviewStatus,setReviewStatus]=useState("all"),[reviewReasons,setReviewReasons]=useState<Record<string,string>>({});
+ const refreshEpoch=useRef(0),selectedReviewStatus=useRef("all");
+ const [reviewLoading,setReviewLoading]=useState(false);
  const reload=useCallback(async()=>{
-  try{const res=await fetch("/api/v1/admin",{cache:"no-store"});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Admin access required.");setData(json.data);setError("");}
-  catch(e){setError(e instanceof Error?e.message:"Unable to connect.");}
+  const epoch=++refreshEpoch.current,status=selectedReviewStatus.current;
+  const current=()=>refreshEpoch.current===epoch&&selectedReviewStatus.current===status;
+  setReviewLoading(true);setError("");
+  setData(old=>old?{...old,applications:[],applicationPage:{...old.applicationPage,status,nextCursor:null}}:old);
+  try{const res=await fetch("/api/v1/admin?applicationsStatus="+status,{cache:"no-store"});const json=await res.json();
+   if(!current())return;
+   if(!res.ok)throw new Error(json.error?.message||"Admin access required / يلزم تصريح الإدارة");
+   if(json.data.applicationPage.status!==status)throw new Error("Review filter mismatch / عدم تطابق تصفية المراجعة");
+   setData(json.data);setError("");
+  }catch(e){if(current())setError(e instanceof Error?e.message:"Unable to connect / تعذر الاتصال");}
+  finally{if(current())setReviewLoading(false);}
  },[]);
- useEffect(()=>{void reload()},[reload]);
+ useEffect(()=>{void reload();return ()=>{refreshEpoch.current++;};},[reload]);
+ function changeReviewStatus(status:string){
+  selectedReviewStatus.current=status;
+  setReviewStatus(status);setReviewReasons({});
+  void reload();
+ }
  const set=(key:string,value:string)=>setForm(old=>({...old,[key]:value}));
  async function submit(){
   if(!data||busy||data.role!=="admin")return;
@@ -50,10 +67,25 @@ export default function Admin(){
   finally{setBusy(false);}
  }
  async function decide(applicationId:string,decision:"approved"|"declined"){
+  const reason=(reviewReasons[applicationId]||"").trim();
+  if(busy||reviewLoading||data?.applicationPage.status!==selectedReviewStatus.current||!data.applications.some(a=>a.id===applicationId&&a.status==="submitted")||reason.length<5||reason.length>1000)return;
   setBusy(true);setError("");
-  try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"volunteer-decision",applicationId,decision})});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Decision failed.");setNotice("Application "+decision+".");await reload();}
+  try{const res=await fetch("/api/v1/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"volunteer-decision",applicationId,decision,reason})});const json=await res.json();if(!res.ok)throw new Error(json.error?.message||"Decision failed.");setNotice("Decision saved / تم حفظ القرار.");await reload();}
   catch(e){setError(e instanceof Error?e.message:"Request failed.");}
   finally{setBusy(false);}
+ }
+ async function moreApplications(){
+  if(!data?.applicationPage.nextCursor||busy||reviewLoading||data.applicationPage.status!==selectedReviewStatus.current)return;
+  const epoch=++refreshEpoch.current,status=selectedReviewStatus.current,cursor=data.applicationPage.nextCursor;
+  const current=()=>refreshEpoch.current===epoch&&selectedReviewStatus.current===status;
+  setReviewLoading(true);setError("");
+  try{const res=await fetch("/api/v1/admin?applicationsStatus="+status+"&applicationsCursor="+encodeURIComponent(cursor),{cache:"no-store"});
+   const json=await res.json();if(!current())return;
+   if(!res.ok)throw new Error(json.error?.message||"Unable to load / تعذر التحميل");
+   if(json.data.applicationPage.status!==status)throw new Error("Review filter mismatch / عدم تطابق تصفية المراجعة");
+   setData(old=>current()&&old?.applicationPage.status===status?{...old,applications:[...old.applications,...json.data.applications.filter((a:Data["applications"][number])=>!old.applications.some(x=>x.id===a.id))],applicationPage:json.data.applicationPage}:old);
+  }catch(e){if(current())setError(e instanceof Error?e.message:"Unable to load / تعذر التحميل");}
+  finally{if(current())setReviewLoading(false);}
  }
  async function logout(){await fetch("/api/v1/auth/logout",{method:"POST"});window.location.assign("/");}
  return <><header className="masthead"><div className="brand"><span className="mark">✧</span><span>Masjid Community · Control center</span></div><div className="actions"><a className="secondary" href="/admin/team">Team & permissions</a><a className="secondary" href="/admin/integrity-audit">Protected audit</a><a className="secondary" href="/admin/analytics">Private event analytics</a><a className="secondary" href="/admin/school">School</a><a className="secondary" href="/admin/schoolwork">Teaching</a><a className="secondary" href="/admin/invoices">Tuition</a><a className="secondary" href="/admin/finance">Verified giving</a><a className="secondary" href="/admin/finance/manage">Finance controls</a><a className="secondary" href="/admin/refunds">Refund requests</a><a className="secondary" href="/admin/operations">Facility requests</a><a className="secondary" href="/admin/support">Support desk</a><a className="secondary" href="/admin/volunteers">Volunteer shifts</a><a className="secondary" href="/admin/event-hosts">Gathering hosts</a><a className="secondary" href="/admin/circles">Manage circles</a><a className="secondary" href="/host/circles">Host circles</a><a className="secondary" href="/host/check-in">Host check-in</a><a className="secondary" href="/admin/jobs">Job applications</a><a className="secondary" href="/admin/worship">Worship calendar</a><a className="secondary" href="/admin/community">Community desk</a><a className="secondary" href="/admin/privacy">Privacy requests</a><a className="secondary" href="/kiosk">Public kiosk</a><button onClick={()=>void reload()} className="secondary">Refresh</button><button onClick={()=>void logout()} className="secondary">Sign out</button></div></header>
@@ -85,7 +117,14 @@ export default function Admin(){
     <div className="panel"><h2>Current operations</h2><p className="small">Schedules and review queues are sourced from your database.</p>
      <h3>Salah schedules</h3>{data.prayers.length?data.prayers.slice(0,6).map(p=><p className="small" key={p.id}>{p.localDate} · Fajr {p.fajr} · {p.published?"Published":"Draft"}</p>):<p className="small">No prayer schedules entered yet.</p>}
      <h3>Announcements</h3>{data.announcements.length?data.announcements.slice(0,6).map(p=><p className="small" key={p.id}>{p.title} · {p.status}</p>):<p className="small">No announcements yet.</p>}
-     <h3>Volunteer review</h3>{data.applications.length?data.applications.slice(0,8).map(a=><div key={a.id} className="section"><strong>{a.user.firstName} {a.user.lastName}</strong><p className="small">{a.opportunity.title} · {a.status}</p>{a.status==="submitted"&&data.role==="admin"&&<div className="actions"><button className="secondary" disabled={busy} onClick={()=>void decide(a.id,"approved")}>Approve</button><button className="secondary" disabled={busy} onClick={()=>void decide(a.id,"declined")}>Decline</button></div>}</div>):<p className="small">No applications to review.</p>}
+     <h3>Volunteer review / مراجعة التطوع</h3>
+     <label>Status / الحالة<select value={reviewStatus} disabled={busy} onChange={e=>changeReviewStatus(e.target.value)}><option value="all">All / الكل</option><option value="submitted">Awaiting review / بانتظار المراجعة</option><option value="approved">Approved / مقبول</option><option value="declined">Declined / مرفوض</option><option value="withdrawn">Withdrawn / مسحوب</option></select></label>
+     {data.applications.length?data.applications.map(a=><div key={a.id} className="section"><strong>{a.user.firstName} {a.user.lastName}</strong><p className="small">{a.opportunity.title} · {a.status==="approved"?"Approved / مقبول":a.status==="declined"?"Declined / مرفوض":a.status==="withdrawn"?"Withdrawn / مسحوب":"Awaiting review / بانتظار المراجعة"}</p>
+      {a.decisionReason&&<p className="small">Decision reason / سبب القرار: {a.decisionReason}</p>}
+      {a.reviewedAt&&<p className="small">Reviewed / تمت المراجعة: <time dateTime={a.reviewedAt}>{new Date(a.reviewedAt).toISOString()} UTC</time> · {a.reviewedById}</p>}
+      {a.status==="submitted"&&data.role==="admin"&&<><label>Decision reason (required, 5–1000 characters) / سبب القرار (مطلوب)<textarea minLength={5} maxLength={1000} required value={reviewReasons[a.id]||""} onChange={e=>setReviewReasons(old=>({...old,[a.id]:e.target.value}))}/></label><div className="actions"><button className="secondary" disabled={busy||reviewLoading||data.applicationPage.status!==reviewStatus||(reviewReasons[a.id]||"").trim().length<5} onClick={()=>void decide(a.id,"approved")}>Approve / قبول</button><button className="secondary" disabled={busy||reviewLoading||data.applicationPage.status!==reviewStatus||(reviewReasons[a.id]||"").trim().length<5} onClick={()=>void decide(a.id,"declined")}>Decline / رفض</button></div></>}
+     </div>):<p className="small">{reviewLoading?"Loading applications / جارٍ تحميل الطلبات":"No matching applications / لا توجد طلبات مطابقة."}</p>}
+     {data.applicationPage.nextCursor&&data.applicationPage.status===reviewStatus&&<button disabled={busy||reviewLoading} className="secondary" onClick={()=>void moreApplications()}>Load more applications / عرض المزيد من الطلبات</button>}
     </div>
    </section>
   </>}

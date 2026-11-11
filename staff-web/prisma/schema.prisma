@@ -145,6 +145,7 @@ model User {
   guardianLinks GuardianLink[]
   teacherAssignments TeacherAssignment[]
   donations Donation[]
+  recurringGifts RecurringGift[]
   votes ProposalVote[]
   jobApplications JobApplication[]
   bookings RentalBooking[]
@@ -547,6 +548,7 @@ model DonationCampaign {
   currency String @default("usd")
   published Boolean @default(false)
   donations Donation[]
+  recurringGifts RecurringGift[]
 }
 model Donation {
   id String @id @default(cuid())
@@ -562,6 +564,50 @@ model Donation {
   status PaymentStatus @default(pending)
   stripeSessionId String? @unique
   createdAt DateTime @default(now())
+  recurringInstallment RecurringInstallment?
+}
+enum RecurringGiftStatus {
+  pending
+  active
+  past_due
+  cancelled
+  failed
+  incomplete
+  paused
+}
+model RecurringGift {
+  id String @id @default(cuid())
+  donorId String
+  donor User @relation(fields:[donorId],references:[id],onDelete:Restrict)
+  campaignId String
+  campaign DonationCampaign @relation(fields:[campaignId],references:[id],onDelete:Restrict)
+  amountMinor Int
+  currency String @default("usd")
+  anonymous Boolean @default(false)
+  requestKey String
+  termsVersion String
+  consentedAt DateTime
+  status RecurringGiftStatus @default(pending)
+  stripeSessionId String? @unique
+  checkoutUrl String?
+  stripeSubscriptionId String? @unique
+  stripeCustomerId String?
+  providerEventCreated Int @default(0)
+  cancelRequestedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  installments RecurringInstallment[]
+  @@unique([donorId,requestKey])
+  @@index([donorId,createdAt,id])
+}
+model RecurringInstallment {
+  invoiceId String @id
+  giftId String
+  gift RecurringGift @relation(fields:[giftId],references:[id],onDelete:Restrict)
+  donationId String @unique
+  donation Donation @relation(fields:[donationId],references:[id],onDelete:Restrict)
+  createdAt DateTime @default(now())
+  @@index([giftId,createdAt,invoiceId])
 }
 enum ProviderPayoutState {
   pending
@@ -628,6 +674,9 @@ model VolunteerApplication {
   status ApplicationStatus @default(submitted)
   shifts VolunteerShift[]
   @@unique([opportunityId,userId])
+  decisionReason String?
+  reviewedAt DateTime?
+  reviewedById String?
 }
 model Proposal {
   id String @id @default(cuid())

@@ -1,10 +1,12 @@
 import React,{useState} from "react";
-import {Text,View} from "react-native";
+import {Text} from "react-native";
 import {router} from "expo-router";
 import {Action,Card,Field,Head,Shell} from "../src/ui";
 import {useSession} from "../src/session";
 import {S,T} from "../src/theme";
+import {useLanguage} from "../src/i18n";
 export default function AuthScreen(){
+ const {t,isRTL}=useLanguage();const align=isRTL?"right":"left";
  const {login,register}=useSession();
  const [mode,setMode]=useState<"login"|"register">("login");
  const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[firstName,setFirstName]=useState(""),[lastName,setLastName]=useState("");
@@ -13,21 +15,21 @@ export default function AuthScreen(){
   if(busy)return;setBusy(true);setError("");setNotice("");
   try{
    if(mode==="login"){const result=await login(email,password);router.replace(result.mfaRequired?"/mfa":"/(tabs)/profile");}
-   else{const message=await register({email,password,firstName,lastName});setMode("login");setNotice(message);setPassword("");}
-  }catch(e){setError(e instanceof Error?e.message:"Unable to contact server.");}
+   else{await register({email,password,firstName,lastName});setMode("login");setNotice(t("account.registered"));setPassword("");}
+  }catch{setError(t("account.authFailed"));}
   finally{setBusy(false);}
  };
- return <Shell><Head eyebrow="IDENTITY · SECURE ACCESS" title={mode==="login"?"Welcome back.":"Join our community."} subtitle="Personal information stays protected and private."/>
+ return <Shell><Head eyebrow={t("account.authEyebrow")} title={mode==="login"?t("account.welcome"):t("account.join")} subtitle={t("account.private")}/>
  <Card style={{gap:16}}>
-  {mode==="register"?<><Field label="First name" value={firstName} onChange={setFirstName}/><Field label="Last name" value={lastName} onChange={setLastName}/></>:null}
-  <Field label="Email" value={email} onChange={setEmail} keyboardType="email-address"/>
-  <Field label="Password" value={password} onChange={setPassword} secure/>
-  {mode==="register"?<Text style={S.muted}>Use at least 12 characters. An email verification link will be sent if email delivery is configured.</Text>:null}
-  {error?<Text accessibilityRole="alert" style={{color:T.danger}}>{error}</Text>:null}
-  {notice?<Text style={{color:T.success}}>{notice}</Text>:null}
-  <Action label={mode==="login"?"Sign in":"Create account"} loading={busy} onPress={()=>void submit()}/>
-  <Action label={mode==="login"?"Create a member account":"I already have an account"} secondary onPress={()=>{setError("");setMode(mode==="login"?"register":"login")}}/>
-  <Action label="Forgot password?" secondary icon="lock-reset" onPress={()=>router.push("/recover")}/>
-  <Action label="Back to community" secondary icon="arrow-left" onPress={()=>router.back()}/>
+  {mode==="register"?<><Field label={t("account.firstName")} value={firstName} onChange={setFirstName}/><Field label={t("account.lastName")} value={lastName} onChange={setLastName}/></>:null}
+  <Field label={t("account.email")} value={email} onChange={setEmail} keyboardType="email-address"/>
+  <Field label={t("account.password")} value={password} onChange={setPassword} secure/>
+  {mode==="register"?<Text style={[S.muted,{textAlign:align}]}>{t("account.passwordHelp")}</Text>:null}
+  {error?<Text accessibilityRole="alert" style={{color:T.danger,textAlign:align}}>{error}</Text>:null}
+  {notice?<Text style={{color:T.success,textAlign:align}}>{notice}</Text>:null}
+  <Action label={mode==="login"?t("account.signIn"):t("account.create")} loading={busy} onPress={()=>void submit()}/>
+  <Action label={mode==="login"?t("account.createMember"):t("account.haveAccount")} secondary onPress={()=>{setError("");setMode(mode==="login"?"register":"login")}}/>
+  <Action label={t("account.forgot")} secondary icon="lock-reset" onPress={()=>router.push("/recover")}/>
+  <Action label={t("account.community")} secondary icon={isRTL?"arrow-right":"arrow-left"} onPress={()=>router.back()}/>
  </Card></Shell>;
 }

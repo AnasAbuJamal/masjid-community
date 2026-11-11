@@ -177,7 +177,7 @@ try {
  assert.equal(finance.status,200);
  assert.ok(!finance.data.payments.some(x=>x.id===foreignDonation.id),"foreign paid record absent from finance totals");
  const foreignVolunteerDecision=await request("admin","POST",{
-  kind:"volunteer-decision",applicationId:foreignApplication.id,decision:"approved"
+  kind:"volunteer-decision",applicationId:foreignApplication.id,decision:"approved",reason:"Synthetic scoped volunteer eligibility review"
  },adminToken);
  assert.equal(foreignVolunteerDecision.status,404,"steward cannot decide foreign volunteer application");
  assert.equal((await db.volunteerApplication.findUniqueOrThrow({where:{id:foreignApplication.id}})).status,"submitted");
@@ -239,7 +239,7 @@ try {
   opportunityId_userId:{opportunityId:localOpportunity.id,userId:member.id}
  }});
  const reviewed=await request("admin","POST",{
-  kind:"volunteer-decision",applicationId:localVolunteerApp.id,decision:"approved"
+  kind:"volunteer-decision",applicationId:localVolunteerApp.id,decision:"approved",reason:"Synthetic scoped volunteer eligibility review"
  },adminToken);
  assert.equal(reviewed.status,201,"steward may approve local volunteer application");
  const scheduled=await request("admin/shifts","POST",{

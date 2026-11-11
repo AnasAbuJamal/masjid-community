@@ -1,10 +1,13 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 export const T={
  bg:"#F7FBFF",card:"#FFFFFF",ice:"#EAF6FF",blue:"#287FCB",deep:"#15588E",
  ink:"#122B43",muted:"#526B7D",line:"#D7EAF8",soft:"#F0F9FF",
  success:"#177550",danger:"#BD3040",white:"#FFFFFF",
 };
+// Native layout units are points on iOS and dp on Android.
+export const minimumTouchTarget=Platform.OS==="ios"?44:48;
 export const S=StyleSheet.create({
+ controlTarget:{minWidth:minimumTouchTarget,minHeight:minimumTouchTarget},
  screen:{flex:1,backgroundColor:T.bg},
  body:{paddingHorizontal:21,paddingTop:24,paddingBottom:36,gap:20},
  overline:{fontSize:11,letterSpacing:2.3,color:T.deep,fontWeight:"800"},

@@ -24,7 +24,7 @@ export async function GET(req:NextRequest){
         select:{classSection:{select:{name:true}}}}}}}}):Promise.resolve([]),
     mayViewTeacherRosters(user.role)?db.teacherAssignment.findMany({where:{teacherId:user.id,classSection:{program:{organizationId:org.id}}},select:{classSection:{select:{id:true,name:true,schedule:true}}}}):Promise.resolve([]),
     db.rentalBooking.findMany({where:{userId:user.id,resource:{organizationId:org.id}},take:25,orderBy:{startAt:"desc"},select:{id:true,status:true,startAt:true,endAt:true,resource:{select:{title:true}}}}),
-    db.volunteerApplication.findMany({where:{userId:user.id,opportunity:{organizationId:org.id}},take:25,select:{id:true,status:true,opportunity:{select:{title:true}}}}),
+    db.volunteerApplication.findMany({where:{userId:user.id,opportunity:{organizationId:org.id}},take:25,select:{id:true,status:true,decisionReason:true,reviewedAt:true,opportunity:{select:{title:true}}}}),
     db.jobApplication.findMany({where:{userId:user.id,job:{organizationId:org.id}},take:25,select:{id:true,status:true,job:{select:{title:true}}}}),
     // Upcoming commitments are own-identity, tenant-bound, verified published
     // gatherings or scheduled service shifts. A waitlist is never confirmed.

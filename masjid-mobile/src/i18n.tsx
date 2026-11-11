@@ -1,8 +1,12 @@
+import {givingWords} from "./i18n-giving";
+import {accountWords} from "./i18n-account";
 import React,{createContext,useCallback,useContext,useEffect,useMemo,useState} from "react";
 import * as SecureStore from "expo-secure-store";
 export type Language="en"|"ar";
 const storageKey="masjid.community.language";
 const words={
+ ...givingWords,
+ ...accountWords,
  "venue.choose":{en:"Switch prayer venue",ar:"غيّر المسجد"},
  "venue.current":{en:"Selected venue",ar:"المسجد المحدد"},
  "venue.missing":{en:"Could not load venues",ar:"تعذر تحميل المساجد"},
@@ -474,10 +478,10 @@ const words={
  "settings.sessionError":{en:"Could not revoke that session.",ar:"تعذر إلغاء تلك الجلسة."},
  "settings.selfRevokeTitle":{en:"Sign out this device?",ar:"هل تريد تسجيل الخروج من هذا الجهاز؟"},
  "settings.selfRevokeBody":{en:"This ends your current session, clears the saved sign-in and hides private screens. You will need to sign in again.",ar:"ستنتهي جلستك الحالية ويُحذف تسجيل الدخول المحفوظ وتُخفى الشاشات الخاصة. ستحتاج إلى تسجيل الدخول مجددًا."},
- "settings.mosquePolicy":{en:"Switch only between active, verified memberships. At another mosque, approved worship schedules, venues, faith notices, gatherings and RSVPs work alongside your dashboard, inbox and email preferences. Other private features remain unavailable.",ar:"يمكنك التبديل فقط بين العضويات النشطة والموثقة. تتوفر جداول الصلاة المنشورة والمساجد والمناسبات الدينية المعتمدة والتجمعات وحجوزاتها ولوحة حسابك ورسائلك وتفضيلات البريد. الميزات الخاصة الأخرى غير متاحة بعد."},
+ "settings.mosquePolicy":{en:"Switch only between active, verified memberships. At another mosque, approved worship schedules, venues, faith notices, gatherings and RSVPs work alongside your dashboard, inbox, email preferences and your own data export with password confirmation. Other private features remain unavailable.",ar:"يمكنك التبديل فقط بين العضويات النشطة والموثقة. تتوفر جداول الصلاة المنشورة والمساجد والمناسبات الدينية المعتمدة والتجمعات وحجوزاتها ولوحة حسابك ورسائلك وتفضيلات البريد وتصدير بياناتك الخاصة بعد تأكيد كلمة المرور. الميزات الخاصة الأخرى غير متاحة بعد."},
  "settings.mosqueSwitch":{en:"Switch to this mosque",ar:"التبديل إلى هذا المسجد"},
  "settings.mosqueCurrent":{en:"Current mosque",ar:"المسجد الحالي"},
- "settings.mosqueLimited":{en:"Limited member access · worship, faith notices, gatherings and RSVPs, dashboard, inbox and preferences only.",ar:"وصول محدود للعضو · الصلاة والمناسبات الدينية والتجمعات والحجوزات ولوحة الحساب والرسائل والتفضيلات فقط."},
+ "settings.mosqueLimited":{en:"Limited member access · worship, faith notices, gatherings and RSVPs, dashboard, inbox, preferences and your own password-confirmed data export.",ar:"وصول محدود للعضو · الصلاة والمناسبات الدينية والتجمعات والحجوزات ولوحة الحساب والرسائل والتفضيلات وتصدير بياناتك الخاصة بعد تأكيد كلمة المرور."},
  "settings.mosqueSelected":{en:"Mosque switched. Private screens are loading fresh data.",ar:"تم تغيير المسجد. يجري تحميل البيانات الخاصة من جديد."},
  "settings.mosqueSwitchError":{en:"Could not switch mosques.",ar:"تعذر تغيير المسجد."},
  "settings.mosqueRevoked":{en:"The selected mosque membership is no longer active. Choose an active mosque.",ar:"عضوية المسجد المحدد لم تعد نشطة. اختر مسجدًا نشطًا."},
